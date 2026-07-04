@@ -1,98 +1,92 @@
-# Handoff: Phase 2 Kickoff — Reconcile Audit & Start Configuration Catalog
+# Handoff: Work Unit 4 — Test Fixture Catalog (Session 1 draft complete)
 
-**Generated**: 2026-06-07
-**Branch**: main
-**Status**: Ready to resume (planning session — no code written)
+**Generated**: 2026-06-30
+**Branch**: main (both repos)
+**Status**: Ready for Review — WU4 Session-1 draft committed; awaiting Kyle's answers on the combined review brief before Work Unit 5 begins.
 
 ## Goal
 
-Move TallyUtility from "invariants complete + domain-expert audited" into **Phase 2 = Work Unit 2 (the configuration catalog)**, the first step of the configurable-rules → scenarios pipeline. A parallel tech-stack discussion runs alongside it in a separate session.
+Execute **Work Unit 4** of `gas-billing-memory/application/execution-kickoff.md` = **Session 1** of the fixture-catalog strategy: produce `application/test-fixtures/` — the canonical, synthetic, Texas-only named entities (tenants, customers, cities, meters, rate schedules, …) every scenario references by ID, so config values don't drift across the scenario corpus. Prerequisite for scenario-writing (WU5+).
 
 ## Orientation (read first)
 
-The authoritative project state is **NOT in this repo**. It lives in:
-
-```
-/Users/ryanscomputer/code/gas-billing-memory/
-```
-- `CONTEXT.md` — current phase, locked + pending decisions
-- `application/execution-kickoff.md` — the 12-work-unit sequence (Work Unit 1 done; Work Unit 2 is next)
-- `application/canonical-invariants.md` — 135 invariants (CI-001–CI-135)
-- `application/invariants/gap-analysis-v5.2.1.md` — Kyle Shaffer's schema audit
-- `application/configurable-rules-scenario-strategy.md` — the four-layer rules→scenarios methodology
-- `application/bi-temporal-decision.md` — bi-temporal decision (Postgres + linked snapshot table)
-
-The wiki also moved: now at `/Users/ryanscomputer/code/LLM-wiki/wiki/projects/tally-utility/` (the old `LLM-wiki/projects/TallyUtility/` path is gone).
+Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas-billing-memory/`, NOT this one. This repo (tally-utility) holds `sql/tu.sql` (canonical schema) + these handoff/discussion docs. Key files in gas-billing-memory:
+- `application/test-fixtures/` — **the WU4 deliverable** (committed `c554c69`; review brief `8b46ea2`)
+- `application/test-fixtures/session-1-review-brief.md` — **the Kyle-facing ask** (fixture A1–A8 + gating invariant Qs)
+- `application/test-fixtures/session-1-recon.md` — dense recon: coverage, structural findings, DE-FX-1..9
+- `application/test-fixture-catalog-strategy.md` — the governing spec for this work unit
+- `application/execution-kickoff.md` — the 12-work-unit sequence (WU1–4 ✅; **WU5 = Method 1 per-invariant scenarios next**)
 
 ## Completed (this session)
 
-- [x] Reviewed `gas-billing-memory` state. Domain expert is **Kyle Shaffer** (`kyle.shaffer@centric-us.com`); his entire contribution is one commit, `dcc4f67` (2026-05-29), "Audit close-out v5.2.1."
-- [x] Characterized Kyle's audit: `gap-analysis-v5.2.1.md` (1,347 lines) audits all 17 invariant families vs. the v5.2.1 schema; surfaced **40 "doc drift" findings** (mostly the doc *underselling* what the schema enforces; a few real gaps + wrong table names).
-- [x] Confirmed Kyle resolved **3 flagged questions** — Q-2 (ledger running_balance → stamp-at-insert), Q-11 (tenant read-isolation → RLS), Q-13 (NEW: multi-program enrollment → `customer_program_enrollments` + `program_types`). **10 still open**: Q-1, Q-3, Q-4, Q-5, Q-6, Q-7, Q-8, Q-9, Q-10, Q-12.
-- [x] Agreed the build methodology (see Key Decisions).
-- [x] Created `TECH-STACK-DISCUSSION.md` (repo root) — pickup doc for the parallel tech-stack thread.
-- [x] Corrected a false premise about the schema (see Failed Approaches).
+- [x] **Resumed WU3 handoff, checked drift:** found Kyle had resolved DE-8..11 (`gas-billing-memory bea5e17`) since the handoff was written — gate cleared.
+- [x] **Reconciliation pass** (`gas-billing-memory f523b06`): threaded action #36 (§7.45 medical semantics) inline into inventory clusters 45/46 (was only in the Part 4/5 audit); bumped stale date; backfilled wiki-ingestion log Section C (WU2-review→WU3→DE-8..11 history).
+- [x] **WU4 fixture catalog** (`gas-billing-memory c554c69`): 11 files, **87 fixtures**, Texas-only. jurisdictions (FIX-JUR-001..003), customer-classes (FIX-CLASS-001..006), programs (FIX-PGM-001..011, v5.4 enum), cities (FIX-CITY-001..009), tenants (FIX-T-001..006), franchise-agreements (FIX-FA-001..007), rate-schedules (FIX-RS-001..014), customers (FIX-C-001..012), service-locations (FIX-SL-001..012), meters (FIX-M-001..008), accounts (structural note). Config values pulled from the Layer-1 config-catalog + `tu.sql` (not invented).
+- [x] **Cross-reference verification walk — clean** (no dangling refs, no orphans; fixed one typo FIX-CLASS-007→006).
+- [x] **Richer franchise coverage** (per Ryan): added Hill Country Gas Cooperative (2nd multi-city operator) + 3 cities + 3 franchise agreements.
+- [x] **Combined Kyle review brief** (`gas-billing-memory 8b46ea2`): fixture questions A1–A8 + gating invariant questions; logged D14.
+- [x] **wiki-ingestion-pending.md** updated with Sections C (C1–C5) and D (D1–D14).
 
 ## Not Yet Done
 
-- [ ] **Fold the 3 domain-level findings into the canonical invariants** — CI-064 (multi-program composition is *required*; single-column model can't represent it), CI-037 (transport-vs-sales is convention not structure), and confirm the Q-13 `customer_program_enrollments` model is reflected. (In `gas-billing-memory/application/canonical-invariants.md`.)
-- [ ] **Open Work Unit 2 — configuration catalog.** Create `gas-billing-memory/application/configurable-rules/configuration-catalog.md` and run the Layer 1 inventory per `configurable-rules-scenario-strategy.md`. (Expect 2–3 conversations with a `session-1-recon` checkpoint.)
-- [ ] **Tech-stack discussion** (separate session) — work the axes in `TECH-STACK-DISCUSSION.md`; resolve the tariff-engine architecture axis first.
-- [ ] **(Deferred to schema-hardening)** De-Supabase: swap `auth.uid()` in two function bodies; ~37 annotation-level drift fixes from Kyle's audit; close schema gaps A-1–A-21; write the referenced-but-nonexistent v5.3/v5.4 patches.
+- [ ] **Kyle answers the review brief** (`session-1-review-brief.md`) — the gate. Headline: **A1 (§182.025 2% franchise cap)**.
+- [ ] **Fold answers into the catalog** — if A1 flips (franchise > 2% allowed), sweep the tagged rates; finalize.
+- [ ] **Work Unit 5 — Method 1 per-invariant scenario docs** (`application/invariant-scenarios/<invariant>.md`) — references these fixtures by ID. Itself gated by the invariants' remaining flagged-question review (folded into the same brief, Part B).
 
 ## Failed Approaches (Don't Repeat These)
 
-- **"Locate the de-Supabased v5.2.1 schema dump Kyle audited."** I asserted Kyle audited a separate, cleaned schema (because his audit quotes RLS wrappers `get_user_tenant_id()` / `is_platform_admin()` while `tu.sql` shows raw `auth.uid()`) and made "find that dump" a blocker for Phase 2. → **Mechanism of error:** misread two layers of the *same* file as two different files. `tu.sql` *defines* those wrapper functions (lines ~535 and ~570) and their bodies call `auth.uid()`. RLS policies call the wrappers, not `auth.uid()` directly. → **Reality:** `tu.sql` v5.2.1 IS the single canonical schema Kyle audited. There is no second dump. The config catalog builds directly against `tu.sql`.
-- **Note on phantom artifacts generally:** the docs reference a **v5.3** patch (CI-019 hardening) as if applied and a **v5.4** patch (enrollment redesign) as pending — *neither exists as SQL anywhere on disk*. Treat doc references to schema patches as aspirational until you find the `.sql`.
+- **None abandoned.** One research-contamination correction applied (see Warnings): the parallel grounding subagents repeated two errors already corrected in project canon (deposit interest as a "PUCT rate"; a "12-month" backbilling cap). Caught and corrected against the config-catalog/invariants before writing — do NOT trust fresh LLM research on Texas gas regulation over the DE-reviewed catalog.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| Specification-first (waterfall on the regulated "what") | Requirements are externally fixed by regulation (backbilling caps, WNA deadband, disconnect protections, PGA, subpoena-ready audit). Knowable up front → spec fully before building. Agile's "discover requirements by iterating" bet is wrong here. |
-| Iterate on the architectural "how" | Regulation fixes *what*, not *how* (tariff engine, snapshot shape, stack). Those stay empirical until a slice proves them. |
-| Vertical slice proves the format before mass production | Run the gas-pipeline spine (read→consumption→BTU/pressure→PGA→WNA→rate→immutable bill+snapshot) end-to-end first to validate scenarios→fixtures→tests→engine compose. Then fan out. Avoids re-formatting 350 features of specs. |
-| Fixtures derive from scenarios, never from the engine | Fixtures derived from code are circular (a bug baked into both sides can't be caught). Content comes from the scenario/spec; the slice only teaches the fixture *format/shape*. |
-| Most drift reconciliation deferred | The config catalog reads schema + feature list directly (invariants only a *soft* prerequisite), so the ~37 annotation-level drift items are low-risk for Work Unit 2 and ride with schema hardening. Only the 3 domain-level findings fold in now. |
-| Next step is Work Unit 2, not scenarios directly | Per `execution-kickoff.md`: config catalog (Layer 1) → decision tables (L2) → workflows (L3) → fixture catalog → scenarios (L4). Scenarios are the *last* layer, not simultaneous with rules. |
+| DE-FX-1: assume §182.025 = 2% franchise cap (all `fee_percentage` ≤ 2%) | Per Ryan, proceed on the config-catalog reading; every rate tagged `# DE-FX-1` so reversal is a one-file sweep. Nothing downstream consumes rates until WU5. |
+| Ground to schema enums, not the strategy's lists | 7-value class enum (DE-6) over the strategy's 5 (transport = service-type, not a class); v5.4 `program_types` (11) over the strategy's 9-item program list. Schema/catalog are authoritative. |
+| 5 entity types are reference fixtures (no schema columns) | jurisdictions, customer-classes, programs, cities, tax_jurisdictions have no backing table (invariants gaps A-8/A-14; v5.4 pending). Modeled as enumeration fixtures grounded in regulatory/catalog material, not `tu.sql` columns. |
+| No `accounts.md` fixtures — structural note only (DE-FX-9) | No `accounts` table exists: account = `customers.customer_number` + `service_locations`; balance-state is ledger seed (per-scenario transactions), not a fixture attribute. |
+| Only IOU + Hill Country co-op pay franchise fees | A municipal utility serving its own city pays no franchise fee (it *is* the city); the environs-only co-op has no city. Added a 2nd multi-city operator (per Ryan) for richer coverage. |
 
 ## Current State
 
-**Working**: All planning artifacts in `gas-billing-memory` are intact and committed (last commit `dcc4f67`, Kyle's audit). `tu.sql` v5.2.1 is the canonical schema.
-**Broken**: Nothing functional (no app code exists yet).
-**Uncommitted changes (this repo)**: `HANDOFF.md` (this rewrite), `sql/tu.sql` (the `auth.users` FK already removed in a prior uncommitted edit), and untracked `CONTEXT.md`, `TECH-STACK-DISCUSSION.md`, `application/`, `.idea/`. `gas-billing-memory` has no uncommitted changes.
+**Working**: Full WU4 catalog committed and internally consistent (cross-ref walk clean). Reconciliation + review brief committed. gas-billing-memory HEAD = `8b46ea2`.
+**Broken**: Nothing — no application code exists yet.
+**Uncommitted changes**: In `tally-utility`: `HANDOFF.md` (this rewrite), `CHANGELOG.md` (new entry), `TECH-STACK-DISCUSSION.md` (pre-existing, parallel thread). In `gas-billing-memory`: only `Clippings/` untracked.
 
 ## Code Context
 
-De-Supabasing surface (deferred, but this is the whole of it) — `sql/tu.sql`:
-```sql
--- line ~535
-CREATE FUNCTION public.get_user_tenant_id() RETURNS uuid
-    LANGUAGE sql STABLE SECURITY DEFINER
-    AS $$ SELECT tenant_id FROM users WHERE id = auth.uid() $$;
-
--- line ~570
-CREATE FUNCTION public.is_platform_admin() RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER
-    AS $$ SELECT EXISTS(SELECT 1 FROM users WHERE id = auth.uid() AND role = 'platform_admin') $$;
+Fixture entry shape (YAML-in-markdown), one file per entity type, grouped by parent:
 ```
-Swap `auth.uid()` → e.g. `current_setting('app.current_user_id')::uuid`. Plus restore a `users.id` default (Supabase managed it externally) and the `auth.users` FK is already removed.
-
-Pending decisions still open in `gas-billing-memory/CONTEXT.md`: GTM sub-band, tax engine (build vs Avalara/Vertex), **tariff engine approach (data-driven / DSL / scripting)** — the last is the one most coupled to the tech stack.
+id: FIX-<TYPE>-###      # stable, permanent; scenarios reference this
+name: <human label>
+attributes: { <schema columns, values pulled from config-catalog/tu.sql> }
+variation_axes_exercised: [...]     # why this fixture exists
+cross_references: [FIX-...: relationship]
+source: { config_catalog:[], kb_files:[], invariants:[CI-###], regulatory:[] }
+valid_from / valid_to / recorded_at / supersedes    # bi-temporal
+```
+DE-FX-1 reversal mechanism (if Kyle says franchise can exceed 2%):
+```bash
+grep -rn "# DE-FX-1" application/test-fixtures/franchise-agreements.md   # every rate to revisit
+```
+Cross-reference verification (re-run after any edit):
+```bash
+cd application/test-fixtures && grep -rhoE "^(id: |## |### )FIX-[A-Z]+-[0-9]+" *.md | grep -oE "FIX-[A-Z]+-[0-9]+" | sort -u > /tmp/d.txt
+grep -rhoE "FIX-[A-Z]+-[0-9]+" *.md | sort -u | comm -13 /tmp/d.txt -   # dangling refs
+```
 
 ## Resume Instructions
 
-1. Read `gas-billing-memory/CONTEXT.md` and `application/execution-kickoff.md`.
-   - Expected: confirms Work Unit 1 done, Work Unit 2 (config catalog) next.
-2. Fold the 3 domain findings into `gas-billing-memory/application/canonical-invariants.md` (CI-064, CI-037, Q-13 model).
-   - Expected: invariant statements reflect multi-program composition + transport/sales convention + enrollment model.
-3. Create `gas-billing-memory/application/configurable-rules/configuration-catalog.md` and start Layer 1 of `configurable-rules-scenario-strategy.md`, building against `tu.sql`.
-   - Expected: a configuration-surface inventory; will split across 2–3 sessions with a `session-1-recon` checkpoint.
-4. In a separate session, open `TECH-STACK-DISCUSSION.md` and work the axes (tariff engine first).
+1. **Check whether Kyle has answered `gas-billing-memory/application/test-fixtures/session-1-review-brief.md`** (inline answers or a new `*-answers` file).
+   - Expected: answers to A1–A8 + the Part B invariant questions.
+   - If not answered: the build is gated for *final* sign-off, but per the kickoff's cadence you MAY start WU5 on invariants whose framing is already locked. Nudge via the brief.
+2. **Once answered:** fold answers into the catalog. If **A1 flips**, `grep "# DE-FX-1"` and adjust franchise rates + the `-INC` rate-schedule notes. Update `README.md` change log + `session-1-recon.md` status.
+3. **Then Work Unit 5 (Method 1):** write `application/invariant-scenarios/<invariant-name>.md`, referencing fixtures by ID. Read the scenario-mapping-strategy + this catalog + the invariants doc first; state which invariant you're starting.
 
 ## Warnings
 
-- **Don't go hunting for a "de-Supabased schema dump" — it doesn't exist.** `tu.sql` is the one schema. (See Failed Approaches.)
-- **Don't treat v5.3/v5.4 as applied** — they're described in docs but have no SQL.
-- **RLS is load-bearing, not Supabase cruft to delete** — per Q-11 it's the chosen tenant-isolation mechanism. De-Supabasing means swapping the *auth source inside the wrappers*, not removing RLS.
-- This repo's old A→D "schema completion" plan is dead — superseded by `execution-kickoff.md`. Ignore any A–D references.
+- **Fixtures are a provisional draft.** Nine `DE-FX` judgment calls (esp. the 2% franchise) await Kyle. Franchise rates are tagged for cheap reversal; don't let scenario-writing (WU5) compute bills off them until A1 is confirmed.
+- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; the work artifacts live in `gas-billing-memory`.** Don't look for the fixtures in this repo.
+- **Don't trust fresh LLM research on Texas gas regulation over the DE-reviewed catalog** — it re-introduced "PUCT rate" and "12-month backbilling" errors this session (both corrected in `jurisdictions.md`).
+- **WU5 has its own gate:** the canonical-invariants doc says its remaining flagged questions (Q-1,3,4,5,6,7,8,9,10,12) must be reviewed before per-invariant scenario writing — folded into the same brief (Part B).
+- **Texas-only launch.** Multi-state is a deferred Layer-4 axis; don't let it leak into fixtures.
