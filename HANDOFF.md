@@ -1,92 +1,101 @@
-# Handoff: Work Unit 4 — Test Fixture Catalog (Session 1 draft complete)
+# Handoff: Work Unit 5 completion + Work Unit 6 Sessions 3A–3D (Configurable-Rules)
 
-**Generated**: 2026-06-30
+**Generated**: 2026-07-05
 **Branch**: main (both repos)
-**Status**: Ready for Review — WU4 Session-1 draft committed; awaiting Kyle's answers on the combined review brief before Work Unit 5 begins.
+**Status**: Ready for Review — WU5 fully complete (all 17 invariant families); WU6 Sessions 3A–3D complete (Domains 1–4 of the Sessions 3+ configurable-rules queue). Two consolidated Kyle review briefs awaiting answers before either work unit's next phase.
 
 ## Goal
 
-Execute **Work Unit 4** of `gas-billing-memory/application/execution-kickoff.md` = **Session 1** of the fixture-catalog strategy: produce `application/test-fixtures/` — the canonical, synthetic, Texas-only named entities (tenants, customers, cities, meters, rate schedules, …) every scenario references by ID, so config values don't drift across the scenario corpus. Prerequisite for scenario-writing (WU5+).
+Finish **Work Unit 5** (Method 1 per-invariant scenario docs, per `execution-kickoff.md`) — axes-of-variation drafts for all 17 canonical-invariant families — then begin **Work Unit 6** (Configurable-Rules Sessions 3+, one rule domain per session) per `cluster-and-workflow-inventory.md`'s Part 3 work queue.
 
 ## Orientation (read first)
 
 Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas-billing-memory/`, NOT this one. This repo (tally-utility) holds `sql/tu.sql` (canonical schema) + these handoff/discussion docs. Key files in gas-billing-memory:
-- `application/test-fixtures/` — **the WU4 deliverable** (committed `c554c69`; review brief `8b46ea2`)
-- `application/test-fixtures/session-1-review-brief.md` — **the Kyle-facing ask** (fixture A1–A8 + gating invariant Qs)
-- `application/test-fixtures/session-1-recon.md` — dense recon: coverage, structural findings, DE-FX-1..9
-- `application/test-fixture-catalog-strategy.md` — the governing spec for this work unit
-- `application/execution-kickoff.md` — the 12-work-unit sequence (WU1–4 ✅; **WU5 = Method 1 per-invariant scenarios next**)
+- `application/canonical-invariants.md` — 135 canonical invariants (CI-001–135) across 17 families; **status line and Flagged section were stale on Q-3 until this session fixed it (see Failed Approaches / Key Decisions)**
+- `application/invariant-scenarios/` — WU5 output: 15 Method-1 axes docs (all 17 families represented; Family 17's 4 residuals folded into 4 existing docs) + `wu5-axes-review-brief.md` (consolidated Kyle brief)
+- `application/configurable-rules/cluster-and-workflow-inventory.md` — the Sessions 3+ work queue (Part 3); governs WU6
+- `application/configurable-rules/decision-tables/` and `application/configurable-rules/workflows/` — WU6 output so far: 39 files across Sessions 3A–3D
+- `application/configurable-rules/wu6-decision-tables-review-brief.md` — consolidated Kyle brief for WU6
+- `application/configurable-rules/de-review-answers.md` — Kyle's resolved decisions (DE-1..7, plus later batches); cross-check this against `canonical-invariants.md`'s Flagged section before trusting the latter as current
+- `application/wiki-ingestion-pending.md` — Sections A–I; every file change this session is logged here with a wiki-ingestion target
+- `execution-kickoff.md` — the 12-work-unit sequence (WU1–4 ✅, WU5 ✅ this session, **WU6 in progress: Sessions 3A–3D ✅, 3E–3M remaining**)
 
 ## Completed (this session)
 
-- [x] **Resumed WU3 handoff, checked drift:** found Kyle had resolved DE-8..11 (`gas-billing-memory bea5e17`) since the handoff was written — gate cleared.
-- [x] **Reconciliation pass** (`gas-billing-memory f523b06`): threaded action #36 (§7.45 medical semantics) inline into inventory clusters 45/46 (was only in the Part 4/5 audit); bumped stale date; backfilled wiki-ingestion log Section C (WU2-review→WU3→DE-8..11 history).
-- [x] **WU4 fixture catalog** (`gas-billing-memory c554c69`): 11 files, **87 fixtures**, Texas-only. jurisdictions (FIX-JUR-001..003), customer-classes (FIX-CLASS-001..006), programs (FIX-PGM-001..011, v5.4 enum), cities (FIX-CITY-001..009), tenants (FIX-T-001..006), franchise-agreements (FIX-FA-001..007), rate-schedules (FIX-RS-001..014), customers (FIX-C-001..012), service-locations (FIX-SL-001..012), meters (FIX-M-001..008), accounts (structural note). Config values pulled from the Layer-1 config-catalog + `tu.sql` (not invented).
-- [x] **Cross-reference verification walk — clean** (no dangling refs, no orphans; fixed one typo FIX-CLASS-007→006).
-- [x] **Richer franchise coverage** (per Ryan): added Hill Country Gas Cooperative (2nd multi-city operator) + 3 cities + 3 franchise agreements.
-- [x] **Combined Kyle review brief** (`gas-billing-memory 8b46ea2`): fixture questions A1–A8 + gating invariant questions; logged D14.
-- [x] **wiki-ingestion-pending.md** updated with Sections C (C1–C5) and D (D1–D14).
+**Work Unit 5 (finished):**
+- [x] Drafted Families 14, 15, 16 (4 docs): `read-exception-handling-and-estimation.md`, `tenant-isolation-and-structural-integrity.md`, `account-lifecycle-mimo-and-final-bill.md`, `deposits-credits-and-operational-integrity.md`
+- [x] Family 17 fold-in pass: CI-132 (regulatory posture) → `mid-period-and-temporal-rate-selection.md`; CI-133 (transport eligibility) → `pga-and-commodity-pass-through.md`; CI-134 (batch absolute-baseline gate) → `read-exception-handling-and-estimation.md`; CI-135 (print-mail PII-breach) → `customer-communication-and-notice-discipline.md`
+- [x] Compiled `wu5-axes-review-brief.md` — consolidated, plain-language Kyle brief across all 17 families (Part A: new judgment calls; Part B: 9 still-open Q-numbers now mapped to specific blocking docs/axes; Part C: 2 doc-placement calls)
+- [x] **Found and fixed a stale cross-document status**: Q-3 (WNA deadband scoping) was resolved by Kyle on 2026-06-12 (`de-review-answers.md`, `wna-config-gaps`, action item #12) but `canonical-invariants.md` was never updated — its status line, Flagged section, and CI-041 all still said "open." Also corrected the two downstream docs that inherited the stale status (`weather-normalization.md`, and the WU5 review brief itself, which had incorrectly asked Kyle to re-answer it).
+
+**Work Unit 6 (Sessions 3A–3D of the Sessions 3+ queue):**
+- [x] Session 3A — Domain 1 (Reads, Validation & Estimation): 6 decision tables (clusters 1–6) + 6 workflows
+- [x] Session 3B — Domain 2 (Gas Measurement & Consumption): 4 decision tables (clusters 7–10) + 4 workflows
+- [x] Session 3C — Domain 3 (Rating & Tariff Engine): 9 decision tables (clusters 11–19) + 4 workflows — the queue's own largest single domain
+- [x] Session 3D — Domain 4 (PGA / WNA / Gas Cost Recovery): 3 decision tables (clusters 20–22) + 3 workflows
+- [x] Compiled `wu6-decision-tables-review-brief.md` — consolidated Kyle brief across all 39 files, with 4 flagged tensions in Part A (see Key Decisions)
+
+**Method used throughout:** parallel Explore-agent research (grounding facts, exact schema/catalog columns, named failure incidents) before drafting each table/workflow personally, to keep voice and rigor consistent — never delegated authorship, only research.
 
 ## Not Yet Done
 
-- [ ] **Kyle answers the review brief** (`session-1-review-brief.md`) — the gate. Headline: **A1 (§182.025 2% franchise cap)**.
-- [ ] **Fold answers into the catalog** — if A1 flips (franchise > 2% allowed), sweep the tagged rates; finalize.
-- [ ] **Work Unit 5 — Method 1 per-invariant scenario docs** (`application/invariant-scenarios/<invariant>.md`) — references these fixtures by ID. Itself gated by the invariants' remaining flagged-question review (folded into the same brief, Part B).
+- [ ] **Kyle answers `wu5-axes-review-brief.md` and `wu6-decision-tables-review-brief.md`** — both gates, same pattern as WU4's brief. Per the kickoff's cadence, drafting MAY continue in parallel on domains/families whose framing is already locked.
+- [ ] **Work Unit 6, Session 3E — Domain 5 (Taxes & Fees)**, clusters 23–26 (`tax-application-and-stacking`, `tax-exemption-eligibility`, `adhoc-charge-taxation`, `franchise-fee-application`) + workflows. Next in the Part 3 queue. This domain consumes Session 3C's settled rider stack and Session 3D's PGA output as its own inputs (per CI-100's canonical pipeline order).
+- [ ] Sessions 3F through 3M (billing run/corrections, pre-mail QA, delivery/comms, payments, programs, collections/disconnect/deposits, customer/account lifecycle, import/admin) — untouched.
+- [ ] Fold Kyle's answers into both briefs once received (especially WU6 Part A's 4 tensions, which block downstream sessions the most directly).
+- [ ] `git push` the 42 unpushed commits in `gas-billing-memory` — left local-only this session; wasn't asked to push.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **None abandoned.** One research-contamination correction applied (see Warnings): the parallel grounding subagents repeated two errors already corrected in project canon (deposit interest as a "PUCT rate"; a "12-month" backbilling cap). Caught and corrected against the config-catalog/invariants before writing — do NOT trust fresh LLM research on Texas gas regulation over the DE-reviewed catalog.
+- **Using the Agent tool with a placeholder prompt as a "wait for background task" mechanism**: tried calling `Agent({prompt: "placeholder", name: "waiter"})` repeatedly, intending only to pause and pick up a background-task notification on the next turn → this spawns a *real* agent that takes the literal text as its assignment, so it went and did unwanted investigative work (6 times, compounding) → **instead, just end the turn with a short text update and no tool call; the harness delivers background-task notifications automatically on the next turn regardless.** Had to send stand-down `SendMessage`s to all 6 spawned agents to stop them.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| DE-FX-1: assume §182.025 = 2% franchise cap (all `fee_percentage` ≤ 2%) | Per Ryan, proceed on the config-catalog reading; every rate tagged `# DE-FX-1` so reversal is a one-file sweep. Nothing downstream consumes rates until WU5. |
-| Ground to schema enums, not the strategy's lists | 7-value class enum (DE-6) over the strategy's 5 (transport = service-type, not a class); v5.4 `program_types` (11) over the strategy's 9-item program list. Schema/catalog are authoritative. |
-| 5 entity types are reference fixtures (no schema columns) | jurisdictions, customer-classes, programs, cities, tax_jurisdictions have no backing table (invariants gaps A-8/A-14; v5.4 pending). Modeled as enumeration fixtures grounded in regulatory/catalog material, not `tu.sql` columns. |
-| No `accounts.md` fixtures — structural note only (DE-FX-9) | No `accounts` table exists: account = `customers.customer_number` + `service_locations`; balance-state is ledger seed (per-scenario transactions), not a fixture attribute. |
-| Only IOU + Hill Country co-op pay franchise fees | A municipal utility serving its own city pays no franchise fee (it *is* the city); the environs-only co-op has no city. Added a 2nd multi-city operator (per Ryan) for richer coverage. |
+| Fixed the stale Q-3 status forward (updated `canonical-invariants.md` + 2 downstream docs) rather than leaving it | It was actively producing wrong output — the WU5 review brief was asking Kyle to re-answer something he'd resolved 3 weeks earlier. Caught mid-research for an unrelated session (3D's WNA table), not through a systematic check — flagged in both CHANGELOGs as a process gap worth addressing (a lighter-weight periodic reconciliation between `de-review-answers.md` and the Flagged section). |
+| Family 17's 4 residual invariants folded in one batched pass, after all 16 topic families existed, rather than incrementally | Every prior family's fold-in was deferred by design (all 16 prior docs noted the deferral); doing all 4 at once avoided drafting against still-changing predecessor docs, since each fold-in cross-references invariants living in its own home doc. |
+| WU6 tables/workflows: research-then-draft via parallel Explore agents, but authorship stayed manual (never delegated) | Same practice as WU5 — keeps voice, rigor, and cross-referencing consistent across 39+ files; agents supply grounding facts (exact schema columns, named incidents), not prose. |
+| 4 genuine tensions (PGA correction path; `pga-monthly-trueup`'s name; `prorate_tier_breakpoints` schema default vs. CI-108's stated invariant default; WNA floor/ceiling guard) flagged explicitly rather than resolved unilaterally | Each is a conflict between two sources that both look authoritative (an invariant statement vs. a named failure-mode description, or a schema default vs. an invariant's stated default) — picking a side without Kyle's input risks encoding a wrong assumption into 39 files' worth of downstream scenario-writing. |
 
 ## Current State
 
-**Working**: Full WU4 catalog committed and internally consistent (cross-ref walk clean). Reconciliation + review brief committed. gas-billing-memory HEAD = `8b46ea2`.
-**Broken**: Nothing — no application code exists yet.
-**Uncommitted changes**: In `tally-utility`: `HANDOFF.md` (this rewrite), `CHANGELOG.md` (new entry), `TECH-STACK-DISCUSSION.md` (pre-existing, parallel thread). In `gas-billing-memory`: only `Clippings/` untracked.
+**Working:** `gas-billing-memory` main branch, 42 commits ahead of `origin/main` (not pushed). All WU5 output (15 axes docs covering 17 families) and WU6 Sessions 3A–3D output (39 decision-table/workflow files) committed and internally consistent. Two consolidated Kyle review briefs exist, both awaiting answers.
+**Broken:** Nothing — no application code exists yet; this is all Layer 1–3 planning/decision-table documentation per the configurable-rules and invariant strategies.
+**Uncommitted changes:** In `tally-utility`: `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread — not touched this session), `HANDOFF.md` (this rewrite), `CHANGELOG.md` (new entry pending). In `gas-billing-memory`: only `Clippings/` untracked (pre-existing, not KB content).
 
 ## Code Context
 
-Fixture entry shape (YAML-in-markdown), one file per entity type, grouped by parent:
+No application code exists. The relevant "interfaces" are the two Layer-2/Layer-3 templates every WU6 file follows exactly (`application/configurable-rules-scenario-strategy.md`):
+
 ```
-id: FIX-<TYPE>-###      # stable, permanent; scenarios reference this
-name: <human label>
-attributes: { <schema columns, values pulled from config-catalog/tu.sql> }
-variation_axes_exercised: [...]     # why this fixture exists
-cross_references: [FIX-...: relationship]
-source: { config_catalog:[], kb_files:[], invariants:[CI-###], regulatory:[] }
-valid_from / valid_to / recorded_at / supersedes    # bi-temporal
+# Decision Table: <Name>
+**Cluster:** <name> (#N)  **Hit policy:** unique|first-match|priority|collect|rule-order
+**Catalog refs / Invariant refs / Pending decisions / KB refs**
+## Inputs | Outputs | Rules | Out of scope | Open questions | Test note
 ```
-DE-FX-1 reversal mechanism (if Kyle says franchise can exceed 2%):
-```bash
-grep -rn "# DE-FX-1" application/test-fixtures/franchise-agreements.md   # every rate to revisit
+
 ```
-Cross-reference verification (re-run after any edit):
-```bash
-cd application/test-fixtures && grep -rhoE "^(id: |## |### )FIX-[A-Z]+-[0-9]+" *.md | grep -oE "FIX-[A-Z]+-[0-9]+" | sort -u > /tmp/d.txt
-grep -rhoE "FIX-[A-Z]+-[0-9]+" *.md | sort -u | comm -13 /tmp/d.txt -   # dangling refs
+# Workflow: <Name>
+**Goal / Primary actor / Trigger / Preconditions / Postconditions (success, failure)**
+**Decision table refs / Catalog refs / Invariant refs / KB refs**
+## Main success scenario | Alternative flows | Exception flows | State transitions | Open questions | Test note
 ```
+
+Non-obvious logic: hit policies are not decorative — `collect` (multiple rules can co-fire, e.g. `read-vee-validation`) vs. `priority` (first-in-order wins on conflict, e.g. `gas-conversion-and-energy`'s residential-Fp-always-1.0 rule) vs. `rule-order` (a topological sort, not row-matching at all — `rate-item-dependency-ordering`) each imply different test-case shapes.
 
 ## Resume Instructions
 
-1. **Check whether Kyle has answered `gas-billing-memory/application/test-fixtures/session-1-review-brief.md`** (inline answers or a new `*-answers` file).
-   - Expected: answers to A1–A8 + the Part B invariant questions.
-   - If not answered: the build is gated for *final* sign-off, but per the kickoff's cadence you MAY start WU5 on invariants whose framing is already locked. Nudge via the brief.
-2. **Once answered:** fold answers into the catalog. If **A1 flips**, `grep "# DE-FX-1"` and adjust franchise rates + the `-INC` rate-schedule notes. Update `README.md` change log + `session-1-recon.md` status.
-3. **Then Work Unit 5 (Method 1):** write `application/invariant-scenarios/<invariant-name>.md`, referencing fixtures by ID. Read the scenario-mapping-strategy + this catalog + the invariants doc first; state which invariant you're starting.
+1. **Check whether Kyle has answered either review brief** (`application/invariant-scenarios/wu5-axes-review-brief.md` or `application/configurable-rules/wu6-decision-tables-review-brief.md`) — look for inline answers or a new `*-answers` file, per the `de-review-answers.md` precedent.
+   - Expected: answers to WU5's 9 remaining Q-numbers and WU6 Part A's 4 tensions.
+   - If not answered: proceed to Session 3E anyway per the kickoff's parallel-drafting cadence (same as this session did for WU5/WU6).
+2. **If continuing to Session 3E:** read `cluster-and-workflow-inventory.md` Domain 5 (clusters 23–26) + its workflow list. Use the same research-then-draft pattern: spawn parallel Explore agents for grounding (exact tax-stacking rules, franchise-fee mechanics, named failure incidents), then personally author each decision table and workflow file against `configurable-rules-scenario-strategy.md`'s templates.
+3. **Once Kyle's answers land:** fold them into the axes/tables — WU6 Part A's 4 tensions first, since they block the most downstream work (Sessions 3E+ all consume the settled rider/tax stack).
 
 ## Warnings
 
-- **Fixtures are a provisional draft.** Nine `DE-FX` judgment calls (esp. the 2% franchise) await Kyle. Franchise rates are tagged for cheap reversal; don't let scenario-writing (WU5) compute bills off them until A1 is confirmed.
-- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; the work artifacts live in `gas-billing-memory`.** Don't look for the fixtures in this repo.
-- **Don't trust fresh LLM research on Texas gas regulation over the DE-reviewed catalog** — it re-introduced "PUCT rate" and "12-month backbilling" errors this session (both corrected in `jurisdictions.md`).
-- **WU5 has its own gate:** the canonical-invariants doc says its remaining flagged questions (Q-1,3,4,5,6,7,8,9,10,12) must be reviewed before per-invariant scenario writing — folded into the same brief (Part B).
-- **Texas-only launch.** Multi-state is a deferred Layer-4 axis; don't let it leak into fixtures.
+- **Don't spawn an Agent with a placeholder prompt to "wait."** See Failed Approaches — it does real unwanted work instead.
+- **`canonical-invariants.md`'s Flagged section can drift from `de-review-answers.md`'s action items** — Q-3 just demonstrated this. Before treating any Q-number as "open," cross-check `de-review-answers.md` and `configuration-catalog.md` for a resolution that was never back-propagated.
+- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; all work artifacts live in `gas-billing-memory`.** Don't look for the decision tables, workflows, or invariant docs in this repo.
+- **The 4 flagged tensions are deliberate open questions, not authoring mistakes** — don't resolve them unilaterally in a future session; they're waiting on Kyle specifically because both sides have textual support.
+- **Texas-only launch** remains the scope discipline throughout WU6, same as WU5 — sewer billing and government/wholesale customer classes are flagged as likely-out-of-scope-for-v1 in Sessions 3B/3C but not yet formally deferred (unlike Q-12's transport-balancing/submetering/multi-commodity, which already has a tracked deferral).

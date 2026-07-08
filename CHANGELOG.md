@@ -4,6 +4,43 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-07-05 — Session: Work Unit 5 completion (Families 14–17) + Work Unit 6 Sessions 3A–3D (Configurable-Rules)
+
+**Status:** WU5 (Method 1 per-invariant scenario docs) is now fully complete — all 17 canonical-invariant families represented across 15 docs. WU6 (Configurable-Rules Sessions 3+) is underway — Sessions 3A through 3D done (Domains 1–4 of 13). Two consolidated Kyle review briefs compiled and awaiting answers. No application code written.
+
+### Done
+- **Finished WU5:** drafted axes-of-variation docs for Families 14 (`read-exception-handling-and-estimation.md`), 15 (`tenant-isolation-and-structural-integrity.md`), and 16 (`account-lifecycle-mimo-and-final-bill.md` + `deposits-credits-and-operational-integrity.md`), then ran the **Family 17 fold-in pass**: CI-132 (regulatory posture) into the Family 13 doc, CI-133 (transport eligibility) into the Family 4 doc, CI-134 (batch absolute-baseline mass-error gate) into the Family 14 doc, CI-135 (print-mail PII-breach classification) into the Family 12 doc — closing the deferral every one of the prior 13 family docs had explicitly left open.
+- **Compiled `wu5-axes-review-brief.md`** (`gas-billing-memory c042493`): a consolidated, plain-language Kyle-facing brief spanning all 17 families, built by having 5 parallel research agents extract "Next steps" judgment calls from the docs not already in working context, then synthesizing directly. Part A: new judgment calls by family. Part B: the 10 still-open Q-numbers from the WU4 brief, now mapped to the exact doc/axis each blocks. Part C: 2 doc-placement calls.
+- **Started and progressed WU6** (Configurable-Rules Sessions 3+, one rule domain per session, per `cluster-and-workflow-inventory.md`'s Part 3 queue) — the first work on this track since the WU3 scoping session:
+  - **Session 3A** (Domain 1: Reads, Validation & Estimation) — 6 decision tables (clusters 1–6) + 6 workflows (`gas-billing-memory b0f87fd`).
+  - **Session 3B** (Domain 2: Gas Measurement & Consumption) — 4 decision tables (clusters 7–10) + 4 meter-lifecycle workflows (`d830ddd`).
+  - **Session 3C** (Domain 3: Rating & Tariff Engine) — 9 decision tables (clusters 11–19, the queue's own largest single domain) + 4 workflows (`2f2bc23`).
+  - **Session 3D** (Domain 4: PGA / WNA / Gas Cost Recovery) — 3 decision tables (clusters 20–22) + 3 workflows (`4c97fbf`).
+  - Method: for each session, dispatched 3–4 parallel Explore-agent research tasks to ground the drafting (exact schema/catalog column names, named real-world failure incidents, statutory values) before personally authoring every table and workflow file — research was delegated, authorship never was, to keep voice and cross-referencing consistent across 39 files.
+- **Compiled `wu6-decision-tables-review-brief.md`** (`1c58a37`): the same consolidated-brief treatment applied to all 39 WU6 files, synthesized directly from the session's own work (no new research needed). Leads with 4 genuine tensions between two sources that both look authoritative, rather than picking a side silently.
+- **Found and corrected a stale cross-document status**: `canonical-invariants.md`'s status line and Flagged section still listed Q-3 (WNA deadband scoping) as open, but `de-review-answers.md` shows Kyle resolved it on 2026-06-12 — the invariants-doc update was the action item itself and it never happened. Fixed `canonical-invariants.md` (Q-3 entry, CI-041 upgraded medium→high confidence, top status line), `weather-normalization.md` (the WU5 Family 5 doc, which had inherited the stale status), and `wu5-axes-review-brief.md` (which had incorrectly asked Kyle to re-answer something he'd already resolved three weeks earlier).
+
+### Decisions (and the "why NOT")
+- **Family 17's 4 residual invariants folded in one batched pass**, only after all 16 topic families existed. NOT done incrementally as each home doc was drafted, because every fold-in cross-references invariants living in its own home doc — batching avoided rework against still-changing predecessors.
+- **The stale Q-3 status was fixed forward**, not left as a note for Kyle to sort out. NOT leaving it, because it was actively producing wrong output — the WU5 brief was asking Kyle to re-answer a question already closed three weeks prior. It surfaced by accident (mid-research for Session 3D's WNA table), which both CHANGELOGs flag as a process gap worth a lighter-weight periodic reconciliation check.
+- **WU6's 4 genuine tensions (PGA correction path — cancel-rebill vs. deferred-account; `pga-monthly-trueup`'s possibly-wrong name; the `prorate_tier_breakpoints` schema default contradicting CI-108's own stated invariant default; whether the WNA adjustment needs a floor/ceiling guard) were surfaced explicitly, not resolved unilaterally.** NOT picking a side, because each pits an invariant statement against a named failure-mode description (or a schema default against its governing invariant) with textual support on both sides — a wrong unilateral call would propagate into every downstream scenario derived from these 39 files.
+- **Research delegated to parallel Explore agents; authorship was not.** NOT having agents draft the tables/workflows directly, to keep the voice, rigor, and cross-referencing density consistent with the 15 WU5 docs already establishing that pattern.
+
+### Errors caught & resolved (process note, not a code bug)
+- **Accidental Agent spawns while waiting on background research.** Used `Agent({prompt: "placeholder"})` several times intending only to trigger a wait-and-resume, which instead spawned 6 real agents that took the literal placeholder text as their assignment and began investigating on their own. Caught immediately; sent stand-down messages to all 6 via `SendMessage`. No output from any of them was used. Lesson recorded in `HANDOFF.md`: end the turn with a text-only update instead — background-task notifications arrive automatically on the next turn without needing a tool call to "wait."
+
+### Open questions for Kyle
+- **WU5** (`wu5-axes-review-brief.md`): 9 remaining Q-numbers (Q-1, Q-4–Q-10, Q-12), each now mapped to the specific doc/axis it blocks — headline items are Q-10 (consecutive-estimate counter shape, the single most load-bearing open item across both work units) and Q-6 (Texas disconnect bypass-set completeness, incl. family-violence).
+- **WU6** (`wu6-decision-tables-review-brief.md`): the 4 Part-A tensions above are the priority; Parts B–E cover per-session schema gaps (no `meter_skip_reason`/tamper-flag/pressure-class columns exist yet) and scope questions (is sewer billing or government/wholesale rating actually in v1 scenario scope?).
+
+### Next step
+Kyle answers both briefs → fold answers in, starting with WU6's 4 tensions since they block the most downstream work → **Session 3E (Domain 5: Taxes & Fees, clusters 23–26)**, which consumes Session 3C's settled rider stack and Session 3D's PGA output as its own inputs per the canonical billing-pipeline order (CI-100). Sessions 3F–3M remain after that.
+
+### Repo state
+No commits in `tally-utility` this session; uncommitted here: `HANDOFF.md` (full rewrite), `CHANGELOG.md` (this entry), `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread, untouched this session). In `gas-billing-memory`: 15 commits this session (WU5 completion: `0cb783d`, `78035fb`, `23a4ee0`, `0c71016`, `0a4eb05`, `02f1593`, `9070bdb`, `e5a3370`, `c042493`, `3de7242`; WU6 + correction: `b0f87fd`, `84022ae`, `d830ddd`, `594a86f`, `2f2bc23`, `61fa175`, `e3d9536`, `6d5fca6`, `4c97fbf`, `a1faea2`, `1c58a37`, `42f36c9`); HEAD = `42f36c9`; 42 commits ahead of `origin/main`, not pushed; only `Clippings/` untracked.
+
+---
+
 ## 2026-06-30 — Session: Work Unit 4 — test fixture catalog (Session 1 draft) + DE-8..11 reconciliation
 
 **Status:** WU4 Session-1 draft complete and committed in `gas-billing-memory`; awaiting Kyle's answers on a combined review brief before Work Unit 5 (per-invariant scenarios). No application code written.
