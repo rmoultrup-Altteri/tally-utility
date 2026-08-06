@@ -34,7 +34,8 @@ Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas
 - [ ] **Sessions 3G through 3M** — pre-mail QA (33–35), delivery/comms (36–38), payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3G is next.**
 - [ ] **Two workflows deferred from 3F into 3G:** `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. Part 2 files both under pre-mail/correction, but pre-delivery correction is a different operation from void/rebill and belongs with the pre-mail QA cluster set.
 - [ ] **Kyle answers `wu6-sessions-3e-3f-review-brief.md`** — compiled this session and awaiting him, same gate as the three prior briefs. Nothing blocks Session 3G; Part A's four items block Layer-4 scenario-writing on Domains 5–6 and the schema-hardening each implies. Per the kickoff's cadence, drafting continues in parallel.
-- [ ] `git push` — `gas-billing-memory` is now **47 commits ahead of origin/main**, still local-only. Never been asked to push.
+- [x] ~~`git push`~~ — **done 2026-08-06**: `gas-billing-memory` pushed (`efe6f0e..fd16cc2`), now level with `origin/main`. **Correction worth carrying forward:** the "42 unpushed commits" figure from the 2026-07-05 handoff was stale and had been propagated forward unverified across several sessions — everything through `efe6f0e` was already on origin, and only 4 commits actually needed pushing. Verify with `git rev-list --left-right --count origin/main...HEAD` after a fetch rather than trusting a carried-forward number.
+- [ ] **`tally-utility` has no git remote configured** — its commits are local-only with nowhere to push. Worth deciding whether it should have one, given it holds the canonical schema (`sql/tu.sql`) plus all session history.
 
 ## Failed Approaches (Don't Repeat These)
 
@@ -74,7 +75,7 @@ Plus two smaller findings: cluster 32's threshold must compare `abs(amount)` (th
 
 ## Current State
 
-**Working:** `gas-billing-memory` main, 47 commits ahead of `origin/main` (not pushed). WU5 output (15 axes docs, 17 families) and WU6 Sessions 3A–3F output (58 decision-table/workflow files) all committed and internally consistent.
+**Working:** `gas-billing-memory` main, **level with `origin/main`** (pushed 2026-08-06). `tally-utility` has no remote. WU5 output (15 axes docs, 17 families) and WU6 Sessions 3A–3F output (58 decision-table/workflow files) all committed and internally consistent.
 **Broken:** Nothing — no application code exists yet; this is all Layer 1–3 planning/decision-table documentation.
 **Uncommitted changes:** In `tally-utility`: `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread — untouched), plus this HANDOFF rewrite and the CHANGELOG entry. In `gas-billing-memory`: only `Clippings/` untracked (pre-existing, not KB content).
 
