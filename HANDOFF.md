@@ -1,72 +1,68 @@
-# Handoff: Work Unit 5 completion + Work Unit 6 Sessions 3A–3D (Configurable-Rules)
+# Handoff: Work Unit 6 Session 3E (Domain 5 — Taxes & Fees), after committing the pending Kyle fold-in
 
-**Generated**: 2026-07-05
+**Generated**: 2026-08-06
 **Branch**: main (both repos)
-**Status**: Ready for Review — WU5 fully complete (all 17 invariant families); WU6 Sessions 3A–3D complete (Domains 1–4 of the Sessions 3+ configurable-rules queue). Two consolidated Kyle review briefs awaiting answers before either work unit's next phase.
+**Status**: Ready for Review — WU5 complete; WU6 Sessions 3A–3E complete (Domains 1–5 of 13). Kyle's 2026-07-10 decisions are folded in and committed. Six open items across the last two sessions await Kyle; none blocks Session 3F.
 
 ## Goal
 
-Finish **Work Unit 5** (Method 1 per-invariant scenario docs, per `execution-kickoff.md`) — axes-of-variation drafts for all 17 canonical-invariant families — then begin **Work Unit 6** (Configurable-Rules Sessions 3+, one rule domain per session) per `cluster-and-workflow-inventory.md`'s Part 3 work queue.
+Continue **Work Unit 6** (Configurable-Rules Sessions 3+, one rule domain per session) per `cluster-and-workflow-inventory.md`'s Part 3 work queue. This session committed the prior session's uncommitted fold-in, then drafted Session 3E.
 
 ## Orientation (read first)
 
 Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas-billing-memory/`, NOT this one. This repo (tally-utility) holds `sql/tu.sql` (canonical schema) + these handoff/discussion docs. Key files in gas-billing-memory:
-- `application/canonical-invariants.md` — 135 canonical invariants (CI-001–135) across 17 families; **status line and Flagged section were stale on Q-3 until this session fixed it (see Failed Approaches / Key Decisions)**
-- `application/invariant-scenarios/` — WU5 output: 15 Method-1 axes docs (all 17 families represented; Family 17's 4 residuals folded into 4 existing docs) + `wu5-axes-review-brief.md` (consolidated Kyle brief)
+- `application/wu5-wu6-kyle-decisions-2026-07-10.md` — Kyle's consolidated rulings on both review briefs (186 lines). **Fully folded in as of `fe435cc`**; treat it as a historical source record, like `de-review-answers.md`, not as pending work.
+- `application/canonical-invariants.md` — 135 canonical invariants (CI-001–135) across 17 families. Q-4/Q-7/Q-9/Q-12 remain open by design; everything else is resolved.
 - `application/configurable-rules/cluster-and-workflow-inventory.md` — the Sessions 3+ work queue (Part 3); governs WU6
-- `application/configurable-rules/decision-tables/` and `application/configurable-rules/workflows/` — WU6 output so far: 39 files across Sessions 3A–3D
-- `application/configurable-rules/wu6-decision-tables-review-brief.md` — consolidated Kyle brief for WU6
-- `application/configurable-rules/de-review-answers.md` — Kyle's resolved decisions (DE-1..7, plus later batches); cross-check this against `canonical-invariants.md`'s Flagged section before trusting the latter as current
-- `application/wiki-ingestion-pending.md` — Sections A–I; every file change this session is logged here with a wiki-ingestion target
-- `execution-kickoff.md` — the 12-work-unit sequence (WU1–4 ✅, WU5 ✅ this session, **WU6 in progress: Sessions 3A–3D ✅, 3E–3M remaining**)
+- `application/configurable-rules/decision-tables/` and `workflows/` — WU6 output: 44 files across Sessions 3A–3E
+- `application/configurable-rules/configuration-catalog.md` + `de-review-answers.md` / `de-review-answers-8-11.md` — the catalog and Kyle's earlier resolved decisions (incl. action #28, the §182.025 ceiling)
+- `application/invariant-scenarios/` — WU5 output: 15 Method-1 axes docs covering all 17 families
+- `application/wiki-ingestion-pending.md` — Sections A–K; every file change is logged with a wiki-ingestion target
+- `execution-kickoff.md` — the 12-work-unit sequence (WU1–5 ✅, **WU6 in progress: Sessions 3A–3E ✅, 3F–3M remaining**)
 
 ## Completed (this session)
 
-**Work Unit 5 (finished):**
-- [x] Drafted Families 14, 15, 16 (4 docs): `read-exception-handling-and-estimation.md`, `tenant-isolation-and-structural-integrity.md`, `account-lifecycle-mimo-and-final-bill.md`, `deposits-credits-and-operational-integrity.md`
-- [x] Family 17 fold-in pass: CI-132 (regulatory posture) → `mid-period-and-temporal-rate-selection.md`; CI-133 (transport eligibility) → `pga-and-commodity-pass-through.md`; CI-134 (batch absolute-baseline gate) → `read-exception-handling-and-estimation.md`; CI-135 (print-mail PII-breach) → `customer-communication-and-notice-discipline.md`
-- [x] Compiled `wu5-axes-review-brief.md` — consolidated, plain-language Kyle brief across all 17 families (Part A: new judgment calls; Part B: 9 still-open Q-numbers now mapped to specific blocking docs/axes; Part C: 2 doc-placement calls)
-- [x] **Found and fixed a stale cross-document status**: Q-3 (WNA deadband scoping) was resolved by Kyle on 2026-06-12 (`de-review-answers.md`, `wna-config-gaps`, action item #12) but `canonical-invariants.md` was never updated — its status line, Flagged section, and CI-041 all still said "open." Also corrected the two downstream docs that inherited the stale status (`weather-normalization.md`, and the WU5 review brief itself, which had incorrectly asked Kyle to re-answer it).
-
-**Work Unit 6 (Sessions 3A–3D of the Sessions 3+ queue):**
-- [x] Session 3A — Domain 1 (Reads, Validation & Estimation): 6 decision tables (clusters 1–6) + 6 workflows
-- [x] Session 3B — Domain 2 (Gas Measurement & Consumption): 4 decision tables (clusters 7–10) + 4 workflows
-- [x] Session 3C — Domain 3 (Rating & Tariff Engine): 9 decision tables (clusters 11–19) + 4 workflows — the queue's own largest single domain
-- [x] Session 3D — Domain 4 (PGA / WNA / Gas Cost Recovery): 3 decision tables (clusters 20–22) + 3 workflows
-- [x] Compiled `wu6-decision-tables-review-brief.md` — consolidated Kyle brief across all 39 files, with 4 flagged tensions in Part A (see Key Decisions)
-
-**Method used throughout:** parallel Explore-agent research (grounding facts, exact schema/catalog columns, named failure incidents) before drafting each table/workflow personally, to keep voice and rigor consistent — never delegated authorship, only research.
+- [x] **Committed the orphaned fold-in** (`gas-billing-memory fe435cc`) — 52 files edited + 1 renamed, applying every one of Kyle's 2026-07-10 rulings. The prior session did the work and never committed it.
+- [x] **Session 3E — Domain 5 (Taxes & Fees), clusters 23–26** (`fe07a10`): `tax-application-and-stacking` (#23, rule-order), `tax-exemption-eligibility` (#24, unique), `adhoc-charge-taxation` (#25, priority), `franchise-fee-application` (#26, first-match), plus the `tax-exemption-cert-submission-and-renewal` workflow.
+- [x] Logged in `wiki-ingestion-pending.md` Section K + both CHANGELOGs.
 
 ## Not Yet Done
 
-- [ ] **Kyle answers `wu5-axes-review-brief.md` and `wu6-decision-tables-review-brief.md`** — both gates, same pattern as WU4's brief. Per the kickoff's cadence, drafting MAY continue in parallel on domains/families whose framing is already locked.
-- [ ] **Work Unit 6, Session 3E — Domain 5 (Taxes & Fees)**, clusters 23–26 (`tax-application-and-stacking`, `tax-exemption-eligibility`, `adhoc-charge-taxation`, `franchise-fee-application`) + workflows. Next in the Part 3 queue. This domain consumes Session 3C's settled rider stack and Session 3D's PGA output as its own inputs (per CI-100's canonical pipeline order).
-- [ ] Sessions 3F through 3M (billing run/corrections, pre-mail QA, delivery/comms, payments, programs, collections/disconnect/deposits, customer/account lifecycle, import/admin) — untouched.
-- [ ] Fold Kyle's answers into both briefs once received (especially WU6 Part A's 4 tensions, which block downstream sessions the most directly).
-- [ ] `git push` the 42 unpushed commits in `gas-billing-memory` — left local-only this session; wasn't asked to push.
+- [ ] **Sessions 3F through 3M** — billing run/corrections (27–32), pre-mail QA (33–35), delivery/comms (36–38), payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3F is next.**
+- [ ] **Six open items awaiting Kyle** — four from Session 3E (below), two from the fold-in pass (the PSF $1.00-vs-$0.50 cap discrepancy in `regulatory-cost-recovery-surcharges-texas.md`; CI-043's WNA program-exclusion premise in `weather-normalization.md`). None blocks 3F. No consolidated brief has been compiled for these yet — worth doing after 3F or 3G rather than one brief per session.
+- [ ] `git push` — `gas-billing-memory` is now **45 commits ahead of origin/main**, still local-only. Never been asked to push.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Using the Agent tool with a placeholder prompt as a "wait for background task" mechanism**: tried calling `Agent({prompt: "placeholder", name: "waiter"})` repeatedly, intending only to pause and pick up a background-task notification on the next turn → this spawns a *real* agent that takes the literal text as its assignment, so it went and did unwanted investigative work (6 times, compounding) → **instead, just end the turn with a short text update and no tool call; the harness delivers background-task notifications automatically on the next turn regardless.** Had to send stand-down `SendMessage`s to all 6 spawned agents to stop them.
+- **Using the Agent tool with a placeholder prompt as a "wait for background task" mechanism** (from the 2026-07-05 session): `Agent({prompt: "placeholder", name: "waiter"})` spawns a *real* agent that takes the literal text as its assignment and goes off doing unwanted work. **Instead, end the turn with a short text update and no tool call** — the harness delivers background-task notifications on the next turn regardless.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| Fixed the stale Q-3 status forward (updated `canonical-invariants.md` + 2 downstream docs) rather than leaving it | It was actively producing wrong output — the WU5 review brief was asking Kyle to re-answer something he'd resolved 3 weeks earlier. Caught mid-research for an unrelated session (3D's WNA table), not through a systematic check — flagged in both CHANGELOGs as a process gap worth addressing (a lighter-weight periodic reconciliation between `de-review-answers.md` and the Flagged section). |
-| Family 17's 4 residual invariants folded in one batched pass, after all 16 topic families existed, rather than incrementally | Every prior family's fold-in was deferred by design (all 16 prior docs noted the deferral); doing all 4 at once avoided drafting against still-changing predecessor docs, since each fold-in cross-references invariants living in its own home doc. |
-| WU6 tables/workflows: research-then-draft via parallel Explore agents, but authorship stayed manual (never delegated) | Same practice as WU5 — keeps voice, rigor, and cross-referencing consistent across 39+ files; agents supply grounding facts (exact schema columns, named incidents), not prose. |
-| 4 genuine tensions (PGA correction path; `pga-monthly-trueup`'s name; `prorate_tier_breakpoints` schema default vs. CI-108's stated invariant default; WNA floor/ceiling guard) flagged explicitly rather than resolved unilaterally | Each is a conflict between two sources that both look authoritative (an invariant statement vs. a named failure-mode description, or a schema default vs. an invariant's stated default) — picking a side without Kyle's input risks encoding a wrong assumption into 39 files' worth of downstream scenario-writing. |
+| Drafted `tax-exemption-cert-submission-and-renewal` even though the Part 3 queue lists no workflows for Session 3E | The queue's "tax steps fold into billing-run" is right for the tax *application* steps. But this workflow's entire subject is cluster 24's substrate; leaving it to Session 3L means writing it cold, months after walking CI-046. Session 3L inherits it. |
+| Skipped research agents this session | The grounding was already in the KB and in `sql/tu.sql`. Reading the schema *directly against* `canonical-invariants.md` Family 6 is what surfaced all four open items — each is a disagreement between the schema and a doc, invisible from either side alone. Prior sessions' agent research was for facts the KB didn't have (named incidents, statutory values); this domain didn't need any. |
+| Four schema-vs-doc conflicts flagged, not resolved | Same discipline as Sessions 3A–3D's four tensions. Each has real textual support on both sides, and picking silently would encode a base-composition or exemption assumption into everything downstream. |
+| Stated `tax_jurisdictions`' absence as a scoping fact rather than an open question | A-8 is a known, tracked gap. The useful thing wasn't re-asking about it but saying what follows: cluster 23's per-jurisdiction loop has one or two iterations for Texas launch, not eight, and the only implementable slice today is cluster 26. |
+
+## Session 3E's four open items (the ones a future session needs to know)
+
+1. **`rate_items.is_taxable_default` defaults to `false`** — CI-045's named silent failure ("new charge rolled out with no explicit classification") is the current schema default, in the under-collecting direction, and "explicitly false" is indistinguishable from "never decided."
+2. **`franchise_fee_rules.applies_to` vs. the per-item `is_taxable` chain** — two mechanisms for one concept; none of `applies_to`'s four values can express "gross revenue minus PSF," the carve-out 16 TAC §8.201 mandates. **The most consequential of the four** — decides whether CI-038's exclusion is implementable today.
+3. **Two exemption substrates, one wired** — `should_charge_tax()` reads only `customer_tax_exemptions`, never the legacy `customers.is_tax_exempt`. And the renewal prompt CI-046 asks for *already exists on the legacy substrate* (`tax_exemption_expiry_date` + a 60-day `expiring_soon` view), never ported.
+4. **`franchise_city` on both `service_locations` and `rate_schedules`**, both indexed, no precedence stated. The tables assume premise-side (CI-044) and say so.
+
+Plus two smaller defects with suggested resolutions attached: `miscellaneous` is the one `adhoc_charges.charge_type` value absent from the platform taxability-defaults list, and the taxability settings key is spelled `adhoc_taxability_overrides` in the schema comment vs. `adhoc.taxability_overrides` in the catalog.
 
 ## Current State
 
-**Working:** `gas-billing-memory` main branch, 42 commits ahead of `origin/main` (not pushed). All WU5 output (15 axes docs covering 17 families) and WU6 Sessions 3A–3D output (39 decision-table/workflow files) committed and internally consistent. Two consolidated Kyle review briefs exist, both awaiting answers.
-**Broken:** Nothing — no application code exists yet; this is all Layer 1–3 planning/decision-table documentation per the configurable-rules and invariant strategies.
-**Uncommitted changes:** In `tally-utility`: `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread — not touched this session), `HANDOFF.md` (this rewrite), `CHANGELOG.md` (new entry pending). In `gas-billing-memory`: only `Clippings/` untracked (pre-existing, not KB content).
+**Working:** `gas-billing-memory` main, 45 commits ahead of `origin/main` (not pushed). WU5 output (15 axes docs, 17 families) and WU6 Sessions 3A–3E output (44 decision-table/workflow files) all committed and internally consistent.
+**Broken:** Nothing — no application code exists yet; this is all Layer 1–3 planning/decision-table documentation.
+**Uncommitted changes:** In `tally-utility`: `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread — untouched), plus this HANDOFF rewrite and the CHANGELOG entry. In `gas-billing-memory`: only `Clippings/` untracked (pre-existing, not KB content).
 
 ## Code Context
 
-No application code exists. The relevant "interfaces" are the two Layer-2/Layer-3 templates every WU6 file follows exactly (`application/configurable-rules-scenario-strategy.md`):
+No application code. The two Layer-2/Layer-3 templates every WU6 file follows exactly (`application/configurable-rules-scenario-strategy.md`):
 
 ```
 # Decision Table: <Name>
@@ -82,20 +78,19 @@ No application code exists. The relevant "interfaces" are the two Layer-2/Layer-
 ## Main success scenario | Alternative flows | Exception flows | State transitions | Open questions | Test note
 ```
 
-Non-obvious logic: hit policies are not decorative — `collect` (multiple rules can co-fire, e.g. `read-vee-validation`) vs. `priority` (first-in-order wins on conflict, e.g. `gas-conversion-and-energy`'s residential-Fp-always-1.0 rule) vs. `rule-order` (a topological sort, not row-matching at all — `rate-item-dependency-ordering`) each imply different test-case shapes.
+Non-obvious: hit policies aren't decorative. `rule-order` is not row-matching at all — clusters 17 and 23 are both *staged procedures* documented in table form, and their "rules" are pipeline stages. `collect` (multiple rules co-fire, e.g. `read-vee-validation`) vs. `priority` (first-in-order wins, e.g. `adhoc-charge-taxation`'s three-level chain) vs. `first-match` (ordered, stops on hit, e.g. `franchise-fee-application`) imply different test-case shapes.
 
 ## Resume Instructions
 
-1. **Check whether Kyle has answered either review brief** (`application/invariant-scenarios/wu5-axes-review-brief.md` or `application/configurable-rules/wu6-decision-tables-review-brief.md`) — look for inline answers or a new `*-answers` file, per the `de-review-answers.md` precedent.
-   - Expected: answers to WU5's 9 remaining Q-numbers and WU6 Part A's 4 tensions.
-   - If not answered: proceed to Session 3E anyway per the kickoff's parallel-drafting cadence (same as this session did for WU5/WU6).
-2. **If continuing to Session 3E:** read `cluster-and-workflow-inventory.md` Domain 5 (clusters 23–26) + its workflow list. Use the same research-then-draft pattern: spawn parallel Explore agents for grounding (exact tax-stacking rules, franchise-fee mechanics, named failure incidents), then personally author each decision table and workflow file against `configurable-rules-scenario-strategy.md`'s templates.
-3. **Once Kyle's answers land:** fold them into the axes/tables — WU6 Part A's 4 tensions first, since they block the most downstream work (Sessions 3E+ all consume the settled rider/tax stack).
+1. **Session 3F — Domain 6 (Billing Run, Corrections & Backbilling), clusters 27–32.** Read `cluster-and-workflow-inventory.md` Domain 6 plus its workflow list (billing-run, final-bill, cancel-rebill, adjustments). This is a heavy domain: cluster 27's backbilling cap is **per-cause** per §7.45 (action #9 corrected it from per-jurisdiction), cluster 28 carries DE-3 (gas = full correction, no threshold, historical-rate guard), and cluster 29 is the bi-temporal cancel-rebill replay.
+2. **Read the schema directly, not just the docs.** Session 3E's whole yield came from `sql/tu.sql` vs. `canonical-invariants.md`. For Domain 6 the relevant functions already exist: `get_correction_rate_date()` (documented resolution order: custom date > per-target historical/current > run-level default) and the `adhoc_charges` `void_pending_rebill` lifecycle state.
+3. **Don't re-litigate the six open items** — they're waiting on Kyle specifically because both sides have textual support. Consider compiling them into one consolidated brief after 3F or 3G, following the `wu6-decision-tables-review-brief.md` precedent, rather than one brief per session.
 
 ## Warnings
 
-- **Don't spawn an Agent with a placeholder prompt to "wait."** See Failed Approaches — it does real unwanted work instead.
-- **`canonical-invariants.md`'s Flagged section can drift from `de-review-answers.md`'s action items** — Q-3 just demonstrated this. Before treating any Q-number as "open," cross-check `de-review-answers.md` and `configuration-catalog.md` for a resolution that was never back-propagated.
-- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; all work artifacts live in `gas-billing-memory`.** Don't look for the decision tables, workflows, or invariant docs in this repo.
-- **The 4 flagged tensions are deliberate open questions, not authoring mistakes** — don't resolve them unilaterally in a future session; they're waiting on Kyle specifically because both sides have textual support.
-- **Texas-only launch** remains the scope discipline throughout WU6, same as WU5 — sewer billing and government/wholesale customer classes are flagged as likely-out-of-scope-for-v1 in Sessions 3B/3C but not yet formally deferred (unlike Q-12's transport-balancing/submetering/multi-commodity, which already has a tracked deferral).
+- **Commit before ending a session.** The prior session left 52 files of correct work uncommitted; this session's first act was rescuing it. It survived, but only because nothing touched the working tree in between.
+- **Don't spawn an Agent with a placeholder prompt to "wait."** See Failed Approaches.
+- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; all work artifacts live in `gas-billing-memory`.** Don't look for decision tables, workflows, or invariant docs in this repo.
+- **The open items are deliberate, not authoring mistakes.** Don't resolve them unilaterally in a future session.
+- **Texas-only launch** remains the scope discipline. Sewer billing and government/wholesale customer classes are still flagged as likely-out-of-scope-for-v1 (Sessions 3B/3C) but not formally deferred, unlike Q-12's transport-balancing/submetering/multi-commodity.
+- **`tax_jurisdictions` (A-8) is the load-bearing absence across all of Domain 5.** Any future session that touches tax, franchise fee, or premise jurisdiction assignment inherits it.

@@ -4,6 +4,39 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-06 — Session: Commit the pending fold-in, then Work Unit 6 Session 3E (Domain 5 — Taxes & Fees)
+
+**Status:** Two units of work. First, the prior session's Kyle-decisions fold-in was sitting uncommitted in `gas-billing-memory` (52 files edited, 1 renamed) — committed as `fe435cc`. Then Session 3E drafted: 4 decision tables + 1 workflow, committed as `fe07a10`. WU6 now stands at Sessions 3A–3E done, 3F–3M remaining. No application code written.
+
+### Done
+- **Committed the orphaned fold-in** (`gas-billing-memory fe435cc`). Kyle answered both consolidated review briefs on 2026-07-10 (`application/wu5-wu6-kyle-decisions-2026-07-10.md`); the prior session applied all 40+ resolutions across 52 files but never committed. Nothing was lost — but it had been sitting in the working tree for a day with no commit, which is exactly the state a `git stash`, a branch switch, or a wrong `git checkout` destroys silently.
+- **Session 3E — Domain 5 (Taxes & Fees), clusters 23–26** (`gas-billing-memory fe07a10`): `tax-application-and-stacking` (#23, rule-order), `tax-exemption-eligibility` (#24, unique), `adhoc-charge-taxation` (#25, priority), `franchise-fee-application` (#26, first-match), plus the `tax-exemption-cert-submission-and-renewal` workflow.
+- **Drafted a workflow the Part 3 queue doesn't list for this session.** The queue says "tax steps fold into billing-run" — correct for the *application* steps, but `tax-exemption-cert-submission-and-renewal` is a Part 2 customer-lifecycle workflow whose entire subject is cluster 24's substrate. Writing it in Session 3L would mean writing it cold, months after walking CI-046. Session 3L inherits it instead of producing it.
+- **Logged in `wiki-ingestion-pending.md` Section K** and the `gas-billing-memory` CHANGELOG, per the standing rule that every canonical-data change on main gets a wiki-ingestion target.
+
+### Key finding: this domain's central substrate doesn't exist
+Unlike Domains 1–4, cluster 23's per-jurisdiction loop iterates over `tax_jurisdictions` — gap A-8, a table that isn't in the schema. Stated plainly in the table rather than written around: for Texas launch that loop has one or two iterations driven off `service_locations.inside_city_limits`/`franchise_city`, not the eight-jurisdiction stack `11-taxes-and-gl-accounting.md` describes. The implementable slice today is essentially cluster 26 alone.
+
+### Four schema-shaped open items surfaced, deliberately not resolved
+Same discipline as Sessions 3A–3D's four tensions — each is a conflict between two things that both look authoritative, so picking a side silently would encode a wrong assumption downstream.
+1. **`rate_items.is_taxable_default` defaults to `false`.** CI-045's central named silent failure is a new charge type rolled out with no explicit tax-base classification defaulting by omission. The schema default *is* that failure, under-collecting, and it makes "explicitly false" indistinguishable from "never decided."
+2. **`franchise_fee_rules.applies_to` vs. the per-item `is_taxable` chain** — two mechanisms for one concept, diverging whenever any item is non-taxable, and none of `applies_to`'s four enum values can express "gross revenue minus PSF," the one carve-out 16 TAC §8.201 mandates. Decides whether CI-038's exclusion is implementable today or blocked on schema work. The session's most consequential item.
+3. **Two exemption substrates, one wired.** `should_charge_tax()` reads only `customer_tax_exemptions`, never the legacy `customers.is_tax_exempt` flag kept "for backward compat." The sharper consequence: the renewal-prompt machinery CI-046 asks for **already exists — on the substrate being retired** (`tax_exemption_expiry_date` + a 60-day `expiring_soon` view). CI-046's "renewal-prompt gap" is really a never-ported prompt.
+4. **`franchise_city` lives on both `service_locations` and `rate_schedules`**, both indexed, no stated precedence. The tables assume premise-side authority (per CI-044) and say so, so the assumption is visible if it's wrong.
+
+Two smaller defects got suggested resolutions but were left for Kyle too: the platform charge-type defaults list enumerates 16 of 17 `adhoc_charges.charge_type` values and omits `miscellaneous` — the one type with no semantics to default from — and the taxability settings key is spelled two different ways between the schema comment and the catalog.
+
+### What the schema already got right
+`should_charge_tax(customer_id, item_is_taxable, service_type, as_of_date)` implements CI-046's valid-for-the-period rule correctly today, with its own comment instructing callers to pass a historical date on corrections. Cluster 24 is therefore largely a specification of an existing function, not a proposal — which is why its priority scenario asserts that *callers* pass the period date rather than testing the function.
+
+### Method note
+No research agents this session, a deliberate break from Sessions 3A–3D. The grounding — Texas §182.025/§182.024, §8.201 PSF, §7.45, Tax Code Ch. 151 ad-hoc defaults, the 2026-06-12 residential-taxability review, D6-1/D6-2 — was already in the KB and in `sql/tu.sql`. Reading the schema directly against `canonical-invariants.md` Family 6 is what surfaced all four open items above; none of them are visible from the prose docs alone, because each is a disagreement *between* the schema and a doc. Authorship manual throughout, same as every prior session.
+
+### Next
+Session 3F — Domain 6 (billing run, corrections, backbilling), clusters 27–32. None of the six open items above blocks it.
+
+---
+
 ## 2026-07-05 — Session: Work Unit 5 completion (Families 14–17) + Work Unit 6 Sessions 3A–3D (Configurable-Rules)
 
 **Status:** WU5 (Method 1 per-invariant scenario docs) is now fully complete — all 17 canonical-invariant families represented across 15 docs. WU6 (Configurable-Rules Sessions 3+) is underway — Sessions 3A through 3D done (Domains 1–4 of 13). Two consolidated Kyle review briefs compiled and awaiting answers. No application code written.
