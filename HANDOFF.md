@@ -27,13 +27,14 @@ Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas
 - [x] **Session 3F — Domain 6 (Billing Run, Corrections & Backbilling), clusters 27–32** (`5b10d7e`): `backbilling-cap-enforcement` (#27), `correction-and-void-eligibility` (#28), `cancel-rebill-bitemporal` (#29), `billing-run-read-gating` (#30), `invoice-consolidation` (#31), `adjustment-authorization` (#32), plus eight workflows — 14 files, the largest remaining domain.
 - [x] **Consolidated the Phase 0–9 billing pipeline** (previously only in scattered `sql/tu.sql` column comments) into `billing-run-normal-cycle`, as the reference the whole domain points at.
 - [x] Logged in `wiki-ingestion-pending.md` Sections K and L + both CHANGELOGs.
+- [x] **Compiled `wu6-sessions-3e-3f-review-brief.md`** (`fd16cc2`) — the fourth brief in the series, spanning both sessions' 19 files plus the two fold-in carryovers. Part A holds the four rulings that block the most; a closing section states exactly what is and isn't blocked.
 
 ## Not Yet Done
 
 - [ ] **Sessions 3G through 3M** — pre-mail QA (33–35), delivery/comms (36–38), payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3G is next.**
 - [ ] **Two workflows deferred from 3F into 3G:** `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. Part 2 files both under pre-mail/correction, but pre-delivery correction is a different operation from void/rebill and belongs with the pre-mail QA cluster set.
-- [ ] **Eleven open items awaiting Kyle** — five from 3F and four from 3E (both listed below), plus two from the fold-in pass (the PSF $1.00-vs-$0.50 cap discrepancy in `regulatory-cost-recovery-surcharges-texas.md`; CI-043's WNA program-exclusion premise in `weather-normalization.md`). None blocks 3G. **A consolidated brief is now worth compiling** — eleven items across three sessions is past the point where one brief per session would have been the lighter option; follow the `wu6-decision-tables-review-brief.md` precedent.
-- [ ] `git push` — `gas-billing-memory` is now **46 commits ahead of origin/main**, still local-only. Never been asked to push.
+- [ ] **Kyle answers `wu6-sessions-3e-3f-review-brief.md`** — compiled this session and awaiting him, same gate as the three prior briefs. Nothing blocks Session 3G; Part A's four items block Layer-4 scenario-writing on Domains 5–6 and the schema-hardening each implies. Per the kickoff's cadence, drafting continues in parallel.
+- [ ] `git push` — `gas-billing-memory` is now **47 commits ahead of origin/main**, still local-only. Never been asked to push.
 
 ## Failed Approaches (Don't Repeat These)
 
@@ -73,7 +74,7 @@ Plus two smaller findings: cluster 32's threshold must compare `abs(amount)` (th
 
 ## Current State
 
-**Working:** `gas-billing-memory` main, 46 commits ahead of `origin/main` (not pushed). WU5 output (15 axes docs, 17 families) and WU6 Sessions 3A–3F output (58 decision-table/workflow files) all committed and internally consistent.
+**Working:** `gas-billing-memory` main, 47 commits ahead of `origin/main` (not pushed). WU5 output (15 axes docs, 17 families) and WU6 Sessions 3A–3F output (58 decision-table/workflow files) all committed and internally consistent.
 **Broken:** Nothing — no application code exists yet; this is all Layer 1–3 planning/decision-table documentation.
 **Uncommitted changes:** In `tally-utility`: `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread — untouched), plus this HANDOFF rewrite and the CHANGELOG entry. In `gas-billing-memory`: only `Clippings/` untracked (pre-existing, not KB content).
 
