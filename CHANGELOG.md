@@ -4,6 +4,26 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-06 — Session (cont.): Work Unit 6 Session 3G (Domain 7 — Pre-Mail QA & Exceptions)
+
+Drafted clusters 33–35 and four workflows in `gas-billing-memory` (`8e22bc6`, pushed). Seven files: `statistical-anomaly-detection` (#33, collect), `absolute-baseline-qa` (#34, collect), `exception-threshold-and-routing` (#35, first-match); `pre-mail-exception-review`, `canary-account-reconciliation`, and the two workflows deferred from 3F — `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. WU6 output now stands at 65 files across Sessions 3A–3G; Domains 1–7 of 13 are drafted.
+
+**What this session's schema reading produced** (third session running with no research agents — the substrate was already in `sql/tu.sql`):
+
+- **CI-134's enforcement-status claim does not hold.** It reads "canary expected values are configured … not a missing-table gap," which is what classifies it `requires-application-discipline` rather than `unenforced-gap`. There is no canary table, no `is_canary`/`is_test_account` column, and no reserved settings key — the canary accounts cannot be identified, so their expected values cannot be stored. There is likewise no revenue-requirement or rate-case entity. Two of the invariant's three baselines are gaps, and **A-20 does not cover a canary registry**, so it would fall through the schema-hardening queue.
+- **Nothing in `tenants.settings` is release-blocking.** The four cycle-level thresholds that exist are aggregates of the batch's own contents — skip rate, estimation rate, anomaly rate, amount swing — not comparisons against an external baseline, so a misconfiguration in place since the prior cycle passes all four. All four are named `warning`.
+- **The pre-mail gate is nearly off on default settings.** `review_required_anomalies` defaults to a single read-level value, and the `anomaly_type` enum has no bill-amount values to add.
+- **No bill-level dispute entity**, despite a complete read-level one. `disconnect_protection_type = 'pending_dispute'` exists with nothing to fire it.
+- **Action #40 answered from the schema side:** HDD exists, but zone-keyed via WNA, winter-months-only, and absent for non-WNA tenants.
+
+**Structural observation carried into 3H:** the per-bill gate is structurally enforced (`invoices.status = 'held'` with reason/timestamp/actor and a trigger), while the cycle-level gate CI-134 calls higher-leverage has no structure at all (`billing_runs.status` has no held value). Delivery is likely to have the same asymmetry, since CI-135 is a batch-level assertion about a vendor handoff.
+
+Logged in `wiki-ingestion-pending.md` Section N and both CHANGELOGs. `gas-billing-memory` pushed and level with `origin/main`.
+
+**Next:** Session 3H — Domain 8 (Delivery & Communications), clusters 36–38. First thing to check: `invoices.delivery_method` defaults to `'email'` while Check #4 fix #4 made `mail` the default — an apparent live contradiction.
+
+---
+
 ## 2026-08-06 — Session (cont.): Work Unit 6 Session 3F (Domain 6 — Billing Run, Corrections & Backbilling)
 
 **Status:** Same working session as 3E, continued. 14 files — six decision tables (clusters 27–32) and eight workflows — committed as `gas-billing-memory 5b10d7e`. WU6 now stands at Sessions 3A–3F done, 3G–3M remaining. No application code written.

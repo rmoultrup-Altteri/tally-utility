@@ -1,41 +1,41 @@
-# Handoff: Work Unit 6 Sessions 3E + 3F (Domains 5–6), after committing the pending Kyle fold-in
+# Handoff: Work Unit 6 Session 3G (Domain 7 — Pre-Mail QA & Exceptions)
 
 **Generated**: 2026-08-06
 **Branch**: main (both repos)
-**Status**: Ready for Review — WU5 complete; WU6 Sessions 3A–3F complete (Domains 1–6 of 13). Kyle's 2026-07-10 decisions are folded in and committed. Eleven open items across the last three sessions await Kyle; none blocks Session 3G.
+**Status**: Ready for Review — WU5 complete; WU6 Sessions 3A–3G complete (Domains 1–7 of 13). Fifteen open items across the last four sessions await Kyle; none blocks Session 3H.
 
 ## Goal
 
-Continue **Work Unit 6** (Configurable-Rules Sessions 3+, one rule domain per session) per `cluster-and-workflow-inventory.md`'s Part 3 work queue. This session committed the prior session's uncommitted fold-in, then drafted Sessions 3E and 3F.
+Continue **Work Unit 6** (Configurable-Rules Sessions 3+, one rule domain per session) per `cluster-and-workflow-inventory.md`'s Part 3 work queue. This session drafted Session 3G and cleared the two workflows deferred from 3F.
 
 ## Orientation (read first)
 
 Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas-billing-memory/`, NOT this one. This repo (tally-utility) holds `sql/tu.sql` (canonical schema) + these handoff/discussion docs. Key files in gas-billing-memory:
-- `application/wu5-wu6-kyle-decisions-2026-07-10.md` — Kyle's consolidated rulings on both review briefs (186 lines). **Fully folded in as of `fe435cc`**; treat it as a historical source record, like `de-review-answers.md`, not as pending work.
-- `application/canonical-invariants.md` — 135 canonical invariants (CI-001–135) across 17 families. Q-4/Q-7/Q-9/Q-12 remain open by design; everything else is resolved.
+- `application/canonical-invariants.md` — 135 canonical invariants (CI-001–135) across 17 families, plus Appendix A's 21 schema-enforcement gaps. Q-4/Q-7/Q-9/Q-12 remain open by design.
 - `application/configurable-rules/cluster-and-workflow-inventory.md` — the Sessions 3+ work queue (Part 3); governs WU6
-- `application/configurable-rules/decision-tables/` and `workflows/` — WU6 output: 58 files across Sessions 3A–3F
-- `application/configurable-rules/configuration-catalog.md` + `de-review-answers.md` / `de-review-answers-8-11.md` — the catalog and Kyle's earlier resolved decisions (incl. action #28, the §182.025 ceiling)
+- `application/configurable-rules/decision-tables/` and `workflows/` — WU6 output: **65 files** across Sessions 3A–3G
+- `application/configurable-rules/configuration-catalog.md` + `de-review-answers.md` / `de-review-answers-8-11.md` — the catalog and Kyle's earlier resolved decisions (DE-10 and DE-11 live in the `-8-11` file)
+- `application/wu5-wu6-kyle-decisions-2026-07-10.md` — historical source record, fully folded in; not pending work
+- `application/configurable-rules/wu6-sessions-3e-3f-review-brief.md` — the fourth brief, awaiting Kyle
 - `application/invariant-scenarios/` — WU5 output: 15 Method-1 axes docs covering all 17 families
-- `application/wiki-ingestion-pending.md` — Sections A–L; every file change is logged with a wiki-ingestion target
-- `execution-kickoff.md` — the 12-work-unit sequence (WU1–5 ✅, **WU6 in progress: Sessions 3A–3F ✅, 3G–3M remaining**)
+- `application/wiki-ingestion-pending.md` — Sections A–N; every file change is logged with a wiki-ingestion target
+- `application/execution-kickoff.md` — the 12-work-unit sequence. **Correction:** it does *not* carry a per-session WU6 progress marker (a prior handoff implied it did). Session progress is tracked here and in `wiki-ingestion-pending.md` only — don't go looking for it in the kickoff.
 
 ## Completed (this session)
 
-- [x] **Committed the orphaned fold-in** (`gas-billing-memory fe435cc`) — 52 files edited + 1 renamed, applying every one of Kyle's 2026-07-10 rulings. The prior session did the work and never committed it.
-- [x] **Session 3E — Domain 5 (Taxes & Fees), clusters 23–26** (`fe07a10`): `tax-application-and-stacking` (#23, rule-order), `tax-exemption-eligibility` (#24, unique), `adhoc-charge-taxation` (#25, priority), `franchise-fee-application` (#26, first-match), plus the `tax-exemption-cert-submission-and-renewal` workflow.
-- [x] **Session 3F — Domain 6 (Billing Run, Corrections & Backbilling), clusters 27–32** (`5b10d7e`): `backbilling-cap-enforcement` (#27), `correction-and-void-eligibility` (#28), `cancel-rebill-bitemporal` (#29), `billing-run-read-gating` (#30), `invoice-consolidation` (#31), `adjustment-authorization` (#32), plus eight workflows — 14 files, the largest remaining domain.
-- [x] **Consolidated the Phase 0–9 billing pipeline** (previously only in scattered `sql/tu.sql` column comments) into `billing-run-normal-cycle`, as the reference the whole domain points at.
-- [x] Logged in `wiki-ingestion-pending.md` Sections K and L + both CHANGELOGs.
-- [x] **Compiled `wu6-sessions-3e-3f-review-brief.md`** (`fd16cc2`) — the fourth brief in the series, spanning both sessions' 19 files plus the two fold-in carryovers. Part A holds the four rulings that block the most; a closing section states exactly what is and isn't blocked.
+- [x] **Session 3G — Domain 7 (Pre-Mail QA & Exceptions), clusters 33–35** (`gas-billing-memory 8e22bc6`, pushed): three decision tables — `statistical-anomaly-detection` (#33, collect), `absolute-baseline-qa` (#34, collect), `exception-threshold-and-routing` (#35, first-match) — and four workflows: `pre-mail-exception-review`, `canary-account-reconciliation`, plus the two deferred from 3F, `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. Seven files.
+- [x] Logged in `wiki-ingestion-pending.md` Section N + both CHANGELOGs.
+- [x] **Pushed** — `gas-billing-memory` level with `origin/main` (verified with `git rev-list --left-right --count origin/main...HEAD`, 0/0).
 
 ## Not Yet Done
 
-- [ ] **Sessions 3G through 3M** — pre-mail QA (33–35), delivery/comms (36–38), payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3G is next.**
-- [ ] **Two workflows deferred from 3F into 3G:** `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. Part 2 files both under pre-mail/correction, but pre-delivery correction is a different operation from void/rebill and belongs with the pre-mail QA cluster set.
-- [ ] **Kyle answers `wu6-sessions-3e-3f-review-brief.md`** — compiled this session and awaiting him, same gate as the three prior briefs. Nothing blocks Session 3G; Part A's four items block Layer-4 scenario-writing on Domains 5–6 and the schema-hardening each implies. Per the kickoff's cadence, drafting continues in parallel.
-- [x] ~~`git push`~~ — **done 2026-08-06**: `gas-billing-memory` pushed (`efe6f0e..fd16cc2`), now level with `origin/main`. **Correction worth carrying forward:** the "42 unpushed commits" figure from the 2026-07-05 handoff was stale and had been propagated forward unverified across several sessions — everything through `efe6f0e` was already on origin, and only 4 commits actually needed pushing. Verify with `git rev-list --left-right --count origin/main...HEAD` after a fetch rather than trusting a carried-forward number.
+- [ ] **Sessions 3H through 3M** — delivery/comms (36–38), payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3H is next.**
+- [ ] **Kyle answers `wu6-sessions-3e-3f-review-brief.md`** — still awaiting him. Session 3G's four items are not yet in a brief; see "Decide first thing next session" below.
 - [ ] **`tally-utility` has no git remote configured** — its commits are local-only with nowhere to push. Worth deciding whether it should have one, given it holds the canonical schema (`sql/tu.sql`) plus all session history.
+
+## Decide first thing next session
+
+**Whether to fold Session 3G's items into the existing 3E–3F brief or start a fifth.** The 3E–3F brief is compiled and unanswered. Three options, and they differ in a way worth a moment's thought rather than a default: append 3G to the unanswered brief (one document for Kyle, but it edits something already handed over); hold 3G and brief 3G+3H together after the next session (matches the batching precedent, and Domains 7 and 8 are genuinely coupled through CI-115/CI-134/CI-135 and the delivery gate); or brief 3G alone now. **Recommendation: hold and brief 3G+3H together** — Domain 8's print-mail integrity work will almost certainly touch the same delivery-gate seam, and item 3 below (defaults leave the gate nearly off) reaches directly into delivery.
 
 ## Failed Approaches (Don't Repeat These)
 
@@ -45,37 +45,29 @@ Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas
 
 | Decision | Rationale |
 |----------|-----------|
-| Drafted `tax-exemption-cert-submission-and-renewal` even though the Part 3 queue lists no workflows for Session 3E | The queue's "tax steps fold into billing-run" is right for the tax *application* steps. But this workflow's entire subject is cluster 24's substrate; leaving it to Session 3L means writing it cold, months after walking CI-046. Session 3L inherits it. |
-| Skipped research agents this session | The grounding was already in the KB and in `sql/tu.sql`. Reading the schema *directly against* `canonical-invariants.md` Family 6 is what surfaced all four open items — each is a disagreement between the schema and a doc, invisible from either side alone. Prior sessions' agent research was for facts the KB didn't have (named incidents, statutory values); this domain didn't need any. |
-| Four schema-vs-doc conflicts flagged, not resolved | Same discipline as Sessions 3A–3D's four tensions. Each has real textual support on both sides, and picking silently would encode a base-composition or exemption assumption into everything downstream. |
-| Stated `tax_jurisdictions`' absence as a scoping fact rather than an open question | A-8 is a known, tracked gap. The useful thing wasn't re-asking about it but saying what follows: cluster 23's per-jurisdiction loop has one or two iterations for Texas launch, not eight, and the only implementable slice today is cluster 26. |
-| Session 3F drafted 8 workflows against the queue's listed 4 | Domain 6's Part 2 workflow set genuinely spans that many distinct operations (two run types, final bill, two cancel-rebill paths, two adjustment scales, one compliance review). Precedent exists — 3C shipped 13 files. Only the two pre-mail ones were deferred, and for a reason of kind rather than volume. |
-| No research agents for a second session running | Domains 5 and 6 both have substrate already in `sql/tu.sql`. Every open item from both sessions came from reading the schema *against* the prose docs — they disagree in specific, findable ways that neither side reveals alone. This now looks like the right default for any domain whose substrate exists; agent research remains right for domains needing facts the KB lacks. |
+| Third session running with no research agents | Domain 7's substrate is entirely in `sql/tu.sql` and the KB. All four open items came from reading the schema *against* `canonical-invariants.md` and the catalog — specifically, checking CI-134's enforcement-status claim ("canary expected values are configured") against the schema, which is where the session's central finding came from. This is now the confirmed default for any domain whose substrate exists. |
+| Stated the two missing baselines as **input-table rows** in cluster 34, not as a note | Three of eleven inputs have no home in the schema. Burying that in Open questions would have let the table read as buildable. Putting `**no substrate**` in the source column makes the reduced slice (row 2 only) obvious at a glance. |
+| Both 3F-deferred workflows drafted here, as planned | `pre-mail-bill-correction` earns its separation from cancel-rebill by naming a boundary nothing else in the corpus names: none of Domain 6's apparatus applies before delivery. `high-bill-dispute-intake-and-resolution` earns its place in Domain 7 by being the pre-mail gate's mirror — the dispute rate on bills clusters 33/35 cleared is the only measure of whether those thresholds are right. |
+| Cluster 34 given a reduced-slice recommendation rather than left blocked | Row 2 (class average vs. prior year same month) is fully buildable today — both sides queryable from `invoices`. Saying so means the vertical slice isn't gated on Kyle's ruling, and it makes the mass-error gate partially real now rather than entirely notional. |
+| `blocks_delivery` separated from `queue` in cluster 35 | It is the output that makes the table a control gate rather than work-tracking, and it is the only output that survives `rbac-model` being unresolved. Separating them makes the v1 slice fall out. |
+| Suggested resolutions attached to the three smaller items | Same discipline as 3E/3F: where the schema already demonstrates the pattern (the invoice hold trigger, the CHECK constraints on every sibling enum column), the resolution isn't a judgment call and shouldn't consume Kyle's attention as one. |
 
-## Session 3E's four open items (the ones a future session needs to know)
+## Session 3G's four open items
 
-1. **`rate_items.is_taxable_default` defaults to `false`** — CI-045's named silent failure ("new charge rolled out with no explicit classification") is the current schema default, in the under-collecting direction, and "explicitly false" is indistinguishable from "never decided."
-2. **`franchise_fee_rules.applies_to` vs. the per-item `is_taxable` chain** — two mechanisms for one concept; none of `applies_to`'s four values can express "gross revenue minus PSF," the carve-out 16 TAC §8.201 mandates. **The most consequential of the four** — decides whether CI-038's exclusion is implementable today.
-3. **Two exemption substrates, one wired** — `should_charge_tax()` reads only `customer_tax_exemptions`, never the legacy `customers.is_tax_exempt`. And the renewal prompt CI-046 asks for *already exists on the legacy substrate* (`tax_exemption_expiry_date` + a 60-day `expiring_soon` view), never ported.
-4. **`franchise_city` on both `service_locations` and `rate_schedules`**, both indexed, no precedence stated. The tables assume premise-side (CI-044) and say so.
+1. **CI-134's two missing baselines — the session's most consequential item.** Its enforcement status asserts "canary expected values are configured … *not a missing-table gap*," and that claim is what classifies CI-134 `requires-application-discipline` rather than `unenforced-gap`. Against the schema: prior-year-same-month is queryable (correct); **canary expected values are configured nowhere** — no canary table, no `is_canary`/`is_test_account` column, no reserved settings key, so canary accounts cannot even be *identified*; and **the RRC/municipal GUD revenue requirement is not a known input** — no revenue-requirement or rate-case entity. Two of three baselines are gaps, and **A-20 does not cover a canary registry**, so it would fall through the schema-hardening queue entirely.
+2. **Nothing in the settings blob is release-blocking.** The four `*_warning_threshold` keys are tenant-tunable and genuinely cycle-level, but they are aggregates of *the batch's own contents* (skip rate, estimation rate, anomaly rate, amount swing) — not comparisons against an external baseline. A misconfiguration in place since the prior cycle passes all four. And every one is named `warning`. DE-10's three thresholds cannot be satisfied by tuning what exists; they are new keys, and at least one must be a gate.
+3. **Default settings leave the pre-mail gate nearly off.** `review_required_anomalies` defaults to `[negative_consumption]` — one value, and a *usage* value. No bill-amount condition blocks delivery out of the box, and the `anomaly_type` enum has no `high_bill`/`low_bill`/`zero_bill`/`negative_bill` values to put there. The queue still displays items, so the workflow looks like it's running while the gate is off. **The likeliest real-world failure in this domain, because it requires nobody to do anything wrong.**
+4. **No bill-level dispute entity, and `pending_dispute` protection has no trigger.** The read-level dispute substrate is complete; a dispute of a rate, PGA, backbill, or proration has nowhere to live but `customers.billing_hold_reason` (whose own comment offers `"Disputed bill #INV-1247"` as an example). §7.45 collections suspension depends on a CSR remembering a flag, and with no disputed-*amount* concept a partial dispute holds the whole account or none of it — both wrong, in opposite directions.
 
-Plus two smaller defects with suggested resolutions attached: `miscellaneous` is the one `adhoc_charges.charge_type` value absent from the platform taxability-defaults list, and the taxability settings key is spelled `adhoc_taxability_overrides` in the schema comment vs. `adhoc.taxability_overrides` in the catalog.
+**Also answered from the schema side: action #40's degree-day question.** HDD exists (`wna_zones.normal_hdd`, `wna_monthly_adjustments.actual_hdd`/`normal_hdd`) but zone-keyed rather than location- or cycle-keyed, limited to `active_months` (defaulting to Nov–Apr), and present only for tenants running WNA. DE-10's wider-band fallback is right for summer cycles and non-WNA tenants — recorded as a known sensitivity reduction in exactly the months a rate change is most likely to roll out. DE-11's portal graph inherits all three limits.
 
-## Session 3F's five open items
+**Three smaller items, each with a suggested resolution:** `billing_runs` needs a `held` status mirroring the invoice pattern (third consumer of that gap, after `billing-run-read-gating` OQ2); `anomalies.entity_type` is the schema's one enum-shaped column without a CHECK, and cluster 35 routes on it; and no trigger freezes a delivered invoice's billing fields, though the pattern exists twice already.
 
-1. **DE-3's gas guard doesn't exist and the schema argues against it.** DE-3 requires gas correction runs to reject `correction_rate_mode='current'` via a hard guard and marks it a proposed new invariant. Never implemented, never added to `canonical-invariants.md`, and **both relevant column comments document `current` as existing precisely for the wrong-meter case** the prohibition would forbid. Governs cluster 29 and both cancel-rebill workflows identically. **The most consequential item across 3E and 3F.**
-2. **Backbilling is unenforced end to end.** No cap table (A-2), no cause column, no period check in `void_invoice()` — current behavior is unbounded backbilling for every cause, including ones §7.45 caps at three months. Underneath: the cause enum can't be derived from `invoices.void_reason_code`'s seven *operational* values, and **`rate_misapplication`'s 6-month rule is a collectability protection (disconnection prohibited), not a rebill window** — the cap table holds two kinds of limit in one enum.
-3. **Consolidated invoices: parent or children post to `account_ledger`?** Unencoded. Both double-counts and breaks CI-019; parent-only hides per-location arrears from collections; children-only leaves the delivered artifact with no ledger presence.
-4. **No aggregate authorization.** Ten thousand $1 adjustments each pass the per-charge threshold a single $10,000 adjustment would fail. No aggregate concept in the schema, no bulk-operation entity.
-5. **Unapproved charges aren't excluded from billing pickup.** The documented Phase-5 predicate doesn't test `requires_approval` / `approved_at` — approval is currently advisory. One predicate clause, but it changes a documented engine contract.
-
-Plus two smaller findings: cluster 32's threshold must compare `abs(amount)` (the column is signed; a naive `>=` leaves credits ungated, the direction that costs money), and `adhoc_charges.voided_from_invoice_id`'s comment documents the correction audit chain with its last hop pointing the wrong way.
-
-**`pending-decision: rbac-model` is not new but is now pinned to a consequence:** cluster 32 is where its absence removes a control rather than coarsening one — rule 1 is purely about authority, so with no role model the table degrades to a size check.
+**`rbac-model` gains a second pinned consequence** alongside cluster 32's: cluster 35's `queue` and `escalation_target` are role assignments, so without roles the routing table degrades to a `blocks_delivery` boolean — the sensible v1 slice, but a routing table that does not route.
 
 ## Current State
 
-**Working:** `gas-billing-memory` main, **level with `origin/main`** (pushed 2026-08-06). `tally-utility` has no remote. WU5 output (15 axes docs, 17 families) and WU6 Sessions 3A–3F output (58 decision-table/workflow files) all committed and internally consistent.
+**Working:** `gas-billing-memory` main, **level with `origin/main`** (pushed 2026-08-06). `tally-utility` has no remote. WU5 output (15 axes docs) and WU6 Sessions 3A–3G output (65 decision-table/workflow files) all committed and internally consistent.
 **Broken:** Nothing — no application code exists yet; this is all Layer 1–3 planning/decision-table documentation.
 **Uncommitted changes:** In `tally-utility`: `TECH-STACK-DISCUSSION.md` (pre-existing, unrelated parallel thread — untouched), plus this HANDOFF rewrite and the CHANGELOG entry. In `gas-billing-memory`: only `Clippings/` untracked (pre-existing, not KB content).
 
@@ -97,20 +89,22 @@ No application code. The two Layer-2/Layer-3 templates every WU6 file follows ex
 ## Main success scenario | Alternative flows | Exception flows | State transitions | Open questions | Test note
 ```
 
-Non-obvious: hit policies aren't decorative. `rule-order` is not row-matching at all — clusters 17 and 23 are both *staged procedures* documented in table form, and their "rules" are pipeline stages. `collect` (multiple rules co-fire, e.g. `read-vee-validation`) vs. `priority` (first-in-order wins, e.g. `adhoc-charge-taxation`'s three-level chain) vs. `first-match` (ordered, stops on hit, e.g. `franchise-fee-application`) imply different test-case shapes.
+Non-obvious: hit policies aren't decorative. `rule-order` is not row-matching at all — clusters 17 and 23 are *staged procedures* in table form, and their "rules" are pipeline stages. `collect` (multiple rules co-fire, e.g. `read-vee-validation`, `statistical-anomaly-detection`) vs. `priority` (first-in-order wins) vs. `first-match` (ordered, stops on hit, e.g. `exception-threshold-and-routing`) imply different test-case shapes.
 
 ## Resume Instructions
 
-1. **Session 3F — Domain 6 (Billing Run, Corrections & Backbilling), clusters 27–32.** Read `cluster-and-workflow-inventory.md` Domain 6 plus its workflow list (billing-run, final-bill, cancel-rebill, adjustments). This is a heavy domain: cluster 27's backbilling cap is **per-cause** per §7.45 (action #9 corrected it from per-jurisdiction), cluster 28 carries DE-3 (gas = full correction, no threshold, historical-rate guard), and cluster 29 is the bi-temporal cancel-rebill replay.
-2. **Read the schema directly, not just the docs.** Session 3E's whole yield came from `sql/tu.sql` vs. `canonical-invariants.md`. For Domain 6 the relevant functions already exist: `get_correction_rate_date()` (documented resolution order: custom date > per-target historical/current > run-level default) and the `adhoc_charges` `void_pending_rebill` lifecycle state.
-3. **Don't re-litigate the six open items** — they're waiting on Kyle specifically because both sides have textual support. Consider compiling them into one consolidated brief after 3F or 3G, following the `wu6-decision-tables-review-brief.md` precedent, rather than one brief per session.
+1. **Session 3H — Domain 8 (Delivery & Communications), clusters 36–38.** Read `cluster-and-workflow-inventory.md` Domain 8 plus its Part 2 workflow list (`invoice-pdf-generation-and-retention`, `email-delivery-with-fallback` [addenda], `print-vendor-handoff` [addenda], `consolidated-invoice-assembly`). Known content: cluster 36 is **regulated** (E-SIGN) with Check #4 fix #4 making `mail` the default; cluster 37 is **regulated** (TX bilingual §7.45, and Q-8 resolved it to statewide EN/ES with no county table); cluster 38 merges notice-triggering with proactive alerts and carries the `returned-mail-handling` and `bill-message` targeting gaps. **CI-135 (print-mail integrity and PII-breach classification) lands in this domain.**
+2. **Read the schema directly, not just the docs.** Three sessions running, that's where every open item has come from. For Domain 8 the substrate is dense and already located: `tenants.settings.delivery` (nine keys — `pdf_max_attempts`, both retry backoff arrays, `mail_batch_time` default 16:00, `mail_batch_skip_holidays`, `email_provider`, `mail_vendor`), `invoices.delivery_method` (5-value CHECK) / `sent_at` / `pdf_url` / `pdf_generated_at` / `delivery_confirmed_at` / `delivery_failed_reason` / `delivery_attempts`, and the `alerts.alert_type` 21-value enum. Note that `invoices.delivery_method` defaults to `'email'` while Check #4 fix #4 made `mail` the default — **that looks like a live contradiction and is the first thing to check.**
+3. **Two of Domain 8's four workflows are `[split-with-addenda]`** — per the strategy, integration-touching workflows get a partner-neutral spec now, with partner-specific exception flows deferred to addenda once partners are selected. `ami-amr-file-ingestion` (Session 3A) is the precedent to follow for shape.
+4. **Decide the briefing question above** before drafting, since it affects whether 3G's items get written up this session or next.
 
 ## Warnings
 
-- **Commit before ending a session.** The prior session left 52 files of correct work uncommitted; this session's first act was rescuing it. It survived, but only because nothing touched the working tree in between.
+- **Commit before ending a session.** An earlier session left 52 files of correct work uncommitted and the next session's first act was rescuing it.
 - **Don't spawn an Agent with a placeholder prompt to "wait."** See Failed Approaches.
-- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; all work artifacts live in `gas-billing-memory`.** Don't look for decision tables, workflows, or invariant docs in this repo.
+- **HANDOFF.md and CHANGELOG.md live in `tally-utility`; all work artifacts live in `gas-billing-memory`** (which has its own, more detailed CHANGELOG — both get an entry each session). Don't look for decision tables, workflows, or invariant docs in this repo.
 - **The open items are deliberate, not authoring mistakes.** Don't resolve them unilaterally in a future session.
-- **Texas-only launch** remains the scope discipline. Sewer billing and government/wholesale customer classes are still flagged as likely-out-of-scope-for-v1 (Sessions 3B/3C) but not formally deferred, unlike Q-12's transport-balancing/submetering/multi-commodity.
-- **`tax_jurisdictions` (A-8) is the load-bearing absence across all of Domain 5.** Any future session that touches tax, franchise fee, or premise jurisdiction assignment inherits it.
-- **Domain 6 is the first domain where substantial application logic already ships.** `void_invoice()` (~270 lines) and `get_correction_rate_date()` implement much of clusters 28 and 29. Its tables specify what those functions *don't* do — don't read them as proposing behavior from scratch, and don't propose changes to those functions without noting they are shipped contracts documented in column comments.
+- **Verify push state, don't carry a number forward.** A "42 unpushed commits" figure was propagated unverified across several handoffs and was stale. Use `git rev-list --left-right --count origin/main...HEAD` after a fetch.
+- **Texas-only launch** remains the scope discipline. Sewer billing and government/wholesale customer classes are still flagged likely-out-of-scope-for-v1 (Sessions 3B/3C) but not formally deferred, unlike Q-12's transport-balancing/submetering/multi-commodity.
+- **`tax_jurisdictions` (A-8) is the load-bearing absence across Domain 5. A-20 is Domain 7's** — and per open item 1, A-20's stated scope is now known to be too narrow (no canary registry, no revenue-requirement baseline). Any schema-hardening session that works A-20 inherits that.
+- **Domain 7's asymmetry is worth carrying into Domain 8:** the per-bill gate is structurally enforced, the cycle-level gate has no structure at all. Delivery has the same shape — rich per-invoice columns (`delivery_attempts`, `delivery_failed_reason`, `delivery_confirmed_at`), and CI-135's print-mail integrity is a *batch*-level assertion about a vendor handoff. Expect the same gap and check for it early.
