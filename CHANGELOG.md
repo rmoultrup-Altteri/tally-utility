@@ -4,6 +4,24 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-06 — Session (cont.): Work Unit 6 Session 3H (Domain 8 — Delivery & Communications)
+
+Drafted clusters 36–38 and four workflows in `gas-billing-memory` (`60a4557`, pushed). Seven files: `delivery-method-routing` (#36, first-match), `communication-language-format` (#37, unique), `notice-and-alert-triggering` (#38, collect); `invoice-pdf-generation-and-retention`, `email-delivery-with-fallback` [addenda], `print-vendor-handoff` [addenda], `consolidated-invoice-assembly`. WU6 output now stands at 72 files across Sessions 3A–3H; Domains 1–8 of 13 are drafted.
+
+**Domain 8 is the gap-densest domain in the corpus** — A-16 (outbound communication log), A-17 (notice-template versioning), and A-18 (bill-image archive) stacked, plus a fourth absence not in Appendix A at all. Per CI-095's own consequence, every notice the platform fires today is regulatorily not-sent.
+
+**Four open items:** no E-SIGN consent substrate while `billing_delivery_method` defaults to `email` (the condition §101(c) prohibits); "Check #4 fix #4" cited by the inventory with **no source document anywhere in the KB**, alongside two adjacent `customers` columns defaulting to opposite channels; A-16's outcome enum being one field short of CI-135's content-to-envelope match assertion while A-17 overstates its own gap (`bill_messages` supplies most of the shape) and **`bill_messages` rows are mutable, a live CI-094 violation**; and no declaration of whether a collections step gates on `sent_at` or `delivery_confirmed_at` — the cheapest item, reaching three domains.
+
+**Method note worth carrying:** two of the four came from testing an *Appendix A claim* against `sql/tu.sql` rather than from reading the schema cold. Combined with Session 3G's CI-134 finding, the appendix has now been materially wrong twice in two sessions. It should be treated as a hypothesis to test, not a settled inventory.
+
+**Correction to Session 3G, made in place.** The claim that a bill dispute "has nowhere to live except `customers.billing_hold_reason`" was too strong — `customer_interactions` carries `reason='high_bill_complaint'` with an `invoice_id` FK and a full status lifecycle. The corrected ask (add disputed amount and protection linkage to existing substrate) is smaller than what was originally implied.
+
+Logged in `wiki-ingestion-pending.md` Section O and both CHANGELOGs. Pushed and level with `origin/main`.
+
+**Next:** compile the consolidated 3G+3H review brief, then Session 3I — Domain 9 (Payments), clusters 39–42.
+
+---
+
 ## 2026-08-06 — Session (cont.): Work Unit 6 Session 3G (Domain 7 — Pre-Mail QA & Exceptions)
 
 Drafted clusters 33–35 and four workflows in `gas-billing-memory` (`8e22bc6`, pushed). Seven files: `statistical-anomaly-detection` (#33, collect), `absolute-baseline-qa` (#34, collect), `exception-threshold-and-routing` (#35, first-match); `pre-mail-exception-review`, `canary-account-reconciliation`, and the two workflows deferred from 3F — `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. WU6 output now stands at 65 files across Sessions 3A–3G; Domains 1–7 of 13 are drafted.
