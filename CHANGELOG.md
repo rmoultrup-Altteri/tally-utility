@@ -18,7 +18,11 @@ Drafted clusters 36–38 and four workflows in `gas-billing-memory` (`60a4557`, 
 
 Logged in `wiki-ingestion-pending.md` Section O and both CHANGELOGs. Pushed and level with `origin/main`.
 
-**Next:** compile the consolidated 3G+3H review brief, then Session 3I — Domain 9 (Payments), clusters 39–42.
+**Brief compiled the same session** (`c4a36cc`): `wu6-sessions-3g-3h-review-brief.md`, the fifth in the series, spanning both sessions' 14 files. Part A carries the four items above. **Part D is new to the brief format** and holds two things that aren't rulings — a proposed fourth option closing the *previous* brief's open consolidated-ledger question (children post; the parent is a presentation-and-payment construct, because the customer pays against the document carrying the invoice number), and the print-vendor procurement criterion. It opens with the methodological note rather than a question, and carries the Session 3G dispute correction in its narrowed form so Kyle meets the corrected version first.
+
+**Two briefs are now outstanding simultaneously** — a first. They're independent, but eight Part A items across two documents is a lot to hand over at once; if Kyle wants a sequence, 3G–3H first, since its "Check #4" item resolves cheaply and changes the cost of the E-SIGN item beside it.
+
+**Next:** Session 3I — Domain 9 (Payments), clusters 39–42.
 
 ---
 

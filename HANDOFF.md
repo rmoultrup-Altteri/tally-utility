@@ -2,7 +2,7 @@
 
 **Generated**: 2026-08-06
 **Branch**: main (both repos)
-**Status**: Ready for Review — WU5 complete; WU6 Sessions 3A–3H complete (Domains 1–8 of 13). Nineteen open items across the last five sessions await Kyle; none blocks Session 3I. **A consolidated 3G+3H review brief is recommended and not yet compiled** — see below.
+**Status**: Ready for Review — WU5 complete; WU6 Sessions 3A–3H complete (Domains 1–8 of 13). Nineteen open items across the last five sessions await Kyle, now organized into **two open briefs**; none blocks Session 3I.
 
 ## Goal
 
@@ -16,21 +16,21 @@ Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas
 - `application/configurable-rules/decision-tables/` and `workflows/` — WU6 output: **72 files** across Sessions 3A–3H
 - `application/configurable-rules/configuration-catalog.md` + `de-review-answers.md` / `de-review-answers-8-11.md` — the catalog and Kyle's earlier resolved decisions
 - `application/wu5-wu6-kyle-decisions-2026-07-10.md` — historical source record, fully folded in
-- `application/configurable-rules/wu6-sessions-3e-3f-review-brief.md` — the fourth brief, **still awaiting Kyle**
-- `application/wiki-ingestion-pending.md` — Sections A–O; every file change logged with a wiki-ingestion target
+- `application/configurable-rules/wu6-sessions-3e-3f-review-brief.md` and `wu6-sessions-3g-3h-review-brief.md` — the fourth and fifth briefs, **both open, both awaiting Kyle**, independent of each other
+- `application/wiki-ingestion-pending.md` — Sections A–P; every file change logged with a wiki-ingestion target
 - `application/execution-kickoff.md` — the 12-work-unit sequence. It does **not** carry a per-session WU6 progress marker; session progress lives here and in `wiki-ingestion-pending.md` only.
 
 ## Completed (this session)
 
 - [x] **Session 3H — Domain 8 (Delivery & Communications), clusters 36–38** (`gas-billing-memory 60a4557`, pushed): three decision tables — `delivery-method-routing` (#36, first-match), `communication-language-format` (#37, unique), `notice-and-alert-triggering` (#38, collect) — and four workflows: `invoice-pdf-generation-and-retention`, `email-delivery-with-fallback` [addenda], `print-vendor-handoff` [addenda], `consolidated-invoice-assembly`. Seven files.
 - [x] **Corrected a Session 3G overstatement in place** — see "Correction carried" below.
-- [x] Logged in `wiki-ingestion-pending.md` Section O + both CHANGELOGs. Pushed; `origin/main` level (0/0).
+- [x] **Compiled `wu6-sessions-3g-3h-review-brief.md`** (`c4a36cc`, pushed) — the fifth brief, spanning both sessions' 14 files. Part A holds four items; **Part D is new to the format** and carries two things that aren't rulings (a proposed fourth option closing the *previous* brief's Part A item 4, and a print-vendor procurement criterion whose deadline attaches to vendor selection). Opens with a methodological note rather than a question. Carries the Session 3G dispute correction in its narrowed form.
+- [x] Logged in `wiki-ingestion-pending.md` Sections O and P + both CHANGELOGs. Pushed; `origin/main` level (0/0).
 
 ## Not Yet Done
 
-- [ ] **Compile the consolidated 3G+3H review brief.** Recommended at the end of Session 3G and still the right call — Domains 7 and 8 are coupled through CI-115/CI-134/CI-135 and the delivery gate, and 3H's item 4 (`sent_at` vs. `delivery_confirmed_at`) reaches directly into Domain 7's exception routing. Eight items across the two sessions, plus a procurement action and a proposed resolution to a 3F question. Precedent: `wu6-sessions-3e-3f-review-brief.md`, and the 3A–3D brief before it. **This is the first thing to do next session unless redirected.**
-- [ ] **Sessions 3I through 3M** — payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3I is next after the brief.**
-- [ ] **Kyle answers `wu6-sessions-3e-3f-review-brief.md`** — still awaiting him.
+- [ ] **Sessions 3I through 3M** — payments (39–42), programs (43–45), collections/disconnect/deposits (46–55), customer/account lifecycle (56–57), import/admin (58–60). Untouched. **Session 3I is next.**
+- [ ] **Kyle answers both open briefs** — `wu6-sessions-3e-3f-review-brief.md` (four Part A items, awaiting him since earlier today) and `wu6-sessions-3g-3h-review-brief.md` (four more). **Two briefs are now outstanding simultaneously, which is a first.** They're independent — neither depends on the other's answers — but eight Part A items across two documents is a lot to hand someone at once, and it may be worth asking Kyle which he'd rather take first. My suggestion if asked: 3G–3H, because its item 2 ("Check #4") resolves cheaply and changes how expensive item 1 is, and because the `bill_messages` mutability finding is a live violation rather than a design question.
 - [ ] **`tally-utility` has no git remote configured** — local-only, with nowhere to push, while holding the canonical schema and all session history. Worth deciding.
 
 ## Failed Approaches (Don't Repeat These)
@@ -91,10 +91,9 @@ Non-obvious: hit policies aren't decorative. `rule-order` isn't row-matching at 
 
 ## Resume Instructions
 
-1. **Compile `wu6-sessions-3g-3h-review-brief.md`** unless redirected. Follow `wu6-sessions-3e-3f-review-brief.md`'s shape: Part A holds the few items that block the most, Parts B–C the per-session items, and a closing section stating exactly what is and isn't blocked. Part A candidates: E-SIGN consent (3H-1), CI-134's two missing baselines (3G-1), the `bill_messages` mutability violation (3H-3), and the `sent_at`/`delivery_confirmed_at` declaration (3H-4, cheap and high-reach). Carry the procurement action and the consolidated-invoice fourth option separately — neither is a ruling. **Brief Session 3G's item 4 in its corrected form.**
-2. **Then Session 3I — Domain 9 (Payments), clusters 39–42** (`payment-posting-allocation`, `overpayment-and-credit-disposition`, `nsf-and-ach-return-handling`, `autopay-eligibility-and-failure`), plus `lockbox-remittance-ingestion` [addenda], `payment-gateway-webhook-handling` [addenda], `ach-return-handling`, `autopay-enrollment-and-management`, `unapplied-cash-resolution`, `refund-processing`. Known content: **DE-2** (allocation configurable, not mandated); **Q-5 resolved** 2026-07-10 (D7-1, tiered payment-class allocation) — the UCC §3-310 earmark invariant; **action #21** (Texas timeliness keys off postmark for mailed payments and sent date for electronic ones, with the explicit design implication that payment records need a **customer-initiation date distinct from the posting date** — check `payments` for whether one exists).
-3. **Read the schema directly.** Four sessions running, that's where every item has come from. Two of 3H's four came from testing an *appendix claim* against the schema — A-17's "no table exists" and A-16's outcome enum vs. CI-135. That move (check what Appendix A asserts against what `sql/tu.sql` actually has) is now the highest-yield single technique in this work and should be applied to Domain 9's gaps deliberately.
-4. **Domain 9 substrate already located:** `payments` (with `channel` 10-value enum, `nsf_original_payment_id`), `customer_credits` (`origin_type` 10-value enum incl. `dispute_resolution`, `overpayment`, `escheatment` path), `auto_pay_settings`, `account_ledger`. The catalog's `payment-policy-gaps` entry carries Kyle's 2026-06-12 postmark ruling verbatim.
+1. **Session 3I — Domain 9 (Payments), clusters 39–42** (`payment-posting-allocation`, `overpayment-and-credit-disposition`, `nsf-and-ach-return-handling`, `autopay-eligibility-and-failure`), plus `lockbox-remittance-ingestion` [addenda], `payment-gateway-webhook-handling` [addenda], `ach-return-handling`, `autopay-enrollment-and-management`, `unapplied-cash-resolution`, `refund-processing`. Known content: **DE-2** (allocation configurable, not mandated); **Q-5 resolved** 2026-07-10 (D7-1, tiered payment-class allocation) — the UCC §3-310 earmark invariant; **action #21** (Texas timeliness keys off postmark for mailed payments and sent date for electronic ones, with the explicit design implication that payment records need a **customer-initiation date distinct from the posting date** — check `payments` for whether one exists).
+2. **Read the schema directly.** Four sessions running, that's where every item has come from. Two of 3H's four came from testing an *appendix claim* against the schema — A-17's "no table exists" and A-16's outcome enum vs. CI-135. That move (check what Appendix A asserts against what `sql/tu.sql` actually has) is now the highest-yield single technique in this work and should be applied to Domain 9's gaps deliberately.
+3. **Domain 9 substrate already located:** `payments` (with `channel` 10-value enum, `nsf_original_payment_id`), `customer_credits` (`origin_type` 10-value enum incl. `dispute_resolution`, `overpayment`, `escheatment` path), `auto_pay_settings`, `account_ledger`. The catalog's `payment-policy-gaps` entry carries Kyle's 2026-06-12 postmark ruling verbatim.
 
 ## Warnings
 
