@@ -4,6 +4,40 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-06 — Session (cont.): Work Unit 6 Session 3F (Domain 6 — Billing Run, Corrections & Backbilling)
+
+**Status:** Same working session as 3E, continued. 14 files — six decision tables (clusters 27–32) and eight workflows — committed as `gas-billing-memory 5b10d7e`. WU6 now stands at Sessions 3A–3F done, 3G–3M remaining. No application code written.
+
+### Done
+- **Session 3F — Domain 6, clusters 27–32:** `backbilling-cap-enforcement` (#27, priority), `correction-and-void-eligibility` (#28, priority), `cancel-rebill-bitemporal` (#29, unique), `billing-run-read-gating` (#30, first-match), `invoice-consolidation` (#31, unique), `adjustment-authorization` (#32, priority).
+- **Eight workflows:** `billing-run-normal-cycle`, `billing-run-offcycle`, `final-bill-generation`, `cancel-rebill-operator-correction`, `cancel-rebill-regulatory-retroactive`, `adjustment-with-approval-threshold`, `bulk-account-adjustment`, `backbilling-limit-compliance-review`.
+- **Consolidated the Phase 0–9 billing pipeline**, which existed only as scattered `sql/tu.sql` column comments, into `billing-run-normal-cycle`: Phase 0 run initiation · 1 candidate selection · 2A estimation · 3 consumption · 4 rate items · 5 ad-hoc charges and correction rate dates · 6 invoice assembly · 7 operator review · 8 posting · 9 PDF and delivery. Agrees with CI-100 and is more specific.
+- **Logged in `wiki-ingestion-pending.md` Section L** and the `gas-billing-memory` CHANGELOG.
+- **Deferred deliberately:** `pre-mail-bill-correction` and `high-bill-dispute-intake-and-resolution`. Part 2 files both under pre-mail/correction, but pre-delivery correction is a different operation from void/rebill and belongs with Session 3G's pre-mail QA cluster set.
+
+### This domain differs from every prior one: the code already exists
+`void_invoice()` is a ~270-line function implementing most of cluster 28's mechanics — voidability validation, cross-tenant defense-in-depth, read release to `void_released`, ad-hoc charge disposition, `void_reversal` ledger posting, `invoice_events` logging. `get_correction_rate_date()` implements cluster 29's resolver. The tables mostly specify what those functions *don't* do, which is a different authoring job than Domains 1–5 and produced sharper findings.
+
+### Five open items surfaced, in order of consequence
+1. **DE-3's gas guard doesn't exist and the schema argues against it.** DE-3 requires gas correction runs to reject `correction_rate_mode='current'` via a hard guard, and marks it a proposed new invariant. It was never implemented, never added to `canonical-invariants.md`, and **both relevant column comments document `current` as existing precisely for the wrong-meter case** the prohibition would forbid. Governs cluster 29 and both cancel-rebill workflows identically.
+2. **Backbilling is unenforced end to end.** No cap table (A-2), no cause column, no period check in `void_invoice()` — current behavior is unbounded backbilling for every cause, including ones §7.45 caps at three months. Underneath: the cause enum can't be derived from `invoices.void_reason_code`'s seven *operational* values, and **`rate_misapplication`'s 6-month rule is a collectability protection (disconnection prohibited), not a rebill window** — so the cap table holds two different kinds of limit in one enum.
+3. **Consolidated invoices: nothing says whether parent or children post to `account_ledger`.** Both double-counts and breaks CI-019; parent-only hides per-location arrears from collections; children-only leaves the delivered artifact with no ledger presence.
+4. **No aggregate authorization.** Ten thousand $1 adjustments each pass the per-charge threshold a single $10,000 adjustment would fail. No aggregate concept in the schema, and no bulk-operation entity to hold a reviewed population.
+5. **Unapproved charges aren't excluded from billing pickup.** The documented Phase-5 predicate doesn't test `requires_approval` / `approved_at`, while the approval queue's partial index defines exactly those charges as outstanding — approval is currently advisory.
+
+Two smaller findings: cluster 32's threshold must compare `abs(amount)`, since `amount` is signed and a naive `>=` leaves credits ungated — the direction that costs money; and `adhoc_charges.voided_from_invoice_id`'s comment documents the correction audit chain with its last hop pointing the wrong way.
+
+### One coherence worth recording
+`void_invoice()`'s auto-revert reason set (`wrong_read`, `wrong_rate`, `service_date_error`, `system_error`) has as its complement exactly the void-only-eligible set (`wrong_customer`, `duplicate`, plus `other`). Where a rebill is coming the charges ride it automatically; where no corrected bill may exist a human decides each one. It reads as two unrelated `UPDATE` branches until they're lined up — worth naming so nobody "simplifies" the duplication away.
+
+### Method
+Same as 3E and for the same reason: no research agents, reading `sql/tu.sql` directly against `canonical-invariants.md` Families 1, 2, 13, and 16 plus the catalog, DE-3, and action #9. All five open items came from that comparison. Two sessions in, this looks like the right default for domains whose substrate already exists in the schema — the prose docs and the schema disagree in specific, findable ways, and only reading both surfaces them.
+
+### Next
+Session 3G — Domain 7 (pre-mail QA and exceptions), clusters 33–35, carrying CI-134's mass-error gate and DE-10's tenant-tunable thresholds. `billing-run-normal-cycle`'s Exc 4 already names the seam it inherits.
+
+---
+
 ## 2026-08-06 — Session: Commit the pending fold-in, then Work Unit 6 Session 3E (Domain 5 — Taxes & Fees)
 
 **Status:** Two units of work. First, the prior session's Kyle-decisions fold-in was sitting uncommitted in `gas-billing-memory` (52 files edited, 1 renamed) — committed as `fe435cc`. Then Session 3E drafted: 4 decision tables + 1 workflow, committed as `fe07a10`. WU6 now stands at Sessions 3A–3E done, 3F–3M remaining. No application code written.
