@@ -4,6 +4,24 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-07 — Session (cont.): Work Unit 6 Session 3J (Domain 10 — Programs & Assistance)
+
+Drafted clusters 43–45 and six workflows in `gas-billing-memory`. Nine files: `budget-billing-eligibility-and-trueup` (#43, unique), `dpa-eligibility-and-breach` (#44, priority), `program-enrollment-eligibility` (#45, collect); `budget-billing-enrollment`, `budget-billing-trueup`, `budget-billing-exit`, `dpa-creation`, `dpa-payment-progress`, `dpa-breach-handling`. WU6 output now **91 files**; Domains 1–10 of 13 drafted.
+
+**Substrate verified absent first.** `customer_program_enrollments` and `program_types` are **not in `sql/tu.sql`** — the v5.4 patch has not landed, so this domain is drafted against a locked design with the current single-column substrate's limits named per row.
+
+**The organizing finding is a precedent rather than a gap.** A-11 says the enrollment lifecycle mirrors CI-046's tax-exemption pattern — and it does. But the scalar that pattern replaced was kept "for backward compat" and **has drifted in production**: `should_charge_tax()` reads only `customer_tax_exemptions`, `compliance_statistics` reads only `customers.is_tax_exempt`, nothing syncs them, and both directions are live today. That is exactly what v5.4 will reproduce for disconnect protection unless A-11's `do_not_disconnect` trigger lands — so the finding **validates** the locked design and prices the cost of skipping its least glamorous element.
+
+**Four open items:** the drifted migration precedent; **`do_not_disconnect` maintained by no trigger today** while `compliance_statistics` short-circuits on it and `idx_customers_protection` indexes it — an active medical certificate with an unset flag reads as unprotected and is invisible to the fast path, which given DE-9's documented-deaths framing is the highest-consequence instance of this class in the corpus and exists *before* v5.4; **a premise→customer grain change** that budget billing and DPAs hit independently (one nullable `location_id` closes both); and **`elderly_disabled` likely miscategorized** as a disconnect protection by the same reasoning Kyle used to close Q-6.
+
+**Correction to Session 3H — and this one was my own error, not the appendix's.** Both `delivery-method-routing.md` and the **open** 3G–3H brief asserted `customers.preferred_contact_method` has no CHECK constraint. It has a 5-value CHECK. Corrected in place, with the brief's note written to be read before the original claim. The correction **sharpens** 3H item 2: two properly-constrained enums with deliberately different value sets look like two columns answering different questions, on which reading the opposite defaults are not a contradiction at all.
+
+**Method note.** Running total is **six material errors across four sessions**, in both directions — plus a new subcategory this session: an authoring error of mine, found by the same appendix-testing technique, already propagated into a live brief. The technique should be pointed at this corpus's own prior output, not only at Appendix A.
+
+Logged in `wiki-ingestion-pending.md` Section R and both CHANGELOGs.
+
+---
+
 ## 2026-08-07 — Session: Work Unit 6 Session 3I (Domain 9 — Payments)
 
 Drafted clusters 39–42 and six workflows in `gas-billing-memory`. **Ten files — the largest single WU6 session so far.** Decision tables: `payment-posting-allocation` (#39, priority), `overpayment-and-credit-disposition` (#40, priority), `nsf-and-ach-return-handling` (#41, first-match), `autopay-eligibility-and-failure` (#42, first-match). Workflows: `lockbox-remittance-ingestion` [addenda], `payment-gateway-webhook-handling` [addenda], `ach-return-handling`, `autopay-enrollment-and-management`, `unapplied-cash-resolution` (CSR), `refund-processing`. WU6 output now stands at **82 files** across Sessions 3A–3I; Domains 1–9 of 13 are drafted.
