@@ -4,6 +4,28 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-07 — Session: Work Unit 6 Session 3I (Domain 9 — Payments)
+
+Drafted clusters 39–42 and six workflows in `gas-billing-memory`. **Ten files — the largest single WU6 session so far.** Decision tables: `payment-posting-allocation` (#39, priority), `overpayment-and-credit-disposition` (#40, priority), `nsf-and-ach-return-handling` (#41, first-match), `autopay-eligibility-and-failure` (#42, first-match). Workflows: `lockbox-remittance-ingestion` [addenda], `payment-gateway-webhook-handling` [addenda], `ach-return-handling`, `autopay-enrollment-and-management`, `unapplied-cash-resolution` (CSR), `refund-processing`. WU6 output now stands at **82 files** across Sessions 3A–3I; Domains 1–9 of 13 are drafted.
+
+**Domain 9 inverts Domain 8's shape** — substrate-rich and rule-poor. The reversal-lineage machinery is genuinely well built, `customer_credits` is a compliance-grade unclaimed-property substrate, and CI-051's no-PAN-storage discipline is the corpus's only `structurally-enforced` invariant. What is missing is narrower: the columns settled decisions need to read, and the functions that would keep five denormalized balance totals honest.
+
+**New failure mode for the corpus: a *resolved* decision that turned out to be unexecutable.** Prior sessions found gaps under open questions. Kyle closed Q-5 with D7-1's tiered payment-class allocation, and the tier that overrides the posting order — agency/pledge, "restriction stored on the payment record" — has no field to store it in and no way to be told apart from an ordinary customer payment.
+
+**Four open items:** D7-1's unexecutable tier (no payer-class or restriction columns; three enums all describe something else); `invoice_applications` being **per-invoice, not per-charge**, so CI-050's regulated-first floor has no expression even after D7-2's `regulatory_class` lands — contradicting CI-049's own schema-status line; **A-12 being two gaps under one name**, with `payments.unapplied_amount` plus a purpose-built partial index already solving the amount-mismatch case while the unidentified-*payer* case remains a total blocker (and `payments` lacking the balance CHECK `customer_credits` has, with **no payment-posting function anywhere in the schema**); and the escheatment dormancy clock **hardcoded to 1095 days for every `origin_type` in a shipped materialized view**, against the catalog's own Texas per-property-type finding — under-reporting deposits by roughly eighteen months.
+
+**Design note:** Session 3H's E-SIGN delivery-consent substrate and this session's Reg E debit-authorization substrate have near-identical shapes and should be scoped as one consent table with a type discriminator, not two near-duplicates six weeks apart.
+
+**Second procurement criterion in the corpus:** lockbox postmark capture is a priced vendor service tier. Without it, Kyle's 2026-06-12 Texas timeliness ruling is unimplementable for mailed payments — the same shape as Session 3H's print-vendor criterion.
+
+**Narrows Session 3H item 2** rather than compounding it: cluster 42's "Check #4 fix #3" has its substance recorded in the catalog under the 2026-06-12 review in Kyle's voice, so mislabeling is likelier than an unrecorded ruling.
+
+**Method note.** Five of ten files produced their sharpest finding by testing an Appendix-A or enforcement-status claim against `sql/tu.sql`; three were wrong, in both directions. At three sessions and five errors, the appendix is a hypothesis register, not an inventory — and the schema-hardening estimate derived from it will be wrong both ways until each entry is re-checked.
+
+Logged in `wiki-ingestion-pending.md` Section Q and both CHANGELOGs.
+
+---
+
 ## 2026-08-06 — Session (cont.): Work Unit 6 Session 3H (Domain 8 — Delivery & Communications)
 
 Drafted clusters 36–38 and four workflows in `gas-billing-memory` (`60a4557`, pushed). Seven files: `delivery-method-routing` (#36, first-match), `communication-language-format` (#37, unique), `notice-and-alert-triggering` (#38, collect); `invoice-pdf-generation-and-retention`, `email-delivery-with-fallback` [addenda], `print-vendor-handoff` [addenda], `consolidated-invoice-assembly`. WU6 output now stands at 72 files across Sessions 3A–3H; Domains 1–8 of 13 are drafted.
