@@ -4,6 +4,24 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-07 — Session (cont.): Work Unit 6 Session 3K-collections (Domain 11 pt 1 — Collections & Disconnect)
+
+Drafted clusters 46–50 and six workflows in `gas-billing-memory`. Eleven files: `collections-bypass-evaluation` (#46, priority), `dunning-step-routing` (#47, first-match), `disconnect-eligibility` (#48, priority), `cold-weather-moratorium` (#49, unique), `reconnect-eligibility-and-fees` (#50, first-match); `bypass-conditions-evaluation`, `dunning-event-action`, `disconnect-order-creation-and-dispatch`, `disconnect-field-execution`, `reconnection-request-and-gas-relight`, `bankruptcy-stay-and-adequate-assurance`. WU6 output now **102 files**; Domains 1–10 complete, Domain 11 half-drafted.
+
+**First session to take the inventory's split.** Ten clusters would have doubled any prior session. The seam runs between the service side (46–50, up to restoration) and the money-at-end-of-life side (51–55 plus write-off, agency placement, escheatment). `escheatment-processing` regrouped into 3K-deposits, since Session 3I showed its dormancy problem is really a deposits question.
+
+**The session's argument is an aggregation, not a single finding.** Sessions 3G–3J each surfaced absences that read as feature deferrals in their own domain. Here they compose: **cluster 48 — the last gate before a household loses heat — can currently evaluate roughly one of its eleven bars**, and the one that works checks the platform's own state machine rather than the customer's circumstances.
+
+**Four open items:** **no holiday calendar**, so both §7.45 working-day clocks are uncomputable while `mail_batch_skip_holidays` advertises the capability — the failure is systematically *early*, disconnecting two working days before the statute permits across every holiday week; **the EWE moratorium is self-executing and unlearnable** (no weather feed, no county-to-station mapping, no daily temp or forecast, `county` nullable; the existing `wna_*` data is monthly, zone-keyed, winter-only, and WNA-tenants-only — wrong on all four axes) against §7.460's civil-penalty table; **nothing makes an eligibility determination expire**, so a technician works Monday's authorization on Thursday — **and this one is not in Appendix A at all**; and **D9-1 cannot be implemented** for want of two photo-type enum values, a `service_order_id` FK, an approval record, a service-order event log, and a role model.
+
+**Three procurement criteria surfaced** — weather feed, acknowledged cancellation in the field-service integration, bankruptcy scrub — bringing the corpus total to five with 3H's print-vendor assertion and 3I's lockbox postmark tier. Worth stating as a pattern: **regulatory obligations here repeatedly terminate at a vendor capability, so vendor selection is a compliance activity, not a purchasing one.**
+
+**Method note.** Appendix-testing produced items 1, 2 and 4. Item 3 came from the opposite direction — asking what happens *between* two documented states. The appendix has now been wrong six times and **silent** once; silence is harder to find because there is no claim to test.
+
+Logged in `wiki-ingestion-pending.md` Section S and both CHANGELOGs.
+
+---
+
 ## 2026-08-07 — Session (cont.): Work Unit 6 Session 3J (Domain 10 — Programs & Assistance)
 
 Drafted clusters 43–45 and six workflows in `gas-billing-memory`. Nine files: `budget-billing-eligibility-and-trueup` (#43, unique), `dpa-eligibility-and-breach` (#44, priority), `program-enrollment-eligibility` (#45, collect); `budget-billing-enrollment`, `budget-billing-trueup`, `budget-billing-exit`, `dpa-creation`, `dpa-payment-progress`, `dpa-breach-handling`. WU6 output now **91 files**; Domains 1–10 of 13 drafted.
