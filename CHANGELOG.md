@@ -4,6 +4,24 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-07 — Session (cont.): Work Unit 6 Session 3K-deposits (Domain 11 pt 2 — Write-Off, Deposits & Unclaimed Property)
+
+Drafted clusters 51–55 and five workflows in `gas-billing-memory`. Ten files: `write-off-eligibility` (#51, priority), `customer-credit-scoring` (#52, unique, **`pending`**), `deposit-eligibility-and-waiver` (#53, priority, **regulated**), `deposit-refund-and-interest` (#54, unique), `deposit-alternatives-and-triggers` (#55, first-match); `agency-placement`, `write-off-authorization`, `escheatment-processing`, `deposit-refund-processing`, `deposit-interest-accrual-cycle`. WU6 output now **112 files**; **Domain 11 complete**, Domains 12–13 remaining.
+
+**Substrate verified first, and two verifications carried the session.** There is **no `deposits` table** in `sql/tu.sql` — fifty-nine tables, none of them that one — and the string **`interest` appears exactly once** in the whole schema, as `customers.deposit_interest_earned`.
+
+**The argument mirrors part 1 and inverts it.** Part 1 found a pipeline that could not verify the law permitted what it was about to *do*. Part 2 finds obligations to **act unprompted** — refund the deposit, waive it, remit the property, notice a trigger came due — with no mechanism to notice the moment arrived. Part 1's unevaluable case had to fail *closed* because the action harms; here it fails *open* because inaction harms. Unifying rule, worth adopting corpus-wide: **the unevaluable case resolves against the party that controls the data.**
+
+**Five open items:** **CI-077 asserts a `deposits` table that does not exist** while CI-125/129/130/131 all correctly read `unenforced-gap` — the invariant corpus contradicts itself, and the entry claiming enforcement is the one governing the regulated 1/6 cap; **deposit interest is one mutable column** with no rate, no history, no accrual event, no ledger movement, in a schema shipping full bi-temporal rate machinery for gas — with the day-30/day-31 retroactivity cliff every natural paraphrase gets wrong, uniformly, across the whole book; **the refund monitoring is pointed at the wrong event** (`deposit_refund_overdue` detects an issued-and-unpaid credit; a trigger that never fired produces no credit, so no anomaly — blind to the statutory failure, vigilant about its sequel); **the grain pattern has crossed from awkward into unsafe**, since per-invoice write-off with no customer-level record lets a $1,000 limit clear a $4,000 relationship in eight compliant steps; and **Q-6's affirmative half has no substrate** — `family_violence` appears nowhere, and every failure in the deposit-waiver path runs toward charging a deposit that is not owed.
+
+**Two procurement criteria, corpus total now seven** — a collection-agency agreement (recall acknowledgement, dispute intake, bankruptcy cease) and, contingently, credit-bureau furnishing, **recommended out of scope for launch**. At seven across four sessions the recommendation is to consolidate into one vendor-criteria list rather than keep appending.
+
+**Method note.** Item 1 came from a new technique — **cross-entry consistency-testing**, reading CI-077 against its four siblings. Prior sessions tested the appendix against the schema; this one tested the corpus against itself. Both the appendix and the enforcement-status field are hypothesis registers.
+
+Logged in `wiki-ingestion-pending.md` Section T and both CHANGELOGs.
+
+---
+
 ## 2026-08-07 — Session (cont.): Work Unit 6 Session 3K-collections (Domain 11 pt 1 — Collections & Disconnect)
 
 Drafted clusters 46–50 and six workflows in `gas-billing-memory`. Eleven files: `collections-bypass-evaluation` (#46, priority), `dunning-step-routing` (#47, first-match), `disconnect-eligibility` (#48, priority), `cold-weather-moratorium` (#49, unique), `reconnect-eligibility-and-fees` (#50, first-match); `bypass-conditions-evaluation`, `dunning-event-action`, `disconnect-order-creation-and-dispatch`, `disconnect-field-execution`, `reconnection-request-and-gas-relight`, `bankruptcy-stay-and-adequate-assurance`. WU6 output now **102 files**; Domains 1–10 complete, Domain 11 half-drafted.
