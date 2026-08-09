@@ -4,6 +4,26 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-09 — Session: Work Unit 6 Session 3L (Domain 12 — Customer / Account Lifecycle)
+
+Drafted clusters 56–57 and three workflows in `gas-billing-memory`. Five files: `billing-responsibility-resolution` (#56, first-match), `service-transition-charges` (#57, unique); `customer-move-in`, `customer-move-out`, `landlord-tenant-responsibility-transition`. WU6 output now **117 files**; **Domains 1–12 complete**, Domain 13 remaining.
+
+**Shape decision made first, as the handoff instructed.** The inventory left Domain 12 open ("folded into the workflows that consume them; Session 3L **if rows warrant**"). Both clusters were written **standalone**, on consumption rather than row count — cluster 56 is read by five workflows plus every dunning and disconnect decision in Domain 11.
+
+**Substrate verified first, and three verifications carried the session.** `service_locations.customer_id` is **`NOT NULL`** — so a premise is defined by its current occupant. The string **`move_out` appears zero times** in `sql/tu.sql`, and the word **"vacancy" appears exactly once — inside the documentation for `turn_on_minimum_vacancy_days`**, a defaulted setting whose input therefore does not exist. And `rate_schedules` carries **two** columns for the partial-period policy where `get_partial_period_policy()` reads only one.
+
+**The session's argument.** Domains 11 and 12 fail the same way for opposite reasons. Domain 11's obligations are things the LDC must *do* unprompted; Domain 12's events **leave no trace at all** — a move-out with no date, an obligor change with no event, an occupancy with no tenure. Where Domain 11 could not notice a moment had arrived, Domain 12 cannot say a moment ever happened. Both reduce to the discipline CI-004 and CI-121 already state and nothing implements: **the relationship facts are date-effective data, stored as current values.**
+
+**Five open items:** **a premise cannot exist without an occupant while CI-120 says it can** — graded `partially-structurally-enforced` on a true-but-not-load-bearing fact, leaving only two turnover implementations (repoint, which silently re-attributes history; or duplicate, which fragments the premise), **second confirmed error in the enforcement-status field**; **the move-out has no date anywhere, and closing the account removes it from the two views that would notice the deposit refund the closure just made mandatory** — obligation created and monitoring switched off by two steps of one workflow; **`partial_period_policy_override` is read by nothing**, so a tenant setting the column named *override* silently gets the tenant default, and the corpus's own gap analysis credits it as the mechanism; **a change of obligor is a bi-temporal event modelled as a boolean**, in a schema with rate history, deployment lineage, mid-period tariff splits and read supersession — and the switch produces no read, so any period split is an unmarked estimate outside the estimation governance; and **a move-in turn-on is filed as a reconnection** because no order type or charge type exists for it, polluting the dataset Domain 11's regulated rules and the deposit triggers both read.
+
+**Corpus-integrity finding, kept separate from the domain items.** A mechanical check of all **402 `[[CI-…]]` wikilinks across the 112 WU6 files** against the 135 canonical entries found **12 wrong invariant numbers in 11 files** (plus ~30 paraphrased links that will not resolve in the wiki). Verified as errors rather than convention: one file uses the correct slug where another uses a variant resolving to nothing. **Deliberately not corrected** — six affected files are cited in briefs with Kyle, and a silent renumbering mid-review is the hazard the 3G–3H amendment raised. Recommended as **one reviewable commit of its own**.
+
+**Method note.** The new technique is mechanical — extract every cross-reference and resolve it against the canonical entries. It found twelve wrong numbers nine sessions of careful reading missed, because a wrong number beside a right name reads as correct. **Three hypothesis registers now:** Appendix A (wrong six times, silent once), `Schema enforcement status` (wrong twice), and the cross-reference layer (wrong twelve times). CI-121 is graded correctly, which is worth recording — the corrections are only worth anything if the register is trusted where it is right.
+
+Logged in `wiki-ingestion-pending.md` Section U and both CHANGELOGs.
+
+---
+
 ## 2026-08-07 — Session (cont.): Work Unit 6 Session 3K-deposits (Domain 11 pt 2 — Write-Off, Deposits & Unclaimed Property)
 
 Drafted clusters 51–55 and five workflows in `gas-billing-memory`. Ten files: `write-off-eligibility` (#51, priority), `customer-credit-scoring` (#52, unique, **`pending`**), `deposit-eligibility-and-waiver` (#53, priority, **regulated**), `deposit-refund-and-interest` (#54, unique), `deposit-alternatives-and-triggers` (#55, first-match); `agency-placement`, `write-off-authorization`, `escheatment-processing`, `deposit-refund-processing`, `deposit-interest-accrual-cycle`. WU6 output now **112 files**; **Domain 11 complete**, Domains 12–13 remaining.
