@@ -4,6 +4,18 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-10 — Session: Validation pass over Sessions 3I, 3J and 3K-collections
+
+Ran the 2026-08-09 validation technique over the three remaining unbriefed sessions — three independent agents, one per session, each re-verifying every claim in its section of `wiki-ingestion-pending.md` against `sql/tu.sql` and the cited documents. **Thirty defects across nineteen files in `gas-billing-memory`; all twelve Kyle open items survive on substance.** No fabricated database objects; one invariant miscite (CI-095 → CI-068).
+
+**By session:** 3I seventeen defects (CI-051 scoped to Family 7, not the corpus — there are sixteen `structurally-enforced` invariants; `credit_aging_statistics` does branch on `deposit_refund`; `provider_transaction_id` does have a partial index; six denormalized totals not five; Reg E revocation is §1005.10(c) not (d)). 3J three (the `preferred_contact_method` correction had missed the Inputs table row; "nine inputs" is seven of thirteen). 3K-collections ten (the six-of-eleven aggregation was internally contradictory — nine substantive bars, six unevaluable, two degraded, one clean; `service_orders` has thirty-five columns not twenty-nine).
+
+**Two findings got stronger, not weaker.** CI-055 already *requires* the deduplication the missing UNIQUE would provide, so that item is an unmet obligation rather than a suggestion. And A-11 rebuilds `compliance_statistics` for the protection columns only, so nothing on the v5.4 path closes 3J's tax divergence — the independent fix is necessary.
+
+**Method note.** In both 3I and 3K-collections, several defects existed **only in the wiki-ingestion summary and not in the source files** — the compression dropped scope qualifiers the files stated carefully. The summary is what a reviewer reads, so it needs validating separately from the files it compresses. Separately: one validator's own count was wrong (it read two *degraded* bars as unevaluable), caught by recounting per bar — the check needs checking too.
+
+---
+
 ## 2026-08-09 — Session: Work Unit 6 Session 3L (Domain 12 — Customer / Account Lifecycle)
 
 Drafted clusters 56–57 and three workflows in `gas-billing-memory`. Five files: `billing-responsibility-resolution` (#56, first-match), `service-transition-charges` (#57, unique); `customer-move-in`, `customer-move-out`, `landlord-tenant-responsibility-transition`. WU6 output now **117 files**; **Domains 1–12 complete**, Domain 13 remaining.
