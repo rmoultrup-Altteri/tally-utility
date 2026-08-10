@@ -4,6 +4,16 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-10 — Session: Validation pass over 3I/3J/3K-collections, then the three outstanding review briefs
+
+**Second half of the session: wrote the three briefs**, from the corrected findings rather than the drafts. `wu6-sessions-3i-3j-review-brief.md`, `wu6-domain-11-review-brief.md` (both 3K halves), `wu6-session-3l-review-brief.md` — 434 lines total in `gas-billing-memory`, committed as `95256d5`. **Five briefs are now open with Kyle and all twenty-two items are briefed.**
+
+The Domain 11 brief is the one that gained most from being written as a pair: the two halves fail in opposite directions — the service side can *do* something unlawful, the deposits side can fail to *act* when unprompted — so fail-closed and fail-open are both correct, and the brief proposes one rule generating both (*the unevaluable case resolves against the party that controls the data*) rather than two conventions someone has to remember the direction of.
+
+Three items are pitched differently than the drafts would have had them: the `provider_transaction_id` UNIQUE is CI-055 compliance rather than a suggestion, the tax divergence cannot be absorbed into v5.4, and the disconnect aggregation is six of nine substantive bars with two more degraded. Cross-reference check run before shipping — all 26 CI citations resolve.
+
+---
+
 ## 2026-08-10 — Session: Validation pass over Sessions 3I, 3J and 3K-collections
 
 Ran the 2026-08-09 validation technique over the three remaining unbriefed sessions — three independent agents, one per session, each re-verifying every claim in its section of `wiki-ingestion-pending.md` against `sql/tu.sql` and the cited documents. **Thirty defects across nineteen files in `gas-billing-memory`; all twelve Kyle open items survive on substance.** No fabricated database objects; one invariant miscite (CI-095 → CI-068).
