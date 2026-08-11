@@ -4,6 +4,18 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-11 — WU6 coda review brief (tenth and final)
+
+`wu6-coda-review-brief.md` — eight items, five corpus patterns, Part C.
+
+The structural difference from the previous nine: **this brief has more than one reader.** Items 1 and 2 are platform-security findings (RLS role enforcement; no customer-facing identity at all) and are both the most serious items and the least likely to be Kyle's call; item 3 is an accounting-architecture question. So the brief opens with a routing table rather than assuming a single audience — that seemed more useful than burying two security findings in a gas-billing brief.
+
+It amends the 3M brief's B1 in place (two of the sixteen were deliberately deferred by A-11, not missed), and states plainly that the sixteen coda files have not yet had the independent validation pass the 3M files got — with Part A's counts, not its schema facts, flagged as the place to check me. It also names my own triage error from the coda session.
+
+All 20 CI references and every cited database object verified.
+
+**Remaining after this:** six briefs plus this one open with Kyle; the cross-reference correction pass (17 miscites, deliberately unapplied); the Session 3A carry-back for `meter_readings`' three supersession columns; and an independent validation pass over the sixteen coda files.
+
 ## 2026-08-11 — WU6 coda: the sixteen unproduced workflows
 
 Sixteen workflows written; corpus 140. **Part 2's inventory is now fully covered — 80 named, 80 produced, zero remaining.** Logged as Section W.
