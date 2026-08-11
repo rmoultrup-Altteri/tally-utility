@@ -4,6 +4,18 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-11 — Validation pass over Session 3M, then the 3M review brief
+
+Four independent validators across two rounds (the first summary-layer agent never delivered; a fresh one covered the brief as well). **Fifty defects total; none refuted a finding; two findings came out materially stronger; the brief was rewritten twice.**
+
+**Round 1 — the seven source files (29 defects).** Two upgrades, both from a validator attacking the *evidence* rather than the conclusion. The tenant-config headline had rested on `void_rebill_threshold` being consumed by the cancel-rebill path — **nothing reads it**, and its COMMENT describes a routing decision, not a computation input. The real instance was one function away: `get_partial_period_policy(p_rate_schedule_id)` ships today, takes no date parameter, and reads the live tenant column, while `get_correction_rate_date()` sits in the same file bracketing the rate side. Separately, `awaiting_billing_action` *does* have a purpose-built aging index and the anomaly types already exist, so the corrected finding — "storage layer prepared, operational surface never built" — is truer and cheaper to fix than "nobody noticed."
+
+**Round 2 — the brief and the summary layer (21 defects).** The brief had regressed in one place the source files got right: it invoked **CI-005** for the proration finding, and CI-005's enumeration ("rates, riders, factors, tax rates, zone assignments, customer-class assignments") does not cover a proration policy — the identical enumeration problem the same item describes for CI-004 four paragraphs later. It now rests on CI-006 and CI-093. The validator also found **`invoice_line_items.partial_period_policy_applied`**, a per-line snapshot of the resolved policy that genuinely narrows "no provenance" — conceded in the brief, with the residual stated: the snapshot defends an audit, not a replay. And **`ai_confidence < 0.85` is already declared "Tenant-configurable" in its COMMENT**, which makes it a different (and more tractable) defect than 0.70, not the "structural twin" the draft claimed.
+
+**Two of my own process errors, same root cause.** Chaining `cd repo-A && … && git add -A && git commit` left the working directory wrong for the second command: once it committed an unrelated Obsidian clipping to the wrong repo under a misleading message (caught before push, reset), and once it silently no-op'd this CHANGELOG's 2026-08-11 entry — which is why this entry is being written after the fact, on the validator's finding. **Use `git -C <repo>` and absolute paths; never rely on cwd surviving a chain.**
+
+Also corrected: 23 functions in `tu.sql`, not 22 — in an item whose own lesson list names the 2026-08-10 function-inventory error; `matched_by` is five routes plus `none`, not six; **seven** of the sixteen unproduced workflows are cited by produced files, not five, and 3M's own workflow added two of them; and B2's miscite breakdown now sums correctly (7+3+3+2+2=17), with `final-bill-generation.md`'s two reclassified as unresolved slugs rather than counted into the seventeen.
+
 ## 2026-08-10 — Session 3M: Domain 13 (Import & Admin), clusters 58–60 — WU6's rule domains complete
 
 Seven files in `gas-billing-memory` (corpus 124): decision tables `import-error-handling-policy` (#58), `import-column-mapping` (#59), `service-order-type-routing` (#60); workflows `bulk-data-import-with-validation`, `import-dry-run-preview`, `service-order-creation-and-dispatch`, `tenant-configuration-change-rollout`. Logged as Section V. **Domains 1–13 done.** Cluster 58's real name is `import-error-handling-policy` — `import-validation-severity` appears only in forward-pointers.
@@ -16,7 +28,7 @@ Seven files in `gas-billing-memory` (corpus 124): decision tables `import-error-
 
 **0 cross-reference errors in the seven new files.** Script rebuilt with both prior corrections and validated against a known answer *before* use rather than after. Two of my own claims were caught in self-review and corrected before commit — one count wrong, one number invented ("thirty-nine clusters"; the measured figure is 28 of 60), the latter being exactly the fabricated-specificity failure the 2026-08-10 lesson names.
 
-**Not done:** the independent-agent validation pass that has been standard since 2026-08-09, and a 3M review brief. See HANDOFF.md.
+**Not done at the time of writing:** the independent-agent validation pass and a 3M review brief. **Both were completed 2026-08-11 — see the entry above, which supersedes several claims here.**
 
 ---
 
