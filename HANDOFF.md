@@ -1,8 +1,8 @@
-# Handoff: Session 3M — Domain 13 (Import & Admin), validated and briefed. WU6's rule domains are complete.
+# Handoff: WU6 complete — Domains 1–13 and Part 2's full workflow inventory (140 files).
 
 **Generated**: 2026-08-11
 **Branch**: main (both repos)
-**Status**: Ready for Review — WU5 complete; **WU6 Sessions 3A–3M complete: Domains 1–13, 124 files. No rule domain remains.** 3M has been **validated (29 defects, none refuting a finding, two findings strengthened) and briefed**. **Six briefs are now open with Kyle.** Standard process is fully run; nothing is outstanding on 3M itself.
+**Status**: Ready for Review — **WU6 is complete in both dimensions: Domains 1–13 and Part 2's full 80-workflow inventory, 140 files.** WU5 complete; **WU6 Sessions 3A–3M complete: Domains 1–13, 124 files. No rule domain remains.** 3M has been **validated (29 defects, none refuting a finding, two findings strengthened) and briefed**. **Six briefs are now open with Kyle.** Standard process is fully run; nothing is outstanding on 3M itself.
 
 ## Goal
 
@@ -56,7 +56,7 @@ Authoritative state lives in the **sibling repo** `/Users/ryanscomputer/code/gas
 - [x] **Validation pass — DONE (2026-08-11).** Three independent agents, one per file group, **Section V validated separately** per the standing lesson. **Twenty-nine defects; every one a framing or arithmetic error; no underlying finding refuted; two findings materially stronger.** All corrections applied to the seven files, Section V, both CHANGELOGs and this handoff. **The two upgrades both came from the validator attacking the *evidence* rather than the conclusion** — which is the argument for running this on findings that already feel finished.
 - [x] **The 3M review brief — DONE.** `wu6-sessions-3m-review-brief.md` → written as `wu6-session-3m-review-brief.md`. Eight items, three corpus-wide findings (B1 coverage gap, B2 miscites, B3 single-column FKs) plus **B4, new from the validation pass** (see below), and a Part C naming what is graded *correctly*. Leads with item 3 (tenant config), which is the only item in the nine-brief series where an invariant is provably violated. **Six briefs are now open with Kyle.**
 - [ ] **The cross-reference correction pass** — still deliberately unapplied, still recommended as one reviewable commit, and the numbering pattern still argues for dropping or generating the parentheticals rather than hand-patching. Now with (a)'s corrected composition and the note that `final-bill-generation`'s two are slug-*and*-number errors.
-- [ ] **Decide what to do about the sixteen unproduced workflows** — a WU6 coda session (recommended; templates and conventions are current now) or an explicit deferral.
+- [x] **The sixteen unproduced workflows — DONE (2026-08-11 coda session).** All sixteen produced; **Part 2 is now fully covered, 80 named / 80 produced**. Corpus 140. Logged as Section W. Cross-reference 0/0/0 over 105 links. **Correction learned in the process: two of the sixteen were deliberately deferred by A-11, not missed** — the 3M brief's B1 has been amended.
 - [ ] **Kyle answers five open briefs** (soon six). Fold-in order that still matters: `do_not_disconnect`'s maintenance and the holiday calendar unblock the most; the occupancy record (3L item 1) is the one that gets decided by accident if left.
 - [ ] **`tally-utility` has no git remote** — local-only, eight handoffs running. `gas-billing-memory` pushes to `git@github.com:rmoultrup-Altteri/gas-billing-memory.git`.
 

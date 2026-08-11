@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-11 — WU6 coda: the sixteen unproduced workflows
+
+Sixteen workflows written; corpus 140. **Part 2's inventory is now fully covered — 80 named, 80 produced, zero remaining.** Logged as Section W.
+
+The premise needed correcting mid-session, and the 3M brief's B1 with it: at least two of the sixteen were **deliberately deferred** by A-11's locked design, not missed. Writing them anyway is consistent with the corpus's own practice — 3J produced the budget-billing workflows for a program type on the same deferred list.
+
+The real finding is why the rest were unproduced: **their substrate does not exist**, and the absences cluster rather than scatter — customer identity, consent capture, company books, role-based access. Thirteen sessions of billing work never reached the platform's non-billing edges.
+
+Two are security findings. 57 of 59 RLS policies are identical and none reads `role`, so `viewer` is a full read-write account and self-promotion to `platform_admin` is one `UPDATE`. And there is no customer-facing identity at all, so a portal built on the current model would expose every customer the tenant's whole book — CI-116 isn't violated, it just guarantees tenant isolation and the portal needs customer isolation.
+
+The third structural absence: no general ledger and no accounting period, on a schema where CI-110 names `account_ledger` as the accrual's home and `account_ledger.customer_id` is `NOT NULL`.
+
+The pattern I'd most want carried forward is smaller and cheaper: **`customers` already contains the consent/verification triples the schema is missing elsewhere** — donation opt-in has flag+date+source, `id_verified` has flag+actor+timestamp — and the four decisions with real legal weight (E-SIGN consent, the ACH authorization, the §7.45 waiver) have none of them. Every fix is copying the pattern four columns away.
+
+**My own triage error is recorded in Section W**: I reported "no identity-verification substrate" from truncated grep output. There are nine identity columns and it is one of the better-provisioned areas. Caught before it reached any file, but it is the same infer-an-absence-from-a-bad-grep failure already on the Failed Approaches list.
+
 ## 2026-08-11 — Validation pass over Session 3M, then the 3M review brief
 
 Four independent validators across two rounds (the first summary-layer agent never delivered; a fresh one covered the brief as well). **Fifty defects total; none refuted a finding; two findings came out materially stronger; the brief was rewritten twice.**
