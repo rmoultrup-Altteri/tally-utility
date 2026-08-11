@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-10 — Session 3M: Domain 13 (Import & Admin), clusters 58–60 — WU6's rule domains complete
+
+Seven files in `gas-billing-memory` (corpus 124): decision tables `import-error-handling-policy` (#58), `import-column-mapping` (#59), `service-order-type-routing` (#60); workflows `bulk-data-import-with-validation`, `import-dry-run-preview`, `service-order-creation-and-dispatch`, `tenant-configuration-change-rollout`. Logged as Section V. **Domains 1–13 done.** Cluster 58's real name is `import-error-handling-policy` — `import-validation-severity` appears only in forward-pointers.
+
+**The session's argument is one sentence at three altitudes: a value that determines a bill is stored as a current value with no history and no provenance.** Tenant configuration at the policy level, the import path at the record level, the service order at the event level. Twelve sessions established that a rate gets history plus an archive, a meter gets lineage, a tariff gets a documented split, a read gets supersession — and the admin surface that populates and reconfigures all of them gets `UPDATE`. That is what happens when a domain is modelled as tooling rather than as data with billing relevance.
+
+**Three headline findings.** The feature list grades three import error policies as required-and-supported against a two-value column, while both outcome counters and a tri-state sibling enum already exist — a **fourth** hypothesis register demonstrated wrong, and the first that is a feature list rather than an invariant register. **CI-118 is graded `structurally-enforced` on a UNIQUE over a nullable column**, inside the one family whose introduction claims duplicate imports are structurally impossible; three of that claim's four members hold and this one does not — third `Schema enforcement status` error after CI-077 and CI-120. And **thirteen tenant policy columns plus a seven-sub-object settings blob are current-value-only**, which CI-004's own statement forbids — the quieter failure here is that CI-004's enforcement note lists neither their presence nor their absence, so no amount of re-reading the entry would have surfaced it. `void_rebill_threshold` feeding the cancel-rebill path makes CI-005 and CI-006 unsatisfiable.
+
+**Corpus integrity.** The cross-reference re-run returned 17 mismatches — the same total as 3L and a **different set**, which is the session's most transferable lesson: a reproduced number validated nothing until the composition was reconciled. Reconciling corrects a sub-count in Section U (subpoena-readiness is miscited seven times, not six; 3L's headline of 17 was right). All 252 FKs are single-column, which corrects 3L's "one place" framing about cross-tenant references — it is every place, and CI-116 is graded correctly and simply does not cover it. And Part 2 names 80 workflows against a header of 51, of which **16 will still have no file and no owning session** after 3M — recommend a coda session.
+
+**0 cross-reference errors in the seven new files.** Script rebuilt with both prior corrections and validated against a known answer *before* use rather than after. Two of my own claims were caught in self-review and corrected before commit — one count wrong, one number invented ("thirty-nine clusters"; the measured figure is 28 of 60), the latter being exactly the fabricated-specificity failure the 2026-08-10 lesson names.
+
+**Not done:** the independent-agent validation pass that has been standard since 2026-08-09, and a 3M review brief. See HANDOFF.md.
+
+---
+
 ## 2026-08-10 — Session: Validation pass over 3I/3J/3K-collections, then the three outstanding review briefs
 
 **Second half of the session: wrote the three briefs**, from the corrected findings rather than the drafts. `wu6-sessions-3i-3j-review-brief.md`, `wu6-domain-11-review-brief.md` (both 3K halves), `wu6-session-3l-review-brief.md` — 434 lines total in `gas-billing-memory`, committed as `95256d5`. **Five briefs are now open with Kyle and all twenty-two items are briefed.**
