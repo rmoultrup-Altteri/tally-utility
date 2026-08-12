@@ -4,6 +4,30 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-12 — Corpus-wide column sweep, prompted by `read_type`
+
+If the register can assert a column that does not exist, the question is how many others do. So every `` `table.column` `` reference in the corpus was checked against `tu.sql`: **ten distinct nonexistent references, ~30 occurrences, four inside `canonical-invariants.md`.**
+
+The finding worth carrying forward is the *second* class. Three of the ten name a **real column on the wrong table** — `invoices.total_amount` (it is on `billing_runs`), `tenants.partial_period_policy` (on `rate_schedules`; the tenant column is `default_partial_period_policy`), and `read_type` itself. **A grep for the column name resolves, so the check passes and only the table is wrong** — which makes this the class most likely to produce a confidently wrong finding, and the class no name-based verification catches. It is also the third arrival of the `partial_period_policy` lesson by a third route.
+
+One fix applied (a residual 3M `read_type`); the rest recorded as a second correction pass, **deliberately unapplied** for the same reason as the 17 miscites. The checker is committed at `application/tools/colcheck.py` with its limitations in the docstring — it flagged `payments.check_date`, which exists, so every hit was re-verified by hand.
+
+## 2026-08-11 — Validation pass over the sixteen coda files — ~40 defects, and the first register error to reach output
+
+Five independent agents: four over the sixteen files in groups, one over the summary layer (the brief and Section W) per the standing lesson that a validated file is not a validated summary.
+
+**No underlying finding was refuted.** Three recommendations were *inverted* by evidence, which is the pass earning its cost: `customer_contacts` exists, so the third-party-notification recommendation went from "build a party model" to "stop duplicating the one you have"; `idx_customers_id_number` exists — a partial composite lookup that **is** the fraud-match use the brief had asked Kyle about — so the identity recommendation went from truncate to encrypt-and-keep-the-index (`pgcrypto` is installed and unused); and A-11 already carries attestation columns as first-class.
+
+**The worst defect was a fabricated column.** `meter_readings.read_type` does not exist — the real columns are `read_method`, `is_estimated` and `estimation_reason`, and `read_type` is on `meters`. It was the central column of `portal-usage-temperature-overlay` and appeared in four places. **I did not invent it: the register asserts it.** That makes it the first time a register error has propagated into corpus output instead of being caught at the boundary, and it changes the shape of the standing warning — every prior enforcement-status lesson was about a *grade* being wrong, which re-reading catches. A wrong *fact* does not announce itself.
+
+**Scope corrected while writing this entry up (2026-08-12): four invariants assert it, not the two first reported** — CI-025 (twice), CI-030, CI-031 and CI-090. **CI-025 is titled "Read Type Discipline,"** so an invariant is named for a column that does not exist on the table it governs, and CI-031's follow-up note asks for `read_type` to be added to a trigger whitelist it can never be added to. A **residual instance outside the coda** also turned up: `import-error-handling-policy.md` from Session 3M, in a file the 3M pass had cleared — because the sweep covered the files that surfaced the defect rather than the corpus. Both corrected. **A defect inherited from a shared source is a corpus-wide grep, not a local one.**
+
+**CI-116 came off the correctly-graded list.** Its read-isolation clause is graded `structurally-enforced` on a sentence that is true regardless of query *text* and false regardless of connection *role* — no table sets `FORCE ROW LEVEL SECURITY`, and RLS does not apply to a table's owner. Fourth enforcement-status error in five sessions. It had been cited as a reassuring counterexample in four consecutive briefs without being re-checked, which is its own lesson and is now in Failed Approaches.
+
+Also corrected: 56+1 identical policies, not 57; twelve defaults at INSERT of thirteen columns; CI-050 → **CI-049** for the allocation-order cite; three consent decisions, not four; `service_locations` has no zone column; `payments.channel` already carries `'portal'`; eleven identity columns, not nine; and Section W's duplicated stale "Next:" paragraph, carried over from Section V and contradicting the section above it.
+
+**Remaining:** seven briefs open, two of which need routing to a security and a finance owner; the cross-reference correction pass (17 miscites, deliberately unapplied); and the Session 3A carry-back, now two items — `meter_readings`' three supersession columns, **and CI-025/CI-090's nonexistent column**, which is corpus-register work rather than workflow work.
+
 ## 2026-08-11 — WU6 coda review brief (tenth and final)
 
 `wu6-coda-review-brief.md` — eight items, five corpus patterns, Part C.
