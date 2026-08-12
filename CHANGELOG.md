@@ -4,6 +4,16 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-12 — The `read_type` correction: four invariants fixed, and the origin found
+
+Applied the 3A carry-back. **All four corrections make their entries stronger, which was not the expected outcome.**
+
+The column doesn't exist because the schema **decomposed** the concept into three orthogonal `NOT NULL`, CHECK-constrained columns — `is_estimated` (+ `estimation_reason`), `read_method`, `reading_purpose`. CI-025 described one field with a six-value vocabulary; the schema has a better model and the entry never caught up. **CI-025 and CI-030 were also understating their own enforcement**: both claimed the columns are unprotected post-acceptance, when in fact the billing-period lock is the boundary — after it, the validation trigger names all three columns individually and raises. **CI-031's follow-up was wrong twice**, asking for a patch to add a nonexistent column to a whitelist that already covers the three real ones.
+
+**The origin is `gap-analysis-v5.2.1.md`, and it is the most transferable lesson of the run.** That entry applied the *right method* — read the trigger's whitelist, test membership — and got a false positive, because a membership test cannot distinguish "absent from the list" from "absent from the schema." It graded the gap High and named a v5.4 patch. Corrected in place rather than deleted; the failure mode is worth keeping.
+
+CI-025 keeps its now-inaccurate title deliberately — retitling would break `[[CI-read-type-discipline]]` corpus-wide.
+
 ## 2026-08-12 — Corpus-wide column sweep, prompted by `read_type`
 
 If the register can assert a column that does not exist, the question is how many others do. So every `` `table.column` `` reference in the corpus was checked against `tu.sql`: **ten distinct nonexistent references, ~30 occurrences, four inside `canonical-invariants.md`.**
