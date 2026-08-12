@@ -4,6 +4,16 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-12 — Session 3A carry-back closed: the three supersession columns
+
+The second half of the carry-back, and it resolved into a **decision for Kyle** rather than a correction.
+
+3M's B4 called this "two columns for one operation, one of them dead." **Neither is dead.** Only `replaces_reading_id` / `replaced_by_reading_id` form a **bidirectional pair** — which is precisely what CI-030's "queryable in both directions" clause requires. `replaces_read_id` has **no inverse column**, so a chain built on it is forward-only. Yet its own COMMENT, the `validation_status` COMMENT, and both trigger error messages all send implementers to it. **The documented path cannot satisfy the invariant, and the path that satisfies it is undocumented and unindexed.** CI-030 now carries the evidence table; picking the winner is a schema decision.
+
+**Two corrections to my own 3M brief.** B4 said `replaces_read_id` is "referenced twice inside `enforce_reading_validation_workflow()`" — both hits are inside `RAISE EXCEPTION` message *text*; **no function reads any of the three.** And B4's "the corpus cites the live one four times and the others zero times, so it picked correctly" was **false when written** — the split is seven to eight.
+
+**The lesson is about process, not schema.** Two of those `replaces_reading_id` citations are in coda files written *after* B4 flagged the hazard, by the author of the warning. A finding parked in a stakeholder brief does not protect the corpus in the interval before it is read. Land carry-backs in the register when found.
+
 ## 2026-08-12 — The `read_type` correction: four invariants fixed, and the origin found
 
 Applied the 3A carry-back. **All four corrections make their entries stronger, which was not the expected outcome.**
