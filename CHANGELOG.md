@@ -4,6 +4,18 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — The fabricated column reached a Kyle ruling and the v5.4 backlog
+
+**The most consequential find of the WU6 run, and yesterday's fix missed it.** `read_type` did not stop at the register. Full path: `gap-analysis-v5.2.1.md` line 61 → its CI-025 entry → `wu5-axes-review-brief.md`, which escalated it to Kyle as "a real fix candidate" → **Kyle's ruling D3-2 (2026-07-10)** → **v5.4 consolidated schema backlog, item 3: "`read_type` post-billing lock trigger."**
+
+**A column that does not exist produced a stakeholder decision and a scheduled schema patch.** Kyle's intent — a read's type must not be mutable after billing — is correct and **already enforced**: `is_estimated`, `read_method` and `reading_purpose` are all in the locked-read trigger's field block. The ruling stands as policy; the patch is void. Item 3 struck with reasoning attached; the ruling itself left intact, because a record of what Kyle decided must remain one.
+
+It also caused a **false confidence upgrade** — CI-025 was raised medium→high *because* D3-2 "resolved" the gap. `high` now rests on the corrected evidence instead.
+
+**Yesterday's own correction was incomplete**, and its note misnumbered the affected lines and missed three, including the document's executive-summary statement of the claim. The lesson I wrote yesterday — sweep the corpus, not the files that surfaced the defect — was under-executed: I swept for the column *name* and never asked **what decisions the claim had already produced.** A propagated error's blast radius is in decisions, not only prose.
+
+**Kyle needs to be told**: he ruled on a false premise and the ruling carries a work item.
+
 ## 2026-08-13 — Validation pass over the 2026-08-12 corrections
 
 Four independent validators — register corrections, origin/propagation fixes, an independent re-derivation of the column sweep, and the summary layer separately.
