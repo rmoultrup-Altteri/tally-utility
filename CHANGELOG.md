@@ -4,6 +4,18 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — The schema is not final, and there are two of them
+
+**I did not know this, and it invalidates two of yesterday's corrections.**
+
+`sql/tu.sql` is **schema version v5.2.1** on a documented chain from v4.8. `application/database/schema.sql` (2026-05-14, 60 tables, 1,748 lines) is an **earlier, still-present** schema file that many register entries cite by name.
+
+**Reverted:** (1) rewriting CI-025's Source from `schema.sql` to `tu.sql` on the invented premise of a rename — two different files, both extant; (2) dismissing CI-031's "lines 672–676 of schema.sql" as stale — those lines are **exactly** the billing-lock columns cited. I graded a correct, well-provenanced citation as defective.
+
+**What survives:** the `read_type` finding, which was never a versioning artefact — the column is on `meters` in **both** schemas, and `schema.sql`'s `meter_readings` already had `read_method`/`reading_purpose`/`is_estimated`. The D3-2 retraction stands.
+
+**The real consequence:** every enforcement grade and line-number citation in the corpus is a claim about a moving target, and none records the schema version it was made against. Entries that cite file *and* version are doing it right; I removed that provenance. New standing rule recorded in the handoff.
+
 ## 2026-08-13 — The D3-2 retraction brief (eleventh, and the first to retract a ruling)
 
 `d3-2-retraction-and-read-lock-brief.md`. Eight briefs now open; this is the one to send first, being the only one that corrects something already acted on.
