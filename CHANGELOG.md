@@ -4,6 +4,14 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — The D3-2 retraction brief (eleventh, and the first to retract a ruling)
+
+`d3-2-retraction-and-read-lock-brief.md`. Eight briefs now open; this is the one to send first, being the only one that corrects something already acted on.
+
+Different in kind from the other ten: it withdraws a decision rather than requesting one. Part A retracts D3-2 and v5.4 backlog item 3. Part B puts the verified `void_released` gap in its place — the same concern Kyle was reaching for, at the right columns and in the state that matters. Part C keeps the register-reliability statement unsoftened, with one sharpening: **CI-025's grade was defensible and survives; the evidence underneath it was false.** A wrong grade invites re-reading; a wrong fact stated in the grade's own field does not.
+
+Two misattributions caught before commit — crediting the schema's own COMMENT to CI-031, and dropping CI-120 from the enforcement-status list. Both are the kind of error that costs a brief its standing, in a brief whose whole subject is a claim nobody checked.
+
 ## 2026-08-13 — The overcorrection, and a real gap where the fabricated one stood
 
 Yesterday's fix **overshot**. It replaced "no constraint forbids UPDATE post-acceptance" with "once a read is locked, the trigger structurally forbids UPDATE to all three type columns" — ignoring the guard. Block 2 fires only while `validation_status = 'locked'` and is skipped during the void transition. **Three unprotected states**, and the third matters: after a void, `billing_period_locked` stays `true` while the status becomes `void_released`, **so the whitelist stops applying to exactly the reads a correction run consumes.** The void carve-out is also wholesale rather than scoped, gated on a caller-set session variable.
