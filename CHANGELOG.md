@@ -4,6 +4,14 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — The overcorrection, and a real gap where the fabricated one stood
+
+Yesterday's fix **overshot**. It replaced "no constraint forbids UPDATE post-acceptance" with "once a read is locked, the trigger structurally forbids UPDATE to all three type columns" — ignoring the guard. Block 2 fires only while `validation_status = 'locked'` and is skipped during the void transition. **Three unprotected states**, and the third matters: after a void, `billing_period_locked` stays `true` while the status becomes `void_released`, **so the whitelist stops applying to exactly the reads a correction run consumes.** The void carve-out is also wholesale rather than scoped, gated on a caller-set session variable.
+
+**So there is a real hardening item precisely where the fabricated one stood** — right instinct, wrong column set, wrong state. Offered to Kyle as a replacement for struck backlog item 3 rather than letting it vanish.
+
+**The sequence is the lesson.** Wrong → subtler wrong → overcorrected → right, with confidence increasing at every step. The guard sat three lines above the field list I did read: I quoted the list and not the condition governing it. An overcorrection is as much a defect as the error it fixes, and a correction that *strengthens* a claim needs more scrutiny than one that weakens it, because it is the one that gets quoted.
+
 ## 2026-08-13 — The fabricated column reached a Kyle ruling and the v5.4 backlog
 
 **The most consequential find of the WU6 run, and yesterday's fix missed it.** `read_type` did not stop at the register. Full path: `gap-analysis-v5.2.1.md` line 61 → its CI-025 entry → `wu5-axes-review-brief.md`, which escalated it to Kyle as "a real fix candidate" → **Kyle's ruling D3-2 (2026-07-10)** → **v5.4 consolidated schema backlog, item 3: "`read_type` post-billing lock trigger."**
