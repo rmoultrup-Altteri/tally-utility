@@ -12,6 +12,8 @@ Yesterday's fix **overshot**. It replaced "no constraint forbids UPDATE post-acc
 
 **The sequence is the lesson.** Wrong → subtler wrong → overcorrected → right, with confidence increasing at every step. The guard sat three lines above the field list I did read: I quoted the list and not the condition governing it. An overcorrection is as much a defect as the error it fixes, and a correction that *strengthens* a claim needs more scrutiny than one that weakens it, because it is the one that gets quoted.
 
+**Independently verified, and the check strengthened it.** I had called `void_released` "the window in which a correction is computed." It is not a window — the guard tests `OLD.validation_status`, so the bypass holds for **every** update while the read rests there, no void flag and no privilege needed. **A harness lesson came with it:** four background validators with broad briefs delivered nothing across three rounds of requests; a fifth, given six closed questions and run synchronously, returned a complete correct report in one pass. Scope and synchronicity were the fix.
+
 ## 2026-08-13 — The fabricated column reached a Kyle ruling and the v5.4 backlog
 
 **The most consequential find of the WU6 run, and yesterday's fix missed it.** `read_type` did not stop at the register. Full path: `gap-analysis-v5.2.1.md` line 61 → its CI-025 entry → `wu5-axes-review-brief.md`, which escalated it to Kyle as "a real fix candidate" → **Kyle's ruling D3-2 (2026-07-10)** → **v5.4 consolidated schema backlog, item 3: "`read_type` post-billing lock trigger."**
