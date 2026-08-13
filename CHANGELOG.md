@@ -4,6 +4,18 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — Validation pass over the 2026-08-12 corrections
+
+Four independent validators — register corrections, origin/propagation fixes, an independent re-derivation of the column sweep, and the summary layer separately.
+
+**The biggest defect was mine, and caught before the validators reported.** The sweep claimed ten nonexistent `table.column` references. **Four are real**; six were places where **the corpus correctly states the column does not exist** or proposes it for Appendix A-23. The worst miss: `payments.account_id`'s seven references are **the corpus's own A-12 correction** — a finding it made and got right — which the sweep re-reported as a defect.
+
+**The script found *mentions*; I read them as *assertions*.** Whether a mention is a claim, a denial or a proposal is in the surrounding sentence. This is the standing absence-claim lesson inverted — that one asserts a gap from a grep that found nothing, this asserted an error from a grep that found something. Both substitute a hit-count for a reading. The stated exclusion list was incomplete for the same reason.
+
+**The wrong-table class survives** and is still the part worth keeping: three of the four real errors name a real column on the wrong table, invisible to a name grep.
+
+Two further self-caught fixes: the "seven to eight" corpus split is **seven to seven** (the count was taken after my own edits had contaminated it), and B4's function-reference claim proved to be a **two-generation error** — corrected once already, to a subtler wrong claim that *strengthened* the conclusion, and self-verified rather than independently checked.
+
 ## 2026-08-12 — Session 3A carry-back closed: the three supersession columns
 
 The second half of the carry-back, and it resolved into a **decision for Kyle** rather than a correction.
