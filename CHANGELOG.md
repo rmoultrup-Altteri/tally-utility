@@ -4,6 +4,20 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — Re-graded all 16 `structurally-enforced` invariants: 12 down, 4 survive
+
+Applied to the register with dated notes preserving each original grade. `structurally-enforced` **16 → 4** (CI-007, CI-051, CI-117, CI-119); `partially-structurally-enforced` **37 → 54**.
+
+The four survivors share one shape: **a NOT NULL column inside a constraint, or the demonstrable absence of a column.** Nothing else in the register has survived inspection.
+
+**Two previously-unknown missing mechanisms, both outside the original 21:** `account_ledger` has **no reversal lineage FK** (CI-017 claims one — a financial audit-trail gap, route to the finance owner); `meter_readings` has **no service-point column** and tu.sql has **zero EXCLUDE constraints**, so CI-027's "recorded" premise is reconstructed and unguarded against overlapping deployments.
+
+**Self-correction:** my first pass marked CI-017/CI-027/CI-032 correct on a shallower check — confirming columns exist is not confirming an invariant is enforced, the exact failure mode under investigation. Also fixed a miscount ("six remain untested" — all 16 had been).
+
+**Untested:** the 37 pre-existing `partially-structurally-enforced` entries.
+
+---
+
 ## 2026-08-13 — The `schema.sql`-Source hypothesis is refuted (INVESTIGATION-BRIEF §4)
 
 **Tested on all 21 entries plus a control group. It does not survive, and its premise was factually false.**
