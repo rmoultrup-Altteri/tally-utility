@@ -6,7 +6,7 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ## 2026-08-13 — Re-graded all 16 `structurally-enforced` invariants: 12 down, 4 survive
 
-Applied to the register with dated notes preserving each original grade. `structurally-enforced` **16 → 4** (CI-007, CI-051, CI-117, CI-119); `partially-structurally-enforced` **37 → 54**.
+Applied to the register with dated notes preserving each original grade. `structurally-enforced` **16 → 4** (CI-007, CI-051, CI-117, CI-119); `partially-structurally-enforced` **42 → 54**.
 
 The four survivors share one shape: **a NOT NULL column inside a constraint, or the demonstrable absence of a column.** Nothing else in the register has survived inspection.
 
@@ -14,7 +14,7 @@ The four survivors share one shape: **a NOT NULL column inside a constraint, or 
 
 **Self-correction:** my first pass marked CI-017/CI-027/CI-032 correct on a shallower check — confirming columns exist is not confirming an invariant is enforced, the exact failure mode under investigation. Also fixed a miscount ("six remain untested" — all 16 had been).
 
-**Untested:** the 37 pre-existing `partially-structurally-enforced` entries.
+**Untested:** the **42** pre-existing `partially-structurally-enforced` entries.
 
 ---
 
@@ -28,7 +28,7 @@ The brief characterised `application/database/schema.sql` as "tables, columns, a
 
 **Three new defects:** CI-016, CI-099, CI-128. **CI-072 is a PHMSA gas-safety claim and needs routing to a safety owner.** Two of the register's three named impossibility proofs are not impossibility proofs.
 
-**Surviving hypothesis:** the predictor is the **grade**, not the source — a column's existence read as enforcement without checking nullability or prevention. Re-grade population is **53, not 21**.
+**Surviving hypothesis:** the predictor is the **grade**, not the source — a column's existence read as enforcement without checking nullability or prevention. Re-grade population is **58 (16 + 42), not 21**.
 
 **Result:** `gas-billing-memory/application/invariants/schema-source-hypothesis-test-2026-08-13.md`.
 
