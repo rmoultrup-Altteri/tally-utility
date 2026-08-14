@@ -4,6 +4,20 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-14 — Checked all 42 `partially-structurally-enforced` entries: 39 hold, 3 corrected
+
+**CI-077 → `unenforced-gap`.** Its basis was "`deposits` table exists"; **it does not exist**, and the schema has **no credit-evaluation column of any kind** — the invariant's actual subject has zero substrate.
+
+**CI-098 amended** — the UNIQUE on `import_jobs.idempotency_key` is not unconditional; the column is nullable. **CI-093 amended** — cited CI-099's half as structurally-enforced (stale), and carries a pre-existing internal contradiction (weakest-composing-link rule vs its own grade) now **flagged in-entry, not resolved unilaterally**.
+
+**Not defects:** CI-060/062/063/082 and others cite tables that do not exist *while explicitly labelling them v5.4 forward-references or absences*. That is correct practice — the error is naming a missing object **as though it exists**.
+
+**Parser failure, third this investigation:** the sweep missed CI-077 because substring matching suppressed `deposits` against the index `idx_payments_deposits`.
+
+**Coverage: 58 of 135.** Untested: 40 `requires-application-discipline`, 37 `unenforced-gap`.
+
+---
+
 ## 2026-08-13 — Re-graded all 16 `structurally-enforced` invariants: 12 down, 4 survive
 
 Applied to the register with dated notes preserving each original grade. `structurally-enforced` **16 → 4** (CI-007, CI-051, CI-117, CI-119); `partially-structurally-enforced` **42 → 54**.
