@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-13 — The `schema.sql`-Source hypothesis is refuted (INVESTIGATION-BRIEF §4)
+
+**Tested on all 21 entries plus a control group. It does not survive, and its premise was factually false.**
+
+The brief characterised `application/database/schema.sql` as "tables, columns, and FK references only." It carries **59 PRIMARY KEY, 38 UNIQUE, 587 NOT NULL, 442 DEFAULT** — the full declarative layer short of CHECK. Most of the 21 entries' claims *are* derivable from it. §4 inferred "cannot support enforcement claims" from "lacks procedural objects."
+
+**21 entries:** 10 correct, 7 defective, 4 overstated/unresolved. **Control group falsifies it** — of the 2 structurally-enforced entries not citing `schema.sql`, **CI-072 is defective**, naming a `service_orders` technician-assignment column that does not exist. The correlation was selection, not contamination.
+
+**Three new defects:** CI-016, CI-099, CI-128. **CI-072 is a PHMSA gas-safety claim and needs routing to a safety owner.** Two of the register's three named impossibility proofs are not impossibility proofs.
+
+**Surviving hypothesis:** the predictor is the **grade**, not the source — a column's existence read as enforcement without checking nullability or prevention. Re-grade population is **53, not 21**.
+
+**Result:** `gas-billing-memory/application/invariants/schema-source-hypothesis-test-2026-08-13.md`.
+
+---
+
 ## 2026-08-13 — The schema is not final, and there are two of them
 
 **I did not know this, and it invalidates two of yesterday's corrections.**
