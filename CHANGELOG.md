@@ -4,6 +4,19 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-17 — Independent review, then the three gates cleared
+
+**A fresh session reviewed the whole run against INVESTIGATION-BRIEF.md and spot-checked the load-bearing claims** — register grade counts (4/53/40/38, exact), the `read_type` fact (real; `meters` only), the `void_released` guard and COMMENT (as quoted), and the §4-refutation basis (`schema.sql` carries 59 PK / 587 NOT NULL and zero procedural objects — the refutation holds). **Verdict: the factual layer is sound and the post-brief investigation was done well; the drift is directional** — an internal audit loop while the stakeholder round-trip and schema provenance sat untouched. One handoff self-contradiction fixed (the 54/37 vs 53/38 register counts — chronological narration, now labelled).
+
+**Three gates cleared the same session:**
+1. **Delivery.** `gas-billing-memory`'s five pending commits — the re-grades and the D3-2 retraction brief — pushed to `origin/main` (fast-forwarded through the `ryan` working branch). The repo is the delivery channel; the retraction is flagged to read first; the coda brief's security/finance routing is in its own opening. An out-of-band ping to Kyle, if wanted, is Ryan's.
+2. **Grading freeze.** Register warning-block rule 4: no enforcement re-grading until the patch chain or a current schema dump is in the repo; all 58 checked grades stamped as-of v5.2.1. Logged as ingestion Section AA.
+3. **Push state.** This repo given its first remote and pushed — eight handoffs had existed on one machine only.
+
+**Deliberately not done:** the two queued correction commits stay queued behind Kyle's round-trip (3G–3H hazard); the 77 untested `requires-application-discipline`/`unenforced-gap` entries stay untested — their grades claim *non*-enforcement, which the discovered failure mode (over-claiming enforcement) does not threaten.
+
+---
+
 ## 2026-08-14 — Checked all 42 `partially-structurally-enforced` entries: 39 hold, 3 corrected
 
 **CI-077 → `unenforced-gap`.** Its basis was "`deposits` table exists"; **it does not exist**, and the schema has **no credit-evaluation column of any kind** — the invariant's actual subject has zero substrate.
