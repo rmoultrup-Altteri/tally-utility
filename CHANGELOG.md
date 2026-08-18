@@ -4,6 +4,12 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-18 — Cover note to Kyle; preliminary schema parity plan
+
+Two artifacts, both in `gas-billing-memory` on the `ryan` branch: **`configurable-rules/kyle-cover-note-d3-2.md`** (a short note pointing Kyle at the retraction brief first, with the coda brief's routing flagged — Ryan delivers it out-of-band) and **`application/schema-parity-plan.md`** (preliminary, no DDL). The plan is provenance-gated: Phase 0 demands a current schema dump or the v5.3+ patch files before any migration is drafted, since v5.2.1 is three months stale and CI-019 already cites objects this repo cannot see. Phase 1 is the ruled work (13 live Part 5 backlog items in five migration sets, plus A-11's locked substrate); Phase 2 is six factual-defect hardening items; Phase 3 holds the judgment-gated items with the question each waits on; Phase 4 defers the Appendix A tail. Each landed patch regenerates the snapshot in this repo's `sql/` under numbered patch files and re-grades exactly the CI entries it names — which is how the 2026-08-17 grading freeze lifts.
+
+---
+
 ## 2026-08-17 — Independent review, then the three gates cleared
 
 **A fresh session reviewed the whole run against INVESTIGATION-BRIEF.md and spot-checked the load-bearing claims** — register grade counts (4/53/40/38, exact), the `read_type` fact (real; `meters` only), the `void_released` guard and COMMENT (as quoted), and the §4-refutation basis (`schema.sql` carries 59 PK / 587 NOT NULL and zero procedural objects — the refutation holds). **Verdict: the factual layer is sound and the post-brief investigation was done well; the drift is directional** — an internal audit loop while the stakeholder round-trip and schema provenance sat untouched. One handoff self-contradiction fixed (the 54/37 vs 53/38 register counts — chronological narration, now labelled).
