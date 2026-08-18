@@ -4,6 +4,12 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-18 (cont.) — Patch v5.4.0-00: Supabase substrate removed; target is PostgreSQL on AWS
+
+Ryan's decision: AWS-hosted PostgreSQL, no Supabase. Only two functions carried the dependency — `get_user_tenant_id()` and `is_platform_admin()`, the wrappers all 59 RLS policies route through — so the swap to the `app.user_id` session GUC (fail-closed) converts the entire RLS layer without touching a policy. Shipped as `sql/v5.4.0-00-remove-supabase-substrate.sql` (first numbered patch of the new chain), mirrored into tu.sql with line counts preserved (11,351 lines; register anchors 337/3600/3679 verified unmoved), header rewritten (maintained-in-place canonical source, patch discipline, AWS target), preamble reworded. Redeployed clean and runtime-tested: no context → NULL/false (fail-closed); operator → own tenant, not admin; platform_admin → true. Caveat recorded: tests ran as the table owner, whom RLS never binds — the app role + GRANTs and the FORCE-RLS call are now the first item of Phase 2. `DEPLOY-VERIFICATION.md` updated with the v5.4.0-00 section.
+
+---
+
 ## 2026-08-18 (cont.) — tu.sql v5.2.1 verified deployable; freeze lifted; `sql/DEPLOY-VERIFICATION.md` added
 
 Provenance finalized by Ryan: the schema was authored by Kyle with Claude Opus and never deployed anywhere with data; the one test run's machine died; `application/database/schema.sql` was a tables-only export for LLM parsing (now formally a column-reference document). With no live database to chase, the baseline question reduced to deployability — and **tu.sql deployed clean on fresh postgres:16 via the repo's own `postgres/Dockerfile` harness, zero errors, all objects confirmed** (59 tables / 49 triggers / 59 policies / 23 functions / 188 CHECKs / 352 indexes / 252 FKs / 58 RLS tables / 0 FORCE-RLS / 6 views incl. matviews). Two corpus findings independently confirmed from the live catalog: all FKs single-column, and CI-116's missing `FORCE ROW LEVEL SECURITY`. The register's grading freeze is lifted (rule 4 rewritten in gas-billing-memory); parity plan Phase 0 marked substantially complete. **Next: Phase 1 — the ruled v5.4 backlog, five migration sets plus A-11.**

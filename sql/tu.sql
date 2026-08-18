@@ -1,12 +1,12 @@
 -- ============================================================================
 -- UTILITY BILLING PLATFORM — CURRENT SCHEMA SNAPSHOT
 -- ============================================================================
--- AUTO-GENERATED — DO NOT EDIT
--- Generated:        5.13.2026
+-- MAINTAINED IN PLACE since 2026-08-18 (see MAINTENANCE below)
+-- Generated:        5.13.2026 (original snapshot)
 -- Source patches:   v1 -> v1.2 -> v2 -> v2.2 -> v3 -> v3.2 -> v3.3
 --                   -> v4 -> v4.2 -> v4.3 -> v4.4 -> v4.5 -> v4.6 -> v4.7
 --                   -> v4.8 -> v4.9 -> v5.0 -> v5.1 -> v5.2 -> v5.2.1
--- Schema version:   v5.2.1
+-- Schema version:   v5.2.1 + v5.4.0-00 (Supabase substrate removed)
 --
 -- PURPOSE
 --   Read-only reference view of the current production schema state.
@@ -15,17 +15,17 @@
 --   hand-edit. Hand edits will be lost on next build and will cause drift
 --   between this snapshot and what production actually contains.
 --
--- HOW TO REGENERATE
---   1. Drop a test database
---   2. Apply 00_supabase_shim.sql (if running on vanilla Postgres, not Supabase)
---   3. Apply each patch in order with SET check_function_bodies = off
---   4. pg_dump --schema-only --schema=public --no-owner --no-privileges
+-- MAINTENANCE (Ryan owns the schema; the original patch chain is lost)
+--   This is the maintained canonical source. Apply every change as a numbered
+--   patch file here (v5.4.0-NN-<slug>.sql, header naming its authority) AND
+--   mirror it in this file, preserving line counts (the register cites them).
+--   Verify after every patch set: postgres/Dockerfile; DEPLOY-VERIFICATION.md.
 --
 -- COMPATIBILITY NOTES
---   The patch files target Supabase (auth.uid(), auth.users). When applying
---   to vanilla Postgres, the 00_supabase_shim.sql stubs are required.
---   This snapshot omits the shim — it represents what the application
---   schema looks like, not the auth substrate.
+--   Target: vanilla PostgreSQL, AWS-hosted. Supabase substrate removed in
+--   v5.4.0-00 — RLS context is the app.user_id session GUC, read via
+--   get_user_tenant_id() / is_platform_admin(); no auth schema, no shim,
+--   no auth.uid(). Roles and GRANTs are not yet defined (Phase 0.5).
 --
 -- BUGS PATCHED FOR THIS TEST BUILD (real fixes pending — see findings report)
 --   1. v1 line 38, 43      LANGUAGE sql functions forward-reference users
@@ -153,7 +153,7 @@ BEGIN
         IF NEW.billing_hold_set_at IS NULL THEN
             NEW.billing_hold_set_at := now();
         END IF;
-        -- billing_hold_set_by is set by the application using auth.uid();
+        -- billing_hold_set_by is set by the application (app.user_id context);
         -- not enforced here because a system-initiated hold (e.g., AI fraud detection)
         -- may legitimately leave it NULL.
     END IF;
@@ -186,7 +186,7 @@ BEGIN
         IF NEW.held_at IS NULL THEN
             NEW.held_at := now();
         END IF;
-        -- held_by is set by application using auth.uid(); NULL is permitted
+        -- held_by is set by application (app.user_id context); NULL permitted
         -- when the hold is auto-applied by system policy (review_required_anomalies).
     END IF;
 
@@ -535,7 +535,7 @@ COMMENT ON FUNCTION public.get_partial_period_policy(p_rate_schedule_id uuid) IS
 CREATE FUNCTION public.get_user_tenant_id() RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
     AS $$
-    SELECT tenant_id FROM users WHERE id = auth.uid()
+    SELECT tenant_id FROM users WHERE id = current_setting('app.user_id', true)::uuid
 $$;
 
 
@@ -570,7 +570,7 @@ $$;
 CREATE FUNCTION public.is_platform_admin() RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     AS $$
-    SELECT EXISTS(SELECT 1 FROM users WHERE id = auth.uid() AND role = 'platform_admin')
+    SELECT EXISTS(SELECT 1 FROM users WHERE id = current_setting('app.user_id', true)::uuid AND role = 'platform_admin')
 $$;
 
 
@@ -2573,7 +2573,7 @@ COMMENT ON COLUMN public.customers.billing_hold_set_at IS 'When the hold was pla
 -- Name: COLUMN customers.billing_hold_set_by; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.customers.billing_hold_set_by IS 'User who placed the hold. NULL when set by system (AI fraud detection, automated dispute workflow). Populated from auth.uid() in application code. Cleared automatically when hold is removed.';
+COMMENT ON COLUMN public.customers.billing_hold_set_by IS 'User who placed the hold. NULL when set by system (AI fraud detection, automated dispute workflow). Populated by the application from its authenticated user (app.user_id session context). Cleared automatically when hold is removed.';
 
 
 --
@@ -3784,7 +3784,7 @@ COMMENT ON COLUMN public.meters.estimation_blocked_set_at IS 'When the block was
 -- Name: COLUMN meters.estimation_blocked_set_by; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.meters.estimation_blocked_set_by IS 'User who placed the block. Populated from auth.uid(). NULL when set by system action (AI tamper detection, automated dispute workflow). Cleared when block is removed.';
+COMMENT ON COLUMN public.meters.estimation_blocked_set_by IS 'User who placed the block. Populated by the application from its authenticated user (app.user_id session context). NULL when set by system action (AI tamper detection, automated dispute workflow). Cleared when block is removed.';
 
 
 --

@@ -1,6 +1,22 @@
-# Deploy verification — tu.sql v5.2.1
+# Deploy verification — tu.sql
 
-**Verified: 2026-08-18.** `sql/tu.sql` (schema v5.2.1, snapshot 2026-05-13) deploys **clean, zero errors** on a fresh PostgreSQL via the repo's own harness (`postgres/Dockerfile`, image base `postgres:16`, `check_function_bodies = off` preamble, no Supabase auth substrate).
+**Current: v5.2.1 + v5.4.0-00, verified 2026-08-18.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Object counts re-confirmed after v5.4.0-00: 59 tables / 49 triggers / 59 policies / 188 CHECKs — unchanged, as expected for a function-body swap.
+
+## v5.4.0-00 — Supabase substrate removed (decision: Ryan, 2026-08-18 — PostgreSQL on AWS)
+
+`get_user_tenant_id()` / `is_platform_admin()` now read the `app.user_id` session GUC instead of Supabase's `auth.uid()`; no `auth.*` references remain. **Runtime-tested for the first time** (impossible pre-patch — the old bodies would have raised `auth.uid() does not exist`):
+
+| context | `get_user_tenant_id()` | `is_platform_admin()` |
+|---|---|---|
+| none set | NULL (all tenant policies deny — fail-closed) | false |
+| operator user | their tenant uuid | false |
+| platform_admin user | — | true |
+
+**Caveat:** these were run as the `tally` superuser, which owns the tables — RLS never applies to owners (and no table sets FORCE). A true end-to-end policy test requires the app role, which is the open Phase 0.5 item (roles/GRANTs + the FORCE-RLS decision).
+
+---
+
+## Original baseline verification — v5.2.1 (2026-08-18)
 
 ## Provenance (why this file exists)
 
