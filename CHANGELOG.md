@@ -4,6 +4,12 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-18 (cont.) — tu.sql v5.2.1 verified deployable; freeze lifted; `sql/DEPLOY-VERIFICATION.md` added
+
+Provenance finalized by Ryan: the schema was authored by Kyle with Claude Opus and never deployed anywhere with data; the one test run's machine died; `application/database/schema.sql` was a tables-only export for LLM parsing (now formally a column-reference document). With no live database to chase, the baseline question reduced to deployability — and **tu.sql deployed clean on fresh postgres:16 via the repo's own `postgres/Dockerfile` harness, zero errors, all objects confirmed** (59 tables / 49 triggers / 59 policies / 23 functions / 188 CHECKs / 352 indexes / 252 FKs / 58 RLS tables / 0 FORCE-RLS / 6 views incl. matviews). Two corpus findings independently confirmed from the live catalog: all FKs single-column, and CI-116's missing `FORCE ROW LEVEL SECURITY`. The register's grading freeze is lifted (rule 4 rewritten in gas-billing-memory); parity plan Phase 0 marked substantially complete. **Next: Phase 1 — the ruled v5.4 backlog, five migration sets plus A-11.**
+
+---
+
 ## 2026-08-18 — Cover note to Kyle; preliminary schema parity plan
 
 Two artifacts, both in `gas-billing-memory` on the `ryan` branch: **`configurable-rules/kyle-cover-note-d3-2.md`** (a short note pointing Kyle at the retraction brief first, with the coda brief's routing flagged — Ryan delivers it out-of-band) and **`application/schema-parity-plan.md`** (preliminary, no DDL). The plan is provenance-gated: Phase 0 demands a current schema dump or the v5.3+ patch files before any migration is drafted, since v5.2.1 is three months stale and CI-019 already cites objects this repo cannot see. Phase 1 is the ruled work (13 live Part 5 backlog items in five migration sets, plus A-11's locked substrate); Phase 2 is six factual-defect hardening items; Phase 3 holds the judgment-gated items with the question each waits on; Phase 4 defers the Appendix A tail. Each landed patch regenerates the snapshot in this repo's `sql/` under numbered patch files and re-grades exactly the CI entries it names — which is how the 2026-08-17 grading freeze lifts.
