@@ -4,6 +4,12 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-18 — Session wrap: the project pivots from corpus auditing to schema execution
+
+Closing entry for the 2026-08-17→18 session (detail in the three entries below and their gas-billing-memory counterparts). Arc: independent review verified the corpus's factual layer and named the drift (internal audit loop, stalled stakeholder round-trip, unknown schema provenance) → three gates cleared (briefs delivered, grading frozen, both repos pushed with tally-utility gaining its first remote) → Ryan supplied the provenance (Kyle+Opus authored, never deployed; Ryan owns the schema; no database exists anywhere) → tu.sql v5.2.1 verified deployable, zero errors, freeze lifted → **v5.4.0-00 shipped**: Supabase substrate removed for the AWS PostgreSQL target, runtime-tested, line counts preserved. **HANDOFF.md fully rewritten for the new phase** — the corpus-era handoff with the full Failed Approaches list is preserved at commit `785884b`. Next session: the app-role/GRANTs patch (v5.4.0-01 — until it lands, the 59 RLS policies bind no one), then Phase 1's meters-and-reads migration set.
+
+---
+
 ## 2026-08-18 (cont.) — Patch v5.4.0-00: Supabase substrate removed; target is PostgreSQL on AWS
 
 Ryan's decision: AWS-hosted PostgreSQL, no Supabase. Only two functions carried the dependency — `get_user_tenant_id()` and `is_platform_admin()`, the wrappers all 59 RLS policies route through — so the swap to the `app.user_id` session GUC (fail-closed) converts the entire RLS layer without touching a policy. Shipped as `sql/v5.4.0-00-remove-supabase-substrate.sql` (first numbered patch of the new chain), mirrored into tu.sql with line counts preserved (11,351 lines; register anchors 337/3600/3679 verified unmoved), header rewritten (maintained-in-place canonical source, patch discipline, AWS target), preamble reworded. Redeployed clean and runtime-tested: no context → NULL/false (fail-closed); operator → own tenant, not admin; platform_admin → true. Caveat recorded: tests ran as the table owner, whom RLS never binds — the app role + GRANTs and the FORCE-RLS call are now the first item of Phase 2. `DEPLOY-VERIFICATION.md` updated with the v5.4.0-00 section.
