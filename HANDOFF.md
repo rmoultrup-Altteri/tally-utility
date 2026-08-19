@@ -20,11 +20,22 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 
 ## Not Yet Done
 
+- [ ] **Fold the -06 review findings into the next patch** (see "Post-session review findings" below): mirrored positivity CHECK on `pga_monthly_reconciliations` threshold columns (the consensus defect) + non-negativity CHECKs on `actual_gas_cost`/`pga_recovered_revenue`. Rides along with Phase 2.
 - [ ] **NEXT: Phase 2 — six factual-defect items (plan §2.1–2.6), likely one or two `v5.4.1-*` patches.** Low-controversy but "flag each in a brief line rather than land silently." Items: 2.1 `final_read` in `service_orders` CHECK coverage; 2.2 `import_jobs.idempotency_key` NOT NULL + default; 2.3 cycle guards (`customers.landlord_customer_id`, `service_orders.parent_order_id`, `import_staging.depends_on_row_numbers`) — closes the 50-link cap on -05's depth walk; 2.4 `tenant_configuration_history` + date-parameterised `get_partial_period_policy()`; 2.5 `account_ledger` reversal lineage FK + reason; 2.6 `meter_readings` service-point premise or EXCLUDE on `meter_deployments` (schema has zero EXCLUDE constraints today).
 - [ ] Then Phase 4 Wave 1 (A-4 → A-1 → A-3) per the now-sequenced plan.
 - [ ] Kyle briefs outstanding: the 8 open briefs; NEW candidate brief needed for A-8 (tax_jurisdictions date-effective shape) before its DDL; CI-029's Fp=1.0 CHECK still parked with Kyle.
 - [ ] Phase 0.4 (non-blocking): Kyle's Opus-session patch archive.
 - [ ] GBM `origin/main` catch-up — Ryan's call, never unprompted.
+
+## Post-session review findings (two independent assessors, 2026-08-19)
+
+Ryan had the -06 work adversarially reviewed by two independent agents (one Fable fork, one Codex). Both confirmed: mirror byte-exact, patch idempotent (re-run clean against the live DB), all DEPLOY-VERIFICATION claims reproduced, no RLS/privilege holes (`tally_app` has no TRUNCATE), band-CHECK rounding exact, D3D-1 fidelity high with no overreach. Findings to act on:
+
+- **DEFECT (consensus, fix in next patch)**: `pga_monthly_reconciliations.low/medium_threshold_pct_applied` have NO positivity CHECK — only `medium > low`. Both reviewers inserted rows with negative thresholds live. Immutable rows = a buggy posting job writes a permanently nonsensical workpaper. Fix: mirror `pga_monitoring_settings_low_positive_check` onto the snapshot table (`low_threshold_pct_applied > 0`).
+- **Fix alongside (cheap, no ruling needed)**: `actual_gas_cost` / `pga_recovered_revenue` have no non-negativity CHECKs (asymmetric with `trailing_12mo_pga_revenue >= 0`; `monthly_variance` legitimately signed, these two are not).
+- **Documented-but-sharp edge**: when `trailing_12mo_pga_revenue = 0` the band CHECK short-circuits — ANY band value is accepted, not forced `none`. Posting job must self-police. Forcing `none` at zero would invent semantics → Kyle-brief item, not DDL.
+- **Kyle-brief items (do NOT draft DDL)**: (1) band math uses `abs(deferred_balance_after)` — surplus alerts like deficit; defensible under the magnitude-as-warning framing but an undeclared interpretive call; (2) no correction path exists for an erroneously *posted* month (cluster 21 row 5 governs routine variance, not job bugs) — supersede-lineage (the enrollments pattern) is the un-ruled alternative to pure immutability.
+- **Container state note**: the running `tally-pg` has reviewer probe rows and lost its 6 original -06 fixture rows (a reviewer ran superuser TRUNCATE). Irrelevant — container is ephemeral, schema-fresh on rebuild; just don't trust its current row contents.
 
 ## Failed Approaches (Don't Repeat These)
 
