@@ -1,6 +1,20 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00, verified 2026-08-18.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Object counts re-confirmed after v5.4.0-00: 59 tables / 49 triggers / 59 policies / 188 CHECKs — unchanged, as expected for a function-body swap.
+**Current: v5.2.1 + v5.4.0-00 + v5.4.0-01, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-01: 59 tables / 59 policies / **58 FORCE-RLS tables (was 0)** / role `tally_app` present. tu.sql is now **11,455 lines** (was 11,351; the v5.4.0-01 mirror is a pure append at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+
+## v5.4.0-01 — app role, GRANTs, FORCE RLS (decision: Ryan, 2026-08-19 — split-role model)
+
+Role `tally_app` (NOLOGIN privilege bundle; production LOGIN users get membership) with full DML GRANTs + default privileges for future objects; `FORCE ROW LEVEL SECURITY` on all 58 RLS tables (`materialized_view_refresh_log` stays non-RLS by design). Migrations remain the owner's job. **This is the moment the 59 policies bind anyone at all** — and the first true end-to-end RLS test (v5.4.0-00's caveat is closed):
+
+| context (as `tally_app` via SET ROLE) | result |
+|---|---|
+| no `app.user_id` set | 0 users, 0 tenants visible — fail-closed |
+| operator (tenant A) | only tenant-A rows (2 users, 1 tenant) |
+| operator (tenant A), INSERT into tenant B | **denied** — `new row violates row-level security policy for table "customers"` |
+| operator (tenant A), INSERT into own tenant | succeeds (grants + WITH CHECK both verified live) |
+| platform_admin | all rows (3 users, 2 tenants) — policy branch, not role bypass |
+
+**Caveat that remains:** the container owner (`tally`) is a superuser, and superusers bypass RLS regardless of FORCE — so FORCE's binding of the *owner* is only observable on AWS, where the owner won't be superuser. Fixture note: `customers.customer_number` is NOT NULL with no default (app-assigned).
 
 ## v5.4.0-00 — Supabase substrate removed (decision: Ryan, 2026-08-18 — PostgreSQL on AWS)
 
