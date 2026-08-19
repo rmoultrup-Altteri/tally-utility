@@ -1,6 +1,22 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 + v5.4.0-01, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-01: 59 tables / 59 policies / **58 FORCE-RLS tables (was 0)** / role `tally_app` present. tu.sql is now **11,455 lines** (was 11,351; the v5.4.0-01 mirror is a pure append at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+**Current: v5.2.1 + v5.4.0-00 + v5.4.0-01 + v5.4.0-02, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-02: 59 tables / 59 policies / 58 FORCE-RLS / **194 CHECKs (188 + 6 new)** / role `tally_app` present. tu.sql is now **11,533 lines** (11,351 baseline; both patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+
+## v5.4.0-02 — meters & reads set (backlog items 1, 2, 8, 9; Kyle rulings D3-1, D3A-3, D3A-4)
+
+Six columns on `meters` (`rollover_point`, `meter_pressure_class`, `tamper_flag` + `tamper_reported_at`/`tamper_signal_source`/`tamper_reason`) and two constraints on `read_cycle_meters.skip_reason` (ruled enum; `other` requires `notes`). All six new CHECKs runtime-tested on the deployed instance:
+
+| test | result |
+|---|---|
+| `meter_pressure_class = 'medium'` | rejected (`meters_meter_pressure_class_check`) |
+| `rollover_point = -5` | rejected (`meters_rollover_point_check`) |
+| `tamper_flag = true` without reported_at/source | rejected (`meters_tamper_flag_consistency_check`) |
+| valid meter: elevated / 1,000,000 / tamper fully recorded | inserted |
+| `skip_reason = 'poodle'` | rejected (`read_cycle_meters_skip_reason_check`) |
+| `skip_reason = 'other'` without notes | rejected (`read_cycle_meters_skip_other_notes_check`) |
+| `skip_reason = 'dog'`; `'other'` + notes | both inserted |
+
+Incidental confirmation: `read_cycle_meters` UNIQUE (instance, meter) fired correctly during testing. Fixture note: the FK chain for these tests is tenant → customer → service_location → meter and billing_cycle → read_cycle_instance.
 
 ## v5.4.0-01 — app role, GRANTs, FORCE RLS (decision: Ryan, 2026-08-19 — split-role model)
 
