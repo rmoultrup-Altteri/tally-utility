@@ -33,8 +33,9 @@
 --                   coordinated recommendation rather than three"); named
 --                   in schema-parity-plan as 3L / cluster 60 / bulk-import
 --                   OQ3. [DRAFTED BELOW]
---              2.5  account_ledger reversal lineage FK + reason (re-grade
---                   finding, 2026-08-13; CI-017/CI-018). [PENDING]
+--              2.5  account_ledger reversal lineage FK + reason. Source:
+--                   2026-08-13 re-grade finding (canonical-invariants.md:
+--                   340, 355; CI-017/CI-018). [DRAFTED BELOW]
 --              2.6  meter_readings service-point premise (CI-027 re-grade
 --                   finding). [PENDING]
 --              Plus: positivity CHECK on pga_monthly_reconciliations
@@ -69,8 +70,24 @@
 --              Item 2.3 has no CI-numbered entry — the finding is sourced
 --              from a workflow spec (bulk-data-import-with-validation.md)
 --              and a review brief, not from canonical-invariants.md; no
---              re-grade to make. Remaining items' CI entries to be named
---              as each is drafted.
+--              re-grade to make.
+--              CI-017 / CI-018 (re-check, item 2.5) — both were already
+--              re-graded `structurally-enforced` → `partially-structurally-
+--              enforced` on 2026-08-13 specifically BECAUSE account_ledger
+--              had no reversal FK/reason. This patch closes that gap, but
+--              does NOT re-grade either back to `structurally-enforced`:
+--              both columns land nullable (matching the existing invoice/
+--              payment lineage columns, which the same 2026-08-13 finding
+--              already conceded are "representable, not enforced" — every
+--              lineage column in the schema is optional, not required), so
+--              the guarantee remains representable rather than guaranteed.
+--              Status token unchanged at `partially-structurally-enforced`
+--              for both; descriptive text corrected on the GBM side to
+--              note the columns now exist. This is the one item this
+--              session where landing the fix does NOT restore the stronger
+--              grade — worth flagging precisely because it looks like the
+--              CI-118 case (item 2.2) and isn't. Remaining item's CI entry
+--              (2.6) to be named when drafted.
 -- Drafting decisions:
 --              2.1  Bind `final_read` to customer_id + location_id +
 --                   meter_id (all three — it closes an occupancy AND
@@ -169,13 +186,58 @@
 --                   a cross-tenant-leakage finding, not a cycle finding,
 --                   and item 2.3 names only the cycle guard. Left as a
 --                   candidate for a future item rather than folded in here.
+--              2.5  Two new nullable columns on account_ledger:
+--                   reverses_ledger_entry_id (self-referencing FK) and
+--                   reversal_reason (text). Deliberately NOT paired by a
+--                   CHECK requiring both-or-neither: the invoice/payment
+--                   lineage columns this mirrors (replaces_invoice_id,
+--                   void_reason_code, etc.) are independent columns, not a
+--                   paired unit, and the 2026-08-13 finding itself already
+--                   concedes every lineage column in the schema is
+--                   "representable, not enforced" — inventing a stricter
+--                   pairing rule here than the pattern it mirrors would be
+--                   a new invariant, not a factual-defect fix. Self-
+--                   reference forbidden by a plain CHECK (no trigger
+--                   needed — unlike 2.3, CI-018 explicitly wants
+--                   reversal-of-a-reversal and unbounded chain depth left
+--                   UNCONSTRAINED: "an N-deep chain is a queryable
+--                   structure, not an error condition." No depth-
+--                   monitoring event added either (unlike -05's
+--                   reversal_chain_depth_exceeded on invoices) — that was
+--                   a specific D1-3 ruling for invoice reversals; nothing
+--                   analogous has been ruled for the ledger, so adding one
+--                   here would be inventing a threshold nobody asked for.
+--                   Naming: reverses_ledger_entry_id, not reversal_of_id
+--                   or similar — matches the exact grep the 2026-08-13
+--                   finding ran ("reverses_|reversal_of") and the
+--                   reverses_/replaces_/refunds_ prefix-on-the-successor-
+--                   row convention already used by
+--                   invoices.replaces_invoice_id and
+--                   payments.refunds_payment_id.
+--                   void_invoice() (tu.sql:1126) is the ONE place in the
+--                   schema that posts a void_reversal ledger row, so it is
+--                   updated to populate both new columns rather than
+--                   leaving them permanently unused by the only caller
+--                   that exists: reversal_reason is populated directly
+--                   from p_void_reason_code/p_void_reason_notes (already
+--                   validated, already required); reverses_ledger_entry_id
+--                   is populated by a best-effort lookup for a prior
+--                   'charge' ledger row referencing this invoice
+--                   (reference_type='invoice', reference_id=p_invoice_id)
+--                   — NULL if none is found, which will be the common case
+--                   today since no billing-run/charge-posting code exists
+--                   anywhere in this schema-only project (per the parity
+--                   plan's own framing) to have posted that row in the
+--                   first place. This is exactly the "representable, not
+--                   enforced" character the finding already named, made
+--                   concrete rather than left aspirational.
 -- Idempotent:  yes so far (constraints DROP IF EXISTS + re-ADD; CREATE OR
 --              REPLACE FUNCTION; trigger DROP IF EXISTS + re-CREATE; backfill
 --              UPDATE only touches remaining NULLs, so a re-run is a no-op;
 --              COMMENT overwrite). Re-verify once all five items + carryover
 --              land.
 -- Line count:  DRAFT ONLY — not yet mirrored into tu.sql. Items 2.1, 2.2,
---              2.3 drafted; 2.5/2.6 + -06 carryover pending in this same
+--              2.3, 2.5 drafted; 2.6 + -06 carryover pending in this same
 --              file before the mirror step.
 -- ============================================================================
 
@@ -392,3 +454,329 @@ $$;
 DROP TRIGGER IF EXISTS import_staging_dependency_cycle ON public.import_staging;
 CREATE TRIGGER import_staging_dependency_cycle BEFORE INSERT OR UPDATE OF depends_on_row_numbers ON public.import_staging
     FOR EACH ROW EXECUTE FUNCTION public.check_import_staging_dependency_cycle();
+
+--
+-- Item 2.5 — account_ledger reversal lineage FK + reason (2026-08-13
+-- re-grade finding; CI-017/CI-018). invoices and payments each have an
+-- explicit lineage FK + reason on the REVERSING row pointing back to its
+-- predecessor (replaces_invoice_id/void_reason_code,
+-- refunds_payment_id/nsf_reason); account_ledger had neither — a ledger
+-- reversal was distinguishable only by transaction_type = 'void_reversal',
+-- with no link to the entry it offsets and no recorded reason.
+--
+ALTER TABLE public.account_ledger ADD COLUMN IF NOT EXISTS reverses_ledger_entry_id uuid;
+ALTER TABLE public.account_ledger ADD COLUMN IF NOT EXISTS reversal_reason text;
+
+ALTER TABLE public.account_ledger DROP CONSTRAINT IF EXISTS account_ledger_reverses_ledger_entry_id_fkey;
+ALTER TABLE public.account_ledger ADD CONSTRAINT account_ledger_reverses_ledger_entry_id_fkey
+    FOREIGN KEY (reverses_ledger_entry_id) REFERENCES public.account_ledger(id);
+
+ALTER TABLE public.account_ledger DROP CONSTRAINT IF EXISTS account_ledger_reversal_not_self_check;
+ALTER TABLE public.account_ledger ADD CONSTRAINT account_ledger_reversal_not_self_check
+    CHECK ((reverses_ledger_entry_id IS DISTINCT FROM id));
+
+COMMENT ON COLUMN public.account_ledger.reverses_ledger_entry_id IS
+    'Lineage FK to the account_ledger row this entry reverses/offsets — the ledger''s analogue of invoices.replaces_invoice_id and payments.refunds_payment_id (CI-017). Nullable: most ledger rows are not reversals, and per the same "representable, not enforced" pattern as the invoice/payment lineage columns, a reversal row is not REQUIRED to populate it. Populated by void_invoice() on a best-effort basis (v5.4.1-01) — NULL when no prior charge-type ledger row referencing the voided invoice can be found. Unbounded chain depth and reversal-of-a-reversal are both intentionally unconstrained (CI-018): a correction to a correction is a normal operation, not an error condition.';
+
+COMMENT ON COLUMN public.account_ledger.reversal_reason IS
+    'Free-text reason this entry reverses/offsets reverses_ledger_entry_id (CI-017 — "each link records ... the reason for the offset"). Independent of reverses_ledger_entry_id (not paired by a CHECK): a reversal''s reason is known even when the specific predecessor ledger row cannot be resolved. Populated by void_invoice() from the same void_reason_code/void_reason_notes already required for the voided invoice (v5.4.1-01).';
+
+--
+-- void_invoice() — updated (v5.4.1-01) to populate the two new columns.
+-- Only change from the v5.2.1 body: a best-effort lookup for the original
+-- charge-type ledger row before Step 4, and that lookup's result plus the
+-- void reason threaded into the account_ledger INSERT and the return
+-- payload. Everything else is unchanged.
+--
+CREATE OR REPLACE FUNCTION public.void_invoice(p_invoice_id uuid, p_voided_by uuid DEFAULT NULL::uuid, p_void_reason_code text DEFAULT NULL::text, p_void_reason_notes text DEFAULT NULL::text, p_rebill_expected boolean DEFAULT true) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+    v_invoice                    invoices%ROWTYPE;
+    v_reads_released             INTEGER := 0;
+    v_charges_auto_reverted      INTEGER := 0;
+    v_charges_pending_review     INTEGER := 0;
+    v_reversal_amount            DECIMAL(12,2);
+    v_ledger_entry_id            UUID;
+    v_original_ledger_entry_id   UUID;
+    v_had_payment                BOOLEAN := false;
+    v_new_running_bal            DECIMAL(12,2);
+    v_description                TEXT;
+    v_duplicate_no_match_warning BOOLEAN := false;
+    v_invoice_status_at_void     TEXT;
+    v_auto_revert_codes          TEXT[] := ARRAY[
+        'wrong_read', 'wrong_rate', 'service_date_error', 'system_error'
+    ];
+BEGIN
+    -- -------------------------------------------------------------------------
+    -- Step 1: Load and validate the invoice
+    -- -------------------------------------------------------------------------
+    SELECT * INTO v_invoice
+    FROM invoices
+    WHERE id = p_invoice_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invoice not found: %', p_invoice_id;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 1.1 (NEW in v5.2.1): Cross-tenant access check (Fix #5)
+    -- -------------------------------------------------------------------------
+    -- Defense in depth. Even if RLS is bypassed or the function owner has
+    -- BYPASSRLS, this check enforces tenant isolation. Platform admins
+    -- (cross-tenant by design) are exempted.
+    -- -------------------------------------------------------------------------
+    IF v_invoice.tenant_id != get_user_tenant_id()
+       AND NOT is_platform_admin()
+    THEN
+        RAISE EXCEPTION
+            'Cross-tenant access denied for invoice %. '
+            'Caller tenant does not match invoice tenant.',
+            v_invoice.invoice_number;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 1.2: Voidability and reason validation
+    -- -------------------------------------------------------------------------
+    IF v_invoice.status NOT IN ('pending','sent','overdue','partial','paid','held') THEN
+        RAISE EXCEPTION
+            'Invoice % is not voidable. Current status: %. '
+            'Voidable statuses: pending, sent, overdue, partial, paid, held.',
+            v_invoice.invoice_number, v_invoice.status;
+    END IF;
+
+    IF p_void_reason_code IS NULL THEN
+        RAISE EXCEPTION 'void_reason_code is required.';
+    END IF;
+
+    IF p_void_reason_code = 'other'
+       AND (p_void_reason_notes IS NULL OR trim(p_void_reason_notes) = '')
+    THEN
+        RAISE EXCEPTION
+            'void_reason_notes is required when void_reason_code = ''other''.';
+    END IF;
+
+    -- Snapshot status before any changes (for invoice_events audit record)
+    v_invoice_status_at_void := v_invoice.status;
+    v_had_payment := v_invoice.status IN ('paid','partial');
+
+    -- -------------------------------------------------------------------------
+    -- Step 1.5: Duplicate-warning check (Fix #4: filter by invoice_type)
+    -- -------------------------------------------------------------------------
+    -- The v5.2 check matched ANY non-void invoice for the same location and
+    -- billing period. That gave false negatives when a single location had
+    -- multiple service types (water + gas + electric) for the same period —
+    -- it would find the unrelated water invoice and suppress the warning for
+    -- the gas duplicate.
+    --
+    -- v5.2.1: also require matching invoice_type. A regular gas duplicate
+    -- will only match other regular invoices for the same location/period,
+    -- not water/electric or correction/final invoices.
+    -- -------------------------------------------------------------------------
+    IF p_void_reason_code = 'duplicate' THEN
+        SELECT NOT EXISTS (
+            SELECT 1 FROM invoices
+            WHERE location_id    = v_invoice.location_id
+              AND billing_period = v_invoice.billing_period
+              AND invoice_type   = v_invoice.invoice_type       -- Fix #4
+              AND status         NOT IN ('void','draft')
+              AND id             != p_invoice_id
+        ) INTO v_duplicate_no_match_warning;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 2: Arm trigger carve-out (transaction-scoped)
+    -- -------------------------------------------------------------------------
+    SET LOCAL app.void_operation = 'true';
+
+    -- -------------------------------------------------------------------------
+    -- Step 3: Release locked meter reads
+    -- -------------------------------------------------------------------------
+    UPDATE meter_readings
+    SET
+        voided_from_invoice_id = locked_by_invoice_id,
+        locked_by_invoice_id   = NULL,
+        validation_status      = 'void_released'
+    WHERE locked_by_invoice_id = p_invoice_id
+      AND validation_status    = 'locked';
+
+    GET DIAGNOSTICS v_reads_released = ROW_COUNT;
+
+    -- -------------------------------------------------------------------------
+    -- Step 3.5: Adhoc charge disposition
+    -- -------------------------------------------------------------------------
+    IF p_void_reason_code = ANY(v_auto_revert_codes) THEN
+        UPDATE adhoc_charges
+        SET
+            status                 = 'pending',
+            voided_from_invoice_id = billed_on_invoice_id,
+            billed_on_invoice_id   = NULL,
+            billed_on_line_item_id = NULL,
+            billed_at              = NULL,
+            target_billing_period  = v_invoice.billing_period,
+            updated_at             = now()
+        WHERE billed_on_invoice_id = p_invoice_id
+          AND status               = 'billed';
+
+        GET DIAGNOSTICS v_charges_auto_reverted = ROW_COUNT;
+        v_charges_pending_review := 0;
+    ELSE
+        UPDATE adhoc_charges
+        SET
+            status                 = 'void_pending_rebill',
+            voided_from_invoice_id = billed_on_invoice_id,
+            billed_on_invoice_id   = NULL,
+            billed_on_line_item_id = NULL,
+            billed_at              = NULL,
+            updated_at             = now()
+        WHERE billed_on_invoice_id = p_invoice_id
+          AND status               = 'billed';
+
+        GET DIAGNOSTICS v_charges_pending_review = ROW_COUNT;
+        v_charges_auto_reverted := 0;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 3.7 (NEW in v5.4.1-01): Best-effort lookup of the original charge
+    -- ledger entry this void reverses (CI-017 reversal lineage). NULL when
+    -- no such row exists — no billing-run/charge-posting code exists
+    -- anywhere in this schema-only project to have posted it yet.
+    -- -------------------------------------------------------------------------
+    SELECT id INTO v_original_ledger_entry_id
+    FROM account_ledger
+    WHERE tenant_id       = v_invoice.tenant_id
+      AND reference_type  = 'invoice'
+      AND reference_id    = p_invoice_id
+      AND transaction_type = 'charge'
+    ORDER BY created_at
+    LIMIT 1;
+
+    -- -------------------------------------------------------------------------
+    -- Step 4: Post void_reversal ledger entry
+    -- -------------------------------------------------------------------------
+    v_reversal_amount := -(v_invoice.amount_due);
+
+    v_description := format(
+        'Void reversal — Invoice %s (%s). Reason: %s%s',
+        v_invoice.invoice_number,
+        v_invoice.billing_period,
+        p_void_reason_code,
+        CASE WHEN p_void_reason_notes IS NOT NULL
+             THEN '. Notes: ' || p_void_reason_notes
+             ELSE ''
+        END
+    );
+
+    INSERT INTO account_ledger (
+        tenant_id,
+        customer_id,
+        location_id,
+        transaction_date,
+        transaction_type,
+        description,
+        amount,
+        reference_type,
+        reference_id,
+        created_by,
+        reverses_ledger_entry_id,
+        reversal_reason
+    )
+    VALUES (
+        v_invoice.tenant_id,
+        v_invoice.customer_id,
+        v_invoice.location_id,
+        CURRENT_DATE,
+        'void_reversal',
+        v_description,
+        v_reversal_amount,
+        'invoice_void',
+        p_invoice_id,
+        p_voided_by,
+        v_original_ledger_entry_id,
+        p_void_reason_code || CASE WHEN p_void_reason_notes IS NOT NULL
+                                    THEN ': ' || p_void_reason_notes
+                                    ELSE ''
+                               END
+    )
+    RETURNING id INTO v_ledger_entry_id;
+
+    -- -------------------------------------------------------------------------
+    -- Step 5: Stamp void metadata on invoice
+    -- -------------------------------------------------------------------------
+    UPDATE invoices
+    SET
+        status               = 'void',
+        voided_at            = now(),
+        voided_by            = p_voided_by,
+        void_reason_code     = p_void_reason_code,
+        void_reason_notes    = p_void_reason_notes,
+        void_rebill_expected = p_rebill_expected,
+        updated_at           = now()
+    WHERE id = p_invoice_id;
+
+    -- -------------------------------------------------------------------------
+    -- Step 5.5: Log the voided event
+    -- -------------------------------------------------------------------------
+    -- tenant_id will be overwritten by the sync trigger from Fix #6, but we
+    -- still pass it for explicitness and to satisfy NOT NULL.
+    -- -------------------------------------------------------------------------
+    INSERT INTO invoice_events (
+        tenant_id,
+        invoice_id,
+        event_type,
+        operator_id,
+        occurred_at,
+        metadata
+    )
+    VALUES (
+        v_invoice.tenant_id,
+        p_invoice_id,
+        'voided',
+        p_voided_by,
+        now(),
+        jsonb_build_object(
+            'void_reason_code',       p_void_reason_code,
+            'void_reason_notes',      p_void_reason_notes,
+            'rebill_expected',        p_rebill_expected,
+            'reads_released',         v_reads_released,
+            'charges_auto_reverted',  v_charges_auto_reverted,
+            'charges_pending_review', v_charges_pending_review,
+            'reversal_amount',        v_reversal_amount,
+            'had_payment',            v_had_payment,
+            'invoice_amount_due',     v_invoice.amount_due,
+            'invoice_status_at_void', v_invoice_status_at_void,
+            'invoice_number',         v_invoice.invoice_number,
+            'billing_period',         v_invoice.billing_period
+        )
+    );
+
+    -- -------------------------------------------------------------------------
+    -- Step 6: Retrieve updated running balance
+    -- -------------------------------------------------------------------------
+    SELECT running_balance INTO v_new_running_bal
+    FROM account_ledger
+    WHERE id = v_ledger_entry_id;
+
+    -- -------------------------------------------------------------------------
+    -- Step 7: Return payload
+    -- -------------------------------------------------------------------------
+    RETURN jsonb_build_object(
+        'invoice_id',                  p_invoice_id,
+        'invoice_number',              v_invoice.invoice_number,
+        'void_reason_code',            p_void_reason_code,
+        'rebill_expected',             p_rebill_expected,
+        'duplicate_no_match_warning',  v_duplicate_no_match_warning,
+        'reads_released',              v_reads_released,
+        'charges_auto_reverted',       v_charges_auto_reverted,
+        'charges_pending_review',      v_charges_pending_review,
+        'reversal_amount',             v_reversal_amount,
+        'ledger_entry_id',             v_ledger_entry_id,
+        'reverses_ledger_entry_id',    v_original_ledger_entry_id,
+        'had_payment',                 v_had_payment,
+        'credit_balance',              v_new_running_bal
+    );
+
+END;
+$$;
+
+COMMENT ON FUNCTION public.void_invoice(p_invoice_id uuid, p_voided_by uuid, p_void_reason_code text, p_void_reason_notes text, p_rebill_expected boolean) IS 'Atomically voids a posted invoice. v5.2.1 corrections: (a) Single canonical signature — old 4-param version dropped; (b) Explicit cross-tenant check defends against RLS bypass; (c) Duplicate-warning check filters by invoice_type to avoid false negatives on multi-service locations. v5.4.1-01 addition (CI-017): populates the new account_ledger.reverses_ledger_entry_id (best-effort lookup of the prior charge-type ledger row for this invoice, NULL if none exists) and reversal_reason (from void_reason_code/void_reason_notes) on the posted void_reversal row. Steps: validate invoice + tenant, voidability + reason validation, duplicate-warning check, arm trigger carve-out, release locked reads, dispose adhoc charges, look up original charge ledger entry, post void_reversal ledger entry with reversal lineage, stamp void metadata, log voided event to invoice_events (tenant_id synced by trigger), return JSONB payload.';
