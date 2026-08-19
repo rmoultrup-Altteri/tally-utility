@@ -1,6 +1,28 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-04, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-04: **63 tables** / **62 policies** / 61 FORCE-RLS / role `tally_app` present / 11 seeded `program_types` rows / 4 `customers.disconnect_protection_*` columns dropped / `compliance_statistics` rebuilt. tu.sql is now **11,966 lines** (11,351 baseline; all patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-05, verified 2026-08-19.** After v5.4.0-05: 207 CHECKs; five new guard/monitor triggers; tu.sql **12,138 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.0-05 — pipeline & events set (backlog items 11, 12, 13; rulings D3C-6/Part 4, D1-3, D3B-1/2)
+
+Dry-run isolation is now a database property: guards on `invoices`, `account_ledger`, the read-lock transition, and `billing_runs` status; `dry_run` dropped from the `run_type` enum; `is_dry_run` immutable. Reversal-chain depth >3 auto-emits an `invoice_events` row. D3B-1/2 confirmation columns pair-CHECKed. Runtime-tested:
+
+| test | result |
+|---|---|
+| `run_type = 'dry_run'` | rejected (enum value gone — split-brain closed) |
+| invoice referencing a dry run | rejected (`enforce_dry_run_no_invoices`) |
+| ledger entry referencing a dry run | rejected (`enforce_dry_run_no_ledger`) |
+| read lock by a dry run | rejected (`enforce_dry_run_no_read_locks`) |
+| dry run → `approved` / `is_dry_run` flip | both rejected; → `review` allowed |
+| invoice on a real run | inserted |
+| reversal chain to depth 3 | silent (legitimate bill→void→rebill→void) |
+| chain link #4 | `reversal_chain_depth_exceeded` event, metadata `{depth: 4, severity: medium}` |
+| `zone_confirmed_at` without `_by` | rejected (pair CHECK); full pair accepted |
+| `fp_mismatch_confirmed_at/by` without reason | rejected (all-or-nothing CHECK); all three accepted |
+
+Incidental discovery: creating a meter auto-creates `meter_deployments` row #1 (existing trigger behavior), so fixture deployments start at #2.
+
+---
+### Earlier v5.4.0-04 state Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-04: **63 tables** / **62 policies** / 61 FORCE-RLS / role `tally_app` present / 11 seeded `program_types` rows / 4 `customers.disconnect_protection_*` columns dropped / `compliance_statistics` rebuilt. tu.sql is now **11,966 lines** (11,351 baseline; all patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
 
 ## v5.4.0-04 — programs & lifecycle: A-11 substrate + item 10 (D8-2)
 

@@ -4,6 +4,12 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-19 (cont.) — Patch v5.4.0-05: pipeline & events — the dry-run guarantee becomes a property
+
+Fourth ruled-backlog patch (items 11–13; D3C-6/Part 4, D1-3, D3B-1/2). `sql/v5.4.0-05-pipeline-and-events.sql`: **dry-run isolation is now database-enforced** — guards on `invoices`, `account_ledger`, the read-lock transition, and `billing_runs` status; `dry_run` dropped from `run_type` (Part 4's split-brain closed); `is_dry_run` made immutable (drafting extension: a real run is a new run row). **Reversal-chain depth event** drafted as a DB trigger rather than the ruling's minimum app-layer option — never blocking, auto-emits `reversal_chain_depth_exceeded` with `{depth, severity: medium}` at link >3; depth 3 verified silent. **Item 13's app-vs-column split resolved**: columns landed (`meters.zone_/pressure_class_confirmed_at/by` pair-CHECKed; `meter_deployments.fp_mismatch_confirmed_at/by/reason` all-or-nothing), validation stays app logic. Ten-test suite green. Three workflow docs' catalog refs flipped to landed in GBM. **Remaining in Phase 1: PGA (item 14).**
+
+---
+
 ## 2026-08-19 (cont.) — Patch v5.4.0-04: the A-11 program-enrollment substrate, with item 10
 
 The largest ruled build lands: Appendix A-11's locked design (Q-13, 2026-05-26) plus its implementation decisions, followed to the letter, with backlog item 10 (D8-2) riding along per the plan's grouping. `sql/v5.4.0-04-programs-and-lifecycle.sql`: **`program_types`** (first platform-global reference table — 11 seeds, no RLS, read-only for `tally_app`); **`customer_program_enrollments`** (CI-046-style lifecycle, attestation columns, supersede lineage, jsonb payloads, **D8-2 `expiry_type` calendar|event** — bankruptcy holds are event-terminated rows with NULL end dates, never fake calendar dates); three guard triggers (customer_id immutable, supersede-chain validation, `do_not_disconnect` denormalization); the **clean drop of `customers.disconnect_protection_*`** (single-slot representation retired); **`compliance_statistics` rebuilt** via LEFT JOIN LATERAL with its surface preserved. Eleven-test behavioral suite all green, including RLS as `tally_app` and the read-only reference-table guard. Nine register entries re-graded/re-checked `(as of v5.4.0-04)`; A-11 marked LANDED. **Next: pipeline & events set (items 11, 12, 13).**
