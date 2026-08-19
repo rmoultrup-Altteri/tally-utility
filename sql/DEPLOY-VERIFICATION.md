@@ -1,6 +1,23 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 + v5.4.0-01 + v5.4.0-02, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-02: 59 tables / 59 policies / 58 FORCE-RLS / **194 CHECKs (188 + 6 new)** / role `tally_app` present. tu.sql is now **11,533 lines** (11,351 baseline; both patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-03, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-03: **61 tables (+2)** / **61 policies (+2)** / **60 FORCE-RLS** / **201 CHECKs** / 50 `set_updated_at` triggers / role `tally_app` present. tu.sql is now **11,702 lines** (11,351 baseline; all patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+
+## v5.4.0-03 — rating & WNA set (backlog items 4, 5, 6, 7; Kyle rulings D7-2, D5-2, T-4, T-3)
+
+New objects: `jurisdictions` and `wna_clamp_events` tables (both RLS + FORCE + `tenant_isolation` policy; grants arrive via v5.4.0-01's default privileges), `regulatory_class` NOT NULL on `rate_items` + `adhoc_charges`, floor/ceiling/basis on `wna_zones`, `service_locations.jurisdiction_id` FK, `prorate_tier_breakpoints` default → true. Runtime-tested:
+
+| test | result |
+|---|---|
+| rate_item / adhoc_charge without `regulatory_class` | rejected (NOT NULL, both tables) |
+| `regulatory_class = 'sorta'` | rejected (`rate_items_regulatory_class_check`) |
+| valid `regulated` rate_item / `unregulated` adhoc charge | inserted |
+| duplicate `(tenant_id, jurisdiction_code)` | rejected (UNIQUE) |
+| jurisdiction → wna_zone pointer + service_location → jurisdiction link | both resolve |
+| WNA floor set without `wna_clamp_basis` | rejected (`wna_zones_clamp_basis_required_check`) |
+| floor > ceiling | rejected (`wna_zones_floor_le_ceiling_check`) |
+| clamp event `bound_hit = 'middle'` | rejected; `'floor'` with snapshot bounds inserted |
+| new rate_schedule | `prorate_tier_breakpoints = true` by default |
+| RLS on both new tables as `tally_app` | no context → 0 rows; operator context → own rows |
 
 ## v5.4.0-02 — meters & reads set (backlog items 1, 2, 8, 9; Kyle rulings D3-1, D3A-3, D3A-4)
 
