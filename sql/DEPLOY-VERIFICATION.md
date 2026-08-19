@@ -1,6 +1,24 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-03, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-03: **61 tables (+2)** / **61 policies (+2)** / **60 FORCE-RLS** / **201 CHECKs** / 50 `set_updated_at` triggers / role `tally_app` present. tu.sql is now **11,702 lines** (11,351 baseline; all patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-04, verified 2026-08-19.** Deploys **clean, zero errors** on fresh PostgreSQL via the repo harness (`postgres/Dockerfile`, base `postgres:16`, `check_function_bodies = off` preamble). Counts after v5.4.0-04: **63 tables** / **62 policies** / 61 FORCE-RLS / role `tally_app` present / 11 seeded `program_types` rows / 4 `customers.disconnect_protection_*` columns dropped / `compliance_statistics` rebuilt. tu.sql is now **11,966 lines** (11,351 baseline; all patch mirrors are pure appends at EOF, so every pre-existing line number — including anchors 337/3600/3679 — is unchanged and all register citations remain valid).
+
+## v5.4.0-04 — programs & lifecycle: A-11 substrate + item 10 (D8-2)
+
+`program_types` (platform-global, no RLS, **app-role read-only** — DML revoked from `tally_app`) and `customer_program_enrollments` (RLS + FORCE, full A-11 index set incl. the one-active-per-type partial UNIQUE and GIN on `enrollment_data`), three guard triggers, the `do_not_disconnect` denormalization, single-slot column drop, matview rebuild with `LEFT JOIN LATERAL`. Behavioral suite, all green:
+
+| test | result |
+|---|---|
+| pending enrollment | `do_not_disconnect` stays false; flips true on activation |
+| second active enrollment, same type | rejected (`idx_cpe_one_active_per_type`) |
+| supersede flow (superseded → new active with lineage link) | works; flag stays true |
+| supersede link crossing program_type | rejected (`validate_enrollment_supersedes_chain`) |
+| `customer_id` UPDATE | rejected (`enforce_enrollment_customer_immutable`) |
+| cancel last protective enrollment | flag flips false |
+| active `budget_billing` (non-protective) | flag stays false |
+| `enrollment_data` array / end<start / bad expiry_type | each rejected on its named CHECK |
+| D8-2: bankruptcy, `expiry_type='event'`, NULL end date | inserted; flag true |
+| matview refresh | shows `bankruptcy_automatic_stay` / `permanent` (surface preserved) |
+| RLS as `tally_app` | enrollments tenant-scoped; `program_types` readable (11 rows) but INSERT → permission denied |
 
 ## v5.4.0-03 — rating & WNA set (backlog items 4, 5, 6, 7; Kyle rulings D7-2, D5-2, T-4, T-3)
 
