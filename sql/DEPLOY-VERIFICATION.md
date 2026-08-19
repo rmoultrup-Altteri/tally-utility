@@ -1,6 +1,28 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-05, verified 2026-08-19.** After v5.4.0-05: 207 CHECKs; five new guard/monitor triggers; tu.sql **12,138 lines** (pure appends; anchors 337/3600/3679 intact).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06, verified 2026-08-19.** After v5.4.0-06: **65 tables** / **64 policies** / **63 FORCE-RLS** / **217 CHECKs** / 61 triggers / 471 indexes / 271 FKs; tu.sql **12,279 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.0-06 — PGA set (backlog item 14; ruling D3D-1) — Phase 1 complete
+
+Two new tables: `pga_monitoring_settings` (tenant-overridable thresholds, one row per tenant, mutable, column defaults 10.00/20.00) and `pga_monthly_reconciliations` (immutable input-snapshot rows — **trigger-enforced**, the drafting call — with CHECK-enforced variance arithmetic and threshold-band consistency against the row's own snapshotted values). Both RLS + FORCE + `tenant_isolation`; grants via v5.4.0-01 default privileges. Runtime-tested:
+
+| test | result |
+|---|---|
+| settings defaults | 10.00 / 20.00 / re-alert NULL |
+| `medium <= low` / `re_alert_interval_days = 0` | each rejected on its named CHECK |
+| settings UPDATE | allowed (mutable config); `updated_at` bumps |
+| valid month row, balance at 0.83% of trailing revenue, band `none` | inserted |
+| `monthly_variance ≠ cost − revenue` | rejected (`…_variance_arithmetic_check`) |
+| `reconciliation_month` = mid-month date | rejected (`…_month_first_day_check`) |
+| band `none` claimed at 25% ratio | rejected (`…_band_consistent_check`); same row as `medium` inserted |
+| boundary: exactly 10% (negative balance, abs applies) | `none` rejected, `low` accepted (>= boundary) |
+| `trailing_12mo_pga_revenue = 0` | band check disabled; row inserted |
+| duplicate `(tenant_id, reconciliation_month)` | rejected (UNIQUE — CI-117) |
+| UPDATE / DELETE on a posted month | **both rejected** (`enforce_pga_reconciliation_immutable`) |
+| `metadata = []` | rejected (object-shape CHECK) |
+| RLS as `tally_app` | no GUC → 0 rows both tables; operator → own tenant only (3 recon + 1 settings); cross-tenant INSERT denied; own-tenant INSERT succeeds |
+
+The mid-year-config-change scenario (D3D-1's test note) is covered by construction: thresholds are snapshotted per row and the row can never be updated, so a settings change cannot rewrite prior months' workpapers.
 
 ## v5.4.0-05 — pipeline & events set (backlog items 11, 12, 13; rulings D3C-6/Part 4, D1-3, D3B-1/2)
 
