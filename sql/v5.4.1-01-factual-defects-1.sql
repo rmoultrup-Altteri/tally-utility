@@ -52,21 +52,36 @@
 --              only once service_orders_final_read_referents_check lands.
 --              Status token unchanged (partially-structurally-enforced);
 --              descriptive text corrected on the GBM side.
---              CI-118 (re-grade, item 2.2) — the 3M brief graded this
---              `structurally-enforced` as defective (a UNIQUE constraint
---              over a nullable column lets an unbounded number of NULL-key
---              rows insert cleanly; family-15's intro overclaims "four"
---              structural guarantees when only three genuinely hold). This
---              patch does NOT just correct the doc to "three" — it lands
---              the brief's own recommended fix (NOT NULL + generated
---              default), which restores the fourth guarantee. Call made
---              this session: re-grade CI-118 forward to genuinely
---              `structurally-enforced` (not backward to `partially-`),
---              and correct family-15's intro to confirm "four" as of
---              v5.4.1-01 rather than demote it to "three" — the plan's
---              phrasing described the PRE-patch defect, not the intended
---              post-patch state. Flagging this reading explicitly per
---              Phase 2's "flag each in a brief line" rule.
+--              CI-118 (re-check, item 2.2 — REVISED after independent
+--              review) — the 3M brief graded this `structurally-enforced`
+--              as defective (a UNIQUE constraint over a nullable column
+--              lets an unbounded number of NULL-key rows insert cleanly;
+--              family-15's intro overclaims "four" structural guarantees
+--              when only three genuinely hold). This patch's first draft
+--              argued the NOT NULL + trigger fix restored the fourth
+--              guarantee outright and re-graded CI-118 forward to
+--              unqualified `structurally-enforced`. Two independent
+--              review passes (Fable, Codex — 2026-08-19) both found and
+--              live-reproduced the same hole: the id-fallback only
+--              engages when source_filename/source_file_hash are BOTH
+--              NULL, but nothing requires a csv/excel/pdf/legacy_export
+--              import to populate them — import_jobs_source_type_check
+--              constrains only the enum value, not correlated columns. Two
+--              file-less (or hash-less) imports of the SAME logical file
+--              each get a distinct id-derived key and insert cleanly, no
+--              collision, no duplicate-detection — for exactly the source
+--              types CI-118's "duplicate imports structurally impossible"
+--              statement is supposed to cover. REVISED call: CI-118 stays
+--              at `partially-structurally-enforced`, NOT re-graded upward
+--              — the guarantee holds only when the caller supplies
+--              filename+hash (or its own key), which is exactly the
+--              "when set" hedge CI-117 already carries and CI-118's
+--              Statement does not. The NOT NULL fix genuinely closes the
+--              NULL-key hole (verified: two rows with identical
+--              filename+hash+is_dry_run now correctly collide); it does
+--              NOT make duplicate-import detection unconditional. Family-
+--              15's intro correction (four vs. three) is a GBM-side call
+--              to make alongside this — not resolved in this SQL patch.
 --              Item 2.3 has no CI-numbered entry — the finding is sourced
 --              from a workflow spec (bulk-data-import-with-validation.md)
 --              and a review brief, not from canonical-invariants.md; no
@@ -170,6 +185,34 @@
 --                   matching the workflow spec's own suggested approach
 --                   ("detect cycles at validation ... the array is fully
 --                   known once staging is written").
+--                   POST-REVIEW FIXES (two independent review passes,
+--                   Fable + Codex, 2026-08-19): (1) the trigger originally
+--                   fired only on UPDATE OF depends_on_row_numbers — since
+--                   the graph's edges are keyed on row_number, which is
+--                   NOT FK-protected, an UPDATE moving a row's OWN
+--                   row_number (or relocating it into another import_job_id)
+--                   could complete a cycle the guard never re-checked.
+--                   Fable reproduced this live. Fixed: trigger now also
+--                   fires on UPDATE OF row_number, import_job_id. (2) the
+--                   BFS's 10,000-node visited-cap silently returned NEW
+--                   rather than raising, contradicting this same header's
+--                   stated philosophy for the other two guards ("raises
+--                   rather than silently allowing"). Fixed: now raises.
+--                   KNOWN LIMITATION, not fixed, documented instead
+--                   (Fable finding): all three guards read via plain MVCC
+--                   SELECTs with no locking. Two concurrent transactions
+--                   each completing "their half" of a cycle (e.g. txn1 sets
+--                   A.landlord=B while txn2 concurrently sets B.landlord=A)
+--                   can both commit under READ COMMITTED, since neither
+--                   sees the other's uncommitted half. The "cycle always
+--                   caught on the second row written" property holds only
+--                   within one session/transaction, not across concurrent
+--                   ones. Not fixed in this patch — closing it needs
+--                   per-chain advisory locking or SERIALIZABLE, which is
+--                   more machinery than a Phase 2 "factual-defect
+--                   hardening" item should carry; flagged per Phase 2's
+--                   own rule as a candidate for a future item rather than
+--                   silently left undocumented.
 --                   ADDITIONAL, beyond the three named columns: added
 --                   UNIQUE (import_job_id, row_number) on import_staging.
 --                   Not itself in the plan's item list, but load-bearing —
@@ -231,6 +274,18 @@
 --                   first place. This is exactly the "representable, not
 --                   enforced" character the finding already named, made
 --                   concrete rather than left aspirational.
+--                   NOTED, same class as item 2.3's out-of-scope call
+--                   (independent review, Fable pass): account_ledger_
+--                   reverses_ledger_entry_id_fkey references (id), not
+--                   (tenant_id, id) — cross-tenant lineage is representable
+--                   by a direct row insert bypassing the FK's tenant
+--                   scoping, same shape as customers_landlord_customer_id_
+--                   fkey. void_invoice() itself is tenant-safe (its own
+--                   lookup is tenant_id-scoped, Step 1.1's cross-tenant
+--                   check is intact), so this is a latent gap in the
+--                   column's structural guarantee, not a live hole in the
+--                   one caller that populates it today. Consistent with
+--                   2.3's landlord-FK call: noted, not drafted here.
 -- Idempotent:  yes so far (constraints DROP IF EXISTS + re-ADD; CREATE OR
 --              REPLACE FUNCTION; trigger DROP IF EXISTS + re-CREATE; backfill
 --              UPDATE only touches remaining NULLs, so a re-run is a no-op;
@@ -427,7 +482,10 @@ BEGIN
     END IF;
 
     v_frontier := NEW.depends_on_row_numbers;
-    WHILE array_length(v_frontier, 1) IS NOT NULL AND coalesce(array_length(v_visited, 1), 0) < 10000 LOOP
+    WHILE array_length(v_frontier, 1) IS NOT NULL LOOP
+        IF array_length(v_visited, 1) >= 10000 THEN
+            RAISE EXCEPTION 'import_staging dependency walk for row % (job %) exceeded 10,000 visited rows without resolving — refusing (either an implausibly large dependency graph or an existing cycle this insert/update did not itself create)', NEW.row_number, NEW.import_job_id;
+        END IF;
         v_next := ARRAY[]::integer[];
         FOREACH v_row_number IN ARRAY v_frontier LOOP
             IF v_row_number IS NULL OR v_row_number = ANY (v_visited) THEN
@@ -451,8 +509,16 @@ BEGIN
 END;
 $$;
 
+-- Fires on UPDATE OF row_number and import_job_id too, not just
+-- depends_on_row_numbers: the graph's edges are keyed on row_number, which
+-- is NOT FK-protected and freely updatable — an UPDATE that moves a row's
+-- own row_number (or relocates it into another job) can complete a cycle
+-- the guard would otherwise never re-check. Found by independent review
+-- (Fable pass, 2026-08-19): insert row 1 deps {2}, row 3 deps {1} (no
+-- cycle visible yet), then UPDATE row 3's row_number to 2 — completes a
+-- 1->2->1 cycle that a depends_on_row_numbers-only trigger never sees.
 DROP TRIGGER IF EXISTS import_staging_dependency_cycle ON public.import_staging;
-CREATE TRIGGER import_staging_dependency_cycle BEFORE INSERT OR UPDATE OF depends_on_row_numbers ON public.import_staging
+CREATE TRIGGER import_staging_dependency_cycle BEFORE INSERT OR UPDATE OF depends_on_row_numbers, row_number, import_job_id ON public.import_staging
     FOR EACH ROW EXECUTE FUNCTION public.check_import_staging_dependency_cycle();
 
 --
