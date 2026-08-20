@@ -1,8 +1,8 @@
 # Handoff: A-4 LANDED (v5.4.2-01 + -02 follow-up) — next is Phase 4 Wave 1, A-1
 
-**Generated**: 2026-08-20 (end of A-4 + assessed follow-up)
+**Generated**: 2026-08-20 (session wrap — A-4 + assessed follow-up complete)
 **Branch**: tally-utility `main` (pushed) · gas-billing-memory `ryan` (pushed; 17 commits ahead of `origin/main`)
-**Status**: A-4 fully complete. Nothing in flight; nothing uncommitted.
+**Status**: A-4 fully complete (v5.4.2-01 landed, v5.4.2-02 follow-up landed after two independent assessments). Nothing in flight; nothing uncommitted. Session CHANGELOG wrap entry written.
 
 ## Goal
 

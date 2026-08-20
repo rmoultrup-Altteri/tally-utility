@@ -4,6 +4,26 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-20 (wrap, A-4 session) — session record: A-4 landed and hardened; decisions in DECISION-LOG
+
+**What was done (full session):** resumed from the Phase 2 handoff; drafted, reviewed, mirrored and landed **v5.4.2-01** (A-4: CI-012/013/014 enforcement — generic no-hard-delete guard on 33 tables, column-scoped invoice immutability, append-only ledger/events, identity-freeze guards, REVOKEs, `void_invoice()` GUC leak closed); Ryan then requested two independent post-landing assessments (Fable, Codex — both "sound enough to build A-1 on", one MEDIUM each on the search_path claim and the direct-void gap) and the fix with the same loop → **v5.4.2-02** (`void_invoice()` schema-qualified + `search_path` pinned, direct-void gated from any status and on INSERT, all 80 guards `ENABLE ALWAYS`, DEPLOY-VERIFICATION corrected in place). Both repos pushed after each patch. Detailed per-patch entries are the two entries below and `sql/DEPLOY-VERIFICATION.md`.
+
+**Review/assessment rounds this session:** four (two pre-landing reviews per patch) plus two assessments — six independent agent passes. Every HIGH/MEDIUM was fixed; the LOWs are documented in DECISION-LOG or the patch headers. The one consensus finding that overturned a drafting call: the `app.void_operation` leak was first filed as an application contract to avoid re-issuing `void_invoice()`; both reviewers rejected that and the function was re-issued (and then re-issued again in -02 to qualify it).
+
+**Decisions:** twelve (D-2026-08-20-16 … -27) in `application/DECISION-LOG.md` with rationale. Headline calls: `pending` is issued; invoice immutability is column-scoped; only clean drafts are deletable; CI-013 is structural only for ledger/events/applications; the GUC carve-out is named caller-settable and gates `void` too; CI-014's set is enumerated (33) and partial; `payments.status` default left `posted`; **every patch must pass `SET search_path = ''; SET check_function_bodies = on;` standalone** — the Docker preamble had masked unqualified function bodies since v5.4.0.
+
+**Failed approaches (mechanism):** bare `%` in `format()` and `text[] || 'literal'`; testing GUC-gated guards after `void_invoice()` in one transaction; fresh-loading through the Docker image as proof of search_path safety; `SET search_path = ''` on a definer function with unqualified helpers; writing "corrected in place" in a header before editing the file. All in DECISION-LOG § Failed approaches (both sections).
+
+**Results:** tu.sql 13,241 → 14,499 lines (pure appends); 66 tables / 229 CHECKs / 147 triggers (80 ENABLE ALWAYS) / 275 FKs; fresh build zero errors; 89-check battery green on the fresh build; strict standalone apply clean for -02. GBM: CI-012 → structural, CI-013/014 → partial, Appendix A-4 LANDED, A-23 (+1a), Sections AN + AO; `ryan` 17 commits ahead of `origin/main`.
+
+**Open for Ryan (untouched, listed by both assessors):** `pending` = issued; `due_date` frozen; clean drafts deletable / held never; `write_off`/`paid` non-terminal; `payments.status` default `posted`; whether to take the option-(a) SECURITY-DEFINER seal. Flagged for a factual-defect set: six unpinned SECURITY DEFINER functions; void⇔voided_at CHECK; issued-status ordering; `rate_schedules` duplicate policy columns.
+
+**New durable artifacts this session:** `sql/v5.4.2-01-…`, `sql/v5.4.2-02-…`, AC-10..AC-13, DECISION-LOG D-16..27, memory note `strict-apply-before-mirror`.
+
+**Next step:** Phase 4 Wave 1, **A-1** (transaction-time pair) — see HANDOFF.md Resume Instructions; run the strict-apply test from the first draft.
+
+---
+
 ## 2026-08-20 (A-4 follow-up) — v5.4.2-02: void_invoice() hardened, direct-void gated, guards ENABLE ALWAYS
 
 Ryan asked for two independent post-landing assessments of v5.4.2-01 (Fable, Codex) and then for the fix with the same review loop. **What the assessments found:** (1) -01's header and DEPLOY-VERIFICATION claimed `search_path = ''` cleanliness the re-issued `void_invoice()` did not have — eleven unqualified relation refs inherited from v5.4.1-01, masked by `00_preamble.sql`'s `check_function_bodies = off`; the patch file failed a standalone strict apply. (2) `void_invoice()` is SECURITY DEFINER with no `SET search_path` — Fable's reviewer later demonstrated a cross-tenant void via `evil.is_platform_admin()`. (3) A bare `UPDATE … status='void', voided_at=now()` voided a bill with no reversal/read release/charge disposition, then sealed it. (4) Only 9 of 77 guards were `ENABLE ALWAYS`. (5) Stale `void_invoice()` COMMENT. Both assessors: "sound enough to build A-1 on"; both listed the same judgment calls for Ryan (`pending` = issued, `due_date` frozen, drafts deletable, `write_off`/`paid` non-terminal, `payments` default `posted`, SECURITY-DEFINER seal) — all left untouched.
