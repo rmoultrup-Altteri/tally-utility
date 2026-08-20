@@ -1,14 +1,16 @@
-# Handoff: v5.4.1-01 LANDED — next is v5.4.1-02 (item 2.4), then Phase 4 Wave 1
+# Handoff: Phase 2 COMPLETE (v5.4.1-01 + v5.4.1-02 landed) — next is Phase 4 Wave 1, A-4
 
 **Generated**: 2026-08-20
-**Branch**: tally-utility `main` (pushed, `92433ae`) · gas-billing-memory `ryan` (pushed, `294c500` — now 14 commits ahead of `origin/main`)
-**Status**: Phase 2 is complete except item 2.4. Nothing in flight; nothing uncommitted.
+**Branch**: tally-utility `main` (pushed) · gas-billing-memory `ryan` (pushed, `6cd8cbb` — 15 commits ahead of `origin/main`)
+**Status**: Phase 2 fully complete. Nothing in flight; nothing uncommitted.
 
 ## Goal
 
 Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. Target: vanilla PostgreSQL on AWS. Ryan owns the schema.
 
 ## Completed (this session, 2026-08-20)
+
+- [x] **v5.4.1-02 (item 2.4) landed**: `tenant_configuration_history` (append-only key/value history of the 13 tenant policy columns + top-level `settings.*`, trigger-written on `tenants` INSERT/UPDATE, RLS+FORCE, backfill, `seq` tiebreaker, source-guard) + `get_partial_period_policy(uuid, timestamptz)` with REQUIRED `p_as_of`, NULL raises, **no live fallback**; one-arg form dropped. Two-reviewer round (consensus HIGH: first draft's live-column fallback reintroduced the time-blind bug on NULL/pre-history input — fixed). Mirrored (13,241 lines), fresh build zero errors, DEPLOY-VERIFICATION, AC-8/AC-9, GBM CI-004/006/093 re-checks + Appendix A-22 + Section AM.
 
 - [x] **Item 2.6** drafted — both halves of the plan's either/or: `meter_deployments_no_overlap_excl` (schema's first EXCLUDE, `btree_gist`, half-open `[install_date, removal_date)`) + `meter_readings.location_id` snapshot column via `trg_populate_reading_location` (removal/final reads → deployment closed on the read date; else covering deployment; else `meters.location_id`; never re-derived on UPDATE).
 - [x] **-06 review carryover** drafted — `pga_monthly_reconciliations` `low_positive` / `gas_cost_nonnegative` / `recovered_nonnegative` CHECKs.
@@ -19,7 +21,8 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 
 ## Not Yet Done
 
-- [ ] **`v5.4.1-02`** — item 2.4: `tenant_configuration_history` table + date-parameterised `get_partial_period_policy()` (model on `get_correction_rate_date()`), new Appendix A entry. Not started.
+- [ ] **Phase 4 Wave 1, A-4** (bill-immutability / append-only enforcement: issued invoices, `account_ledger`, posted operational rows — generalize the -04/-05/-06 trigger pattern; `tally_app` + GRANT layer exists). Then A-1 (transaction-time pair), then A-3 (invoice_calculation_snapshots).
+- [ ] **Flagged for a later Phase 2-style set**: `rate_schedules.partial_period_policy` (unchecked, read by `get_partial_period_policy`) duplicates `partial_period_policy_override` (CHECKed, read by nothing).
 - [ ] **Kyle brief candidates that accumulated this session** (write before Phase 4 if convenient): (a) *how is an active meter relocated?* — `sync_meter_deployments()` ignores `location_id` edits while active; schema can't tell relocation from typo-fix (AC-7); (b) should the sync trigger take an explicit reinstall date rather than relying on `meters.start_date` (AC-1). Plus the 8 open briefs, A-8's brief, CI-029's Fp=1.0 CHECK.
 - [ ] Phase 4 Wave 1 (A-4 → A-1 → A-3), then Wave 2 (A-20 → A-21, A-7).
 - [ ] Phase 0.4 (non-blocking): Kyle's Opus-session patch archive.
@@ -58,17 +61,17 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 
 ## Resume Instructions
 
-1. Read `schema-parity-plan.md` Phase 2 item 2.4 and the 3M item 3 source; read `get_correction_rate_date()` in tu.sql as the model. Draft `sql/v5.4.1-02-tenant-configuration-history.sql` with the same header form as -01.
-2. Live-test, two independent reviews, **fresh rebuild**, mirror (banner + body after the second `-- ====` line), DEPLOY-VERIFICATION, GBM re-grades (CI-004/006/093 named by the plan) + Section AM + CHANGELOGs, commit both, push both.
-3. Add any new caller obligations to `application/APPLICATION-CONTRACTS.md`.
-4. Then Phase 4 Wave 1 starting with A-4.
+1. Start Phase 4 Wave 1 with **A-4**: read Appendix A-4 in `canonical-invariants.md` (options (a) privilege revocation + SECURITY DEFINER procs vs (b) row triggers; the plan says (b)'s pattern is proven 3× and (a)'s infrastructure exists), CI-012/013/014, and the existing immutability triggers (`enforce_enrollment_customer_immutable`, the -05 dry-run guards, `enforce_pga_reconciliation_immutable`, `enforce_tenant_configuration_history_immutable`). Decide scope per table (which rows count as "issued/posted"), draft `sql/v5.4.2-01-…` with the -01/-02 header form.
+2. Same loop: live-test, two independent reviews (ask them to fresh-load tu.sql + patch into a scratch DB), **fresh rebuild**, mirror (banner + body after the header's closing `-- ====`), DEPLOY-VERIFICATION, GBM re-grades + Section AN + CHANGELOGs, commit + push both.
+3. Add caller obligations to `application/APPLICATION-CONTRACTS.md` (AC-10+).
+4. Temporal-helper rule from -02, apply to anything A-1/A-3 adds: no live-value fallback, NULL coordinate raises, NULL result = unknowable.
 
 ## Warnings
 
 - **tu.sql is APPEND-ONLY**; verify anchors 337/3600/3679 after every append.
 - **Everything under `search_path = ''`**: schema-qualify any CREATE that isn't a table-bound object.
 - **Never `git add -A` in GBM** (`Clippings/`).
-- Every GBM canonical-data change needs a `wiki-ingestion-pending.md` section (next is **AM**) + both CHANGELOGs.
+- Every GBM canonical-data change needs a `wiki-ingestion-pending.md` section (next is **AN**) + both CHANGELOGs.
 - Phase 3 judgment-gated items wait on their named questions; A-8 needs a Kyle brief; CI-029's CHECK stays parked; finance gate holds A-15 ledger parts and A-6 remainder.
 - `regulatory_class` NOT NULL and `import_jobs.idempotency_key` NOT NULL both mean any future *populated* database needs a backfill (the -01 patch's own backfill handles idempotency_key).
 - Texas-only launch remains the scope discipline.
