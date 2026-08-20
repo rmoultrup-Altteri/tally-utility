@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-20 (wrap) — session record: Phase 2 complete; decisions moved to a durable log
+
+**What was done (full session):** v5.4.1-01 finished (item 2.6 + -06 carryover), second review round, mirror, fresh-build verification; v5.4.1-02 drafted, reviewed, fixed, mirrored, verified. Both repos pushed. Detailed per-patch entries are the two 2026-08-20 entries below and `sql/DEPLOY-VERIFICATION.md`.
+
+**Decisions:** fifteen drafting decisions (D-2026-08-20-01 … -15) are recorded with their rationale in the new **`application/DECISION-LOG.md`** — the permanent home for what previously lived only in HANDOFF.md's Key Decisions table. Headline calls: 2.6 landed both halves of its either/or; half-open EXCLUDE range; the active-meter relocation gap documented (AC-7) not fixed — Kyle brief; CI-032 corrected to partial; the -02 helper has no live fallback and raises on NULL (standing rule for all future temporal helpers); the history bracket is transaction time (valid time is A-1's); backfill flagged as an approximation; two-reviewer + scratch-DB fresh-load before every mirror.
+
+**Failed approaches (mechanism, not just "didn't work"):** `CREATE EXTENSION` without `WITH SCHEMA public` passed every live-container test and failed the fresh build because tu.sql runs under `search_path = ''` and psql sessions don't; a CI grade read from a stale scenario file instead of the register; mirror split at the wrong banner line; four fixture-column failures; the `COALESCE`-onto-live-column pattern in a temporal helper. All in DECISION-LOG.md § Failed approaches.
+
+**Results:** tu.sql 13,241 lines; 66 tables / 229 CHECKs / 1 EXCLUDE / 70 triggers / 275 FKs; fresh build zero errors; five test batteries green on the fresh build. GBM: nine CI entries re-checked with every token unchanged, Appendix A-22, Sections AL + AM.
+
+**New durable artifacts this session:** `application/APPLICATION-CONTRACTS.md` (AC-1..AC-9), `application/DECISION-LOG.md`, memory notes for fixture columns and the temporal-helper rule.
+
+**Next step:** Phase 4 Wave 1, **A-4** (bill-immutability / append-only enforcement) — see HANDOFF.md Resume Instructions.
+
+---
+
 ## 2026-08-20 (later) — v5.4.1-02 landed: tenant_configuration_history + time-aware get_partial_period_policy()
 
 Phase 2 item 2.4, the patch the 3M brief called "the item that matters most." `tenant_configuration_history` is a key/value, JSONB-valued, append-only history of the thirteen `tenants` policy columns plus each top-level `settings.<key>`, written automatically by an AFTER INSERT OR UPDATE trigger on `tenants` — on INSERT every key is recorded, so an onboarding default becomes a recorded decision (W-tenant-onboarding item 5); on UPDATE only changed keys. Immutability/TRUNCATE/source-guard triggers, RLS + FORCE, backfill for existing tenants, identity `seq` as the same-transaction tiebreaker (found in testing: `now()` is fixed per transaction, so two changes to one key tied on both `effective_from` and `created_at`). `get_partial_period_policy()` now takes a **required** `p_as_of` and reads the tenant default from history; the one-arg time-blind form was dropped (no callers). The bracket is transaction time, not valid time — valid-time policy changes remain A-1's job, so CI-004 stays partial. Flagged, not changed: `rate_schedules` has two override columns (`partial_period_policy`, unchecked, the one read; `partial_period_policy_override`, CHECKed, read by nothing).

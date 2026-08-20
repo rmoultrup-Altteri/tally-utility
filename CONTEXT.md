@@ -27,6 +27,7 @@ Domain research is complete. Feature extraction is done. The project is now in *
 - `postgres/` — Docker setup for local schema iteration (Postgres 16, schema loads on container start)
 - `application/database/schema.sql` — human-readable DDL dump of all 60 tables, reconstructed for reference
 - `application/APPLICATION-CONTRACTS.md` — running list of obligations the schema places on future application code (things the DB will reject or silently get wrong if the app doesn't do its part)
+- `application/DECISION-LOG.md` — permanent ledger of schema decisions with rationale and failed approaches (HANDOFF.md is rewritten each session; this is not)
 
 **What does not exist yet:** any application code.
 

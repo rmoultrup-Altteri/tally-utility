@@ -1,6 +1,6 @@
 # Handoff: Phase 2 COMPLETE (v5.4.1-01 + v5.4.1-02 landed) — next is Phase 4 Wave 1, A-4
 
-**Generated**: 2026-08-20
+**Generated**: 2026-08-20 (end of session)
 **Branch**: tally-utility `main` (pushed) · gas-billing-memory `ryan` (pushed, `6cd8cbb` — 15 commits ahead of `origin/main`)
 **Status**: Phase 2 fully complete. Nothing in flight; nothing uncommitted.
 
@@ -57,6 +57,32 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 **Working**: `tu.sql` at v5.2.1 + v5.4.0-00→-06 + v5.4.1-01 + v5.4.1-02, 13,241 lines, deploys clean from `postgres/Dockerfile` (66 tables / 229 CHECKs / 70 triggers). Container `tally-pg` is a **fresh build of the committed tu.sql** (for once, container == disk).
 **Broken**: Nothing.
 **Uncommitted**: None in either repo (GBM has only the untracked `Clippings/`, as always — never `git add -A` there).
+
+## Code Context
+
+```sql
+-- Temporal helper contract (v5.4.1-02) — the model for anything A-1/A-3 adds:
+get_partial_period_policy(p_rate_schedule_id uuid, p_as_of timestamptz) RETURNS text
+--   p_as_of NULL -> RAISES; unknown schedule or pre-history coordinate -> NULL (engine must fail on NULL)
+--   resolution: rate_schedules.partial_period_policy > history row (effective_from <= p_as_of, ORDER BY effective_from DESC, seq DESC) > nothing
+
+-- History table shape:
+tenant_configuration_history(id, seq identity, tenant_id, config_key, old_value jsonb, new_value jsonb,
+    effective_from timestamptz, changed_by uuid, change_source onboarding|trigger|backfill|manual, change_reason, created_at)
+--   scalars read back with  new_value #>> '{}';  SQL-NULL column values are stored as JSON null, not SQL NULL
+
+-- Immutability trigger pattern (now proven 5x; A-4 generalises it):
+CREATE TRIGGER <name> BEFORE UPDATE OR DELETE ON <table> FOR EACH ROW EXECUTE FUNCTION <raise_fn>();
+--   add a BEFORE TRUNCATE ... FOR EACH STATEMENT twin (tally_app has no TRUNCATE grant, but the owner does)
+
+-- Mirror step:
+--   body starts after the header's CLOSING "-- ====" line; prepend the 4-line MIRROR banner; append to tu.sql; verify anchors 337/3600/3679
+-- Fresh-build step (mandatory):
+--   docker rm -f tally-pg; docker build -q -t tally-postgres -f postgres/Dockerfile .; docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres
+--   docker logs tally-pg 2>&1 | grep -c ERROR   -> expect 0
+```
+
+Durable records: decisions → `application/DECISION-LOG.md`; caller obligations → `application/APPLICATION-CONTRACTS.md`; per-patch verification → `sql/DEPLOY-VERIFICATION.md`. This file is rewritten every session — copy anything worth keeping into those before overwriting.
 
 ## Setup Required
 
