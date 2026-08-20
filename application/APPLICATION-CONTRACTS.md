@@ -141,3 +141,23 @@ lock or `SERIALIZABLE`) in any code path that rewires hierarchies in bulk.
 *Introduced by v5.4.1-02.*
 
 `tenant_configuration_history` is filled by the trigger on `tenants`; application code changes policy by updating `tenants` (with `app.user_id` set so `changed_by` is captured). Direct inserts are for backdated corrections only (`change_source = 'manual'`) and cannot claim `onboarding`/`trigger`. `tenants.settings` defaults to `{}`: the seven documented sub-objects get onboarding history rows **only if the application writes them into `settings` in the tenant INSERT**. The bracket is transaction time — "this policy took effect last month" cannot be expressed through the normal path until the A-1 bi-temporal pair lands.
+
+### AC-10 — Correct an issued invoice with `void_invoice()` + rebill; never edit, never delete — REJECTS
+*Introduced by v5.4.2-01.*
+
+Once `invoices.status` leaves `draft`/`held` (`pending` counts as issued), the billed content — identity, lineage pointers, period, dates including `due_date`, every total, `tax_breakdown`, the estimated-read/anomaly flags, `pdf_url` once set — is frozen and the line items reject INSERT/UPDATE/DELETE. Lifecycle columns (status forward, `amount_paid`, `balance`, `dunning_stage`, `late_fee_*`, `write_off_*`, `delivery_*`, `notes`, `metadata`) stay writable. `status = 'void'` can only be entered with `voided_at` set — use `void_invoice()`, which also posts the reversal, releases locked reads and disposes of billed charges; a void is terminal (notes/metadata only). Only a `draft` invoice may be hard-deleted, and only if no billed adhoc charge or locked read points at it; everything else retires through status.
+
+### AC-11 — `payments.status` DEFAULTs to `posted`; insert intake rows as `pending` explicitly or they are frozen on arrival — REJECTS
+*Introduced by v5.4.2-01.*
+
+A payment's identity (customer, date, amount, method, channel, source, external references, check fields, `is_deposit`, `received_by`, lineage FKs) is frozen once `status <> 'pending'`, and a payment never returns to `pending`. Because the column default is `posted`, a webhook/lockbox intake row that may still need correction must be inserted with `status = 'pending'`; a posted payment is corrected by reversal/NSF + a new payment. `nsf`/`reversed`/`refunded`/`voided` are terminal.
+
+### AC-12 — `app.void_operation` is a carve-out for `void_invoice()` only; never set it yourself — SILENT
+*Introduced by v5.4.2-01 (the GUC itself dates from v5.2.1).*
+
+The locked-read guard on `meter_readings` and the billed-charge guard on `adhoc_charges` both step aside when the session GUC `app.void_operation = 'true'`. It is a plain session variable: any role with UPDATE can `SET LOCAL` it and walk through both guards — the database cannot tell `void_invoice()` from an impostor. Application code must never set it; `void_invoice()` sets it and (since v5.4.2-01) clears it before returning, so nothing later in the caller's transaction inherits it. Grep for it in code review. A true seal needs the SECURITY-DEFINER half of Appendix A-4 option (a) — routing those writes through procedures and revoking UPDATE on the columns — which is an application-architecture decision not taken by the schema.
+
+### AC-13 — Retire operational records through their status/voided/closed marker; the 33 protected tables reject DELETE and TRUNCATE — REJECTS
+*Introduced by v5.4.2-01.*
+
+`enforce_no_hard_delete()` is attached to every table in the v5.4.2-01 DO-block array (money, bills, parties, premises, metering, operations, audit). It fires on FK cascades too, so deleting a customer/tenant/meter fails at its first protected child. Reference and configuration tables (rate_* family, `billing_cycles`, `read_routes`, `jurisdictions`, `import_staging`, …) are not guarded — their retention discipline is A-1's date-effective shape, not a delete guard. Adding a table to the protected set means adding it to that array in a new patch (the loop also performs the `REVOKE DELETE`).

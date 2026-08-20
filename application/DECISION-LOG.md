@@ -6,6 +6,56 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-20 (later) — Phase 4 Wave 1, A-4 landed (v5.4.2-01)
+
+### Decisions
+
+**D-2026-08-20-16 · "Issued" = `status NOT IN ('draft','held')`; `pending` is on the immutable side.**
+*Why:* the status COMMENT gives draft → pending → sent with held as a pre-posting detour; `void_invoice()` already lists pending as voidable (i.e. posted, corrected only by void + rebill). CI-012's "customer-visible" phrase is satisfied by "the ledger has seen it." → `is_invoice_issued(text)`, the single definition every CI-012 guard calls.
+
+**D-2026-08-20-17 · Invoice immutability is column-scoped, not row-scoped.**
+*Why:* an issued bill keeps living in collections (payments apply, dunning runs, late fees are assessed, delivery is confirmed, the void stamp lands). Freezing the row would break the shipped design; freezing nothing was the defect. The frozen set is "what the customer saw" (identity, lineage, period, dates incl. `due_date`, totals, `tax_breakdown`, estimated-read/anomaly flags, `pdf_url` once set, `id`). `late_fee_*` deliberately NOT frozen. → `enforce_invoice_immutable()`.
+
+**D-2026-08-20-18 · Draft invoices may be hard-deleted — but only clean ones.**
+*Why:* a draft is not posted, not voidable (`void_invoice()` rejects draft) and has no soft-delete path, so forbidding DELETE would leave an abandoned draft with no disposition. Review found `fk_adhoc_invoice` is ON DELETE SET NULL, so a draft carrying a billed charge would strand it as billed-on-nothing; the exception now requires no billed charge and no locked read. Line-item and event guards let the draft's cascade through by detecting "parent gone", which the FK makes unreachable otherwise. Held is not deletable (it carries an operator's reason and is voidable).
+
+**D-2026-08-20-19 · `account_ledger` and `invoice_events` are INSERT-only with no exceptions; the other CI-013 tables freeze identity and seal terminal states but keep lifecycle columns writable.**
+*Why:* nothing shipped updates either of the first two. `payments`/`invoice_applications`/`customer_credits`/`adhoc_charges` are modelled with mutable `applied_amount`/`remaining_amount`/`reversed_at`/`status`; making them append-only is a redesign (A-21), not an enforcement patch. Hence CI-013 is graded structural for the ledger + events, partial for the rest — stated, not blurred.
+
+**D-2026-08-20-20 · The `app.void_operation` carve-out is extended to `adhoc_charges` rather than inventing a second mechanism — and named for what it is.**
+*Why:* `void_invoice()` must move billed charges to pending/void_pending_rebill; the v5.2.1 GUC already exists for exactly this on `meter_readings`. Both reviewers showed it is caller-settable (so "only via void_invoice()" was false — wording fixed, AC-12) and Codex showed the leak: SET LOCAL never reset, so a later statement in the same transaction un-billed a charge on an unrelated invoice. Consensus overruled the first draft's "application contract, don't touch the 240-line body": `void_invoice()` is re-issued, identical except `set_config('app.void_operation','false',true)` before RETURN. A true seal (SECURITY DEFINER routing + column-level REVOKE) is application architecture — recorded, not taken.
+
+**D-2026-08-20-21 · Option (b) triggers are the enforcement; option (a)'s REVOKE is a second fence only.**
+*Why:* triggers bind the owner too and are undone only by a visible DROP; a REVOKE is undone by the next blanket GRANT and never binds the owner. So `REVOKE DELETE` on the protected set and `REVOKE UPDATE` on the INSERT-only tables ride along, and the guards on the audit-record tables are `ENABLE ALWAYS` so replication apply / `session_replication_role = replica` cannot skip them (Fable LOW-10).
+
+**D-2026-08-20-22 · CI-014's protected set is the 33 operational tables, not "every table"; token is partial.**
+*Why:* the rate_* family, `billing_cycles`, `read_routes`, `jurisdictions`, `import_staging`, AI scratch tables etc. are reference/config/staging; `rate_item_history` is moved to its archive by a shipped DELETE (tu.sql:90). Their retention is CI-004/A-1's date-effective discipline. Fable's review correctly called the first header's "structurally-enforced" an over-claim against the CI's "every other operational entity" clause.
+
+**D-2026-08-20-23 · `payments.status` DEFAULT `'posted'` is left alone; the rationale was corrected instead.**
+*Why:* Codex showed the "pending intake window" exists only for callers that set pending explicitly. Changing the default decides the intake design by inertia; the guard's behaviour (frozen once not pending, no way back) is right either way. → AC-11.
+
+### Flagged, deliberately not changed (candidates for a later set)
+
+- A CHECK pairing `status = 'void'` ⇔ `voided_at IS NOT NULL` (the trigger now enforces the transition; a CHECK would enforce the state).
+- Forward ordering among issued statuses (sent → write_off → sent is accepted); `write_off`/`paid` are not terminal in the schema.
+- Whether a voided invoice's `balance`/`amount_paid` should freeze — `void_invoice()` does not touch them.
+- `meter_readings` in-place edits stay with `enforce_reading_validation_workflow` until A-1.
+
+### Failed approaches (permanent record)
+
+- **Bare `%` in `format()`** ("unrecognized format() type specifier") and **`text[] || 'literal'`** (parsed as an array literal) — both compiled fine and failed only at first RAISE. Use `%s` and `|| ARRAY['x']`.
+- **Testing GUC-gated guards after calling `void_invoice()` in the same transaction** — the lingering `SET LOCAL` made three negative tests pass-through; reordering the battery exposed the real leak that the patch then fixed.
+- **Cleaning up a fixture with the very write the guard forbids** — the guard was right, the test was wrong.
+
+### Outcomes
+
+- tu.sql 13,241 → 14,030 lines (pure append; anchors intact). Catalog: 66 tables / 65 policies / 64 FORCE-RLS / 229 CHECKs / 1 EXCLUDE / **147 triggers** (9 ENABLE ALWAYS) / 477 indexes / 275 FKs. Fresh build zero errors; 83-check battery green on the fresh build.
+- Reviews: Fable (2 HIGH, 5 MEDIUM, 5 LOW), Codex (2 MEDIUM) — every HIGH/MEDIUM fixed; LOW-9/11/12 documented. AC-10..AC-13.
+- GBM: CI-012 → structurally-enforced (header + line items; PDF artifact outside the DB); CI-013 → partially-structurally-enforced (structural for `account_ledger`/`invoice_events`/`invoice_applications`, identity-freeze elsewhere, GUC carve-out caller-settable); CI-014 → partially-structurally-enforced (33-table set). Appendix A-4 LANDED; A-23 records what remains application discipline. Ingestion Section AN.
+- Next: A-1 (transaction-time pair), then A-3.
+
+---
+
 ## 2026-08-20 — Phase 2 completed (v5.4.1-01 item 2.6 + -06 carryover, v5.4.1-02)
 
 ### Decisions

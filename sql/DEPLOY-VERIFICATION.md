@@ -1,6 +1,36 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02, verified 2026-08-20.** After v5.4.1-02: **66 tables** / **65 policies** / **64 FORCE-RLS** / **229 CHECKs** / 1 EXCLUDE / 70 triggers / 477 indexes / 275 FKs; tu.sql **13,241 lines** (pure appends; anchors 337/3600/3679 intact).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01, verified 2026-08-20.** After v5.4.2-01: **66 tables** / **65 policies** / **64 FORCE-RLS** / **229 CHECKs** / 1 EXCLUDE / **147 triggers** (9 ENABLE ALWAYS) / 477 indexes / 275 FKs; tu.sql **14,030 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.2-01 — bill immutability, append-only ledger, no hard deletes (Phase 4 Wave 1, A-4)
+
+Fresh rebuild from `postgres/Dockerfile`: **zero init errors**; both reviewers (Fable, Codex) also fresh-loaded tu.sql + patch into throwaway containers and applied it twice (idempotent, `search_path = ''` clean). No new tables/CHECKs/indexes/FKs — this patch is triggers and privileges: +77 triggers (33 tables × `no_hard_delete` + `no_truncate` from one generic function; three more `no_truncate` twins; eight table-specific guards), 9 of them `ENABLE ALWAYS`; `REVOKE DELETE` from `tally_app` on the 33 protected tables, `REVOKE UPDATE` on `account_ledger`/`invoice_events`, `REVOKE UPDATE, DELETE` on `pga_monthly_reconciliations`/`tenant_configuration_history`; `void_invoice()` re-issued with a `set_config('app.void_operation','false',true)` before `RETURN`. Battery: 83 checks, all green on the iteratively-patched container and again on the fresh build.
+
+| test | result |
+|---|---|
+| draft / held invoice: edit totals, edit/add line items; held → pending | allowed |
+| pending → held, pending: edit total; sent → draft | rejected (backward / frozen) |
+| sent: amount_due, due_date, customer_id, pdf_url (once set), tax_breakdown, `id` | each rejected, column named in the message |
+| sent: status → void without `voided_at`; `voided_at` set without status void | rejected both ways |
+| sent: amount_paid/balance/status=partial, dunning_stage, late_fee_*, delivery_*, notes, metadata | allowed |
+| sent: UPDATE / INSERT / DELETE line item; move a draft line onto a sent invoice | rejected |
+| DELETE sent invoice, DELETE pending invoice, TRUNCATE invoices CASCADE, UPDATE/DELETE invoice_events | rejected |
+| DELETE draft invoice | allowed; its line items and events cascade (0 left) |
+| DELETE draft invoice with a billed adhoc charge attached | rejected (review fix — `fk_adhoc_invoice` is SET NULL) |
+| `void_invoice()` on sent and on pending invoices | succeed under all new guards; status void, `voided_at` stamped; billed charge reverted to pending with `voided_from_invoice_id` |
+| after `void_invoice()`: `current_setting('app.void_operation')`; un-bill an UNRELATED billed charge in the same transaction | **`false`**; **rejected** (review fix — previously `true` / allowed) |
+| void: un-void, change void_reason_code | rejected; notes allowed |
+| account_ledger UPDATE / DELETE / TRUNCATE | rejected |
+| payments: pending edit amount → posted; posted: amount, check_number, `id`, → pending | allowed; each rejected |
+| payments: posted apply, → nsf; nsf → posted, change nsf_date; DELETE | allowed; rejected |
+| payment inserted with DEFAULT status | `posted` — frozen immediately (Codex finding; rationale corrected, AC-11) |
+| invoice_applications: change amount, reversed_by without reversed_at, re-stamp reversal, DELETE | rejected; notes + one reversal stamp allowed |
+| adhoc_charges: pending edit amount → billed; billed: amount, description, repoint `billed_on_invoice_id`, → pending/void without GUC | allowed; each rejected |
+| adhoc_charges: reverted-to-pending edit, pending → void, void → pending, DELETE | allowed, allowed, rejected, rejected |
+| customer_credits: original_amount, source_reference; apply; → voided; voided → active; DELETE | rejected; allowed; allowed; rejected; rejected |
+| DELETE customer / service_location / tenant; TRUNCATE meters CASCADE | rejected (cascade hits the first protected child) |
+| `tally_app` privileges (`has_table_privilege`) | no DELETE on protected tables, no UPDATE on account_ledger/invoice_events; import_staging untouched; invoices keep DELETE for the draft exception |
+| full patch re-applied on top of itself | idempotent, zero errors |
 
 ## v5.4.1-02 — tenant_configuration_history + time-aware get_partial_period_policy() (Phase 2 item 2.4)
 
