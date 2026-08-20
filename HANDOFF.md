@@ -24,9 +24,9 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 - [ ] **Phase 4 Wave 1, A-4** (bill-immutability / append-only enforcement: issued invoices, `account_ledger`, posted operational rows — generalize the -04/-05/-06 trigger pattern; `tally_app` + GRANT layer exists). Then A-1 (transaction-time pair), then A-3 (invoice_calculation_snapshots).
 - [ ] **Flagged for a later Phase 2-style set**: `rate_schedules.partial_period_policy` (unchecked, read by `get_partial_period_policy`) duplicates `partial_period_policy_override` (CHECKed, read by nothing).
 - [ ] **Kyle brief candidates that accumulated this session** (write before Phase 4 if convenient): (a) *how is an active meter relocated?* — `sync_meter_deployments()` ignores `location_id` edits while active; schema can't tell relocation from typo-fix (AC-7); (b) should the sync trigger take an explicit reinstall date rather than relying on `meters.start_date` (AC-1). Plus the 8 open briefs, A-8's brief, CI-029's Fp=1.0 CHECK.
-- [ ] Phase 4 Wave 1 (A-4 → A-1 → A-3), then Wave 2 (A-20 → A-21, A-7).
+- [ ] After Wave 1: Wave 2 (A-20 → A-21, A-7).
 - [ ] Phase 0.4 (non-blocking): Kyle's Opus-session patch archive.
-- [ ] GBM `origin/main` catch-up (14 commits) — Ryan's call, never unprompted.
+- [ ] GBM `origin/main` catch-up (15 commits) — Ryan's call, never unprompted.
 
 ## Failed Approaches (Don't Repeat These)
 
@@ -47,11 +47,14 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 | CI-027 stays `partially-structurally-enforced`, led by AC-7 not nullability | Single-valued ≠ correct. Same discipline that reverted 2.2's over-grade last session. |
 | CI-032 corrected to `partially-structurally-enforced` | Register re-graded it 2026-08-13; 2.6a closes only the temporal-guard half; nullable `replaces_meter_id` remains. |
 | Carryover leaves `monthly_variance`/`deferred_balance_after` signed | Those carry the sign by design (-06 header); a supplier credit is a lower cost, never a negative one. |
+| -02: `get_partial_period_policy()` has **no live-column fallback**; NULL `p_as_of` raises; pre-history → NULL | Consensus review finding: the COALESCE fallback reintroduced the time-blind bug on realistic input. Rule for all future temporal helpers. |
+| -02: history bracket is transaction time, not valid time | Valid-time policy changes are A-1's mechanism; inventing a second one here would pre-empt it. CI-004 stays partial. |
+| -02: backfill stamps observed value at `created_at`, flagged as approximation | With no live fallback, existing tenants must still resolve pre-deploy coordinates; every such row says so in `change_reason`. |
 | Two-reviewer pass before every mirror | Second round caught a wrong grade (H1) and a real attribution bug (M2) that live testing hadn't. |
 
 ## Current State
 
-**Working**: `tu.sql` at v5.2.1 + v5.4.0-00→-06 + v5.4.1-01, 12,997 lines, deploys clean from `postgres/Dockerfile`. Container `tally-pg` is a **fresh build of the committed tu.sql** (for once, container == disk).
+**Working**: `tu.sql` at v5.2.1 + v5.4.0-00→-06 + v5.4.1-01 + v5.4.1-02, 13,241 lines, deploys clean from `postgres/Dockerfile` (66 tables / 229 CHECKs / 70 triggers). Container `tally-pg` is a **fresh build of the committed tu.sql** (for once, container == disk).
 **Broken**: Nothing.
 **Uncommitted**: None in either repo (GBM has only the untracked `Clippings/`, as always — never `git add -A` there).
 
