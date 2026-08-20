@@ -12277,3 +12277,721 @@ COMMENT ON COLUMN public.pga_monthly_reconciliations.low_threshold_pct_applied I
 
 COMMENT ON COLUMN public.pga_monthly_reconciliations.medium_threshold_pct_applied IS
     'Medium threshold in effect when this row posted (snapshot). Must exceed the low snapshot.';
+
+-- ============================================================================
+-- MIRROR: PATCH v5.4.1-01 — factual-defect hardening, set 1 (Phase 2 items 2.1/2.2/2.3/2.5/2.6 + v5.4.0-06 review carryover)
+-- Appended 2026-08-20; source of truth: sql/v5.4.1-01-factual-defects-1.sql
+-- ============================================================================
+--
+-- Item 2.1 — service_orders CHECK coverage gap (3M item 7). Three existing
+-- conditional CHECKs (service_orders_check/check1/check2, tu.sql:4520-4522)
+-- partition sixteen of the twenty-two order_type values by required
+-- referent; six were left uncovered. For customer_complaint/adjustment/
+-- other that's correct (a complaint can arrive before the account is
+-- identified). For final_read/tamper_response/damage_repair it is not: a
+-- final_read order could insert with customer, location, AND meter all
+-- NULL — an instruction to take a final read of nothing, at nowhere, for
+-- nobody — while inspection, which has no billing consequence at all, is
+-- structurally required to name a location.
+--
+ALTER TABLE public.service_orders DROP CONSTRAINT IF EXISTS service_orders_final_read_referents_check;
+ALTER TABLE public.service_orders ADD CONSTRAINT service_orders_final_read_referents_check
+    CHECK (((order_type <> 'final_read'::text) OR ((customer_id IS NOT NULL) AND (location_id IS NOT NULL) AND (meter_id IS NOT NULL))));
+
+COMMENT ON CONSTRAINT service_orders_final_read_referents_check ON public.service_orders IS
+    'A final_read order closes an occupancy and produces the final bill (CI-124) — it cannot be filed against nobody, at nowhere, off no meter. Closes the gap where final_read sat uncovered between the meter-type CHECK (service_orders_check1) and the premise-type CHECK (service_orders_check2). schema-parity-plan Phase 2 item 2.1, 3M item 7 (v5.4.1-01).';
+
+ALTER TABLE public.service_orders DROP CONSTRAINT IF EXISTS service_orders_incident_location_check;
+ALTER TABLE public.service_orders ADD CONSTRAINT service_orders_incident_location_check
+    CHECK (((order_type <> ALL (ARRAY['tamper_response'::text, 'damage_repair'::text])) OR (location_id IS NOT NULL)));
+
+COMMENT ON CONSTRAINT service_orders_incident_location_check ON public.service_orders IS
+    'tamper_response fronts a backbilling case (CI-008, capped and regulator-visible) and damage_repair triggers cost recovery — both need a premise at intake. customer_complaint, adjustment, and other are DELIBERATELY left unconstrained: a complaint can arrive before the account is identified, and forcing a location there would misrepresent intake reality as billing structure. schema-parity-plan Phase 2 item 2.1, 3M item 7 (v5.4.1-01).';
+
+--
+-- Item 2.2 — import_jobs.idempotency_key NOT NULL + generated default
+-- (CI-118, 3M item 2). UNIQUE (tenant_id, idempotency_key) already exists
+-- (tu.sql:5344) but Postgres treats NULLs as distinct, so an unbounded
+-- number of NULL-key jobs insert cleanly and CI-118's duplicate-import
+-- guarantee held for none of them. Fix moves the derivation into the
+-- column: a BEFORE INSERT trigger fills the key only when the caller
+-- didn't supply one, then NOT NULL makes the fallback unconditional.
+--
+CREATE OR REPLACE FUNCTION public.populate_import_job_idempotency_key() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Only auto-derive if not already set by the caller (operator-supplied
+    -- keys pass through untouched).
+    IF NEW.idempotency_key IS NULL THEN
+        IF NEW.source_filename IS NOT NULL AND NEW.source_file_hash IS NOT NULL THEN
+            -- <filename>:<hash>:<'preview'|'commit'> — 3M item 8's derivation.
+            -- Keying on is_dry_run also fixes the preview/commit collision:
+            -- previously both derived the same key from filename+hash alone,
+            -- so committing after its own preview hit the UNIQUE constraint.
+            NEW.idempotency_key := NEW.source_filename || ':' || NEW.source_file_hash || ':' ||
+                (CASE WHEN NEW.is_dry_run THEN 'preview' ELSE 'commit' END);
+        ELSE
+            -- No file to derive from (api / ai_extracted sources can have
+            -- NULL filename+hash). Fall back to the job's own id — always
+            -- present (column DEFAULT fires before this BEFORE INSERT
+            -- trigger runs) and always unique.
+            NEW.idempotency_key := NEW.id::text;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_populate_import_job_idempotency_key ON public.import_jobs;
+CREATE TRIGGER trg_populate_import_job_idempotency_key BEFORE INSERT ON public.import_jobs
+    FOR EACH ROW EXECUTE FUNCTION public.populate_import_job_idempotency_key();
+
+-- Backfill pre-existing NULLs to id::text (not the smart derivation — two
+-- old rows could already share a (filename, hash, is_dry_run) triple that
+-- NULL was silently masking; id::text can never collide). No-op on a fresh
+-- deploy (0 rows); re-running touches only rows still NULL.
+UPDATE public.import_jobs SET idempotency_key = id::text WHERE idempotency_key IS NULL;
+
+ALTER TABLE public.import_jobs ALTER COLUMN idempotency_key SET NOT NULL;
+
+COMMENT ON COLUMN public.import_jobs.idempotency_key IS
+    'Prevents double-import of the same file. Operator can supply OR system auto-derives via trg_populate_import_job_idempotency_key: <source_filename>:<source_file_hash>:<preview|commit> when a file is present, else the job''s own id. NOT NULL as of v5.4.1-01 (CI-118) — UNIQUE (tenant_id, idempotency_key) previously let an unbounded number of NULL-key jobs bypass the duplicate-import guarantee entirely.';
+
+--
+-- Item 2.3 — cycle guards on the three genuine hierarchy/dependency-graph
+-- self-references (bulk-data-import-with-validation.md:82; "the corpus now
+-- has a cycle-guard theme rather than three incidents"). Postgres CHECKs
+-- are row-local and cannot express a cycle guard; all three land as
+-- triggers that REJECT rather than log.
+--
+
+-- 2.3a — customers.landlord_customer_id. FK-backed self-reference
+-- (customers_landlord_customer_id_fkey, tu.sql:9351); a cycle can only be
+-- CREATED by an UPDATE rewiring an existing customer into its own
+-- descendant chain, since the FK already forces a landlord row to exist
+-- before it can be pointed to. 50-link cap is a defensive backstop, not a
+-- business depth limit — real landlord/sub-let chains stay short, but
+-- depth itself is not the defect here, a cycle is.
+CREATE OR REPLACE FUNCTION public.check_landlord_customer_cycle() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_depth integer := 0;
+    v_cursor uuid := NEW.landlord_customer_id;
+BEGIN
+    IF NEW.landlord_customer_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.landlord_customer_id = NEW.id THEN
+        RAISE EXCEPTION 'customer % cannot be its own landlord', NEW.id;
+    END IF;
+    WHILE v_cursor IS NOT NULL LOOP
+        v_depth := v_depth + 1;
+        IF v_depth > 50 THEN
+            RAISE EXCEPTION 'landlord chain for customer % exceeds 50 links without resolving — refusing (either an implausibly long chain or an existing cycle upstream of this update)', NEW.id;
+        END IF;
+        IF v_cursor = NEW.id THEN
+            RAISE EXCEPTION 'landlord_customer_id assignment for customer % would create a cycle', NEW.id;
+        END IF;
+        SELECT landlord_customer_id INTO v_cursor FROM public.customers WHERE id = v_cursor;
+    END LOOP;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS landlord_customer_cycle ON public.customers;
+CREATE TRIGGER landlord_customer_cycle BEFORE INSERT OR UPDATE OF landlord_customer_id ON public.customers
+    FOR EACH ROW EXECUTE FUNCTION public.check_landlord_customer_cycle();
+
+-- 2.3b — service_orders.parent_order_id. Same FK-backed-self-reference
+-- shape as 2.3a (service_orders_parent_order_id_fkey, tu.sql:10511).
+CREATE OR REPLACE FUNCTION public.check_service_order_parent_cycle() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_depth integer := 0;
+    v_cursor uuid := NEW.parent_order_id;
+BEGIN
+    IF NEW.parent_order_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.parent_order_id = NEW.id THEN
+        RAISE EXCEPTION 'service_order % cannot be its own parent', NEW.id;
+    END IF;
+    WHILE v_cursor IS NOT NULL LOOP
+        v_depth := v_depth + 1;
+        IF v_depth > 50 THEN
+            RAISE EXCEPTION 'parent-order chain for service_order % exceeds 50 links without resolving — refusing (either an implausibly long chain or an existing cycle upstream of this update)', NEW.id;
+        END IF;
+        IF v_cursor = NEW.id THEN
+            RAISE EXCEPTION 'parent_order_id assignment for service_order % would create a cycle', NEW.id;
+        END IF;
+        SELECT parent_order_id INTO v_cursor FROM public.service_orders WHERE id = v_cursor;
+    END LOOP;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS service_order_parent_cycle ON public.service_orders;
+CREATE TRIGGER service_order_parent_cycle BEFORE INSERT OR UPDATE OF parent_order_id ON public.service_orders
+    FOR EACH ROW EXECUTE FUNCTION public.check_service_order_parent_cycle();
+
+-- 2.3c — import_staging.depends_on_row_numbers. NOT FK-backed (plain
+-- integer[] keyed on row_number, not id) — a cycle can form purely from
+-- INSERT order, so this needs a BFS over a visited-set rather than a
+-- single-parent walk, since one row can depend on several row numbers at
+-- once. UNIQUE (import_job_id, row_number) is added first: it's load-
+-- bearing for the walk's row_number lookup to be unambiguous, and without
+-- it the guard could silently miss a real cycle (not itself named in the
+-- plan's item list — flagged here per Phase 2's own rule rather than
+-- landed silently).
+ALTER TABLE public.import_staging DROP CONSTRAINT IF EXISTS import_staging_job_row_number_key;
+ALTER TABLE public.import_staging ADD CONSTRAINT import_staging_job_row_number_key UNIQUE (import_job_id, row_number);
+
+CREATE OR REPLACE FUNCTION public.check_import_staging_dependency_cycle() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_visited integer[] := ARRAY[]::integer[];
+    v_frontier integer[];
+    v_next integer[];
+    v_row_number integer;
+    v_deps integer[];
+BEGIN
+    IF NEW.depends_on_row_numbers IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.row_number = ANY (NEW.depends_on_row_numbers) THEN
+        RAISE EXCEPTION 'import_staging row % (job %) cannot depend on itself', NEW.row_number, NEW.import_job_id;
+    END IF;
+
+    v_frontier := NEW.depends_on_row_numbers;
+    WHILE array_length(v_frontier, 1) IS NOT NULL LOOP
+        IF array_length(v_visited, 1) >= 10000 THEN
+            RAISE EXCEPTION 'import_staging dependency walk for row % (job %) exceeded 10,000 visited rows without resolving — refusing (either an implausibly large dependency graph or an existing cycle this insert/update did not itself create)', NEW.row_number, NEW.import_job_id;
+        END IF;
+        v_next := ARRAY[]::integer[];
+        FOREACH v_row_number IN ARRAY v_frontier LOOP
+            IF v_row_number IS NULL OR v_row_number = ANY (v_visited) THEN
+                CONTINUE;
+            END IF;
+            IF v_row_number = NEW.row_number THEN
+                RAISE EXCEPTION 'import_staging dependency cycle detected: row % (job %) transitively depends on itself', NEW.row_number, NEW.import_job_id;
+            END IF;
+            v_visited := array_append(v_visited, v_row_number);
+            SELECT depends_on_row_numbers INTO v_deps
+            FROM public.import_staging
+            WHERE import_job_id = NEW.import_job_id AND row_number = v_row_number;
+            IF v_deps IS NOT NULL THEN
+                v_next := v_next || v_deps;
+            END IF;
+        END LOOP;
+        v_frontier := v_next;
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Fires on UPDATE OF row_number and import_job_id too, not just
+-- depends_on_row_numbers: the graph's edges are keyed on row_number, which
+-- is NOT FK-protected and freely updatable — an UPDATE that moves a row's
+-- own row_number (or relocates it into another job) can complete a cycle
+-- the guard would otherwise never re-check. Found by independent review
+-- (Fable pass, 2026-08-19): insert row 1 deps {2}, row 3 deps {1} (no
+-- cycle visible yet), then UPDATE row 3's row_number to 2 — completes a
+-- 1->2->1 cycle that a depends_on_row_numbers-only trigger never sees.
+DROP TRIGGER IF EXISTS import_staging_dependency_cycle ON public.import_staging;
+CREATE TRIGGER import_staging_dependency_cycle BEFORE INSERT OR UPDATE OF depends_on_row_numbers, row_number, import_job_id ON public.import_staging
+    FOR EACH ROW EXECUTE FUNCTION public.check_import_staging_dependency_cycle();
+
+--
+-- Item 2.5 — account_ledger reversal lineage FK + reason (2026-08-13
+-- re-grade finding; CI-017/CI-018). invoices and payments each have an
+-- explicit lineage FK + reason on the REVERSING row pointing back to its
+-- predecessor (replaces_invoice_id/void_reason_code,
+-- refunds_payment_id/nsf_reason); account_ledger had neither — a ledger
+-- reversal was distinguishable only by transaction_type = 'void_reversal',
+-- with no link to the entry it offsets and no recorded reason.
+--
+ALTER TABLE public.account_ledger ADD COLUMN IF NOT EXISTS reverses_ledger_entry_id uuid;
+ALTER TABLE public.account_ledger ADD COLUMN IF NOT EXISTS reversal_reason text;
+
+ALTER TABLE public.account_ledger DROP CONSTRAINT IF EXISTS account_ledger_reverses_ledger_entry_id_fkey;
+ALTER TABLE public.account_ledger ADD CONSTRAINT account_ledger_reverses_ledger_entry_id_fkey
+    FOREIGN KEY (reverses_ledger_entry_id) REFERENCES public.account_ledger(id);
+
+ALTER TABLE public.account_ledger DROP CONSTRAINT IF EXISTS account_ledger_reversal_not_self_check;
+ALTER TABLE public.account_ledger ADD CONSTRAINT account_ledger_reversal_not_self_check
+    CHECK ((reverses_ledger_entry_id IS DISTINCT FROM id));
+
+COMMENT ON COLUMN public.account_ledger.reverses_ledger_entry_id IS
+    'Lineage FK to the account_ledger row this entry reverses/offsets — the ledger''s analogue of invoices.replaces_invoice_id and payments.refunds_payment_id (CI-017). Nullable: most ledger rows are not reversals, and per the same "representable, not enforced" pattern as the invoice/payment lineage columns, a reversal row is not REQUIRED to populate it. Populated by void_invoice() on a best-effort basis (v5.4.1-01) — NULL when no prior charge-type ledger row referencing the voided invoice can be found. Unbounded chain depth and reversal-of-a-reversal are both intentionally unconstrained (CI-018): a correction to a correction is a normal operation, not an error condition.';
+
+COMMENT ON COLUMN public.account_ledger.reversal_reason IS
+    'Free-text reason this entry reverses/offsets reverses_ledger_entry_id (CI-017 — "each link records ... the reason for the offset"). Independent of reverses_ledger_entry_id (not paired by a CHECK): a reversal''s reason is known even when the specific predecessor ledger row cannot be resolved. Populated by void_invoice() from the same void_reason_code/void_reason_notes already required for the voided invoice (v5.4.1-01).';
+
+--
+-- void_invoice() — updated (v5.4.1-01) to populate the two new columns.
+-- Only change from the v5.2.1 body: a best-effort lookup for the original
+-- charge-type ledger row before Step 4, and that lookup's result plus the
+-- void reason threaded into the account_ledger INSERT and the return
+-- payload. Everything else is unchanged.
+--
+CREATE OR REPLACE FUNCTION public.void_invoice(p_invoice_id uuid, p_voided_by uuid DEFAULT NULL::uuid, p_void_reason_code text DEFAULT NULL::text, p_void_reason_notes text DEFAULT NULL::text, p_rebill_expected boolean DEFAULT true) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+    v_invoice                    invoices%ROWTYPE;
+    v_reads_released             INTEGER := 0;
+    v_charges_auto_reverted      INTEGER := 0;
+    v_charges_pending_review     INTEGER := 0;
+    v_reversal_amount            DECIMAL(12,2);
+    v_ledger_entry_id            UUID;
+    v_original_ledger_entry_id   UUID;
+    v_had_payment                BOOLEAN := false;
+    v_new_running_bal            DECIMAL(12,2);
+    v_description                TEXT;
+    v_duplicate_no_match_warning BOOLEAN := false;
+    v_invoice_status_at_void     TEXT;
+    v_auto_revert_codes          TEXT[] := ARRAY[
+        'wrong_read', 'wrong_rate', 'service_date_error', 'system_error'
+    ];
+BEGIN
+    -- -------------------------------------------------------------------------
+    -- Step 1: Load and validate the invoice
+    -- -------------------------------------------------------------------------
+    SELECT * INTO v_invoice
+    FROM invoices
+    WHERE id = p_invoice_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Invoice not found: %', p_invoice_id;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 1.1 (NEW in v5.2.1): Cross-tenant access check (Fix #5)
+    -- -------------------------------------------------------------------------
+    -- Defense in depth. Even if RLS is bypassed or the function owner has
+    -- BYPASSRLS, this check enforces tenant isolation. Platform admins
+    -- (cross-tenant by design) are exempted.
+    -- -------------------------------------------------------------------------
+    IF v_invoice.tenant_id != get_user_tenant_id()
+       AND NOT is_platform_admin()
+    THEN
+        RAISE EXCEPTION
+            'Cross-tenant access denied for invoice %. '
+            'Caller tenant does not match invoice tenant.',
+            v_invoice.invoice_number;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 1.2: Voidability and reason validation
+    -- -------------------------------------------------------------------------
+    IF v_invoice.status NOT IN ('pending','sent','overdue','partial','paid','held') THEN
+        RAISE EXCEPTION
+            'Invoice % is not voidable. Current status: %. '
+            'Voidable statuses: pending, sent, overdue, partial, paid, held.',
+            v_invoice.invoice_number, v_invoice.status;
+    END IF;
+
+    IF p_void_reason_code IS NULL THEN
+        RAISE EXCEPTION 'void_reason_code is required.';
+    END IF;
+
+    IF p_void_reason_code = 'other'
+       AND (p_void_reason_notes IS NULL OR trim(p_void_reason_notes) = '')
+    THEN
+        RAISE EXCEPTION
+            'void_reason_notes is required when void_reason_code = ''other''.';
+    END IF;
+
+    -- Snapshot status before any changes (for invoice_events audit record)
+    v_invoice_status_at_void := v_invoice.status;
+    v_had_payment := v_invoice.status IN ('paid','partial');
+
+    -- -------------------------------------------------------------------------
+    -- Step 1.5: Duplicate-warning check (Fix #4: filter by invoice_type)
+    -- -------------------------------------------------------------------------
+    -- The v5.2 check matched ANY non-void invoice for the same location and
+    -- billing period. That gave false negatives when a single location had
+    -- multiple service types (water + gas + electric) for the same period —
+    -- it would find the unrelated water invoice and suppress the warning for
+    -- the gas duplicate.
+    --
+    -- v5.2.1: also require matching invoice_type. A regular gas duplicate
+    -- will only match other regular invoices for the same location/period,
+    -- not water/electric or correction/final invoices.
+    -- -------------------------------------------------------------------------
+    IF p_void_reason_code = 'duplicate' THEN
+        SELECT NOT EXISTS (
+            SELECT 1 FROM invoices
+            WHERE location_id    = v_invoice.location_id
+              AND billing_period = v_invoice.billing_period
+              AND invoice_type   = v_invoice.invoice_type       -- Fix #4
+              AND status         NOT IN ('void','draft')
+              AND id             != p_invoice_id
+        ) INTO v_duplicate_no_match_warning;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 2: Arm trigger carve-out (transaction-scoped)
+    -- -------------------------------------------------------------------------
+    SET LOCAL app.void_operation = 'true';
+
+    -- -------------------------------------------------------------------------
+    -- Step 3: Release locked meter reads
+    -- -------------------------------------------------------------------------
+    UPDATE meter_readings
+    SET
+        voided_from_invoice_id = locked_by_invoice_id,
+        locked_by_invoice_id   = NULL,
+        validation_status      = 'void_released'
+    WHERE locked_by_invoice_id = p_invoice_id
+      AND validation_status    = 'locked';
+
+    GET DIAGNOSTICS v_reads_released = ROW_COUNT;
+
+    -- -------------------------------------------------------------------------
+    -- Step 3.5: Adhoc charge disposition
+    -- -------------------------------------------------------------------------
+    IF p_void_reason_code = ANY(v_auto_revert_codes) THEN
+        UPDATE adhoc_charges
+        SET
+            status                 = 'pending',
+            voided_from_invoice_id = billed_on_invoice_id,
+            billed_on_invoice_id   = NULL,
+            billed_on_line_item_id = NULL,
+            billed_at              = NULL,
+            target_billing_period  = v_invoice.billing_period,
+            updated_at             = now()
+        WHERE billed_on_invoice_id = p_invoice_id
+          AND status               = 'billed';
+
+        GET DIAGNOSTICS v_charges_auto_reverted = ROW_COUNT;
+        v_charges_pending_review := 0;
+    ELSE
+        UPDATE adhoc_charges
+        SET
+            status                 = 'void_pending_rebill',
+            voided_from_invoice_id = billed_on_invoice_id,
+            billed_on_invoice_id   = NULL,
+            billed_on_line_item_id = NULL,
+            billed_at              = NULL,
+            updated_at             = now()
+        WHERE billed_on_invoice_id = p_invoice_id
+          AND status               = 'billed';
+
+        GET DIAGNOSTICS v_charges_pending_review = ROW_COUNT;
+        v_charges_auto_reverted := 0;
+    END IF;
+
+    -- -------------------------------------------------------------------------
+    -- Step 3.7 (NEW in v5.4.1-01): Best-effort lookup of the original charge
+    -- ledger entry this void reverses (CI-017 reversal lineage). NULL when
+    -- no such row exists — no billing-run/charge-posting code exists
+    -- anywhere in this schema-only project to have posted it yet.
+    -- -------------------------------------------------------------------------
+    SELECT id INTO v_original_ledger_entry_id
+    FROM account_ledger
+    WHERE tenant_id       = v_invoice.tenant_id
+      AND reference_type  = 'invoice'
+      AND reference_id    = p_invoice_id
+      AND transaction_type = 'charge'
+    ORDER BY created_at
+    LIMIT 1;
+
+    -- -------------------------------------------------------------------------
+    -- Step 4: Post void_reversal ledger entry
+    -- -------------------------------------------------------------------------
+    v_reversal_amount := -(v_invoice.amount_due);
+
+    v_description := format(
+        'Void reversal — Invoice %s (%s). Reason: %s%s',
+        v_invoice.invoice_number,
+        v_invoice.billing_period,
+        p_void_reason_code,
+        CASE WHEN p_void_reason_notes IS NOT NULL
+             THEN '. Notes: ' || p_void_reason_notes
+             ELSE ''
+        END
+    );
+
+    INSERT INTO account_ledger (
+        tenant_id,
+        customer_id,
+        location_id,
+        transaction_date,
+        transaction_type,
+        description,
+        amount,
+        reference_type,
+        reference_id,
+        created_by,
+        reverses_ledger_entry_id,
+        reversal_reason
+    )
+    VALUES (
+        v_invoice.tenant_id,
+        v_invoice.customer_id,
+        v_invoice.location_id,
+        CURRENT_DATE,
+        'void_reversal',
+        v_description,
+        v_reversal_amount,
+        'invoice_void',
+        p_invoice_id,
+        p_voided_by,
+        v_original_ledger_entry_id,
+        p_void_reason_code || CASE WHEN p_void_reason_notes IS NOT NULL
+                                    THEN ': ' || p_void_reason_notes
+                                    ELSE ''
+                               END
+    )
+    RETURNING id INTO v_ledger_entry_id;
+
+    -- -------------------------------------------------------------------------
+    -- Step 5: Stamp void metadata on invoice
+    -- -------------------------------------------------------------------------
+    UPDATE invoices
+    SET
+        status               = 'void',
+        voided_at            = now(),
+        voided_by            = p_voided_by,
+        void_reason_code     = p_void_reason_code,
+        void_reason_notes    = p_void_reason_notes,
+        void_rebill_expected = p_rebill_expected,
+        updated_at           = now()
+    WHERE id = p_invoice_id;
+
+    -- -------------------------------------------------------------------------
+    -- Step 5.5: Log the voided event
+    -- -------------------------------------------------------------------------
+    -- tenant_id will be overwritten by the sync trigger from Fix #6, but we
+    -- still pass it for explicitness and to satisfy NOT NULL.
+    -- -------------------------------------------------------------------------
+    INSERT INTO invoice_events (
+        tenant_id,
+        invoice_id,
+        event_type,
+        operator_id,
+        occurred_at,
+        metadata
+    )
+    VALUES (
+        v_invoice.tenant_id,
+        p_invoice_id,
+        'voided',
+        p_voided_by,
+        now(),
+        jsonb_build_object(
+            'void_reason_code',       p_void_reason_code,
+            'void_reason_notes',      p_void_reason_notes,
+            'rebill_expected',        p_rebill_expected,
+            'reads_released',         v_reads_released,
+            'charges_auto_reverted',  v_charges_auto_reverted,
+            'charges_pending_review', v_charges_pending_review,
+            'reversal_amount',        v_reversal_amount,
+            'had_payment',            v_had_payment,
+            'invoice_amount_due',     v_invoice.amount_due,
+            'invoice_status_at_void', v_invoice_status_at_void,
+            'invoice_number',         v_invoice.invoice_number,
+            'billing_period',         v_invoice.billing_period
+        )
+    );
+
+    -- -------------------------------------------------------------------------
+    -- Step 6: Retrieve updated running balance
+    -- -------------------------------------------------------------------------
+    SELECT running_balance INTO v_new_running_bal
+    FROM account_ledger
+    WHERE id = v_ledger_entry_id;
+
+    -- -------------------------------------------------------------------------
+    -- Step 7: Return payload
+    -- -------------------------------------------------------------------------
+    RETURN jsonb_build_object(
+        'invoice_id',                  p_invoice_id,
+        'invoice_number',              v_invoice.invoice_number,
+        'void_reason_code',            p_void_reason_code,
+        'rebill_expected',             p_rebill_expected,
+        'duplicate_no_match_warning',  v_duplicate_no_match_warning,
+        'reads_released',              v_reads_released,
+        'charges_auto_reverted',       v_charges_auto_reverted,
+        'charges_pending_review',      v_charges_pending_review,
+        'reversal_amount',             v_reversal_amount,
+        'ledger_entry_id',             v_ledger_entry_id,
+        'reverses_ledger_entry_id',    v_original_ledger_entry_id,
+        'had_payment',                 v_had_payment,
+        'credit_balance',              v_new_running_bal
+    );
+
+END;
+$$;
+
+COMMENT ON FUNCTION public.void_invoice(p_invoice_id uuid, p_voided_by uuid, p_void_reason_code text, p_void_reason_notes text, p_rebill_expected boolean) IS 'Atomically voids a posted invoice. v5.2.1 corrections: (a) Single canonical signature — old 4-param version dropped; (b) Explicit cross-tenant check defends against RLS bypass; (c) Duplicate-warning check filters by invoice_type to avoid false negatives on multi-service locations. v5.4.1-01 addition (CI-017): populates the new account_ledger.reverses_ledger_entry_id (best-effort lookup of the prior charge-type ledger row for this invoice, NULL if none exists) and reversal_reason (from void_reason_code/void_reason_notes) on the posted void_reversal row. Steps: validate invoice + tenant, voidability + reason validation, duplicate-warning check, arm trigger carve-out, release locked reads, dispose adhoc charges, look up original charge ledger entry, post void_reversal ledger entry with reversal lineage, stamp void metadata, log voided event to invoice_events (tenant_id synced by trigger), return JSONB payload.';
+
+--
+-- Item 2.6 — meter_readings service-point premise (CI-027 re-grade finding,
+-- canonical-invariants.md:500). Two defects named in the 2026-08-13 re-grade,
+-- both addressed here because fixing either alone leaves the other standing:
+--   (a) "tu.sql contains zero EXCLUDE constraints, and meter_deployments'
+--       only uniqueness is (meter_id, deployment_number), so nothing prevents
+--       temporally overlapping deployments. Where two overlap, the read's
+--       premise is ambiguous."  -> 2.6a, the schema's first EXCLUDE.
+--   (b) "meter_readings carries no location or service-point column — the
+--       premise is not *recorded* on the read, only *reconstructable*."
+--       -> 2.6b, a snapshotted location_id on the read.
+-- The schema-parity-plan phrased 2.6 as "either ... or"; this patch lands
+-- both and flags the widening here rather than silently. Rationale: (a)
+-- without (b) still leaves the premise unrecorded (the CI's own statement
+-- is "every meter read RECORDS ... the service point"); (b) without (a)
+-- records a premise derived from an ambiguous history.
+--
+
+-- 2.6a — no two deployments of one meter may overlap in time. btree_gist
+-- is required for the scalar `meter_id WITH =` operator in a GiST exclusion
+-- index; it ships with contrib on vanilla Postgres and is supported on RDS.
+-- Range is HALF-OPEN [install_date, removal_date): a removal on day D and
+-- a reinstall on day D do not overlap, which is exactly what
+-- sync_meter_deployments() produces for a same-day Pattern A reactivation
+-- (close with CURRENT_DATE, reopen with CURRENT_DATE). An open deployment
+-- (removal_date IS NULL) is unbounded above, so a second open deployment
+-- of the same meter is always rejected. The companion CHECK gives a
+-- readable error for removal_date < install_date instead of daterange's
+-- "range lower bound must be less than or equal to range upper bound".
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
+
+ALTER TABLE public.meter_deployments DROP CONSTRAINT IF EXISTS meter_deployments_removal_after_install_check;
+ALTER TABLE public.meter_deployments ADD CONSTRAINT meter_deployments_removal_after_install_check
+    CHECK ((removal_date IS NULL) OR (removal_date >= install_date));
+
+ALTER TABLE public.meter_deployments DROP CONSTRAINT IF EXISTS meter_deployments_no_overlap_excl;
+ALTER TABLE public.meter_deployments ADD CONSTRAINT meter_deployments_no_overlap_excl
+    EXCLUDE USING gist (
+        meter_id WITH =,
+        daterange(install_date, removal_date, '[)') WITH &&
+    );
+
+COMMENT ON CONSTRAINT meter_deployments_no_overlap_excl ON public.meter_deployments IS
+    'A physical meter is installed at one premise at a time: no two deployment rows of the same meter may overlap in [install_date, removal_date). Half-open so a same-day removal+reinstall (what sync_meter_deployments produces) is allowed; an open deployment (removal_date NULL) blocks any later or concurrent deployment until closed. A zero-day row (install_date = removal_date) is an empty range — it overlaps nothing and covers no read date, and is tolerated. The schema''s first EXCLUDE constraint. Makes "which premise was this meter at on date D" a single-row answer, which is what meter_readings.location_id snapshots. CI-027 / CI-032, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
+
+-- 2.6b — record the premise on the read. Nullable, FK to service_locations,
+-- filled by a BEFORE INSERT trigger when the caller doesn't supply it:
+-- the deployment in effect on reading_date (now unambiguous per 2.6a),
+-- else the meter's current location_id (covers reads on meters that never
+-- got a deployment row — e.g. inserted with status <> 'active' — rather
+-- than rejecting the read). INSERT-only on purpose: the column is a
+-- snapshot of where the meter WAS, and a later meter move must not
+-- re-derive it (that is the CI's whole point). If reading_date itself is
+-- corrected the operator corrects location_id with it; the
+-- meter_readings.reading_date <-> location_id coupling is not re-enforced
+-- on UPDATE here (flagged, not drafted — same representable-not-enforced
+-- character as every other lineage column, see item 2.5).
+ALTER TABLE public.meter_readings ADD COLUMN IF NOT EXISTS location_id uuid;
+
+ALTER TABLE public.meter_readings DROP CONSTRAINT IF EXISTS meter_readings_location_id_fkey;
+ALTER TABLE public.meter_readings ADD CONSTRAINT meter_readings_location_id_fkey
+    FOREIGN KEY (location_id) REFERENCES public.service_locations(id);
+
+CREATE INDEX IF NOT EXISTS idx_readings_location_date ON public.meter_readings USING btree (location_id, reading_date DESC) WHERE (location_id IS NOT NULL);
+
+CREATE OR REPLACE FUNCTION public.populate_reading_location() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.location_id IS NOT NULL THEN
+        RETURN NEW;   -- caller-supplied premise passes through untouched
+    END IF;
+
+    -- Removal / final reads are taken at the OUTGOING premise: prefer the
+    -- deployment closed ON the read date (half-open ranges would otherwise
+    -- resolve a same-day remove+reinstall to the new premise). No such row
+    -- (final read with no meter move) falls through to the covering one.
+    IF NEW.reading_purpose IN ('removal', 'final_read') THEN
+        SELECT d.location_id INTO NEW.location_id
+        FROM public.meter_deployments d
+        WHERE d.meter_id = NEW.meter_id
+          AND d.removal_date = NEW.reading_date
+        ORDER BY d.deployment_number DESC
+        LIMIT 1;
+        IF NEW.location_id IS NOT NULL THEN
+            RETURN NEW;
+        END IF;
+    END IF;
+
+    -- Deployment in effect on the read date (2.6a guarantees at most one
+    -- covering row — single-valued; correct only if deployment history is
+    -- maintained, see APPLICATION-CONTRACTS AC-7).
+    SELECT d.location_id INTO NEW.location_id
+    FROM public.meter_deployments d
+    WHERE d.meter_id = NEW.meter_id
+      AND daterange(d.install_date, d.removal_date, '[)') @> NEW.reading_date
+    LIMIT 1;
+
+    -- No deployment row covers the date: fall back to the meter's current
+    -- premise rather than rejecting the read. Leaves NULL only if the meter
+    -- row itself is missing (the meter_id FK will reject that anyway).
+    IF NEW.location_id IS NULL THEN
+        SELECT m.location_id INTO NEW.location_id
+        FROM public.meters m
+        WHERE m.id = NEW.meter_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_populate_reading_location ON public.meter_readings;
+CREATE TRIGGER trg_populate_reading_location BEFORE INSERT ON public.meter_readings
+    FOR EACH ROW EXECUTE FUNCTION public.populate_reading_location();
+
+-- Backfill pre-existing reads from deployment history, then meters.
+-- No-op on a fresh deploy; re-running touches only rows still NULL.
+UPDATE public.meter_readings r
+SET location_id = d.location_id
+FROM public.meter_deployments d
+WHERE r.location_id IS NULL
+  AND d.meter_id = r.meter_id
+  AND daterange(d.install_date, d.removal_date, '[)') @> r.reading_date;
+
+UPDATE public.meter_readings r
+SET location_id = m.location_id
+FROM public.meters m
+WHERE r.location_id IS NULL
+  AND m.id = r.meter_id;
+
+COMMENT ON COLUMN public.meter_readings.location_id IS
+    'Service point (premise) the meter was installed at WHEN THIS READ WAS TAKEN — a snapshot, not a live join. Populated on INSERT by trg_populate_reading_location: for removal/final_read purposes, the deployment closed ON reading_date (outgoing premise); otherwise the meter_deployments row covering reading_date (single-valued per meter_deployments_no_overlap_excl — correct only if deployment history is maintained, which a bare location_id edit on an active meter does NOT do, see APPLICATION-CONTRACTS AC-7); else meters.location_id (the CURRENT premise — reads dated before the first deployment attribute to it). Caller-supplied values pass through. Deliberately not re-derived on UPDATE: a later meter move must not reattribute historical consumption. Nullable (representable, not required). CI-027, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
+
+--
+-- v5.4.0-06 review carryover — pga_monthly_reconciliations positivity /
+-- non-negativity. Both independent -06 reviewers (Fable + Codex) flagged the
+-- same defect: pga_monitoring_settings enforces low_alert_threshold_pct > 0
+-- (pga_monitoring_settings_low_positive_check) but the per-row snapshot of
+-- those thresholds on pga_monthly_reconciliations only enforces band ORDER
+-- (medium > low), so a row could snapshot low = -5, medium = 0 and the
+-- band_consistent CHECK's ratio comparison would classify every month as
+-- 'medium'. Mirror the settings-side rule onto the snapshot. Also: a month's
+-- actual_gas_cost and pga_recovered_revenue are gross dollar amounts
+-- (monthly_variance is the signed quantity) — neither can be negative.
+-- Consistent with the existing trailing_nonnegative_check on the same table.
+-- Not touched: monthly_variance, deferred_balance_after (signed by design,
+-- v5.4.0-06 header).
+--
+ALTER TABLE public.pga_monthly_reconciliations DROP CONSTRAINT IF EXISTS pga_monthly_reconciliations_low_positive_check;
+ALTER TABLE public.pga_monthly_reconciliations ADD CONSTRAINT pga_monthly_reconciliations_low_positive_check
+    CHECK ((low_threshold_pct_applied > (0)::numeric));
+
+ALTER TABLE public.pga_monthly_reconciliations DROP CONSTRAINT IF EXISTS pga_monthly_reconciliations_gas_cost_nonnegative_check;
+ALTER TABLE public.pga_monthly_reconciliations ADD CONSTRAINT pga_monthly_reconciliations_gas_cost_nonnegative_check
+    CHECK ((actual_gas_cost >= (0)::numeric));
+
+ALTER TABLE public.pga_monthly_reconciliations DROP CONSTRAINT IF EXISTS pga_monthly_reconciliations_recovered_nonnegative_check;
+ALTER TABLE public.pga_monthly_reconciliations ADD CONSTRAINT pga_monthly_reconciliations_recovered_nonnegative_check
+    CHECK ((pga_recovered_revenue >= (0)::numeric));
+
+COMMENT ON CONSTRAINT pga_monthly_reconciliations_low_positive_check ON public.pga_monthly_reconciliations IS
+    'Mirrors pga_monitoring_settings_low_positive_check onto the per-month threshold snapshot; with threshold_order_check this forces 0 < low < medium, so the band_consistent_check ratio test cannot be trivially satisfied by non-positive thresholds. Consensus finding of the two independent v5.4.0-06 reviews, landed in v5.4.1-01.';

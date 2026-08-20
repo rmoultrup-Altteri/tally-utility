@@ -411,6 +411,12 @@
 --                   in the postgres:16 image; supported on RDS). Added in
 --                   the patch body, NOT in tu.sql's extension preamble
 --                   (tu.sql:47-49) — append-only rule; mirror as an append.
+--                   WITH SCHEMA public is REQUIRED: tu.sql runs under
+--                   search_path = '' (tu.sql:65), and a bare CREATE
+--                   EXTENSION then fails "no schema has been selected to
+--                   create in". Caught only by the fresh-build test — the
+--                   iteratively-patched container's psql session had a
+--                   default search_path and masked it.
 -- Idempotent:  yes so far (constraints DROP IF EXISTS + re-ADD; CREATE OR
 --              REPLACE FUNCTION; trigger DROP IF EXISTS + re-CREATE; backfill
 --              UPDATE only touches remaining NULLs, so a re-run is a no-op;
@@ -1003,7 +1009,7 @@ COMMENT ON FUNCTION public.void_invoice(p_invoice_id uuid, p_voided_by uuid, p_v
 -- of the same meter is always rejected. The companion CHECK gives a
 -- readable error for removal_date < install_date instead of daterange's
 -- "range lower bound must be less than or equal to range upper bound".
-CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
 
 ALTER TABLE public.meter_deployments DROP CONSTRAINT IF EXISTS meter_deployments_removal_after_install_check;
 ALTER TABLE public.meter_deployments ADD CONSTRAINT meter_deployments_removal_after_install_check

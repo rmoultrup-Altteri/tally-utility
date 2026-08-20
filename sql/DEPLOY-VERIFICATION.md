@@ -1,6 +1,31 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06, verified 2026-08-19.** After v5.4.0-06: **65 tables** / **64 policies** / **63 FORCE-RLS** / **217 CHECKs** / 61 triggers / 471 indexes / 271 FKs; tu.sql **12,279 lines** (pure appends; anchors 337/3600/3679 intact).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01, verified 2026-08-20.** After v5.4.1-01: **65 tables** / **64 policies** / **63 FORCE-RLS** / **224 CHECKs** / **1 EXCLUDE** (first) / 66 triggers / 474 indexes / 273 FKs / `btree_gist` installed; tu.sql **12,997 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.1-01 — factual-defect hardening, set 1 (Phase 2 items 2.1/2.2/2.3/2.5/2.6 + v5.4.0-06 review carryover)
+
+Fresh rebuild from `postgres/Dockerfile`: **zero init errors**. First attempt FAILED — `CREATE EXTENSION IF NOT EXISTS btree_gist` without `WITH SCHEMA public` under tu.sql's `search_path = ''` ("no schema has been selected to create in"); masked all session by the iteratively-patched container's default search_path. Fixed in both the patch and the mirror before commit. All 11 new constraints, 5 new triggers, `import_jobs.idempotency_key` NOT NULL, and `meter_readings.location_id` confirmed in the catalog on the fresh build. Counts delta vs -06: +7 CHECKs, +1 EXCLUDE, +5 triggers, +3 indexes (1 UNIQUE, 1 EXCLUDE-backing, 1 partial), +2 FKs.
+
+| test | result |
+|---|---|
+| 2.1 `final_read` order with no customer/location/meter | rejected (`service_orders_final_read_referents_check`) |
+| 2.2 csv import, no key supplied | `idempotency_key` derived `f.csv:abc:preview` by trigger before insert |
+| 2.3a landlord A→B then B→A | rejected (`landlord_customer_cycle`) |
+| 2.6a second open deployment, same meter | rejected (`meter_deployments_no_overlap_excl`) |
+| 2.6a closed range overlapping a closed range | rejected (EXCLUDE) |
+| 2.6a `removal_date < install_date` | rejected (`…_removal_after_install_check`) |
+| 2.6a same-day close + reopen (half-open) | allowed; `sync_meter_deployments` inactive→active round-trip passes |
+| 2.6a Pattern A reactivation with stale `start_date` | rejected inside `sync_meter_deployments` (AC-1) |
+| 2.6b read inside deployment #1 / on the boundary day / before any deployment | L1 / L2 / `meters.location_id` fallback — all as documented |
+| 2.6b caller-supplied `location_id` | passes through; bogus value rejected by FK |
+| 2.6b move deployment after the read | read's `location_id` unchanged (snapshot) |
+| 2.6b same-day pull A → reinstall B: `removal` read / `regular_cycle` read / `final_read` with no move | A / B / A (review fix M2) |
+| carryover `low=-5, medium=0` | rejected (`…_low_positive_check`) |
+| carryover negative `actual_gas_cost` / `pga_recovered_revenue` | each rejected on its named CHECK |
+| carryover negative `monthly_variance` (over-recovery) | allowed (signed by design) |
+| full patch re-applied on top of itself | idempotent, zero errors |
+
+Two independent adversarial reviews (Fable + Codex) on 2.6 + carryover before the mirror; consensus finding (in-place `meters.location_id` edit on an active meter leaves deployment history stale) recorded as APPLICATION-CONTRACTS AC-7 and as the leading reason CI-027 stays partial. Header's CI-032 grade corrected (register says partial, not enforced).
 
 ## v5.4.0-06 — PGA set (backlog item 14; ruling D3D-1) — Phase 1 complete
 
