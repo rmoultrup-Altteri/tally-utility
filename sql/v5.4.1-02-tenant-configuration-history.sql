@@ -75,7 +75,9 @@
 --                (change_source = 'manual', effective_from in the past) —
 --                representable, not the normal path.
 --              * KEYS COVERED: the thirteen tenants policy columns the brief
---                enumerates (tu.sql:4605-4620) — default_partial_period_
+--                enumerates (tu.sql:4605-4615 and 4619-4620 — not
+--                contiguous; 4616-4618 are onboarded_at/created_at/
+--                updated_at) — default_partial_period_
 --                policy, payment_allocation_strategy, overpayment_handling,
 --                credit_application_timing, minimum_refund_amount, below_
 --                threshold_action, donation_program_name, auto_approve_
@@ -83,7 +85,11 @@
 --                redeployment_policy, default_import_error_policy, void_
 --                only_unbilled_disposition, void_rebill_threshold — plus
 --                each TOP-LEVEL key of settings as 'settings.<key>'
---                (service_transition, estimation, anomaly_detection, ...).
+--                (service_transition, estimation, anomaly_detection, ...)
+--                — WHEN PRESENT: settings defaults to '{}', so a tenant
+--                onboarded without explicit settings gets no settings.*
+--                rows until the application writes them; the seven
+--                documented sub-objects are not materialised by the DB.
 --                Sub-object granularity is top-level: a change anywhere
 --                inside settings.estimation records the whole estimation
 --                object before/after. Finer granularity is a later call.
@@ -96,9 +102,26 @@
 --                flip. seq (identity) is the deterministic tiebreaker;
 --                resolution orders by effective_from DESC, seq DESC.
 --              * BACKFILL: one 'backfill' row per existing tenant per key,
---                effective_from = tenants.created_at, old_value NULL. On a
---                fresh deploy this is 0 rows. Re-running inserts nothing
---                (NOT EXISTS guard per tenant+key).
+--                effective_from = tenants.created_at, old_value NULL. THIS
+--                IS AN APPROXIMATION (review finding): the value written is
+--                the one observed at deploy, and a policy changed after
+--                onboarding is recorded as if in effect since created_at —
+--                earlier history is unknowable. created_at is used (rather
+--                than now()) so that, with no live fallback in the
+--                function, existing tenants still resolve for pre-deploy
+--                coordinates; change_reason states the approximation on
+--                every backfill row. On a fresh deploy this is 0 rows.
+--                Re-running inserts nothing (NOT EXISTS guard).
+--              * GUARDS ON DIRECT INSERTS (review finding): config_key must
+--                be one of the thirteen or settings.*; a
+--                default_partial_period_policy row must carry one of the
+--                three legal values; a direct insert may not claim
+--                change_source onboarding/trigger (pg_trigger_depth()
+--                guard). tally_app keeps INSERT (RLS-scoped) so backdated
+--                corrections are possible without a migration. TRUNCATE is
+--                rejected like UPDATE/DELETE. tenant FK is plain REFERENCES
+--                (no CASCADE) — deleting a tenant must not erase its audit
+--                trail (CI-093).
 --              * get_partial_period_policy(p_rate_schedule_id uuid,
 --                p_as_of timestamptz) — the second parameter is REQUIRED,
 --                no DEFAULT. CI-006: "the temporal-coordinate basis is an
@@ -112,9 +135,16 @@
 --                (unchanged — the schedule row is its own bracket per
 --                CI-004's enforcement note, A-19 pending) > history row for
 --                'default_partial_period_policy' with the latest
---                effective_from <= p_as_of > live tenants.default_partial_
---                period_policy (only reachable for p_as_of earlier than the
---                tenant's first recorded row, i.e. before created_at).
+--                effective_from <= p_as_of (seq DESC tiebreak). NO live-
+--                column fallback and NULL p_as_of RAISES (consensus review
+--                finding — the first draft's COALESCE onto tenants.default_
+--                partial_period_policy made NULL, and any pre-history
+--                coordinate, silently resolve to TODAY's value: the time-
+--                blind form back through the side door, and a realistic
+--                path since get_correction_rate_date() documents returning
+--                NULL). Pre-history coordinates return NULL, the same
+--                contract as unknown-schedule; the engine must fail on
+--                NULL. DATE arguments cast to midnight — documented.
 --                Callers pass the run's evaluation coordinate; for a
 --                correction run that is the voided invoice's period_end /
 --                get_correction_rate_date() result, the same date already
@@ -158,11 +188,13 @@ CREATE TABLE IF NOT EXISTS public.tenant_configuration_history (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT tenant_configuration_history_pkey PRIMARY KEY (id),
     CONSTRAINT tenant_configuration_history_seq_key UNIQUE (seq),
-    CONSTRAINT tenant_configuration_history_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
+    CONSTRAINT tenant_configuration_history_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
     CONSTRAINT tenant_configuration_history_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id),
     CONSTRAINT tenant_configuration_history_change_source_check CHECK ((change_source = ANY (ARRAY['onboarding'::text, 'trigger'::text, 'backfill'::text, 'manual'::text]))),
     CONSTRAINT tenant_configuration_history_key_nonempty_check CHECK ((length(config_key) > 0)),
-    CONSTRAINT tenant_configuration_history_value_changed_check CHECK ((old_value IS DISTINCT FROM new_value))
+    CONSTRAINT tenant_configuration_history_value_changed_check CHECK ((old_value IS DISTINCT FROM new_value)),
+    CONSTRAINT tenant_configuration_history_key_known_check CHECK (((config_key ~~ 'settings.%'::text) OR (config_key = ANY (ARRAY['default_partial_period_policy'::text, 'payment_allocation_strategy'::text, 'overpayment_handling'::text, 'credit_application_timing'::text, 'minimum_refund_amount'::text, 'below_threshold_action'::text, 'donation_program_name'::text, 'auto_approve_clean_reads'::text, 'unreviewed_read_billing_policy'::text, 'meter_redeployment_policy'::text, 'default_import_error_policy'::text, 'void_only_unbilled_disposition'::text, 'void_rebill_threshold'::text])))),
+    CONSTRAINT tenant_configuration_history_ppp_value_check CHECK (((config_key <> 'default_partial_period_policy'::text) OR ((new_value #>> '{}'::text[]) = ANY (ARRAY['prorated'::text, 'charge_both'::text, 'period_holder'::text]))))
 );
 
 CREATE INDEX IF NOT EXISTS idx_tenant_config_history_lookup
@@ -179,6 +211,27 @@ $$;
 DROP TRIGGER IF EXISTS enforce_tenant_configuration_history_immutable ON public.tenant_configuration_history;
 CREATE TRIGGER enforce_tenant_configuration_history_immutable BEFORE UPDATE OR DELETE ON public.tenant_configuration_history
     FOR EACH ROW EXECUTE FUNCTION public.enforce_tenant_configuration_history_immutable();
+DROP TRIGGER IF EXISTS enforce_tenant_configuration_history_no_truncate ON public.tenant_configuration_history;
+CREATE TRIGGER enforce_tenant_configuration_history_no_truncate BEFORE TRUNCATE ON public.tenant_configuration_history
+    FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_tenant_configuration_history_immutable();
+
+-- Direct inserts may not impersonate the recorder. The recorder runs inside
+-- the tenants trigger (pg_trigger_depth() = 2 when this fires); a direct
+-- INSERT sees depth 1 and may only be 'manual' or 'backfill'.
+CREATE OR REPLACE FUNCTION public.guard_tenant_configuration_history_source() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF pg_trigger_depth() < 2 AND NEW.change_source IN ('onboarding', 'trigger') THEN
+        RAISE EXCEPTION 'tenant_configuration_history: change_source % is written only by trg_record_tenant_configuration_change; direct inserts must be ''manual'' or ''backfill''', NEW.change_source;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_tenant_configuration_history_source ON public.tenant_configuration_history;
+CREATE TRIGGER guard_tenant_configuration_history_source BEFORE INSERT ON public.tenant_configuration_history
+    FOR EACH ROW EXECUTE FUNCTION public.guard_tenant_configuration_history_source();
 
 ALTER TABLE public.tenant_configuration_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tenant_configuration_history FORCE ROW LEVEL SECURITY;
@@ -194,13 +247,13 @@ COMMENT ON COLUMN public.tenant_configuration_history.config_key IS
 COMMENT ON COLUMN public.tenant_configuration_history.old_value IS
     'Value before the change as JSONB (to_jsonb of the column / settings sub-object). NULL on the onboarding and backfill rows. Scalars read back with  old_value #>> ''{}''.';
 COMMENT ON COLUMN public.tenant_configuration_history.new_value IS
-    'Value after the change as JSONB. NULL only if the column itself went NULL (donation_program_name is the one nullable key).';
+    'Value after the change as JSONB. A SQL-NULL column value is recorded as the JSON literal null (to_jsonb semantics) — test with  new_value = ''null''::jsonb  or  new_value #>> ''{}'' IS NULL, never  new_value IS NULL. SQL NULL here means a settings key was removed.';
 COMMENT ON COLUMN public.tenant_configuration_history.effective_from IS
     'When this value started applying. Trigger-written rows use now(); backfill rows use tenants.created_at; manual rows may be backdated (representable, not the normal path).';
 COMMENT ON COLUMN public.tenant_configuration_history.changed_by IS
     'users.id from the app.user_id session GUC at the time of the change; NULL when no GUC is set (migrations, backfill, superuser sessions).';
 COMMENT ON COLUMN public.tenant_configuration_history.change_source IS
-    'onboarding = written by the tenant INSERT; trigger = written by a tenant UPDATE; backfill = v5.4.1-02 seeded the pre-existing value; manual = inserted directly (backdated correction).';
+    'onboarding = written by the tenant INSERT; trigger = written by a tenant UPDATE; backfill = v5.4.1-02 seeded the value OBSERVED at deploy, stamped at tenants.created_at as an approximation (earlier changes are unknown — see change_reason); manual = inserted directly (backdated correction). onboarding/trigger cannot be claimed by a direct insert (guard trigger).';
 
 --
 -- The recorder. One row per changed key on tenants INSERT/UPDATE.
@@ -277,8 +330,9 @@ CREATE TRIGGER trg_record_tenant_configuration_change AFTER INSERT OR UPDATE ON 
 -- created_at. 0 rows on a fresh deploy; a re-run inserts nothing.
 --
 INSERT INTO public.tenant_configuration_history
-    (tenant_id, config_key, old_value, new_value, effective_from, change_source)
-SELECT t.id, k.key, NULL, to_jsonb(t) -> k.key, t.created_at, 'backfill'
+    (tenant_id, config_key, old_value, new_value, effective_from, change_source, change_reason)
+SELECT t.id, k.key, NULL, to_jsonb(t) -> k.key, t.created_at, 'backfill',
+       'value observed at v5.4.1-02 deploy; stamped at tenants.created_at as an approximation — earlier history unknown'
 FROM public.tenants t
 CROSS JOIN unnest(ARRAY[
         'default_partial_period_policy', 'payment_allocation_strategy',
@@ -294,8 +348,9 @@ WHERE (to_jsonb(t) -> k.key) IS NOT NULL
       WHERE h.tenant_id = t.id AND h.config_key = k.key);
 
 INSERT INTO public.tenant_configuration_history
-    (tenant_id, config_key, old_value, new_value, effective_from, change_source)
-SELECT t.id, 'settings.' || s.key, NULL, s.value, t.created_at, 'backfill'
+    (tenant_id, config_key, old_value, new_value, effective_from, change_source, change_reason)
+SELECT t.id, 'settings.' || s.key, NULL, s.value, t.created_at, 'backfill',
+       'value observed at v5.4.1-02 deploy; stamped at tenants.created_at as an approximation — earlier history unknown'
 FROM public.tenants t
 CROSS JOIN LATERAL jsonb_each(COALESCE(t.settings, '{}'::jsonb)) AS s(key, value)
 WHERE NOT EXISTS (
@@ -309,22 +364,49 @@ WHERE NOT EXISTS (
 DROP FUNCTION IF EXISTS public.get_partial_period_policy(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_partial_period_policy(p_rate_schedule_id uuid, p_as_of timestamp with time zone) RETURNS text
-    LANGUAGE sql STABLE
+    LANGUAGE plpgsql STABLE
     AS $$
-    SELECT COALESCE(
-        rs.partial_period_policy,
-        (SELECT h.new_value #>> '{}'
-         FROM public.tenant_configuration_history h
-         WHERE h.tenant_id = rs.tenant_id
-           AND h.config_key = 'default_partial_period_policy'
-           AND h.effective_from <= p_as_of
-         ORDER BY h.effective_from DESC, h.seq DESC
-         LIMIT 1),
-        t.default_partial_period_policy)
+DECLARE
+    v_override  text;
+    v_tenant_id uuid;
+    v_policy    text;
+BEGIN
+    -- CI-006: the temporal coordinate is an explicit input. A NULL here is a
+    -- caller bug (e.g. passing get_correction_rate_date()'s NULL through
+    -- unhandled), and silently resolving "now" would reintroduce the exact
+    -- time-blind hazard this function exists to close. Fail loudly.
+    IF p_as_of IS NULL THEN
+        RAISE EXCEPTION 'get_partial_period_policy: p_as_of must not be NULL — pass the run''s evaluation coordinate (CI-006)';
+    END IF;
+
+    SELECT rs.partial_period_policy, rs.tenant_id
+    INTO v_override, v_tenant_id
     FROM public.rate_schedules rs
-    JOIN public.tenants t ON t.id = rs.tenant_id
     WHERE rs.id = p_rate_schedule_id;
+
+    IF NOT FOUND THEN
+        RETURN NULL;   -- unknown rate schedule (same contract as get_correction_rate_date)
+    END IF;
+
+    IF v_override IS NOT NULL THEN
+        RETURN v_override;   -- per-schedule override; the schedule row is its own bracket
+    END IF;
+
+    -- Tenant default as recorded AT p_as_of. No fallback to the live column:
+    -- a coordinate earlier than the tenant's first recorded row returns NULL
+    -- ("no policy is knowable at that coordinate") rather than today's value.
+    SELECT h.new_value #>> '{}'
+    INTO v_policy
+    FROM public.tenant_configuration_history h
+    WHERE h.tenant_id = v_tenant_id
+      AND h.config_key = 'default_partial_period_policy'
+      AND h.effective_from <= p_as_of
+    ORDER BY h.effective_from DESC, h.seq DESC
+    LIMIT 1;
+
+    RETURN v_policy;
+END;
 $$;
 
 COMMENT ON FUNCTION public.get_partial_period_policy(p_rate_schedule_id uuid, p_as_of timestamp with time zone) IS
-    'Effective partial-period policy for a rate schedule AS OF an explicit temporal coordinate (v5.4.1-02, CI-006: the coordinate is a required input, never an implicit now()). Resolution: rate_schedules.partial_period_policy override if set > the tenant default recorded in tenant_configuration_history with the latest effective_from <= p_as_of > live tenants.default_partial_period_policy (reachable only for p_as_of before the tenant''s first recorded row). Correction runs pass the voided invoice''s period_end / get_correction_rate_date() result — the same coordinate used to bracket rates — so a March rebill resolves March''s policy. The one-argument time-blind form (v5.2.1) was dropped; it had no callers. Returns NULL if the rate schedule is not found.';
+    'Effective partial-period policy for a rate schedule AS OF an explicit temporal coordinate (v5.4.1-02, CI-006: the coordinate is a required input, never an implicit now()). NULL p_as_of RAISES — do not pass get_correction_rate_date()''s NULL through; substitute and log first, per that function''s own COMMENT. Resolution: rate_schedules.partial_period_policy override if set > the tenant default recorded in tenant_configuration_history with the latest effective_from <= p_as_of (seq breaks ties). There is deliberately NO fallback to the live tenants column: an unknown rate schedule, or a coordinate earlier than the tenant''s first recorded row, returns NULL — the engine must treat NULL as a hard error, never as "use the default". A DATE argument casts to midnight of that day; a policy changed later the same day is excluded — pass an end-of-day timestamptz if "in effect on that day" is the intent. Correction runs pass the voided invoice''s period_end / get_correction_rate_date() result — the same coordinate used to bracket rates — so a March rebill resolves March''s policy. The one-argument time-blind form (v5.2.1) was dropped; it had no callers.';
