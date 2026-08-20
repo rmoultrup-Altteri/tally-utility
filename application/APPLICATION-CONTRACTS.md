@@ -127,3 +127,17 @@ The three cycle-guard triggers read the graph with plain MVCC snapshots. Two
 concurrent transactions each adding one edge can together form a cycle neither
 saw. Serialize writes to these parent/dependency columns per tenant (advisory
 lock or `SERIALIZABLE`) in any code path that rewires hierarchies in bulk.
+
+---
+
+## Tenant configuration and temporal coordinates
+
+### AC-8 — `get_partial_period_policy()` needs a real coordinate; a NULL result is an error — REJECTS / SILENT
+*Introduced by v5.4.1-02.*
+
+`get_partial_period_policy(p_rate_schedule_id, p_as_of)` **raises** on NULL `p_as_of`. `get_correction_rate_date()` documents returning NULL when its target is missing — substitute (and log) before calling, never pass it through. The function returns **NULL** for an unknown rate schedule *and* for a coordinate earlier than the tenant's first recorded policy row; there is deliberately no fallback to the live `tenants` column. The billing engine must treat NULL as a hard failure, never as "use the default" — that is the time-blind bug CI-006 forbids. A DATE argument casts to midnight; pass an end-of-day `timestamptz` if "in effect on that day" is the intent.
+
+### AC-9 — Change tenant policy through `tenants`, not by writing history; populate `settings` at onboarding if you want it recorded — SILENT
+*Introduced by v5.4.1-02.*
+
+`tenant_configuration_history` is filled by the trigger on `tenants`; application code changes policy by updating `tenants` (with `app.user_id` set so `changed_by` is captured). Direct inserts are for backdated corrections only (`change_source = 'manual'`) and cannot claim `onboarding`/`trigger`. `tenants.settings` defaults to `{}`: the seven documented sub-objects get onboarding history rows **only if the application writes them into `settings` in the tenant INSERT**. The bracket is transaction time — "this policy took effect last month" cannot be expressed through the normal path until the A-1 bi-temporal pair lands.

@@ -1,6 +1,29 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01, verified 2026-08-20.** After v5.4.1-01: **65 tables** / **64 policies** / **63 FORCE-RLS** / **224 CHECKs** / **1 EXCLUDE** (first) / 66 triggers / 474 indexes / 273 FKs / `btree_gist` installed; tu.sql **12,997 lines** (pure appends; anchors 337/3600/3679 intact).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02, verified 2026-08-20.** After v5.4.1-02: **66 tables** / **65 policies** / **64 FORCE-RLS** / **229 CHECKs** / 1 EXCLUDE / 70 triggers / 477 indexes / 275 FKs; tu.sql **13,241 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.1-02 — tenant_configuration_history + time-aware get_partial_period_policy() (Phase 2 item 2.4)
+
+Fresh rebuild from `postgres/Dockerfile`: **zero init errors** (both reviewers also fresh-loaded tu.sql + patch into throwaway databases before the mirror — clean). New table `tenant_configuration_history` (append-only, RLS + FORCE, identity `seq` tiebreaker), recorder trigger on `tenants`, immutability + TRUNCATE + source-guard triggers, backfill, and `get_partial_period_policy(uuid, timestamptz)` replacing the dropped one-arg form (only the two-arg signature exists in the catalog). Counts delta vs -01: +1 table, +1 policy, +5 CHECKs, +4 triggers, +3 indexes, +2 FKs.
+
+| test | result |
+|---|---|
+| tenant INSERT (default settings `{}`) | 13 `onboarding` rows, one per policy key; `donation_program_name` recorded as JSON `null` |
+| UPDATE two policy columns + add a settings key | exactly 3 `trigger` rows with old/new |
+| UPDATE `name` only / numeric no-op (`5` on `5.00`) | 0 rows |
+| nested change inside `settings.estimation` | 1 row, whole sub-object before/after |
+| UPDATE / DELETE / TRUNCATE on history | each rejected (`enforce_tenant_configuration_history_immutable`) |
+| manual row with `old_value = new_value` / unknown `config_key` / bogus `default_partial_period_policy` value / direct insert claiming `change_source='trigger'` | each rejected on its named CHECK or guard |
+| history Jan=prorated, Jun=charge_both; as-of March / June 15 / now | prorated / charge_both / charge_both |
+| two changes to one key in one transaction | latest wins (`seq DESC`) |
+| `p_as_of` before the tenant's first row | **NULL** (no live fallback — review fix) |
+| `p_as_of = NULL` | **RAISES** (review fix) |
+| schedule override set | override wins regardless of date |
+| unknown rate schedule | NULL |
+| old one-arg signature | "function does not exist" |
+| backfill on a simulated pre-existing tenant (trigger disabled, `created_at` 2025-01-01) | 13 rows at 2025-01-01 with the approximation `change_reason`; re-run inserts 0 |
+| RLS as `tally_app` | sees own tenant's rows only; own-tenant UPDATE records with `changed_by` = GUC user; cross-tenant manual insert rejected |
+| full patch re-applied on top of itself | idempotent, zero errors |
 
 ## v5.4.1-01 — factual-defect hardening, set 1 (Phase 2 items 2.1/2.2/2.3/2.5/2.6 + v5.4.0-06 review carryover)
 
