@@ -44,7 +44,9 @@
 --              Plus: positivity CHECK on pga_monthly_reconciliations
 --              threshold columns (consensus defect, two independent -06
 --              reviewers) + non-negativity on actual_gas_cost /
---              pga_recovered_revenue. [PENDING]
+--              pga_recovered_revenue. [DRAFTED BELOW] No CI entry — -06's
+--              own CI grades are unchanged; this tightens a snapshot column
+--              to match the settings row it copies from.
 --
 -- CI entries:  CI-122 (re-check only, item 2.1) — its enforcement-status
 --              text currently claims the service_orders_check CHECK family
@@ -355,10 +357,11 @@
 --              UPDATE only touches remaining NULLs, so a re-run is a no-op;
 --              COMMENT overwrite; CREATE EXTENSION / ADD COLUMN / CREATE
 --              INDEX all IF NOT EXISTS). Re-applied twice after 2.6 landed,
---              zero errors. Re-verify once the carryover lands.
+--              zero errors; again after the carryover, zero errors.
 -- Line count:  DRAFT ONLY — not yet mirrored into tu.sql. Items 2.1, 2.2,
---              2.3, 2.5, 2.6 drafted; -06 carryover pending in this same
---              file before the mirror step.
+--              2.3, 2.5, 2.6 + -06 carryover ALL DRAFTED and live-tested.
+--              Next: mirror into tu.sql (pure append), fresh rebuild, full
+--              re-test, CI re-grades, DEPLOY-VERIFICATION, GBM Section AL.
 -- ============================================================================
 
 --
@@ -1026,3 +1029,33 @@ WHERE r.location_id IS NULL
 
 COMMENT ON COLUMN public.meter_readings.location_id IS
     'Service point (premise) the meter was installed at WHEN THIS READ WAS TAKEN — a snapshot, not a live join. Populated on INSERT by trg_populate_reading_location from the meter_deployments row covering reading_date (unambiguous per meter_deployments_no_overlap_excl), else meters.location_id; caller-supplied values pass through. Deliberately not re-derived on UPDATE: a later meter move must not reattribute historical consumption. Nullable (representable, not required). CI-027, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
+
+--
+-- v5.4.0-06 review carryover — pga_monthly_reconciliations positivity /
+-- non-negativity. Both independent -06 reviewers (Fable + Codex) flagged the
+-- same defect: pga_monitoring_settings enforces low_alert_threshold_pct > 0
+-- (pga_monitoring_settings_low_positive_check) but the per-row snapshot of
+-- those thresholds on pga_monthly_reconciliations only enforces band ORDER
+-- (medium > low), so a row could snapshot low = -5, medium = 0 and the
+-- band_consistent CHECK's ratio comparison would classify every month as
+-- 'medium'. Mirror the settings-side rule onto the snapshot. Also: a month's
+-- actual_gas_cost and pga_recovered_revenue are gross dollar amounts
+-- (monthly_variance is the signed quantity) — neither can be negative.
+-- Consistent with the existing trailing_nonnegative_check on the same table.
+-- Not touched: monthly_variance, deferred_balance_after (signed by design,
+-- v5.4.0-06 header).
+--
+ALTER TABLE public.pga_monthly_reconciliations DROP CONSTRAINT IF EXISTS pga_monthly_reconciliations_low_positive_check;
+ALTER TABLE public.pga_monthly_reconciliations ADD CONSTRAINT pga_monthly_reconciliations_low_positive_check
+    CHECK ((low_threshold_pct_applied > (0)::numeric));
+
+ALTER TABLE public.pga_monthly_reconciliations DROP CONSTRAINT IF EXISTS pga_monthly_reconciliations_gas_cost_nonnegative_check;
+ALTER TABLE public.pga_monthly_reconciliations ADD CONSTRAINT pga_monthly_reconciliations_gas_cost_nonnegative_check
+    CHECK ((actual_gas_cost >= (0)::numeric));
+
+ALTER TABLE public.pga_monthly_reconciliations DROP CONSTRAINT IF EXISTS pga_monthly_reconciliations_recovered_nonnegative_check;
+ALTER TABLE public.pga_monthly_reconciliations ADD CONSTRAINT pga_monthly_reconciliations_recovered_nonnegative_check
+    CHECK ((pga_recovered_revenue >= (0)::numeric));
+
+COMMENT ON CONSTRAINT pga_monthly_reconciliations_low_positive_check ON public.pga_monthly_reconciliations IS
+    'Mirrors pga_monitoring_settings_low_positive_check onto the per-month threshold snapshot; with threshold_order_check this forces 0 < low < medium, so the band_consistent_check ratio test cannot be trivially satisfied by non-positive thresholds. Consensus finding of the two independent v5.4.0-06 reviews, landed in v5.4.1-01.';
