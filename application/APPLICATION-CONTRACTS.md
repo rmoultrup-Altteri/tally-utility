@@ -26,7 +26,10 @@ constraint rejects the whole UPDATE.
 
 **Do:** in the same UPDATE that sets `status = 'active'`, set `start_date` to
 the actual reinstall date (≥ the previous deployment's `removal_date`; same day
-is fine — the range is half-open).
+is fine — the range is half-open). Symmetrically, on deactivation either leave
+`meters.removal_date` NULL (the trigger uses today) or set it ≥ the open
+deployment's `install_date` — an earlier date is rejected by
+`meter_deployments_removal_after_install_check` inside the same trigger.
 
 **Why the schema doesn't do it for you:** the trigger can't know the true
 reinstall date; guessing `CURRENT_DATE` or `GREATEST(...)` would fabricate a
@@ -47,15 +50,40 @@ in the same UPDATE or re-run the lookup (deployment covering the new date, else
 `meters.location_id`). Prefer the supersede pattern (new read row, old one
 `replaced`) over in-place date edits — a new row gets the snapshot for free.
 
+Also: on the day a meter is pulled from premise A and reinstalled at B, the
+trigger resolves reads with `reading_purpose` `removal`/`final_read` to A (the
+deployment closed that day) and every other purpose to B. If a same-day read of
+another purpose belongs to A, supply `location_id` explicitly.
+
 ### AC-3 — `location_id` is optional at the database level — SILENT
 *Introduced by v5.4.1-01 item 2.6.*
 
-The trigger fills `location_id` automatically, but the column is nullable. Reads
-inserted for a meter whose `meters` row is missing a location can't happen
-(`meters.location_id` is NOT NULL), so in practice it's always populated — but
-application validation should treat a NULL `location_id` on a read as a data
-defect to surface, not a valid state. CI-027 stays `partially-structurally-
-enforced` for exactly this reason.
+The trigger fills `location_id` automatically, but the column is nullable, and
+there is a real path that leaves it NULL with no error: `meter_readings.meter_id`'s
+FK is not tenant-scoped and FK checks bypass RLS, so a read inserted by tenant A
+against tenant B's meter passes the FK while both of the trigger's lookups
+return nothing under RLS. Application validation must (a) check the meter
+belongs to the caller's tenant before inserting, and (b) treat a NULL
+`location_id` on a read as a data defect to surface, never a valid state.
+
+### AC-7 — Relocating an ACTIVE meter by editing `meters.location_id` leaves history stale — SILENT
+*Surfaced by v5.4.1-01 item 2.6; the cause is pre-existing (`sync_meter_deployments()`, tu.sql:841).*
+
+`sync_meter_deployments()` opens and closes `meter_deployments` rows only on
+`meters.status` transitions. A bare `UPDATE meters SET location_id = B` while
+`status = 'active'` is accepted, leaves the open deployment pointing at A, and
+every subsequent read snapshots A. Nothing raises. This is the leading reason
+CI-027 is graded `partially-structurally-enforced`.
+
+**Do, until ruled:** never change `location_id` on an active meter directly.
+A real relocation goes through the status cycle (`inactive` → `active` with the
+new `location_id` and a real `start_date`, per AC-1), which closes and reopens
+the deployment. A data-entry correction (the meter was never at A) should
+correct the `meter_deployments` row too, in the same transaction.
+
+**Open product question (Kyle brief):** the schema can't distinguish relocation
+from typo-fix, so it neither auto-reopens nor rejects. Whichever ruling lands
+becomes a trigger and retires this entry.
 
 ---
 

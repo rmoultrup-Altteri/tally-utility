@@ -108,23 +108,40 @@
 --              grade — worth flagging precisely because it looks like the
 --              CI-118 case (item 2.2) and isn't.
 --              CI-027 (re-check, item 2.6) — both defects the 2026-08-13
---              re-grade named are addressed: overlapping deployments are
---              now structurally impossible (so the deployment-at-read-date
---              reconstruction is single-valued), and the premise IS now
---              recorded on the read. Status token stays
---              `partially-structurally-enforced` — location_id is nullable
---              and default-populated, not required, so a read can still
---              exist with no premise (meter rows with no location can't,
---              meters.location_id is NOT NULL, but the column itself does
---              not forbid NULL). Same discipline as 2.2/2.5: descriptive
---              text corrected on the GBM side ("zero EXCLUDE constraints"
---              and "no location or service-point column" are both false
---              once this lands), token unchanged.
---              CI-032 (re-check only, item 2.6) — enforcement text should
---              gain the EXCLUDE as a named structural guarantee of the
---              "one deployment per meter per date" property its
---              "reconstructable in both directions" claim silently relied
---              on. Token unchanged (structurally-enforced).
+--              re-grade named are addressed in the narrow sense:
+--              overlapping deployments are now structurally impossible (the
+--              deployment-at-read-date lookup is single-valued), and the
+--              premise IS now recorded on the read. Status token stays
+--              `partially-structurally-enforced`, and the LEADING reason is
+--              NOT nullability — it is that single-valued is not the same
+--              as correct (consensus finding, both independent reviews):
+--              sync_meter_deployments() (tu.sql:841) reacts only to
+--              meters.status transitions, so a bare
+--              `UPDATE meters SET location_id = X` on an ACTIVE meter
+--              leaves the open deployment pointing at the old premise and
+--              every later read snapshots the stale one, with no error.
+--              The schema cannot tell a relocation (needs a new deployment
+--              and a real date) from a typo fix (needs the existing
+--              deployment corrected), so neither auto-close/reopen nor a
+--              rejection trigger is drafted here — that is a product
+--              ruling (Kyle brief: "how is an active meter relocated?").
+--              Recorded as APPLICATION-CONTRACTS AC-7. Secondary reasons:
+--              location_id is nullable/default-populated, not required;
+--              a cross-tenant meter_id (FK not tenant-scoped) under RLS
+--              leaves it NULL silently (AC-3). GBM-side: the "zero EXCLUDE
+--              constraints" and "no location or service-point column"
+--              sentences are both false once this lands; rewrite to the
+--              in-place-move gap. Token unchanged.
+--              CI-032 (re-check, item 2.6) — CORRECTED after review (first
+--              draft misread the grade off the scenario file, which still
+--              says structurally-enforced; the register at canonical-
+--              invariants.md:587 re-graded it 2026-08-13 to
+--              `partially-structurally-enforced` for two reasons: "no
+--              temporal guard — zero EXCLUDE constraints in tu.sql — and
+--              meters.replaces_meter_id is nullable, so a swap need not
+--              link"). 2.6a closes the temporal-guard half; the nullable
+--              replaces_meter_id half is untouched. Token unchanged at
+--              `partially-structurally-enforced`; text corrected GBM-side.
 -- Drafting decisions:
 --              2.1  Bind `final_read` to customer_id + location_id +
 --                   meter_id (all three — it closes an occupancy AND
@@ -308,6 +325,14 @@
 --                   column's structural guarantee, not a live hole in the
 --                   one caller that populates it today. Consistent with
 --                   2.3's landlord-FK call: noted, not drafted here.
+--              -06 carryover: actual_gas_cost is the gross supplier
+--                   invoice total and pga_recovered_revenue the gross
+--                   billed PGA revenue (v5.4.0-06 header :35-37, :172);
+--                   sign lives only in monthly_variance /
+--                   deferred_balance_after. A supplier credit month is
+--                   therefore expressed as a LOWER cost, never a negative
+--                   one — nobody should later try to post a negative
+--                   "credit month" row.
 --              2.6  EXCLUDE over (meter_id WITH =, daterange(install_date,
 --                   removal_date, '[)') WITH &&). HALF-OPEN on purpose:
 --                   sync_meter_deployments() closes a deployment with
@@ -324,10 +349,24 @@
 --                   it silently wrote an overlapping deployment. That is
 --                   the correct rejection (it is literally the ambiguity
 --                   CI-027 names) but the application layer must set
---                   start_date on reactivation. Not patched in the sync
---                   trigger here (changing its COALESCE to a GREATEST
---                   would be guessing operator intent) — recorded for the
---                   A-series / Kyle brief list.
+--                   start_date on reactivation (the COALESCE is dead code
+--                   — meters.start_date is NOT NULL DEFAULT CURRENT_DATE —
+--                   so "stale" means "never updated"). Second rejection
+--                   path, same cause (review finding): deactivation with a
+--                   stale meters.removal_date EARLIER than the open
+--                   deployment's install_date now fails at the companion
+--                   CHECK inside the close branch. Neither is patched in
+--                   the sync trigger here (substituting a date would be
+--                   guessing operator intent) — both are AC-1 and on the
+--                   Kyle brief list.
+--                   EMPTY-RANGE NOTE (review finding): install_date =
+--                   removal_date yields daterange 'empty', which overlaps
+--                   nothing, so zero-day deployments are never rejected by
+--                   the EXCLUDE and cover no read date. Tolerated — a
+--                   same-day install+pull is a real event and the CHECK
+--                   stays >= so sync_meter_deployments' same-day close
+--                   still works; the COMMENT says "overlap", and an empty
+--                   range doesn't.
 --                   Companion CHECK removal_date >= install_date exists
 --                   only to give a readable error instead of daterange's
 --                   bound-order error; it is not a new rule (daterange
@@ -343,8 +382,28 @@
 --                   not reattribute it; the cost is that a reading_date
 --                   correction does not re-sync location_id automatically
 --                   (flagged, representable-not-enforced, like 2.5).
+--                   Removal-day reads (review finding): a meter pulled
+--                   from A and reinstalled at B on day D has deployments
+--                   [..,D) A and [D,..) B, so a read dated D resolves to
+--                   B — wrong for the removal/final read taken at A, the
+--                   one read that most needs correct attribution (CI-124).
+--                   The trigger therefore first looks for a deployment
+--                   CLOSED ON reading_date when reading_purpose is
+--                   'removal' or 'final_read', and only then falls through
+--                   to the covering deployment. A final read with no
+--                   meter move finds no closed-on-D row and behaves as
+--                   before. Other purposes dated D resolve to B (the meter
+--                   is at B by end of day) — callers that know better
+--                   supply location_id explicitly (AC-2).
+--                   Fallback to meters.location_id (reads dated before the
+--                   first deployment or in a gap) attributes history to the
+--                   CURRENT premise — stated in the COMMENT.
 --                   Backfill: two UPDATEs (deployment-derived, then
 --                   meters fallback), NULL-only, no-op on a fresh deploy.
+--                   meter_readings is FORCE RLS: apply the patch as the
+--                   owner/superuser (the established deploy path), not as
+--                   tally_app — otherwise both UPDATEs touch 0 rows with
+--                   no error.
 --                   Also adds idx_readings_location_date partial index —
 --                   the premise-side query ("all reads at this premise")
 --                   is the whole point of recording the column.
@@ -958,7 +1017,7 @@ ALTER TABLE public.meter_deployments ADD CONSTRAINT meter_deployments_no_overlap
     );
 
 COMMENT ON CONSTRAINT meter_deployments_no_overlap_excl ON public.meter_deployments IS
-    'A physical meter is installed at one premise at a time: no two deployment rows of the same meter may overlap in [install_date, removal_date). Half-open so a same-day removal+reinstall (what sync_meter_deployments produces) is allowed; an open deployment (removal_date NULL) blocks any later or concurrent deployment until closed. The schema''s first EXCLUDE constraint. Makes "which premise was this meter at on date D" a single-row answer, which is what meter_readings.location_id snapshots. CI-027 / CI-032, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
+    'A physical meter is installed at one premise at a time: no two deployment rows of the same meter may overlap in [install_date, removal_date). Half-open so a same-day removal+reinstall (what sync_meter_deployments produces) is allowed; an open deployment (removal_date NULL) blocks any later or concurrent deployment until closed. A zero-day row (install_date = removal_date) is an empty range — it overlaps nothing and covers no read date, and is tolerated. The schema''s first EXCLUDE constraint. Makes "which premise was this meter at on date D" a single-row answer, which is what meter_readings.location_id snapshots. CI-027 / CI-032, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
 
 -- 2.6b — record the premise on the read. Nullable, FK to service_locations,
 -- filled by a BEFORE INSERT trigger when the caller doesn't supply it:
@@ -988,7 +1047,25 @@ BEGIN
         RETURN NEW;   -- caller-supplied premise passes through untouched
     END IF;
 
-    -- Deployment in effect on the read date (2.6a guarantees at most one).
+    -- Removal / final reads are taken at the OUTGOING premise: prefer the
+    -- deployment closed ON the read date (half-open ranges would otherwise
+    -- resolve a same-day remove+reinstall to the new premise). No such row
+    -- (final read with no meter move) falls through to the covering one.
+    IF NEW.reading_purpose IN ('removal', 'final_read') THEN
+        SELECT d.location_id INTO NEW.location_id
+        FROM public.meter_deployments d
+        WHERE d.meter_id = NEW.meter_id
+          AND d.removal_date = NEW.reading_date
+        ORDER BY d.deployment_number DESC
+        LIMIT 1;
+        IF NEW.location_id IS NOT NULL THEN
+            RETURN NEW;
+        END IF;
+    END IF;
+
+    -- Deployment in effect on the read date (2.6a guarantees at most one
+    -- covering row — single-valued; correct only if deployment history is
+    -- maintained, see APPLICATION-CONTRACTS AC-7).
     SELECT d.location_id INTO NEW.location_id
     FROM public.meter_deployments d
     WHERE d.meter_id = NEW.meter_id
@@ -1028,7 +1105,7 @@ WHERE r.location_id IS NULL
   AND m.id = r.meter_id;
 
 COMMENT ON COLUMN public.meter_readings.location_id IS
-    'Service point (premise) the meter was installed at WHEN THIS READ WAS TAKEN — a snapshot, not a live join. Populated on INSERT by trg_populate_reading_location from the meter_deployments row covering reading_date (unambiguous per meter_deployments_no_overlap_excl), else meters.location_id; caller-supplied values pass through. Deliberately not re-derived on UPDATE: a later meter move must not reattribute historical consumption. Nullable (representable, not required). CI-027, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
+    'Service point (premise) the meter was installed at WHEN THIS READ WAS TAKEN — a snapshot, not a live join. Populated on INSERT by trg_populate_reading_location: for removal/final_read purposes, the deployment closed ON reading_date (outgoing premise); otherwise the meter_deployments row covering reading_date (single-valued per meter_deployments_no_overlap_excl — correct only if deployment history is maintained, which a bare location_id edit on an active meter does NOT do, see APPLICATION-CONTRACTS AC-7); else meters.location_id (the CURRENT premise — reads dated before the first deployment attribute to it). Caller-supplied values pass through. Deliberately not re-derived on UPDATE: a later meter move must not reattribute historical consumption. Nullable (representable, not required). CI-027, schema-parity-plan Phase 2 item 2.6 (v5.4.1-01).';
 
 --
 -- v5.4.0-06 review carryover — pga_monthly_reconciliations positivity /
