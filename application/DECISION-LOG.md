@@ -6,6 +6,41 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-20 (A-4 follow-up) — v5.4.2-02 after two post-landing assessments
+
+### Decisions
+
+**D-2026-08-20-24 · Every patch must apply under `SET search_path = ''; SET check_function_bodies = on;` — the Docker preamble is no longer the deploy test.**
+*Why:* -01's header claimed "every object schema-qualified" and the verification doc recorded "search_path = '' clean"; both were false for the re-issued `void_invoice()` (eleven unqualified refs inherited from v5.4.1-01). The fresh build, and every reviewer's fresh-load, went through `postgres/00_preamble.sql`, whose `check_function_bodies = off` masked it. The strict prelude is now part of the method and is recorded per patch in DEPLOY-VERIFICATION. The -01 patch file's false sentence is left as the historical record; the correction lives in -02's header and in DEPLOY-VERIFICATION.
+
+**D-2026-08-20-25 · `void_invoice()` is pinned to `search_path = public, pg_temp`, not `''`.**
+*Why:* `''` was tried first and broke at runtime — `get_user_tenant_id()`, `is_platform_admin()` and the event/ledger triggers are unqualified v5.2.1 bodies that inherit the caller's path. Pinning to `public` closes the definer-hijack vector (Fable reproduced a cross-tenant void against the -01 body with `evil.is_platform_admin()`) without re-issuing half of tu.sql. Six other SECURITY DEFINER functions (`get_correction_rate_date`, `get_effective_rate`, `get_user_tenant_id`, `is_platform_admin`, `should_charge_tax`, `validate_custom_fields`) still have no pin — flagged below.
+
+**D-2026-08-20-26 · Writing `status = 'void'` is gated on the carve-out, from any prior status and on INSERT.**
+*Why:* the assessment showed a bare `UPDATE … SET status='void', voided_at=now()` voided a sent bill with no reversal, reads still locked, charges still billed — then sealed it. Review of the first -02 draft found the gate sat below the draft/held early-return (held is voidable by `void_invoice()`, so held→void direct was the worst case) and missed INSERT; both fixed. The GUC is caller-settable (AC-12), so this is a fence against accident, not intent — same grade as the read and charge guards; a one-column slip is now a deliberate, greppable act. Alternative rejected: forcing `void_invoice()` by revoking UPDATE on `status` — that is the option-(a) SECURITY-DEFINER seal, still Ryan's call.
+
+**D-2026-08-20-27 · All immutability guards are `ENABLE ALWAYS`, including the three that predate A-4.**
+*Why:* 68 of -01's 77 guards were skippable under `session_replication_role = replica`; scoping the fix to "-01's guards" would have left `pga_monthly_reconciliations` and `tenant_configuration_history` as the odd ones out (both reviewers flagged it). Superuser/replication-apply only, but an audit guard that replication can drop is not an audit guard.
+
+### Flagged, deliberately not changed
+
+- Six SECURITY DEFINER functions without a pinned `search_path` (list in D-25) — factual-defect set candidate; the two tenant helpers are the ones a hijack would target.
+- Everything from the -01 list (void⇔voided_at CHECK, issued-status ordering, voided balance freeze, `meter_readings` until A-1) and the assessors' judgment calls for Ryan: `pending` = issued, `due_date` frozen, clean drafts deletable / held never, `write_off`/`paid` non-terminal, `payments.status` default `posted`, whether to take the SECURITY-DEFINER seal.
+
+### Failed approaches (permanent record)
+
+- **`SET search_path = ''` on a definer function whose helpers are unqualified** — compiles (body is qualified), fails on first call inside the helper. Pin to `public, pg_temp` until the helpers are qualified.
+- **Fresh-loading through the Docker image as proof of `search_path = ''` safety** — the preamble turns body checking off; only a strict prelude on the patch file proves it.
+- **Writing "corrected in place" in a header before the doc step ran** — Codex's reviewer diffed the doc and called it. Header claims about other files are checked at review; write them after the edit, not before.
+
+### Outcomes
+
+- tu.sql 14,030 → 14,499 (pure append; anchors intact). Triggers 147 (80 ENABLE ALWAYS); `void_invoice()` `proconfig = search_path=public, pg_temp`; `enforce_invoice_immutable` fires on INSERT too. Fresh build zero errors; 89-check battery green on the fresh build; strict standalone apply clean ×3.
+- Reviews: Fable (1 MEDIUM gate placement — fixed; 4 LOW), Codex (1 HIGH header-vs-doc ordering — fixed by doing the doc; 1 MEDIUM pre-existing guards — folded in; 1 LOW count). Fable's assessor and Codex's assessor both verdict "sound enough to build A-1 on" before this patch; it closes their MEDIUMs.
+- GBM: A-23 amended (direct-void gap closed; SECURITY DEFINER pin list added); CI-012 text notes the gate; ingestion Section AO; no token changes.
+
+---
+
 ## 2026-08-20 (later) — Phase 4 Wave 1, A-4 landed (v5.4.2-01)
 
 ### Decisions

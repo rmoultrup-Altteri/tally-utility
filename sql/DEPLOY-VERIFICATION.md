@@ -1,10 +1,29 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01, verified 2026-08-20.** After v5.4.2-01: **66 tables** / **65 policies** / **64 FORCE-RLS** / **229 CHECKs** / 1 EXCLUDE / **147 triggers** (9 ENABLE ALWAYS) / 477 indexes / 275 FKs; tu.sql **14,030 lines** (pure appends; anchors 337/3600/3679 intact).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 + v5.4.2-02, verified 2026-08-20.** After v5.4.2-02: **66 tables** / **65 policies** / **64 FORCE-RLS** / **229 CHECKs** / 1 EXCLUDE / **147 triggers** (**80 ENABLE ALWAYS**) / 477 indexes / 275 FKs; tu.sql **14,499 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.2-02 — A-4 follow-up: void_invoice() hardened, direct-void gated, guards ENABLE ALWAYS
+
+Triggered by two post-landing assessments of v5.4.2-01 (Fable, Codex) that Ryan requested. **New verification contract, applied to this patch and to every patch from here on:** the patch file must apply cleanly with `SET search_path = ''; SET check_function_bodies = on;` prepended — i.e. without the Docker preamble. v5.4.2-02 does (applied three times that way: scratch container, live container, fresh build); the v5.4.2-01 patch file, as a control, does not (fails at `void_invoice()` compile). Fresh rebuild from `postgres/Dockerfile`: **zero init errors**. Catalog deltas vs -01: none except `tgenabled` (9 → **80** ENABLE ALWAYS) and `void_invoice()`'s `proconfig` (NULL → `search_path=public, pg_temp`); the `enforce_invoice_immutable` trigger now fires on INSERT too. Both reviewers fresh-loaded with the strict prelude; Fable's round found the void gate sat below the draft/held early-return and missed INSERT (fixed, trigger re-created `BEFORE INSERT OR UPDATE OR DELETE`); Codex's round found the header claimed this document was already corrected before it was (it is now). Battery: 89 checks, green on the fresh build.
+
+| test | result |
+|---|---|
+| strict standalone apply (`search_path = ''`, `check_function_bodies = on`), twice | clean, idempotent |
+| same prelude against the v5.4.2-01 patch file (control) | `relation "invoices" does not exist` at `void_invoice()` compile |
+| `void_invoice()` diff vs the -01 issue | only the `SET search_path` clause + 11 relation / 2 function qualifications (both reviewers diffed it) |
+| `void_invoice()` with `SET search_path = ''` (tried first) | breaks at runtime inside `get_user_tenant_id()` (`users` unqualified, v5.2.1 helper) — hence `public, pg_temp` |
+| definer hijack: caller's path `evil, public` with `evil.now()` / `evil.is_platform_admin()` | -01 body: cross-tenant void succeeded (Fable repro); -02 body: `Cross-tenant access denied` / `voided_at` real |
+| `void_invoice()` end to end on sent / pending / held invoices | status void, `voided_at` stamped, billed charge reverted, `void_reversal` ledger row, `voided` event, GUC `false` after |
+| direct `UPDATE … SET status='void', voided_at=now()` on sent / pending / **held** / **draft**; `INSERT … status='void'` | each rejected (`set by void_invoice() only`) |
+| same direct void with `SET LOCAL app.void_operation='true'` | allowed — documented caller-settable carve-out (AC-12) |
+| all -01 rules (frozen columns, backward transitions, line items, ledger, payments, adhoc, credits, CI-014 set) | unchanged, 86 earlier checks still green |
+| `SET LOCAL session_replication_role = replica` (superuser): DELETE customer, UPDATE posted payment, DELETE sent invoice, TRUNCATE payments | each still rejected (previously bypassed on 68 of 77 guards) |
+| `tgenabled = 'A'` count | 80 = 77 v5.4.2-01 guards + `enforce_pga_reconciliation_immutable` + the two `tenant_configuration_history` guards |
+| `tally_app`: `SET session_replication_role` | permission denied (non-superuser) |
 
 ## v5.4.2-01 — bill immutability, append-only ledger, no hard deletes (Phase 4 Wave 1, A-4)
 
-Fresh rebuild from `postgres/Dockerfile`: **zero init errors**; both reviewers (Fable, Codex) also fresh-loaded tu.sql + patch into throwaway containers and applied it twice (idempotent, `search_path = ''` clean). No new tables/CHECKs/indexes/FKs — this patch is triggers and privileges: +77 triggers (33 tables × `no_hard_delete` + `no_truncate` from one generic function; three more `no_truncate` twins; eight table-specific guards), 9 of them `ENABLE ALWAYS`; `REVOKE DELETE` from `tally_app` on the 33 protected tables, `REVOKE UPDATE` on `account_ledger`/`invoice_events`, `REVOKE UPDATE, DELETE` on `pga_monthly_reconciliations`/`tenant_configuration_history`; `void_invoice()` re-issued with a `set_config('app.void_operation','false',true)` before `RETURN`. Battery: 83 checks, all green on the iteratively-patched container and again on the fresh build.
+Fresh rebuild from `postgres/Dockerfile`: **zero init errors**; both reviewers (Fable, Codex) also fresh-loaded tu.sql + patch into throwaway containers and applied it twice (idempotent). **Correction (v5.4.2-02):** the original sentence here said "`search_path = ''` clean" — that was false. The re-issued `void_invoice()` in section 5 carried eleven unqualified relation references and compiled only because `postgres/00_preamble.sql` sets `check_function_bodies = off`; the patch file itself fails a standalone apply under `search_path = ''` with default body checking (control re-run confirmed: `ERROR: relation "invoices" does not exist`). Every fresh-load — mine and both reviewers' — went through the Docker image and inherited the preamble. Fixed by v5.4.2-02; the strict prelude is now part of the verification method below. No new tables/CHECKs/indexes/FKs — this patch is triggers and privileges: +77 triggers (33 tables × `no_hard_delete` + `no_truncate` from one generic function; three more `no_truncate` twins; eight table-specific guards), 9 of them `ENABLE ALWAYS`; `REVOKE DELETE` from `tally_app` on the 33 protected tables, `REVOKE UPDATE` on `account_ledger`/`invoice_events`, `REVOKE UPDATE, DELETE` on `pga_monthly_reconciliations`/`tenant_configuration_history`; `void_invoice()` re-issued with a `set_config('app.void_operation','false',true)` before `RETURN`. Battery: 83 checks, all green on the iteratively-patched container and again on the fresh build.
 
 | test | result |
 |---|---|
@@ -19,6 +38,7 @@ Fresh rebuild from `postgres/Dockerfile`: **zero init errors**; both reviewers (
 | DELETE draft invoice with a billed adhoc charge attached | rejected (review fix — `fk_adhoc_invoice` is SET NULL) |
 | `void_invoice()` on sent and on pending invoices | succeed under all new guards; status void, `voided_at` stamped; billed charge reverted to pending with `voided_from_invoice_id` |
 | after `void_invoice()`: `current_setting('app.void_operation')`; un-bill an UNRELATED billed charge in the same transaction | **`false`**; **rejected** (review fix — previously `true` / allowed) |
+| ~~sent: direct void with `voided_at` set~~ | *was accepted in -01 (assessment finding) — gated in v5.4.2-02* |
 | void: un-void, change void_reason_code | rejected; notes allowed |
 | account_ledger UPDATE / DELETE / TRUNCATE | rejected |
 | payments: pending edit amount → posted; posted: amount, check_number, `id`, → pending | allowed; each rejected |
