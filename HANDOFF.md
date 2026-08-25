@@ -1,76 +1,84 @@
-# Handoff: A-4 LANDED (v5.4.2-01 + -02 follow-up) — next is Phase 4 Wave 1, A-1
+# Handoff: A-1 bi-temporal design reviewed, decisions pending — no DDL yet
 
-**Generated**: 2026-08-20 (session wrap — A-4 + assessed follow-up complete)
-**Branch**: tally-utility `main` (pushed) · gas-billing-memory `ryan` (pushed; 17 commits ahead of `origin/main`)
-**Status**: A-4 fully complete (v5.4.2-01 landed, v5.4.2-02 follow-up landed after two independent assessments). Nothing in flight; nothing uncommitted. Session CHANGELOG wrap entry written.
+**Generated**: 2026-08-20 (session wrap — design-only session, no code changes)
+**Branch**: tally-utility `main` (clean, unchanged this session) · gas-billing-memory `ryan` (pushed; one new untracked file this session, see below)
+**Status**: A-1 (Phase 4 Wave 1, second of three: A-4 → **A-1** → A-3) is in the design phase. Two independent adversarial reviews (Fable, Codex) of the proposed architecture are complete and synthesized. Five open decisions remain before any DDL is drafted — Ryan is taking these to a Fable xhigh-effort session next. **Nothing in tally-utility changed this session** — no SQL was written, tu.sql is untouched at v5.2.1 + v5.4.0-00→-06 + v5.4.1-01/-02 + v5.4.2-01/-02, 14,499 lines, exactly as A-4 left it.
 
 ## Goal
 
-Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. Target: vanilla PostgreSQL on AWS. Ryan owns the schema.
+Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. Current focus: A-1, the transaction-time (`recorded_at`/`recorded_until`) substrate for reference tables, per `gas-billing-memory/application/bi-temporal-decision.md` §6 — unlocks CI-001, CI-002, CI-005, CI-011.
 
 ## Completed (this session)
 
-- [x] **v5.4.2-01 (A-4) landed**: CI-014 generic `enforce_no_hard_delete()` on 33 tables (DELETE + TRUNCATE, loop-created, `REVOKE DELETE` from `tally_app`); CI-012 column-scoped `enforce_invoice_immutable` (issued = `NOT IN ('draft','held')` via `is_invoice_issued()`; void terminal + requires `voided_at`; no backward transitions; clean drafts deletable), line items follow parent, `invoice_events` append-only; CI-013 `account_ledger` INSERT-only, `invoice_applications` write-once reversal, identity-freeze/terminal guards on `payments`/`adhoc_charges`/`customer_credits`; 9 guards `ENABLE ALWAYS`; `void_invoice()` re-issued with `set_config('app.void_operation','false',true)` before RETURN.
-- [x] Two concurrent independent reviews (Fable 2H/5M/5L, Codex 2M); every HIGH/MEDIUM fixed. Mirrored (13,241 → 14,030), fresh build zero errors, 83-check battery green on the fresh build, DEPLOY-VERIFICATION, AC-10..13, DECISION-LOG D-16..23, CHANGELOG.
-- [x] **v5.4.2-02 (assessed follow-up) landed**: two post-landing assessments (Fable, Codex) → `void_invoice()` re-issued schema-qualified with `SET search_path = public, pg_temp` + fresh COMMENT; writing `status='void'` gated on the carve-out (any prior status, INSERT too); all 80 immutability guards `ENABLE ALWAYS`; **new rule: every patch must apply under `SET search_path = ''; SET check_function_bodies = on;`** (the Docker preamble masks unqualified function bodies — -01 had claimed cleanliness it didn't have). Reviewed (Fable 1M/4L, Codex 1H/1M/1L, all fixed), fresh build zero errors, 89/89, tu.sql 14,499.
-- [x] GBM: CI-012 → structural, CI-013/014 → partial (boundaries stated), A-4 LANDED, new A-23, parity plan struck, Section AN, CHANGELOG.
+- [x] **Scoped A-1 precisely.** Confirmed the 7-table set from CI-004's Scope note (`rate_schedules`, `rate_schedule_items`, `rate_items`, `franchise_fee_rules`, `customer_tax_exemptions`, `wna_zones`, `wna_monthly_adjustments`), verified against tu.sql directly (table DDL, every FK referencing these 7, all four consuming functions).
+- [x] **Rejected a design (current-row + audit-log child, mirroring A-22's `tenant_configuration_history` pattern)** before drafting — it can't represent a correction entered in advance of its effective date without prematurely overwriting the live value, and doesn't match bi-temporal-decision.md's own worked query example. Confirmed correct by both reviewers.
+- [x] **Proposed and then substantially revised** a header/version-split design: 3 tables with entity-FKs pointing at them (`rate_schedules`, `wna_zones`, `rate_items`) get a permanent identity header + a bi-temporal version table; 4 tables with no entity-FK (`rate_schedule_items`, `franchise_fee_rules`, `customer_tax_exemptions`, `wna_monthly_adjustments`) get in-place `recorded_at`/`recorded_until` columns.
+- [x] **Ran two independent adversarial architecture reviews** (Fable, `subagent_type: architect`, standard effort; Codex, `subagent_type: codex:codex-rescue`) against the live schema, not against a summary. Both converged on the core shape but found real, concrete defects in the details — see `application/a1-bitemporal-design-review-2026-08-20.md` §6 for both reviews verbatim.
+- [x] **Synthesized both reviews into a revised design** (same document, §4) — see Key Decisions below for the headline changes from the original proposal.
+- [x] **Wrote the full design-review document**: `gas-billing-memory/application/a1-bitemporal-design-review-2026-08-20.md`. Self-contained — background, verified current schema state with line numbers, the rejected alternative and why, the synthesized design, both full reviews verbatim, 5 open decisions, and the recommended next-steps process. Written specifically so a fresh session (including Ryan's planned Fable xhigh pass) doesn't need to re-derive any of this analysis.
 
 ## Not Yet Done
 
-- [ ] **A-1** (transaction-time pair `recorded_at`/`recorded_until`, bi-temporal-decision §6) — read `gas-billing-memory/application/bi-temporal-decision.md` §6 and Appendix A-1; unlocks CI-001/002/005/011. Then **A-3** (invoice calculation snapshots, Option B, §2.3 DDL sketch).
-- [ ] Flagged from A-4 (later factual-defect set): six SECURITY DEFINER functions with no pinned `search_path` (`get_correction_rate_date`, `get_effective_rate`, `get_user_tenant_id`, `is_platform_admin`, `should_charge_tax`, `validate_custom_fields` — the two tenant helpers are hijack targets); CHECK `status='void' ⇔ voided_at IS NOT NULL`; forward ordering among issued statuses; `rate_schedules` duplicate policy columns.
-- [ ] **Ryan's judgment calls, listed by both assessors, untouched:** `pending` = issued; `due_date` frozen; clean drafts deletable / held never; `write_off`/`paid` non-terminal; `payments.status` default `posted`; whether to take the option-(a) SECURITY-DEFINER seal.
-- [ ] Kyle brief candidates: active-meter relocation (AC-7); explicit reinstall date for `sync_meter_deployments()` (AC-1); SECURITY-DEFINER seal for the `app.void_operation` carve-out (A-23 item 1 — application architecture, may not be Kyle's); plus the 8 open briefs, A-8, CI-029.
-- [ ] After Wave 1: Wave 2 (A-20 → A-21, A-7). Phase 0.4 non-blocking. GBM `origin/main` catch-up — Ryan's call.
+- [ ] **Resolve the 5 open decisions** in `a1-bitemporal-design-review-2026-08-20.md` §5 (Ryan's call, planned via Fable xhigh): (1) does `service_type` belong on the `rate_schedules` header or should it version too; (2) group-2 lifecycle-vs-assertion timing model per table (which state is the "asserted" threshold for `wna_monthly_adjustments` — `approved` or `applied`? — and `customer_tax_exemptions` — `active`?); (3) orphaned draft-schedule headers — accept or gate header creation on activation; (4) does the `as_of()` function family ship in the A-1 patch itself or immediately behind it — Appendix A-1's re-grade depends on this; (5) session-GUC-scoped temporal views for CI-003 — defer as a noted candidate, or pull into scope now.
+- [ ] **Draft the actual A-1 patch** (`sql/v5.4.2-03-...` or next available number) — blocked on the 5 decisions above. Must include (per the design doc §4): 2 header tables + `rate_item_versions` (fresh table, not a widened `rate_item_history` — see Key Decisions), 4 in-place transaction-time additions + partial/exclusion constraints replacing 3 blocking UNIQUE constraints, `archive_rate_item_history()` neutralization, CASCADE-strip + A-4 protected-array additions for the 6 currently-unprotected tables among the 7, at minimum a stub `as_of()` function family, and the `get_correction_rate_date` COMMENT rewrite (documents a uni-temporal-only query contract that becomes wrong once these tables are multi-row).
+- [ ] Once A-1 lands: **A-3** (invoice calculation snapshots, Option B, bi-temporal-decision.md §2.3 DDL sketch) — sequenced after A-1 because it leans on A-1's reference layer.
+- [ ] Everything already queued behind Phase 4 Wave 1 completion: Wave 2 (A-20 → A-21, A-7), the six unpinned `SECURITY DEFINER` functions (`get_correction_rate_date`, `get_effective_rate`, `get_user_tenant_id`, `is_platform_admin`, `should_charge_tax`, `validate_custom_fields` — A-23), remaining judgment calls untouched.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Fresh-loading through the Docker image as proof of `search_path = ''` safety** — `00_preamble.sql` turns `check_function_bodies` off. Test the patch FILE with `SET search_path = ''; SET check_function_bodies = on;` prepended (now recorded per patch in DEPLOY-VERIFICATION). `SET search_path = ''` on a definer function whose helpers are unqualified compiles and then fails at runtime — pin `public, pg_temp`.
-- **Writing "corrected in place" about another file before editing it** — a reviewer diffed it.
-- **Bare `%` in `format()`** and **`text[] || 'literal'`** in plpgsql — both compile, both fail at first RAISE. Use `%s` / `|| ARRAY['x']`.
-- **Testing GUC-gated guards after `void_invoice()` in the same transaction** — `SET LOCAL` lingered (now fixed in the function, but keep negatives before the call anyway).
-- **Filing a reproducible bypass as an "application contract" to avoid touching a big function** — both reviewers overruled it; re-issue the function.
-- All prior traps still apply: fresh rebuild mandatory (search_path = ''); register not scenario files for grades; mirror body starts after the header's CLOSING `-- ====` (v5.4.2-01's was the third banner line, 235); fixture NOT NULLs in memory; `adhoc_charges.regulatory_class IN ('regulated','unregulated')`; hex UUIDs; never `git add -A` in GBM; `SendMessage` to resume a named reviewer.
+- **My first FK-based categorization test ("does anything external FK to this table's `id`") was wrong** and both reviewers caught it independently: `wna_clamp_events.wna_monthly_adjustment_id` DOES FK to `wna_monthly_adjustments.id`, yet `wna_monthly_adjustments` still correctly belongs in the "in-place, no header needed" group. The test isn't "any FK" — it's **entity-FK** (must survive corrections, needs a permanent header — e.g. `meters.rate_schedule_id`) vs. **provenance-FK** (a citation of one specific historical fact, correctly pins a since-superseded row — e.g. a clamp event pointing at the exact HDD assertion that produced it). Use the corrected criterion for any future table added to either group (A-8, A-19).
+- **Claiming `rate_item_history` was "80% of the way there"** for `rate_items`' bi-temporal treatment — wrong, and would have shipped an A-1 patch that silently left `tier_config`, `calculation_type`, `active_months`, `is_taxable_default`, `annual_billing_anchor`, `regulatory_class` uni-temporal and in-place-editable. It only ever tracked `rate_value`/`rate_unit`. Corrected estimate: closer to 30%. Fix: build a fresh `rate_item_versions` table (don't widen `rate_item_history` in place — that would require fabricating historical values it never tracked for the backfill).
+- **Treating `archive_rate_item_history()` and the CASCADE deletes on these 7 tables' FKs as "flag now, fix later."** Both reviewers pushed back hard: this function hard-deletes from the table A-1 is about to declare "authoritative and permanent," and none of `rate_items`/`rate_item_history`/`rate_schedules`/`rate_schedule_items`/`franchise_fee_rules`/`wna_zones` are in A-4's no-hard-delete protected array (verified: only `wna_monthly_adjustments` and `customer_tax_exemptions`, of the 7, currently are). Deferring this leaves a landed patch whose own function contradicts its stated invariant — exactly the "claimed cleanliness a patch didn't actually have" failure mode already burned once on A-4 (see the v5.4.2-02 strict-apply rule). **Neutralize both in the same A-1 patch, don't defer.**
+- **Original `change_type CHECK IN ('correction','retraction')` design was underspecified** — no value for an initial assertion or an ordinary prospective succession (a scheduled future rate change that corrects nothing), and a pure retraction (close with no successor row) had nowhere to record its reason since `change_reason` only lived on inserted rows. Fixed in the revised design: 4-value enum (`initial`/`succession`/`correction`/`retraction`) plus separate closing-side columns (`closed_reason`, `closed_by`, `closed_type`).
+- All prior tu.sql traps still apply (see `application/DECISION-LOG.md` and prior HANDOFF versions): append-only file, fresh rebuild mandatory, strict-apply prelude (`SET search_path = ''; SET check_function_bodies = on;`) required per patch, register not scenario files for grades, never `git add -A` in GBM, `SendMessage` to resume a named reviewer agent rather than respawning.
 
-## Key Decisions (durable copies in `application/DECISION-LOG.md` D-2026-08-20-16..23)
+## Key Decisions (full rationale in `gas-billing-memory/application/a1-bitemporal-design-review-2026-08-20.md`; durable copies belong in DECISION-LOG.md once the 5 open items resolve — not yet written there, this session didn't touch DECISION-LOG.md)
 
 | Decision | Rationale |
 |---|---|
-| `pending` is issued | post-posting; `void_invoice()` already treats it as voidable-not-editable |
-| invoice guard column-scoped | an issued bill keeps living in collections; freeze "what the customer saw" only |
-| clean drafts deletable, nothing else | no soft path for drafts; `fk_adhoc_invoice` SET NULL means "clean" must be checked |
-| CI-013 structural only for ledger/events/applications | the other tables are mutable by design (A-21's redesign) |
-| GUC carve-out extended, named caller-settable, `void_invoice()` re-issued to clear it | consensus review; a GUC can't be a seal — SECURITY DEFINER routing is app architecture |
-| CI-014 set enumerated (33), token partial | reference/config tables are A-1's retention discipline |
-| `payments.status` default `posted` untouched | changing it decides intake design by inertia; AC-11 instead |
+| Header/version split (not audit-log) for `rate_schedules`, `wna_zones`, `rate_items` | Audit-log-on-current-row can't represent a correction entered ahead of its effective date; doesn't match bi-temporal-decision.md's own worked query |
+| Categorization test = entity-FK vs. provenance-FK, not "any FK" | Original "no external FK" test was empirically false for `wna_monthly_adjustments`; the corrected test still sorts it correctly, for the right reason |
+| Fresh `rate_item_versions` table, not a widened `rate_item_history` | Widening in place would require fabricating historical values for columns never tracked (`tier_config` etc.); a fresh table lets the backfill honestly flag itself as an approximation, same as `tenant_configuration_history`'s precedent |
+| `version` counter lives on the header (group 1), no counter at all (group 2) | A single correction can touch multiple version rows at once (splitting a valid-time bracket) — no single row to check a token against; header-row-lock also incidentally serializes concurrent writers per entity, solving a problem bi-temporal-decision.md §3 calls structurally unsolved in Postgres |
+| `customer_type` moved off the `rate_schedules` header (was originally proposed on it) | Reclassifying a schedule's granularity is a plausible correction; header-immutability would force a whole new schedule + re-pointing every `meters`/`meter_deployments` FK, destroying rather than preserving history |
+| `current_rate` on `rate_items` is dropped, not trigger-cached | No application callers exist to break; its only consumer (`get_effective_rate`) is being rewritten regardless; a live-world cache on the header re-creates exactly the predicate-bypass bug the whole patch exists to prevent |
+| 3 UNIQUE constraints become partial/exclusion constraints scoped to `WHERE recorded_until IS NULL` | Table-wide `UNIQUE(natural_key, effective_date)` on `franchise_fee_rules`, `rate_schedule_items`, `wna_monthly_adjustments` currently makes the exact same-date correction A-1 exists to support a constraint violation |
 
 ## Current State
 
-**Working**: `tu.sql` at v5.2.1 + v5.4.0-00→-06 + v5.4.1-01/-02 + v5.4.2-01/-02, 14,499 lines; 66 tables / 229 CHECKs / 147 triggers (80 ENABLE ALWAYS) / 275 FKs; container `tally-pg` is a fresh build of the committed tu.sql.
-**Broken**: nothing. **Uncommitted**: none (GBM has only untracked `Clippings/`).
+**Working**: tu.sql unchanged from A-4's landing state (14,499 lines; 66 tables / 229 CHECKs / 147 triggers (80 `ENABLE ALWAYS`) / 275 FKs). Container `tally-pg`, if still running, is a fresh build of that same committed tu.sql — nothing to re-verify.
+**Broken**: nothing (no code touched).
+**Uncommitted**: tally-utility clean. gas-billing-memory has one new untracked file, `application/a1-bitemporal-design-review-2026-08-20.md` — **not yet committed**; see Warnings.
 
 ## Code Context
 
+The design doc (`a1-bitemporal-design-review-2026-08-20.md`) contains full verbatim DDL for all 7 tables, the complete verified FK inventory, and full bodies of the 4 consuming functions (`get_effective_rate`, `get_correction_rate_date`, both versions of `get_partial_period_policy`, `should_charge_tax`) plus `archive_rate_item_history()`. Do not re-derive any of this from tu.sql — it's already extracted and line-numbered in the doc. The two functions worth internalizing before drafting:
+
 ```sql
--- Generic guard: add a table = add to the array in the v5.4.2-01 DO block (new patch), loop does trigger + REVOKE
--- Issued test everywhere: public.is_invoice_issued(status)  -- NOT IN ('draft','held')
--- Carve-out: current_setting('app.void_operation', true) = 'true'  -- set+cleared by void_invoice(); caller-settable (AC-12); also gates writing status='void'
--- Strict apply test (mandatory per patch): { echo "SET search_path = ''; SET check_function_bodies = on;"; cat sql/<patch>; } | docker exec -i tally-pg psql -U tally -d tally -v ON_ERROR_STOP=1 -f -
--- Frozen-column idiom: IF NEW.x IS DISTINCT FROM OLD.x THEN v_changed := v_changed || ARRAY['x']; END IF;  ... RAISE ... ERRCODE='restrict_violation'
--- Mirror: body after header's closing "-- ====" + 4-line MIRROR banner; anchors 337/3600/3679
--- Fresh build: docker rm -f tally-pg; docker build -q -t tally-postgres -f postgres/Dockerfile .; docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres; docker logs tally-pg 2>&1 | grep -c ERROR  -> 0
--- psql: docker exec -i tally-pg psql -U tally -d tally
+-- The established as_of() template to copy for every new domain (tu.sql:13195):
+CREATE OR REPLACE FUNCTION public.get_partial_period_policy(p_rate_schedule_id uuid, p_as_of timestamp with time zone)
+    RETURNS text LANGUAGE plpgsql STABLE
+-- p_as_of NULL raises (never defaults to now()); no COALESCE fallback onto a live column;
+-- coordinate earlier than all recorded history returns NULL, caller must treat as hard error.
+
+-- The bug this patch's own columns would otherwise create if left unaddressed (tu.sql:476-507):
+CREATE FUNCTION public.get_effective_rate(p_rate_schedule_id uuid, p_rate_item_id uuid, p_billing_month date DEFAULT CURRENT_DATE)
+-- zero valid-time predicate, LIMIT 1 with no ORDER BY, reads rate_items.current_rate directly.
+-- Rewrite is out of scope for A-1's own patch (open decision), but the LIMIT-1-no-ORDER-BY
+-- landmine should be neutralized (comment or deprecation raise) since A-1's own columns are
+-- what turns "arbitrary row" into "silently returns the wrong temporal version."
 ```
 
 ## Resume Instructions
 
-1. Start **A-1**: read bi-temporal-decision §6 + Appendix A-1 + CI-001/002/005/011; decide table set and backfill shape; draft `sql/v5.4.2-02-…`. Temporal-helper rule stands: no live fallback, NULL coordinate raises, NULL result = unknowable.
-2. Same loop: live-test → **strict standalone apply** → two independent reviews (fresh-load scratch DBs, strict prelude) → fresh rebuild → mirror → DEPLOY-VERIFICATION → GBM re-grades + Section AO + CHANGELOGs → commit + push both.
-3. Add caller obligations to APPLICATION-CONTRACTS (AC-14+); decisions to DECISION-LOG.
+1. Read `gas-billing-memory/application/a1-bitemporal-design-review-2026-08-20.md` in full — it is self-contained; do not re-derive the schema analysis.
+2. Resolve the 5 open decisions in its §5 (Ryan is doing this via a Fable xhigh-effort session next).
+3. Draft the A-1 patch per §4 of the doc and the checklist in its §7 "Recommended next steps" — same loop as A-4/A-22: live-test → strict standalone apply (`SET search_path = ''; SET check_function_bodies = on;` prelude, mandatory) → two independent reviews (fresh-load scratch DBs) → fresh rebuild → mirror into tu.sql → DEPLOY-VERIFICATION → register re-grade of exactly CI-001/CI-002/CI-005/CI-011 (+ CI-003's status note) → Appendix A-1 update (don't claim more structural coverage than actually landed — this is the exact mistake the v5.4.2-02 strict-apply rule exists to prevent) → new DECISION-LOG entries for each resolved open-decision item → both CHANGELOGs → commit + push both repos.
 
 ## Warnings
 
-- tu.sql APPEND-ONLY; anchors 337/3600/3679. Everything under `search_path = ''` — and PROVE it with the strict prelude on the patch file; the Docker build does not.
-- Never `git add -A` in GBM. Every GBM canonical-data change needs an ingestion section (next **AO**) + both CHANGELOGs.
-- A-1 will touch tables that now carry DELETE/UPDATE guards — any backfill that UPDATEs `account_ledger`/`invoice_events` must be written as inserts or done as owner with the guard consciously handled (they are `ENABLE ALWAYS`; `ALTER TABLE … DISABLE TRIGGER` is the only way and must be visible in the patch).
+- **`gas-billing-memory/application/a1-bitemporal-design-review-2026-08-20.md` is written but not committed.** Commit it (with a clear `docs:` message) before or alongside whatever session resolves the 5 open decisions, so the design record and its resolution land together or the record is at least preserved on its own if the resolving session is a different tool/session (e.g. Fable xhigh outside this harness).
+- tu.sql APPEND-ONLY; anchors 337/3600/3679. Everything under `search_path = ''` — prove it with the strict prelude on the patch file; the Docker build does not.
+- Never `git add -A` in GBM.
+- A-1 will touch tables that will newly carry DELETE/UPDATE guards once added to A-4's protected array — any backfill (e.g. `rate_item_history` → `rate_item_versions` migration) must be written as inserts, done before the guards go live, or explicitly handled as owner with the guard consciously disabled and visibly re-enabled in the same patch.
 - Phase 3 judgment-gated items wait; A-8 needs a Kyle brief; finance gate holds A-15/A-6 remainder. Texas-only launch scope.
