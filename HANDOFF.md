@@ -1,6 +1,6 @@
 # Handoff: A-1 bi-temporal design reviewed — 5 decisions sent to Kyle, blocked on his rulings; no DDL yet
 
-**Generated**: 2026-08-25 (updated in-session after resume; design-only, no code changes)
+**Generated**: 2026-08-25 (session wrap — design-only, no code changes; Kyle brief written and pushed, send-ready message given to Ryan)
 **Branch**: tally-utility `main` (clean, unchanged this session) · gas-billing-memory `ryan` (pushed; one new untracked file this session, see below)
 **Status**: **BLOCKED on Kyle.** A-1 (Phase 4 Wave 1, second of three: A-4 → **A-1** → A-3) is in the design phase. Two independent adversarial reviews (Fable, Codex) of the proposed architecture are complete and synthesized. Five open decisions remain before any DDL is drafted. On 2026-08-25 Ryan decided these are business-workflow questions for Kyle (schema author), not engineering calls — a plain-language review brief was written and committed: `gas-billing-memory/application/a1-bitemporal-kyle-brief-2026-08-25.md` (Q1–Q5, with engineering recommendations and a blank Ruling/Rationale table). Ryan sends it to Kyle; nothing proceeds until his rulings return. **Nothing in tally-utility changed this session** — no SQL was written, tu.sql is untouched at v5.2.1 + v5.4.0-00→-06 + v5.4.1-01/-02 + v5.4.2-01/-02, 14,499 lines, exactly as A-4 left it.
 

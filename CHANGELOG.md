@@ -4,6 +4,16 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-25 (A-1 decisions routed to Kyle) — no code; blocked on domain-expert rulings
+
+**What was done:** Resumed from the 2026-08-20 A-1 design handoff; committed the pending session-wrap (`5115109`). Walked the five open decisions (`a1-bitemporal-design-review-2026-08-20.md` §5) against tu.sql facts — `wna_monthly_adjustments` states `pending→approved→applied→archived` with `approved_by/at`; `customer_tax_exemptions` states `pending_verification/active/expired/revoked/rejected` but **DEFAULT `'active'`** (no draft phase unless flipped); `rate_schedules.service_type` NOT NULL + 7-value CHECK, 35 references; only `app.*` GUC precedent is `app.void_operation`. Engineering recommendations: Q1 `service_type` versioned (identity row = `id, tenant_id, code, created_at, version`); Q2a WNA lock at `approved`; Q2b exemptions lock at `active` with DEFAULT → `pending_verification` (flagged as the only behavior change); Q3 tolerate orphan draft headers; Q4 full `as_of()` family in-patch (split -03/-04 permitted only within one session, no interim re-grade); Q5 CI-003 GUC coordinate net deferred to post-A-3. **Ryan ruled these are business-workflow questions for Kyle.** Wrote `gas-billing-memory/application/a1-bitemporal-kyle-brief-2026-08-25.md` (plain-language, self-contained, Q1–Q5 with recommendations and blank Ruling/Rationale table in the July WU5/WU6 format), ingestion Section AP, and a send-ready message for Kyle. HANDOFF.md set to BLOCKED on Kyle.
+
+**Repo state:** tally-utility `ddb37d2` pushed; gas-billing-memory `d9f8a4f` pushed (`ryan`). tu.sql unchanged, 14,499 lines. No DDL drafted.
+
+**Next:** Kyle rulings → fold into design doc §5 + DECISION-LOG → draft A-1 patch. Until then, A-23's six unpinned SECURITY DEFINER functions are unblocked work.
+
+---
+
 ## 2026-08-20 (session 2, A-1 design review) — architecture reviewed adversarially; 5 open decisions, no DDL yet
 
 **What was done (full session, design-only — no SQL written, tu.sql untouched):** Resumed from the A-4 handoff into A-1 (Phase 4 Wave 1, the transaction-time substrate — CI-001/002/005/011). Read `bi-temporal-decision.md` §1/§3/§6, the CI-001/002/005/011 entries and Appendix A-1, and D1-1 (the prior ruling that already closed CI-011 via optimistic concurrency, not a conflict-workflow). Scoped A-1 to the 7 tables named in CI-004 (`rate_schedules`, `rate_schedule_items`, `rate_items`, `franchise_fee_rules`, `customer_tax_exemptions`, `wna_zones`, `wna_monthly_adjustments`), traced every FK into them, and read the 4 consuming functions directly in tu.sql. Proposed, then rejected, a "current row + audit-log child" design (can't represent a future-dated correction without prematurely overwriting the live value). Proposed a header/version split for the 3 entity-FK'd tables + in-place transaction-time columns for the other 4, and requested independent review before drafting.
