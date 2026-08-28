@@ -6,6 +6,69 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-28 (A-21) — v5.4.2-06: account lifecycle state-events, date-effective attributes, deposit / interest ledger
+
+Appendix A-21, CI-121/125/129–131, Kyle 2026-06-12 (effective-dated rate table) and 2026-07-10 (day-30/31 first) are the authority; these are the drafting-time calls, plus what two reviewers × up to four rounds (Fable, Codex) changed. Numbering continues the day's series.
+
+### Decisions
+
+**D-2026-08-28-34 · The account state log is written BY THE DATABASE from `customers.status`, with the reason carried on the row for one statement only: `status_reason` is required on the UPDATE that changes status, consumed into `customer_state_events`, and cleared.**
+*Why:* an application-written log can be skipped; a trigger-written one cannot. The first draft left the reason on the row and Fable reused it for the next transition with a bare `SET status` — CI-121's "every transition is a reason-coded event" was satisfied by a leftover. The BEFORE trigger now inserts the event itself and NULLs `status_reason` / `status_changed_by`; a reason on a non-status update is dropped. Only two matrix rules are enforced (closed reopens only to active; closed refused while a deposit is unsettled) — the rest is Kyle's. `clock_timestamp()` + an identity `seq` order events within one instant (Fable M6: 19 of 20 same-transaction trials read the wrong state).
+
+**D-2026-08-28-35 · Date-effective account attributes are a change log (`customer_attribute_history`: attribute, old, new, effective_at), not versioned `customers` rows; a new customer gets its eight initial rows at insert.**
+*Why:* the invariant asks "what was the value on date X"; a narrow log answers it without a header/version split on the widest table in the schema. `customer_attribute_as_of()` returns NULL before recorded history, never the current value. Fable M7: without initial rows every new account answered NULL until its first change.
+
+**D-2026-08-28-36 · Deposit status is a projection of events; `customers.deposit_*` are a projection of deposits; the events are the only write path.**
+*Why:* decision tables #53–#55 found six representations disagreeing because each was written independently. `deposits.status` / `refunded_on` / `released_on` and the six customer scalars are maintained by triggers and direct writes are refused (`pg_trigger_depth() < 2`). `payments.deposit_status` is reconciled at patch time and CHECKed against `is_deposit`; a `deposit_refund` credit names its deposit (trigger on INSERT / change).
+
+**D-2026-08-28-37 · `pg_trigger_depth()` is a fence only if the application role cannot define a function or a trigger: TEMP is revoked on the database from PUBLIC and `tally_app`.**
+*Why (Fable CRITICAL):* with TEMP, `tally_app` created a temp table, a `pg_temp` plpgsql function and a trigger on it, and rewrote `deposits.status` and `customers.deposit_amount` at depth 2 — A-20's counter guard had the same hole. `tally_app` has no CREATE on any schema and no TRIGGER on any table; without TEMP it owns nothing and can define nothing (Fable verified CREATE TEMP/TABLE/FUNCTION/TRIGGER/RULE/EVENT TRIGGER/ALTER … DISABLE TRIGGER all denied; DO blocks run at depth 0). *Not chosen:* a transaction-local GUC sentinel — a caller can `set_config` any GUC, so it is forgeable; the depth fence plus no code-definition privilege is structural. The fence remains a superuser-only convention (A-23).
+
+**D-2026-08-28-38 · Interest is events, never an accumulator, and the ledger recomputes every accrual: period, rate in force (`deposit_interest_rate_as_of`, no fallback), principal in force, amount = `deposit_accrual_amount()`; first period starts ON `posted_on`; periods contiguous, no overlap (exclusion), never across a rate change or a principal application, never on a non-cash instrument.**
+*Why:* CI-125/130's failure modes are all "computed at the wrong rate over the wrong span"; refusing the wrong event is the enforcement, detection later is not. The day-31 cliff is two rules — no accrual until the hold exceeds 30 days, no accrual at all on a deposit refunded/exhausted within 30 days — so the cliff is visible in the events (Kyle's first scenario). A backdated rate is refused once any accrual for the tenant has settled through that date (Fable M8: a settled accrual silently became "wrong" with no correction path).
+
+**D-2026-08-28-39 · The accrual horizon is the day before the return OR the day before the principal was exhausted by applications, whichever is first; a fully applied deposit is status `applied` and is settled by a zero-amount `refunded` event.**
+*Why (Codex CRITICAL, then HIGH):* "accrue to the return date" could never be satisfied by a deposit consumed by the final bill — nothing was held to accrue on — and the customer could never close (customer-move-out Exc 2 inverted). With the horizon defined on money held, exhaustion ≤ 30 days owes nothing (and refuses any accrual, else the zero refund was blocked forever), exhaustion > 30 days owes interest through the day before exhaustion. CI-131 Alt 2: the obligation is still recorded — hence the zero refund, and `applied` blocks closure until it is.
+
+**D-2026-08-28-40 · The waiver is a recorded determination (`deposit_waiver_determinations`) with its own dates, in its own RLS table; a §7.45-basis deposit is refused while one is in force; a §366 assurance deposit is not.**
+*Why:* table #53 — the determination is a point-in-time event, not a re-derivation; a family-violence certification is among the most sensitive data the platform holds and does not go on `customers`. Rank 0 vs rank 5 (federal permission vs state mandate) is the basis distinction on the deposit. No column-level access control exists — flagged.
+
+**D-2026-08-28-41 · The cap is on the record (`cap_amount`, `cap_basis_annual_billing`, `cap_binding`), required for a Texas residential cash §7.45 deposit, with `principal ≤ cap` a CHECK; its derivation is the application's.**
+*Why:* CI-129's cap is the most-cited number in the sub-family and its input (estimated annual billing) is undefined for a new applicant (table #53 OQ5) — the database records and enforces what was decided; it cannot compute it.
+
+**D-2026-08-28-42 · Legacy history is carried, never refused: `legacy_unknown` deposits from the scalars (applied / refunded via synthetic `backfill` events written before the sub-ledger guard exists), payments reconciled and the CHECK added VALID, credits linked where one legacy deposit exists; a legacy deposit with no accrual events may be refunded with a recorded reason.**
+*Why:* Codex HIGH — the first backfill skipped applied/refunded scalars and the projection guard froze those customers with nothing to post against; Fable H4 — NOT VALID CHECKs still fire on any UPDATE of the offending row, freezing legacy payments and credits. No rate history exists to accrue a legacy deposit against; its interest is the carried `legacy_interest_earned`. **Flagged:** whether legacy deposits should instead require the rate history to be entered and accrued before refund (Kyle/Ryan).
+
+**D-2026-08-28-43 · CI-131's standing obligation is a derivation plus a view (`deposit_refund_trigger_state`, `deposits_refund_due`, security_invoker), not a job.**
+*Why:* the schema previously watched only refunds issued and unpaid; the view makes unmade refunds visible (twelve clean bills / ≤ 2 delinquencies / not delinquent, or an inactive-final_billed-closed customer), excludes §366 and legacy deposits, and the definition of "paid clean" is stated as an approximation in the function. Fable C2: the first view was superuser-owned and bypassed RLS.
+
+### Flagged, deliberately not changed
+
+- Only two lifecycle matrix rules are enforced; the full `customers.status` matrix (incl. `final_billed → closed`, customer-move-out OQ2) is for Kyle.
+- Legacy refund without accrual (D-42); the credit-vs-disbursement refund path and the `minimum_refund_amount` exclusion (table #54 rule 8) are workflow; residential non-cash instruments accepted and recorded (table #55 rule 2 — decide, do not default); instrument-expiry alerting; a deposit may be posted for a closed customer (Fable L11).
+- Grades: CI-130 → `structurally-enforced` (every rule of the Texas accrual/refund discipline is a refusal); CI-121, CI-125, CI-129, CI-131 → `partially-structurally-enforced` (matrix partial; the accrual job and the annual credit cadence are application; cap derivation and waiver eligibility evaluation are application; the refund job is application); CI-077 → `partially-structurally-enforced` (from `unenforced-gap`). Ryan may re-cut.
+- A-23 gains the TEMP-revoke fence as a standing assumption; the four pre-existing views in tu.sql should be checked for `security_invoker` (Fable, out of scope).
+
+### Failed approaches (permanent record)
+
+- **`pg_trigger_depth()` as a privilege boundary while the app role has TEMP** — a pg_temp trigger function reaches depth 2 (Fable). Close the route (no TEMP, no CREATE, no TRIGGER), not the symptom; a GUC sentinel is forgeable.
+- **A superuser-owned view over RLS tables** — bypasses RLS for every reader; `security_invoker = true`.
+- **NOT VALID CHECKs to tolerate legacy rows** — they still fire on UPDATE of those rows; reconcile then add VALID, or enforce with a trigger on INSERT / changed columns.
+- **"Accrue to the return date" without an exhaustion horizon** — a deposit consumed by the final bill was unsettleable; and after the first fix, an accrual for the pre-exhaustion days of a deposit exhausted within 30 days blocked the zero refund (append-only ledger: a wrongly admitted event is forever) — refuse it up front.
+- **A reason column that lingers on the row** — reused by the next transition; consume it into the event in the BEFORE trigger.
+- **`now()` / random-uuid tiebreak for ordering events** — same-transaction transitions read the wrong state; `clock_timestamp()` + identity `seq`.
+- **The backfill stamp behind the lifecycle guard** — the guard reset it to OLD (NULL); create the guard after the backfill (the A-21 pattern now used for three triggers).
+- **A set-returning function inside CASE/aggregate** — `set-returning functions are not allowed in CASE`; use `CROSS JOIN LATERAL`.
+- **`<` vs `<=` on an application's effective day** — the basis must reduce from the application date forward.
+
+### Outcomes
+
+- tu.sql 17,704 → 18,822 (pure append). Catalog: 79 tables / 237 triggers (170 ENABLE ALWAYS) / 344 CHECKs / 345 FKs / 8 EXCLUDE / 78 policies / 77 FORCE RLS / 555 indexes / 56 UNIQUEs; `tally_app` without TEMP. Battery 141 green on scratch and on the fresh build; seeded backfill verified by the author and both reviewers.
+- GBM: CI-130 → `structurally-enforced`; CI-121/125/129/131 → `partially-structurally-enforced`; CI-077 → `partially-structurally-enforced`; CI-126 text (deposit lineage); Appendix A-21 LANDED; A-23 (1d) amended; parity plan A-21 struck; ingestion Section AT.
+- Next: A-7 (PSF surcharge — Wave 2 closes). Kyle: lifecycle matrix; legacy refund policy; the four deposit-workflow questions above.
+
+---
+
 ## 2026-08-28 (A-20) — v5.4.2-05: read/bill exception queue and validation-state substrate
 
 Kyle's D14-1 (`wu5-wu6-kyle-decisions-2026-07-10.md`) and CI-112/113/115/023 are the authority; these are the drafting-time calls, plus what two reviews × two rounds (Fable, Codex) and the author's own passes changed. Numbering continues the day's series.
