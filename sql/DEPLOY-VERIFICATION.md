@@ -1,6 +1,30 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 + v5.4.2-02, verified 2026-08-20.** After v5.4.2-02: **66 tables** / **65 policies** / **64 FORCE-RLS** / **229 CHECKs** / 1 EXCLUDE / **147 triggers** (**80 ENABLE ALWAYS**) / 477 indexes / 275 FKs; tu.sql **14,499 lines** (pure appends; anchors 337/3600/3679 intact).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-04, verified 2026-08-28.** After v5.4.2-04: **71 tables** / **70 policies** / **69 FORCE-RLS** / **294 CHECKs** / 7 EXCLUDE / **201 triggers** (**134 ENABLE ALWAYS**) / 517 indexes / 308 FKs / 46 UNIQUEs; tu.sql **16,811 lines** (pure appends; anchors 337/3600/3679 intact).
+
+## v5.4.2-04 — A-3: invoice calculation snapshots, Option B (Phase 4 Wave 1; CI-015)
+
+`sql/v5.4.2-04-invoice-calculation-snapshots.sql` (722 lines), mirrored into tu.sql (16,245 → **16,811**, pure append; anchors 337/3600/3679 intact). New `invoice_calculation_snapshots` (one per invoice, composite-FK'd to `invoices(id, tenant_id)` — new UNIQUE on invoices; the run's `(valid_at, recorded_at)` pair; `snapshot_schema_version` with an enumerated key contract `v1` enforced by `validate_calculation_snapshot()`; `formula_version`; eight JSONB sections mirroring CI-015's input list; GENERATED sha256 `content_hash`), `invoice_snapshot_references` (provenance citations into the seven A-1 tables, verified open at the snapshot's `recorded_at`), the DEFERRABLE `enforce_invoice_has_snapshot` completeness gate on `invoices` (draft/held → void exempt), immutability guards (UPDATE never; INSERT/DELETE only while the parent is draft/held; cascade on draft delete), RLS + FORCE, `REVOKE UPDATE` from `tally_app`, every guard `ENABLE ALWAYS`.
+
+**Method.** Scratch DB fresh-loaded from the committed tu.sql → strict apply (`SET search_path = ''; SET check_function_bodies = on;`) twice, and again over the mirrored fresh build → **battery 90 checks green** (run inside one transaction so `SET LOCAL ROLE tally_app` takes effect) on the scratch DB and again on the fresh build → four two-session races (issue vs snapshot delete / line edit / delete-then-issue / citation insert) each rejecting exactly one side, no deadlock → **fresh rebuild** from `postgres/Dockerfile`: zero init errors, catalog identical to the patched scratch (71 tables / 201 triggers, **134 ENABLE ALWAYS** / 294 CHECKs / 308 FKs / 7 EXCLUDE / 70 policies / 69 FORCE RLS / 517 indexes / 46 UNIQUEs).
+
+**Reviews (fresh-load scratch DBs, strict prelude, two rounds each).** Round 1 — Fable: CRITICAL ×2 (`SET search_path = ''` on the new functions made the first RLS policy evaluation call the unqualified v5.2.1 helpers `get_user_tenant_id()`/`is_platform_admin()` — `tally_app` could not write a snapshot or issue an invoice at all; a two-session race let an invoice commit as issued with its snapshot deleted / a line edited / a citation added), HIGH (`void_invoice()` on a held invoice demanded a snapshot), MEDIUM (amounts compared after a `numeric(12,2)` cast — `20.004` matched `20.00`; string amounts accepted), LOW ×2 (contract text; `CREATE TABLE IF NOT EXISTS` does not migrate an FK change) + a cascade addendum (replica-mode draft delete orphans a snapshot — accepted, noted). Codex: the same CRITICAL (search_path/RLS), everything else sound. The author's own second pass found the draft-delete FK block. **All fixed by mechanism** (D-2026-08-28-16…-23). Round 2 — both: "sound enough to mirror"; Fable re-ran every round-1 repro; Codex ran the races live with `clock_timestamp()` blocking proof and chained the void exemption (void is terminal; dead end).
+
+| test | result |
+|---|---|
+| strict standalone apply on a fresh-loaded scratch, ×2; over the mirrored fresh build ×1; after committed post-patch rows (both reviewers) | clean, idempotent |
+| valid `v1` snapshot on a draft; second snapshot; UPDATE (content, notes); `content_hash` write; `captured_at` forgery | ok; unique violation; rejected ×2; rejected; replaced by `now()` |
+| unknown/malformed schema version; missing keys in every section incl. nested `items[]`/`reads[]`/`line_items[]`; WNA-when-applied keys; non-boolean `applied`; non-array/non-object sections | each rejected with the key named |
+| period / customer / billing_run / tenant mismatch; future `recorded_at`; blank `formula_version` | each rejected |
+| `line_items` missing a line, wrong amount, another invoice's line, duplicate citation, `20.004` vs `20.00`, amount as JSON string | each rejected |
+| provenance: open version / active exemption cited; duplicate; cross-tenant; nonexistent; unknown `source_table`; tenant mismatch; UPDATE; row not yet asserted at the coordinate; row closed before it; pending (draft) exemption | as designed (draft and closed rows are not citable) |
+| issuance: with snapshot; without; held without; stale (line edited) → delete + re-snapshot → issue; period changed after snapshot; new invoice draft → lines → snapshot → pending in one batch; direct INSERT as pending | as designed |
+| after issuance: DELETE snapshot / INSERT+DELETE citation / TRUNCATE ×2; `void_invoice()` keeps the snapshot; voided snapshot DELETE; snapshot for a legacy already-issued invoice; `void_invoice()` on a held invoice without snapshot | rejected ×5; kept; rejected; rejected; allowed |
+| replica mode: UPDATE snapshot; issue without snapshot | both still rejected |
+| `tally_app`: no UPDATE privilege; no context → 0 rows; op1 sees only T1 on both tables; cannot write a T2 snapshot; **end-to-end draft → snapshot → citation → issue as tally_app**; cannot delete the issued snapshot; op2 sees only T2 | as designed |
+| draft invoice DELETE with snapshot + citation cascades; issued invoice DELETE still rejected (A-4) | as designed |
+| two-session races A/B/C/D (author; Fable both orderings; Codex with blocking timings) | exactly one side rejected each time; no deadlock |
+| fresh rebuild: init errors / catalog parity / patch re-apply / battery | 0 / identical / 0 errors / 90 green |
 
 ## v5.4.2-03 — A-1: bi-temporal transaction-time substrate (Phase 4 Wave 1; CI-001/002/005/011; Kyle R-9…R-17)
 

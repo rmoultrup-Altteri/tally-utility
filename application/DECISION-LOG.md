@@ -6,6 +6,64 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-28 (A-3) — v5.4.2-04: invoice calculation snapshots, Option B
+
+The locked decision (`bi-temporal-decision.md` §5: Option B) and CI-015's input list are the authority; these are the drafting-time calls, plus what the two pre-mirror reviews (Fable, Codex) and the author's second pass changed. Numbering continues the same day's A-1 series.
+
+### Decisions
+
+**D-2026-08-28-16 · Completeness is a commit-time gate on `invoices`, not a NOT NULL column: a DEFERRABLE INITIALLY DEFERRED constraint trigger requires exactly one snapshot, still agreeing with the invoice (period, billing run, customer, line id set + amounts), whenever an invoice moves into an issued status.**
+*Why:* the snapshot is a child row (it cites the lines, which must exist first), so it cannot be a column on the invoice; the deferred trigger lets one transaction write invoice → lines → snapshot → status flip and still refuse at commit if any piece is missing or stale. Draft/held → `void` is exempt (Fable HIGH-1: `void_invoice()` lists held as voidable and nobody was billed; void is terminal under A-4, so the exemption cannot chain into an unsnapshotted issuance). *Not chosen:* gating on `invoice_type` (consolidated parents, duplicates, credit memos) — a carve-out makes "issued without a snapshot" legal again; the validator accepts empty-but-keyed sections instead. Flagged for Ryan if it proves heavy.
+
+**D-2026-08-28-17 · Schema versioning is enforced, not labelled: `validate_calculation_snapshot()` enumerates the accepted versions (`v1`) and their required keys, nested shapes included; an unknown version or a missing key is rejected with the key named.**
+*Why:* Option B's stated advantage over a JSONB column was that "schema version is explicit". A free-text version column is a label; a validator that knows the contract is the enforcement. Values are checked for presence and JSON type only — their correctness is the calculation code's contract (R-16's trigger: revisit when that code exists). `v1` is CI-015's list as of today, split into eight sections so each domain can evolve on its own key.
+
+**D-2026-08-28-18 · The run's temporal coordinate pair lives on the snapshot (`valid_at`, `recorded_at`), not on `billing_runs`.**
+*Why:* AC-15 says a run resolves ONE pair and passes it everywhere; the snapshot is the record of which pair this bill used, and an off-run invoice (`billing_run_id NULL`) still has one. `recorded_at` may not be in the future; `captured_at` is the server's clock. `billing_run_id` is copied for the join and checked equal to the invoice's.
+
+**D-2026-08-28-19 · `line_items` is stored twice on purpose and cross-checked (id set and amounts) at insert AND at issuance; amounts must be JSON numbers and compare unrounded.**
+*Why:* CI-016 keeps the values on the line for the dollar calculation; CI-015 wants replay to read one document. If the two disagree the bill is not self-replayable, so agreement is enforced both when the snapshot is written and when the invoice commits as issued (a line edited in between invalidates the snapshot: delete + re-snapshot). Fable MEDIUM-1: the first draft cast to `numeric(12,2)` before comparing, so `20.004` matched a `20.00` line and `"10"` (a string) matched `10` — replay would have read a document that disagreed with the billed line.
+
+**D-2026-08-28-20 · Immutability: UPDATE never; INSERT and DELETE only while the parent invoice is draft/held; a snapshot cannot be written for an already-issued invoice; `content_hash` is GENERATED.**
+*Why:* there is no legitimate in-place edit of a frozen input set — a draft is re-snapshotted by delete + insert, which leaves no half-edited row. A snapshot inserted after issuance would be a reconstruction from today's reference layer, which is exactly what CI-015 forbids passing off as the original; invoices issued before this patch therefore have no snapshot and never will (the patch reports their count). `content_hash` (sha256 over versions + coordinate + all sections, pgcrypto `digest` so the expression is IMMUTABLE — `convert_to` and `timestamptz::text` are STABLE and were rejected) gives INV-099's content-addressable framing with nothing for a caller to write wrong.
+
+**D-2026-08-28-21 · Provenance is a separate table (`invoice_snapshot_references`) validated for transaction-time visibility: the cited row must exist in one of the seven A-1 tables, in the snapshot's tenant, and be open at the snapshot's `recorded_at`.**
+*Why:* "which rows did this bill read, and were they really what we knew then" is a question the JSON sections cannot answer structurally (seven tables, no polymorphic FK). The guard proves the citation was visible at the coordinate the run passed — a draft (`recorded_at IS NULL`) or a row closed before the coordinate is not citable. Valid-time containment is deliberately not checked (bracket columns differ per table; R-9's fallback legitimately reads outside a bracket). Optional per snapshot (a credit memo reads no reference data). *Not chosen:* validating version ids inside the JSON — fragile, and it re-implements the FK by hand.
+
+**D-2026-08-28-22 · Functions are pinned `SET search_path = public, pg_temp` (the `void_invoice` / A-1 precedent), every reference still qualified — not `''`.**
+*Why (Fable CRITICAL-1, Codex CRITICAL):* under `''`, the first RLS policy evaluation inside a guard calls the v5.2.1 helpers `get_user_tenant_id()` / `is_platform_admin()`, whose SQL bodies name `users` unqualified and inherit the caller's empty path — `tally_app` could not write a snapshot, add a citation or issue an invoice at all; only the superuser (which bypasses RLS) could, which is why the author's battery missed it. The durable fix — qualify and pin those helpers — is A-23's item, not this patch's. **Rule for future patches:** a trigger function that touches an RLS-protected table must not pin `''` until A-23 lands; the strict-apply prelude proves qualification, the `public, pg_temp` pin is what runs.
+
+**D-2026-08-28-23 · Concurrency: the snapshot/reference guards read the parent invoice `FOR SHARE`; the deferred check locks the invoice's lines `FOR SHARE` and deliberately does NOT lock the snapshot row.**
+*Why (Fable CRITICAL-2):* with plain reads, "issue" in one session and "delete the snapshot" / "edit a line" / "add a citation" in another both committed — an issued invoice with no snapshot. `FOR SHARE` on the invoice makes the guard wait behind an in-flight status flip and re-read the committed status; the line lock covers A-4's line guard, which reads the invoice without locking. Locking the snapshot row in the deferred check was tried and dropped: it deadlocked against a waiting delete (a BEFORE DELETE trigger already holds the tuple) and `FOR UPDATE` needs the UPDATE privilege `tally_app` deliberately lacks. Verified live by the author and both reviewers, both orderings.
+
+**D-2026-08-28-24 · The two new FKs cascade on delete (`snapshot → invoices`, `references → snapshot`).**
+*Why:* A-1 stripped cascades because a header delete destroyed history; here the only deletable parent is a draft (A-4), whose snapshot is deletable anyway — without the cascade a legitimate draft delete was blocked (author's second pass). No issued invoice can be deleted in any mode, so the cascade can never reach a frozen snapshot (Codex round 2 traced `tenants` and `billing_runs` too — both stop at their own CI-014 guards). Known edge: FK cascades are internal triggers and do not run under `session_replication_role = replica`, so a replica-mode draft delete leaves an orphan (Fable C3, LOW, accepted and noted in the header).
+
+### Flagged, deliberately not changed
+
+- **CI-015's grade is `structurally-enforced` with a stated boundary** (existence, shape, immutability and line agreement are structural; whether a section's values are the ones the calculation actually used is the calculation code's contract; pre-patch issued invoices have no snapshot; no replay function exists because no formula exists). Ryan may prefer `partially-structurally-enforced` — the boundary text is written so either token reads true.
+- Every invoice type is gated, including consolidated parents, duplicates and credit memos (D-16).
+- `enforce_invoice_has_snapshot` queues a deferred event on every `invoices` INSERT/UPDATE (it returns early for non-issuing rows) — a cost, not a correctness issue; note that `ALTER TABLE invoices` inside a transaction with pending events fails until they are flushed.
+- The three unpinned SECURITY DEFINER helpers (A-23) are now a known trap for any strict-pinned trigger function (D-22).
+
+### Failed approaches (permanent record)
+
+- **`SET search_path = ''` on trigger functions that read RLS tables** — see D-22. The strict-apply prelude proved qualification and hid the runtime failure because the superuser bypasses RLS.
+- **Locking the snapshot row `FOR UPDATE` in the deferred check** — deadlock + privilege (D-23).
+- **A GENERATED column over `convert_to()` / `date::text` / `timestamptz::text`** — all STABLE; `public.digest(text, 'sha256')`, `(valid_at - DATE '1970-01-01')` and `extract(epoch from recorded_at AT TIME ZONE 'UTC')` are IMMUTABLE.
+- **`text[] || 'literal'`** — the untyped literal resolves as an array literal and `malformed array literal` fires on the first message containing parentheses; use `array_append(arr, (…)::text)`.
+- **A BEFORE INSERT guard that assumes the CHECK constraint ran first** — it did not; the dynamic `format('%I')` query hit `invoices` before the `source_table` CHECK could reject it (re-checked in the trigger).
+- **Mirroring from the second `-- ====` line** (again — the header has three; the body starts after the last). Caught before the build; tu.sql reverted and redone.
+- **Battery run standalone** — `SET LOCAL ROLE tally_app` needs one transaction (`psql -1` or a BEGIN wrapper); a standalone run silently tests as superuser.
+
+### Outcomes
+
+- tu.sql 16,245 → 16,811 (pure append; anchors intact). Catalog: 71 tables / 201 triggers (134 ENABLE ALWAYS) / 294 CHECKs / 308 FKs / 7 EXCLUDE / 70 policies / 69 FORCE RLS / 517 indexes / 46 UNIQUEs. Battery 90 green on scratch and on the fresh build; four races verified by three parties.
+- GBM: CI-015 → `structurally-enforced` (boundary stated); Appendix A-3 LANDED; parity plan A-3 struck (Wave 1 complete); bi-temporal-decision §2.3 annotated; ingestion Section AR.
+- Next: Wave 2 (A-20 → A-21, A-7). Before any bill-run calculation code: CI-003's GUC net (R-16) and the snapshot value contract (D-17).
+
+---
+
 ## 2026-08-28 (A-1) — v5.4.2-03: the bi-temporal transaction-time substrate
 
 Kyle's rulings R-9 … R-18 (`gas-billing-memory/application/kyle-decisions-2026-08-26-a1-bitemporal.md`) are the authority; these are the drafting-time calls made inside them, plus what the two pre-mirror reviews (Fable, Codex) changed.
