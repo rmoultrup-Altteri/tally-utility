@@ -1,84 +1,84 @@
-# Handoff: A-3 landed (v5.4.2-04) — Wave 1 complete; next is Wave 2 (A-20)
+# Handoff: A-20 landed (v5.4.2-05) — Wave 2 open; next is A-21
 
-**Generated**: 2026-08-28 (session wrap — A-3 drafted, reviewed twice, mirrored, fresh-build verified, docs in both repos)
+**Generated**: 2026-08-28 (session wrap — A-3 and A-20 both landed this session; A-20 drafted, reviewed twice, mirrored, fresh-build verified, docs in both repos)
 **Branch**: tally-utility `main` (committed + pushed) · gas-billing-memory `main` (committed + pushed; unrelated untracked `Clippings/` left alone)
-**Status**: **A-3 DONE.** `sql/v5.4.2-04-invoice-calculation-snapshots.sql` (722 lines) is mirrored into `sql/tu.sql` (16,245 → 16,811, pure append; anchors 337/3600/3679 intact). Container `tally-pg` is a fresh build of the committed tu.sql. Phase 4 **Wave 1 is complete** (A-4 ✅ → A-1 ✅ → A-3 ✅). Next: **Wave 2 — A-20 → A-21, A-7.**
+**Status**: **A-20 DONE.** `sql/v5.4.2-05-read-and-bill-exception-substrate.sql` (1,081 lines) is mirrored into `sql/tu.sql` (16,811 → 17,704, pure append; anchors 337/3600/3679 intact). Container `tally-pg` is a fresh build of the committed tu.sql. Phase 4: Wave 1 complete (A-4 ✅ A-1 ✅ A-3 ✅); Wave 2: A-20 ✅ → **A-21 next** → A-7.
 
 ## Goal
 
-Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. This session closed A-3 (CI-015, Option B). Next: A-20 (read/bill exception queue + validation-state substrate — "fully ruled and ready", D14-1 per-meter counter), then A-21, A-7.
+Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. Next: **A-21** — account lifecycle state-events, date-effective account attributes, deposit/interest ledger (Texas deposit family CI-129–131; the enrollment state-change audit deferred from v5.4.0-04). Then A-7 (PSF surcharge, launch-blocking).
 
-## Completed (this session)
+## Completed (this session, A-20 half)
 
-- [x] **Drafted v5.4.2-04**: `invoice_calculation_snapshots` (one per invoice; composite FK to `invoices(id, tenant_id)` — new UNIQUE on invoices; the run's `(valid_at, recorded_at)` pair per AC-15; `snapshot_schema_version` enforced by `validate_calculation_snapshot()` against an enumerated `v1` key contract incl. nested `items[]`/`reads[]`/`line_items[]` and WNA-when-applied keys; `formula_version`; eight JSONB sections; GENERATED sha256 `content_hash`), `invoice_snapshot_references` (citations into the seven A-1 tables, verified open at the snapshot's `recorded_at`, same tenant), DEFERRABLE `enforce_invoice_has_snapshot` on `invoices` (exactly one snapshot agreeing with period/run/customer/lines at commit of any move into an issued status; draft/held → void exempt), immutability (UPDATE never; INSERT/DELETE only while draft/held; frozen after issuance; cascade on draft delete; TRUNCATE rejected; `REVOKE UPDATE` from `tally_app`), RLS + FORCE, every guard `ENABLE ALWAYS`.
-- [x] **Verified**: strict apply ×2 on a fresh-loaded scratch (idempotent) and over the mirrored build; **battery 90 checks green** (scratch + fresh build; run inside one transaction so `SET LOCAL ROLE tally_app` is real); four two-session races (issue vs snapshot delete / line edit / delete-then-issue / citation insert) each reject exactly one side, no deadlock; fresh rebuild zero init errors, catalog parity (71 tables / 201 triggers, 134 ENABLE ALWAYS / 294 CHECKs / 308 FKs / 7 EXCLUDE / 70 policies / 69 FORCE RLS / 517 indexes / 46 UNIQUEs).
-- [x] **Two independent adversarial reviews, two rounds each** (Fable `general-purpose`, Codex `codex:codex-rescue`). Round 1 found real defects (below); round 2: both "sound enough to mirror".
-- [x] Docs: `sql/DEPLOY-VERIFICATION.md`; `application/DECISION-LOG.md` D-2026-08-28-16…-24 (+ flagged, failed, outcomes); `application/APPLICATION-CONTRACTS.md` AC-18/AC-19; tally `CHANGELOG.md`. GBM: CI-015 → `structurally-enforced` (boundary stated); Appendix A-3 LANDED; A-23 (1c) amended; parity plan A-3 struck (Wave 1 complete); `bi-temporal-decision.md` §2.3 annotated; ingestion Section AR; GBM `CHANGELOG.md`.
-- [x] Memory: `strict-pin-vs-rls-helpers` (trigger functions reading RLS tables must not pin `search_path = ''` until A-23).
+- [x] **Drafted v5.4.2-05**: `read_validation_exceptions` (CI-112 queue; born open, resolved once with disposition/reason/resolver/server time, frozen, never deleted; over-cap rows resolve only by override/field order); read gate `enforce_read_exception_gate` (no open exception on ANY step into approved/released/locked; `validated_at` server-stamped on the first billable entry and frozen; validated-read facts frozen; reviewed_* checks incl. INSERT); D14-1 counter on `meters` (stored, gate-maintained only via `pg_trigger_depth`, derived by `consecutive_estimate_state()` = validated main-register estimates dated after the latest-dated validated actual); auto-raised `consecutive_estimate_over_cap` (counts pending estimates; `max_consecutive_estimates()` from tenant settings, default 3, ≥ 1) + cap re-check at approval; `billing_run_meters` gates (open exception; CI-023 via `meter_master_incomplete_reasons()`); `invoice_exceptions` (CI-115 queue with table #35 outputs; `blocks_delivery`/`routing_reason` frozen; resolved/overridden with reason) + `enforce_invoice_predelivery_gate` (no pending/sent/`sent_at`/`delivery_confirmed_at` with an open blocking row) + `invoice_events` lineage (enum +3); composite FKs (new UNIQUEs on meters/meter_readings/service_orders) + `assert_same_tenant_user()`; RLS/FORCE/REVOKE DELETE/ENABLE ALWAYS; reporting-only backfill (stamps `validated_at` on history, clears strays, derives counters, three NOTICEs).
+- [x] **Verified**: strict apply ×2 fresh + over the build (idempotent); **battery 154 green** (scratch + fresh build; `tally_app` end-to-end for both queues); pre-seeded backfill (same-day tie, back-dated actual, excluded-after-approval, stray `validated_at`, cap-0 tenant) stored = derived on every meter; fresh rebuild zero init errors; catalog parity (73 tables / 213 triggers, 146 ENABLE ALWAYS / 316 CHECKs / 324 FKs / 72 policies / 71 FORCE RLS / 531 indexes / 50 UNIQUEs).
+- [x] **Two reviewers × two rounds** (Fable `general-purpose`, Codex `codex:codex-rescue`; plain + pre-seeded scratch DBs; the file changed four times between rounds, both re-loaded). Round 2: both "sound enough to mirror", each with an independent battery of the date-bounded streak.
+- [x] Docs: DEPLOY-VERIFICATION; DECISION-LOG D-2026-08-28-25…-33; AC-20…AC-22; tally CHANGELOG. GBM: CI-113 → `structurally-enforced`, CI-023 → `partially-structurally-enforced`, CI-112/115 text (tokens unchanged); Appendix A-20 LANDED; parity plan A-20 struck; decision table `consecutive-estimate-enforcement` annotated; ingestion Section AS; GBM CHANGELOG.
 
 ## Not Yet Done
 
-- [ ] **Wave 2**: A-20 → A-21, A-7. Same loop as A-1/A-3 (below). A-20's Kyle rulings are already in (`kyle-decisions-2026-08-18-coda-items.md`, D14-1).
-- [ ] **Before the first bill-run calculation code** (whenever that is): CI-003's GUC coordinate net (R-16) AND the snapshot value-domain contract per section + a replay function (D-2026-08-28-17; `v1` checks key presence and JSON type only).
-- [ ] **Open for Ryan** (flagged, not changed): CI-015 graded `structurally-enforced` with a boundary — Ryan may prefer `partially-structurally-enforced` (the boundary text reads true under either); every invoice type is gated incl. consolidated parents / duplicates / credit memos; the deferred gate queues an event on every `invoices` write (cost only); A-23's three unpinned definers are now a demonstrated trap (pin them); the raw `version` bump (A-1) and R-18 (v5.5) remain.
-- [ ] Test artifacts live only in this session's scratchpad (`battery-04.sql`, `review-brief-04.md`, `catalog.sql`); unlike A-1's, this battery needs no pre-patch rows and runs on a fresh build — a `tests/` home is Ryan's call.
+- [ ] **A-21** (same loop, below). Read Appendix A-21, CI-129–131, the v5.4.0-04 deferral note, and the WU rulings for deposits before drafting.
+- [ ] **A-7** after A-21 (PSF surcharge; Texas-only launch scope).
+- [ ] **For Kyle** (brief candidates, not blocking): D14-1b refinement — a back-dated actual validated after later-dated estimates does NOT clear them (should it raise its own review exception?); the tenant cap is not bounded at the Texas 6-month ceiling.
+- [ ] **Open for Ryan**: CI-112/115 kept `partially` (detection/routing are application code) — re-cut if wanted; `anomalies.entity_type` has no CHECK (factual-defect candidate); queue/role substrate and SLA escalation wait for rbac-model; reason codes are free text until a catalogue exists; A-3's CI-015 grade call; A-23's three unpinned definers.
+- [ ] Test artifacts in this session's scratchpad only (`battery-05.sql`, `battery-04.sql`, `review-brief-05.md`, `catalog.sql`); a `tests/` home is Ryan's call.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **`SET search_path = ''` on trigger functions that read RLS-protected tables** — the first policy evaluation calls `get_user_tenant_id()`/`is_platform_admin()`, whose v5.2.1 SQL bodies name `users` unqualified and inherit the empty path: `tally_app` was locked out of the whole feature; the superuser battery bypassed RLS and missed it (both reviewers, CRITICAL). Pin `public, pg_temp` (the `void_invoice`/A-1 precedent) with every reference qualified; prove qualification with the strict prelude. **Add an end-to-end `tally_app` write to every battery.**
-- **Locking the snapshot row `FOR UPDATE` inside the deferred completeness check** — deadlocked against a waiting DELETE (a BEFORE DELETE trigger already holds the tuple) and needs the UPDATE privilege `tally_app` lacks. Lock the *parent invoice* `FOR SHARE` in the child guards instead; lock lines `FOR SHARE` in the deferred check.
-- **STABLE expressions in a GENERATED column** — `convert_to()`, `date::text`, `timestamptz::text` are STABLE; use `public.digest(text,'sha256')`, `date - DATE '1970-01-01'`, `extract(epoch from ts AT TIME ZONE 'UTC')`.
-- **`text[] || 'literal'`** — resolves as array-literal concatenation; `malformed array literal` on the first message with parentheses. Use `array_append(arr, (…)::text)`.
-- **Assuming a CHECK constraint runs before a BEFORE trigger** — it does not; re-check the enum inside the trigger before dynamic `format('%I')` SQL.
-- **Mirroring from the second `-- ====` line** — the header has three banners; the body starts after the LAST. Caught before the build this time; reverted with `head -n 16245`.
-- **Running the battery standalone** — `SET LOCAL ROLE tally_app` needs one transaction (BEGIN wrapper or `psql -1`); standalone it silently tests as superuser. `ALTER TABLE invoices` fails while deferred events are pending — flush with `SET CONSTRAINTS ALL IMMEDIATE` (then `DEFERRED`).
-- A-4/A-1 fixture rules still bite: lines cannot be added to an issued invoice (insert draft → lines → snapshot → flip); held needs `hold_reason`; a pending exemption has `recorded_at IS NULL` and is not an assertion.
-- All prior tu.sql traps still apply (`application/DECISION-LOG.md`): append-only file, fresh rebuild mandatory, strict-apply prelude per patch, register grades from `canonical-invariants.md` only, never `git add -A` in GBM, `SendMessage` to resume a named reviewer agent rather than respawning.
+- **Defining the estimate streak by status transitions** (double-counted approved→pending→approved; dropped excluded reads) and then **by validation order** (a back-dated actual validated later cleared later-dated estimates — Codex ran five estimates past a cap of 3). The definition that held: validation (`validated_at`) decides membership, reading date decides order; one function used by the gate, the derivation and the backfill.
+- **Gating only the first entry into a billable state** — the `void_released → released_to_billing` re-lock and an exception raised after approval both walked through. Check every status change into approved/released/locked.
+- **`ALTER TABLE … DISABLE/ENABLE TRIGGER USER` around a backfill UPDATE** — ENABLE fails on the deferred FK's queued events; and without it the v5.2.1 meters triggers break under the strict prelude. Use `set_config('search_path','public, pg_temp', true)` inside the DO block.
+- **`now()` as an ordering stamp** (identical within a transaction) — `clock_timestamp()`.
+- **`length(btrim(col)) > 0` as a NOT-NULL check** — NULL passes a CHECK; add `col IS NOT NULL`.
+- **A raising function inside a backfill NOTICE query** — a misconfigured tenant made the patch refuse; report with a non-raising expression.
+- **Battery traps**: an expected-error chunk that contains its own setup rolls the setup back (split them); `jsonb_set` does not create a missing parent key (use `||`); `billing_run_meters` has UNIQUE (run, meter); `meters` has no `notes`; a python heredoc that references a shell var (`SP`) fails after the first file write — check what landed.
+- **All A-3 traps still apply**: `search_path = ''` on trigger functions that read RLS tables locks `tally_app` out (pin `public, pg_temp`); batteries run inside one transaction with an end-to-end `tally_app` write; don't lock the child row in a deferred check; mirror from the LAST header banner.
 
-## Key Decisions (durable copies: `application/DECISION-LOG.md` D-2026-08-28-16…-24)
+## Key Decisions (durable copies: `application/DECISION-LOG.md` D-2026-08-28-25…-33)
 
 | Decision | Rationale |
 |---|---|
-| Completeness is a commit-time gate on `invoices` (deferred), every invoice type included; draft/held → void exempt | The snapshot cites the lines so it must be a child row; carving out types makes "issued without a snapshot" legal again; a void of an unbilled draft is a discard |
-| Schema version is a validator with an enumerated key contract, not a label | Option B's advantage is explicit versioning — only real if the DB knows the contract; a new shape is a patch |
-| The coordinate pair lives on the snapshot | AC-15: one pair per run; the snapshot records which pair this bill used; off-run invoices still have one |
-| Lines stored twice, cross-checked at insert and at issuance, unrounded JSON numbers | CI-016 needs them on the row, CI-015 needs one replayable document; they must agree |
-| No snapshot after issuance; pre-patch invoices stay snapshot-less | A later snapshot is a reconstruction from today's reference layer — what CI-015 forbids |
-| Provenance is a table with a transaction-time visibility proof (no valid-time check) | Seven tables, no polymorphic FK; "was this row visible at the coordinate" is the structural question; brackets differ per table |
-| `public, pg_temp` pin, not `''` | The unqualified RLS helpers (A-23) |
-| Child guards lock the invoice `FOR SHARE`; deferred check locks lines, not the snapshot | Serialises the races without deadlock or extra privilege |
-| New FKs cascade on delete | Only drafts are deletable (A-4); without it a legitimate draft delete was blocked |
+| Exceptions are rows born open, resolved once, frozen, never deleted | The resolution IS the lineage (CI-088); dispositions per CI-112, narrowed per rule |
+| Every step into a billable state is gated; no exception on a billed read | First-entry-only gating had two bypasses; a billed read is corrected by replacement |
+| Streak = validated estimates dated after the latest-dated validated actual | Membership by validation, order by reading date — the only definition that survived review; refines D14-1b (for Kyle) |
+| `validated_at` repurposed as the server-stamped validation event; facts freeze with it | A once-only event that survives status churn; the v5.2.1 whitelist froze facts only at `locked` |
+| Counter stored, written only from inside the gate (`pg_trigger_depth`), equal to the derivation | Cap check without a history scan; auditable; no GUC carve-out |
+| The database raises the over-cap exception | An exception the app forgot is no enforcement |
+| Pre-delivery gate refuses, never auto-holds | A-4 forbids pending → held; the operator's hold is the recorded action |
+| Plain FKs to users/anomalies tenant-checked in guards | FK checks bypass RLS; `users` is the RLS root, platform admins cross tenants |
+| CI-023 = function + refusal at billing, not NOT NULL | Attributes nullable by ruling; the invariant's clause is the refusal |
 
 ## Current State
 
-**Working**: tu.sql 16,811 lines, committed and pushed; `tally-pg` = fresh build of it (zero init errors). Catalog above.
-**Broken**: nothing known. Reviewer residuals recorded, not open.
+**Working**: tu.sql 17,704 lines, committed and pushed; `tally-pg` = fresh build of it (zero init errors). Catalog above.
+**Broken**: nothing known.
 **Uncommitted**: nothing (GBM's untracked `Clippings/` is not ours).
 
 ## Code Context
 
-The patch header (`sql/v5.4.2-04-invoice-calculation-snapshots.sql` lines 1–160) is the contract. The write protocol every future calculation path must follow (AC-18/AC-19):
+Patch headers are the contracts (`sql/v5.4.2-05-…` lines 1–192; `sql/v5.4.2-04-…` lines 1–160). The write protocols every future workflow must follow are AC-18…AC-22. The read path in one glance:
 
 ```sql
--- 1. invoice (draft) → 2. invoice_line_items → 3. snapshot → 4. citations → 5. status flip; all in one txn
-INSERT INTO public.invoice_calculation_snapshots (tenant_id, invoice_id, billing_run_id, valid_at, recorded_at,
-  snapshot_schema_version, formula_version, rate_inputs, gas_factors, wna_inputs, tax_inputs, read_inputs,
-  customer_inputs, period_inputs, line_items) VALUES (…, p_valid_at, p_recorded_at, 'v1', 'calc-x.y.z', …);
-INSERT INTO public.invoice_snapshot_references (tenant_id, snapshot_id, source_table, source_row_id, role) VALUES (…, 'rate_item_versions', :version_id, 'commodity_rate');
-UPDATE public.invoices SET status = 'pending' WHERE id = :inv;   -- deferred gate fires at COMMIT
--- recalculating a draft: DELETE the snapshot (cascades citations), re-insert. Never UPDATE.
+-- VEE/operator finds a failed rule → row (the DB raises consecutive_estimate_over_cap itself on insert of an at-cap estimate)
+INSERT INTO public.read_validation_exceptions (tenant_id, meter_reading_id, meter_id, rule_code) VALUES (…);
+-- resolve (once): disposition + reason + resolver; field order / replacement read for the dispositions that need one
+UPDATE public.read_validation_exceptions SET status='resolved', resolution_disposition='override', resolution_reason_code='…', resolved_by=:user WHERE id=:e;
+-- then the read may move on; the gate stamps validated_at and moves the meter's streak once
+UPDATE public.meter_readings SET validation_status='approved' WHERE id=:r;
+SELECT * FROM public.consecutive_estimate_state(:meter);   -- must equal meters.consecutive_estimate_count / streak / last actual
+-- bill side: exception row (table #35 outputs) → hold → resolve/override with reason → release; the gate refuses pending/sent otherwise
 ```
 
 ## Resume Instructions
 
-1. Read Appendix A-20 in `canonical-invariants.md`, the D14-1 ruling in `kyle-decisions-2026-08-18-coda-items.md`, and `schema-parity-plan.md` Wave 2; check CI-023's exception-queue rule (deferred from v5.4.0-02 to A-20).
-2. Draft `sql/v5.4.2-05-…` for A-20. Same loop: fresh-load scratch → strict apply ×2 → battery run inside one transaction with an end-to-end `tally_app` path → two independent reviews (`general-purpose` for Fable, `codex:codex-rescue`; fresh-load scratch DBs; expect a round 2; `SendMessage` for round 2) → mirror after the LAST header banner → fresh rebuild with catalog parity → patch re-apply over the build → DEPLOY-VERIFICATION → register re-grade of exactly the CIs the header names → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → commit + push both repos.
-3. Before the first bill-run calculation code lands: CI-003's GUC net (R-16) and the snapshot value contract + replay function (D-17).
+1. Read Appendix A-21 and CI-129–CI-131 in `canonical-invariants.md`, the v5.4.0-04 patch header's deferral note, `schema-parity-plan.md` Wave 2, and the deposit decision tables (`deposit-eligibility-and-waiver`, `deposit-refund-and-interest`, `deposit-alternatives-and-triggers`) + workflows (`deposit-interest-accrual-cycle`, `deposit-refund-processing`). Note Family 16's sequencing flag: the day-30-vs-day-31 interest boundary.
+2. Draft `sql/v5.4.2-06-…` for A-21. Same loop: fresh-load scratch → strict apply ×2 → battery inside one transaction with an end-to-end `tally_app` path → pre-seeded backfill check if the patch touches history → two independent reviews (`general-purpose` + `codex:codex-rescue`, fresh-load scratch DBs, expect a round 2, `SendMessage` to continue; tell them the file's line count/md5 when it changes — Codex reviewed a stale copy twice this session) → mirror after the LAST header banner → fresh rebuild with catalog parity → patch re-apply over the build → DEPLOY-VERIFICATION → register re-grade of exactly the CIs the header names → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → commit + push both repos.
+3. Before the first bill-run calculation code: CI-003's GUC net (R-16) and A-3's snapshot value contract + replay function.
 
 ## Warnings
 
-- tu.sql APPEND-ONLY; anchors 337/3600/3679. Prove qualification with the strict prelude on the patch file; pin `public, pg_temp`, not `''`, on anything that reads an RLS table (until A-23).
+- tu.sql APPEND-ONLY; anchors 337/3600/3679. Pin `public, pg_temp` on anything that reads an RLS table (until A-23); prove qualification with the strict prelude; backfills that fire v5.2.1 triggers need a txn-local search_path.
 - Wait for `PostgreSQL init process complete` before touching a freshly run container.
 - Never `git add -A` in GBM.
-- Fixtures for later patches: schedules born draft → version → activate; exemptions verified into `active`; WNA approved with an approver; invoices draft → lines → snapshot → flip; issued invoices reject every content edit, line change, snapshot change and DELETE.
+- Fixtures for later patches: reads born `pending_review` → approve (the gate stamps `validated_at`); an estimate at the cap needs its exception overridden first; invoices draft → lines → snapshot → (exceptions/hold) → pending → sent; issued invoices reject content edits, line changes, snapshot changes, DELETE.
 - Phase 3 judgment-gated items wait; A-8 needs a Kyle brief; finance gate holds A-15/A-6 remainder. Texas-only launch scope.

@@ -6,6 +6,64 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-28 (A-20) — v5.4.2-05: read/bill exception queue and validation-state substrate
+
+Kyle's D14-1 (`wu5-wu6-kyle-decisions-2026-07-10.md`) and CI-112/113/115/023 are the authority; these are the drafting-time calls, plus what two reviews × two rounds (Fable, Codex) and the author's own passes changed. Numbering continues the day's series.
+
+### Decisions
+
+**D-2026-08-28-25 · The read exception is a row (`read_validation_exceptions`), born open, resolved exactly once with an enumerated CI-112 disposition + free-text reason + resolver + server time, then frozen; never deleted.**
+*Why:* CI-112's three resolution paths and "reason code recorded" need a place that outlives the read's status; the row is the lineage CI-088 wants (open once, resolved once). Dispositions are constrained per rule where the corpus narrows them (over-cap: override or field order only — flagged-read-analyst-review Exc 3). The reason code is free text — no catalogue exists; a later patch adds a CHECK. A field order or replacement read named at resolution must belong to the same meter (composite FKs + guard).
+
+**D-2026-08-28-26 · The read gate refuses every step into approved / released_to_billing / locked while an open exception exists, and an exception cannot be raised on a locked / void_released read.**
+*Why:* the first draft gated only the first billable entry; Fable raised an exception after approval and walked the read into released/locked, and Codex used the `void_released → released_to_billing` re-lock transition (permitted by the v5.2.1 matrix) to do the same. Every status change into a billable state is now checked. A billed read is corrected by a replacement reading (CI-012), so an exception on it is refused. The exception INSERT takes the reading `FOR SHARE` so it serialises with a concurrent approval.
+
+**D-2026-08-28-27 · The consecutive-estimate streak is DEFINED once and used three times: the validated main-register estimates (`validated_at` set) whose `reading_date` lies after the latest-dated validated actual. The gate maintains it, `consecutive_estimate_state()` derives it, the backfill seeds it.**
+*Why:* three successive designs failed under review until membership and order were separated. Status-based membership double-counted the rework loop (approved → pending → approved) and dropped excluded reads (Fable, Codex); validation-order (`validated_at DESC`) fixed those but let a back-dated actual validated later clear estimates dated after it — Codex ran five estimates past a cap of 3 that way. Membership is decided by validation (a read excluded after validation stays counted, a re-approval is not a new event); order is decided by reading date (a back-dated actual does not clear later-dated estimates; a same-day estimate beside an actual is not counted). **This refines D14-1b** ("resets only on a validated actual read") to "…dated at or after the streak" — the ruling did not consider out-of-order validation; flagged for Kyle, with the engineering reasoning that the customer is still being estimated for the later periods.
+
+**D-2026-08-28-28 · `meter_readings.validated_at` is repurposed as the validation event: server-stamped (`clock_timestamp()`, so events in one transaction stay ordered) on the read's first entry into a billable state, caller values replaced, frozen; with it, `is_estimated` / `register_type` / `meter_id` / `reading_date` / `tenant_id` freeze.**
+*Why:* the counter needs a once-only event that survives status churn; the existing column had no writer in tu.sql. The v5.2.1 whitelist froze the read's facts only at `locked`; between approval and lock a flipped `is_estimated` desynced the counter (author's pass). Backfill stamps historical billable reads from `locked_at`/`created_at` (approximation, reported) and clears stray values on non-billable reads (Fable round 2). A read excluded before the patch cannot be told from one never validated and is not counted — stated in the header.
+
+**D-2026-08-28-29 · The counter is STORED on `meters`, written only from inside the read gate (`pg_trigger_depth() < 2` rejects direct writes), and must equal `consecutive_estimate_state()` — the battery and both reviewers assert it after every transition.**
+*Why:* the cap check at approval must not scan history; the derivation keeps the stored value auditable. `pg_trigger_depth` is a structural fence with nothing for a caller to arm (no GUC); both reviewers confirmed no other trigger path in tu.sql writes those columns and `tally_app` cannot create triggers.
+
+**D-2026-08-28-30 · The database raises the over-cap exception itself (AFTER INSERT of a pre-approval estimate that would reach the cap, counting the stored streak plus estimates already pending and dated after the last actual); the approval gate re-checks independently.**
+*Why:* CI-113 says the cap is enforced; an exception the application forgot to raise is no enforcement. Estimates pending together (Fable L2) and a cap lowered after insert are covered by the re-check: approval at the cap needs a resolved over-cap exception on that read — raised by the database or, for pre-patch pending estimates, by an operator.
+
+**D-2026-08-28-31 · `invoice_exceptions` stores decision table #35's routing outputs on the row (`queue`, `blocks_delivery`, `sla_days`, `escalation_target`, `routing_reason`); `blocks_delivery` and `routing_reason` freeze at insert; the gate refuses the transition, it does not auto-hold.**
+*Why:* the queue is the table; a role model does not exist (rbac-model pending), so `queue` is an enum string. Clearing `blocks_delivery` would be an override without a reason — an override is a status with a reason code. A trigger rewriting `invoices.status` to `held` from inside an exception insert would fight A-4 (pending → held is backward) and hide the operator action CI-115 records; the gate (no pending / sent / `sent_at` / `delivery_confirmed_at` with an open blocking row) is what makes the hold non-optional.
+
+**D-2026-08-28-32 · Tenant binding: composite FKs where a `(id, tenant_id)` key exists (new UNIQUEs on `meters`, `meter_readings`, `service_orders`); the plain FKs to `users` and `anomalies` are checked by the guards (`assert_same_tenant_user()`, platform admins excepted).**
+*Why (Codex round 1):* FK checks bypass RLS, so a T1 operator could stamp a T2 user as `resolved_by` — lineage attribution outside the tenant. Adding `(id, tenant_id)` to `users` was not taken: `users` is the RLS root and platform admins legitimately act across tenants.
+
+**D-2026-08-28-33 · CI-023's completeness gate is a function plus a refusal at `billing_run_meters`, not NOT NULL columns.**
+*Why:* the attributes stay nullable by the v5.4.0-02 ruling (NULL = unaffirmed pending the activation gate); the invariant's clause is "billing against an incomplete master is rejected; the meter enters an exception queue" — enforced exactly there, with the reasons named. `temperature_compensated` still does not exist (unruled) and is not checked.
+
+### Flagged, deliberately not changed
+
+- **D14-1b refinement (D-27)** — a back-dated actual does not clear a later-dated streak; and should it raise a review exception of its own (Codex suggestion)? For Kyle.
+- Tenant cap above the Texas 6-month ceiling is not bounded (decision table #4 open question) — for Kyle.
+- Grades: CI-112 and CI-115 stay `partially-structurally-enforced` (detection — which rule failed, which criterion fired — is application code; the queue discipline is structural); CI-113 → `structurally-enforced` with the cap value configurable; CI-023 → `partially-structurally-enforced` (gate structural; attributes nullable; `temperature_compensated` absent). Ryan may re-cut.
+- `anomalies.entity_type` has no CHECK (table #35 open question 2) — factual-defect set candidate; queue/role substrate and SLA escalation processing wait for rbac-model.
+- The auto-raise does not fire for row 2 of table #4 (cap − 1 → "require an actual-read attempt") — a dispatch decision for the read-cycle workflow.
+
+### Failed approaches (permanent record)
+
+- **Counting the streak by status transitions** (double-counted rework; dropped excluded reads), then **by validation order** (a back-dated actual cleared later-dated estimates and let estimates run past the cap). The definition that held: validation decides membership, reading date decides order.
+- **`ALTER TABLE … DISABLE/ENABLE TRIGGER USER` around a backfill UPDATE** — the ENABLE fails on the deferred FK's queued events; and without the toggle the v5.2.1 meters triggers broke under the strict prelude — a transaction-local `set_config('search_path', 'public, pg_temp', true)` inside the DO block is the answer.
+- **`now()` for an ordering stamp** — identical inside one transaction; `clock_timestamp()`.
+- **`length(btrim(col)) > 0` as a NOT-NULL check** — NULL passes a CHECK; pair with `col IS NOT NULL`.
+- **An expected-error battery chunk that contains its own setup** — the subtransaction rolls the setup back; split setup from the assertion.
+- **A NOTICE query that calls the raising cap function** — a misconfigured tenant made the patch refuse; report with a non-raising expression.
+
+### Outcomes
+
+- tu.sql 16,811 → 17,704 (pure append). Catalog: 73 tables / 213 triggers (146 ENABLE ALWAYS) / 316 CHECKs / 324 FKs / 7 EXCLUDE / 72 policies / 71 FORCE RLS / 531 indexes / 50 UNIQUEs. Battery 154 green on scratch and on the fresh build; seeded backfill verified by the author and both reviewers.
+- GBM: CI-113 → `structurally-enforced`; CI-023 → `partially-structurally-enforced`; CI-112/115 text updated (tokens unchanged); Appendix A-20 LANDED; parity plan A-20 struck; decision table #4 annotated with the D14-1b refinement; ingestion Section AS.
+- Next: A-21, A-7 (Wave 2). Kyle: D14-1b refinement + Texas ceiling bound.
+
+---
+
 ## 2026-08-28 (A-3) — v5.4.2-04: invoice calculation snapshots, Option B
 
 The locked decision (`bi-temporal-decision.md` §5: Option B) and CI-015's input list are the authority; these are the drafting-time calls, plus what the two pre-mirror reviews (Fable, Codex) and the author's second pass changed. Numbering continues the same day's A-1 series.
