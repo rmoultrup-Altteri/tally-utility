@@ -6,6 +6,85 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-28 (A-1) — v5.4.2-03: the bi-temporal transaction-time substrate
+
+Kyle's rulings R-9 … R-18 (`gas-billing-memory/application/kyle-decisions-2026-08-26-a1-bitemporal.md`) are the authority; these are the drafting-time calls made inside them, plus what the two pre-mirror reviews (Fable, Codex) changed.
+
+### Decisions
+
+**D-2026-08-28-01 · `change_type` is the inserted row's event — `initial | succession | correction | backfill`; retraction is not a value.**
+*Why:* the design (§4.8) listed `retraction` in the insert enum, but a retraction is a close with no successor — no inserted row can legitimately carry it. It lives on the closing side as `closed_type = 'retracted'`, paired with `closed_reason`/`closed_by`. `backfill` exists only for the migration rows and is rejected on any live insert (see D-03).
+
+**D-2026-08-28-02 · Lineage points backwards (`supersedes_id` on the successor), the close happens first, and "superseded" is verified at commit — per entity.**
+*Why:* a successor cannot be inserted while its predecessor is open (the open-rows exclusion constraint forbids two open assertions over one valid point), and a closed row is frozen, so the pointer can only live on the successor. `closed_type = 'superseded'` therefore names a row that does not exist yet; a DEFERRABLE INITIALLY DEFERRED constraint trigger checks at commit that an **asserted** successor **of the same entity** exists — Codex reproduced a cross-entity satisfaction (close zone A as superseded, point zone B's new row at it; A silently loses its current assertion under a label claiming continuity) and Fable a draft satisfying it; both closed. The predecessor check on insert (`assert_bitemporal_predecessor()`) is generic: same entity-key columns (trigger argument), same tenant, closed, and closed *as superseded* — a retracted row cannot gain a successor.
+
+**D-2026-08-28-03 · Transaction time is the database's. `recorded_at` is forced to `now()` on every insert and on every draft → asserted transition; `recorded_until` is forced to `now()` on the close; `backfill` rows cannot be inserted after the patch.**
+*Why:* the first draft only rejected a future `recorded_at` and accepted any `recorded_until` in `[recorded_at, now()]`. Both reviewers showed the axis was forgeable — a 2010-dated "correction" inserted in 2026, an erasure by `recorded_until = recorded_at`, a born-closed `backfill` row planted at a chosen historical coordinate. CI-001's rationale (subpoena defence, "what did we know then") rests on this axis being tamper-evident. A row asserted and closed in the same transaction is zero-width — nobody could have seen it — and is tolerated as equivalent to never asserting. *Not chosen:* raising on same-transaction closes; it broke ordinary multi-step work and protected nothing.
+
+**D-2026-08-28-04 · Every content change to an asserted row — including valid-time closings like revocation and expiry — is insert-and-close, never an in-place edit. The per-table in-place set is only lifecycle (`wna_monthly_adjustments.status` forward), `notes`, `metadata`, `updated_at`.**
+*Why:* Kyle's "closings of the record, not in-place edits" (R-12) read strictly. An in-place `effective_end` would make "what did we believe on date X about when this ended" wrong — exactly the reproduction failure the substrate exists to prevent. A revoked exemption is a new row (`status = 'revoked'`, `effective_end`, `revoked_*`) superseding the active one; `customer_tax_exemption_as_of()` still finds the exemption for dates inside the bracket, which is why revocation-as-succession is semantically right. Fable's H2 (a revoked row inserted *beside* the still-open active row kept the customer exempt) led to the exclusion constraint on `(customer_id, exemption_type, bracket)` over asserted open rows.
+
+**D-2026-08-28-05 · Group-1 version rows have no draft phase; the draft is the `rate_schedules` header, which is born `draft` (DEFAULT flipped from `active`).**
+*Why:* R-14 put the draft concept on the header. A version row needs its header to exist first and activation requires an open version, so a header inserted `active` could never satisfy the rule; `INSERT` must be `draft`. Versions of a draft schedule are asserted immediately — editing a draft's content leaves history. That is the cost of one write path, and it is honest (Fable L3).
+
+**D-2026-08-28-06 · Lifecycle status lives on the headers; `expired` is not a header state; archiving reconciles with the versions.**
+*Why (R-14 rider 3):* three columns could say "not current". Resolution: transaction-time death is `recorded_until` only; valid-time death is `expiry_date`/`effective_end` only; `status` values that duplicated either were removed (`expired` from `rate_schedules`, `superseded` from `franchise_fee_rules`) or constrained (`archived` on the in-place tables requires an `expiry_date`). Fable's M1 extended this to the headers: archiving requires every open version to carry an `expiry_date`, an archived entity accepts no new versions, and an archived schedule is not assignable (the ruling said `draft`; `archived` follows by the same logic and is flagged as beyond the ruling). `archive_reason` is an enum required exactly when archived; `activated_at`/`archived_at` are stamped by the trigger, not supplied.
+
+**D-2026-08-28-07 · `rate_item_history` is migrated bracket-by-bracket into `rate_item_versions`, then retired read-only; `archive_rate_item_history()` is a RAISE stub.**
+*Why:* history rows are genuine `rate_value`/`rate_unit` history; every other column is copied from the live row and flagged as an approximation in `change_reason`. Three cases: no history → one live-row version; history with an open-ended bracket → the brackets only; history all closed → the brackets plus a live-row version from `max(end_date) + 1`. The exclusion constraint validates the migration — an overlapping legacy bracket fails the patch loudly rather than being reconciled by guesswork. Retiring rather than dropping keeps the migration source; the archive function is a stub so a scheduled caller fails loudly (both reviews of the design: a live DELETE path beside the table declared permanent is a defect from the moment the patch lands).
+
+**D-2026-08-28-08 · Lookups are STABLE, invoker-rights, `RETURNS SETOF <row type>`; `should_charge_tax()` drops SECURITY DEFINER; `get_correction_rate_date()` is pinned by `ALTER FUNCTION … SET search_path` without re-issuing its body.**
+*Why:* invoker rights make RLS apply to the lookups — Fable showed the definer `should_charge_tax` answered for any customer regardless of the caller's tenant. Zero rows means "unknowable at that coordinate" (D-2026-08-20-09: never a default). The pin on `get_correction_rate_date` is safe with an unqualified v5.2.1 body under `public, pg_temp` (D-2026-08-20-25's reasoning); the remaining three unpinned definer helpers (`get_user_tenant_id`, `is_platform_admin`, `validate_custom_fields`) stay for A-23.
+
+**D-2026-08-28-09 · R-17's "review queue" is an `anomalies` row (`anomaly_type = 'reference_correction_review'`).**
+*Why:* no generic review-queue table exists; `anomalies` is the operator work queue (`status`, `assigned_to`, `resolved_*`, `dedup_key`, RLS, in the A-4 protected set) and `rule_based` is a documented detection method. Invoices are counted through `invoice_line_items.rate_schedule_id` (the only invoice-side FK to a schedule). One correction over N open brackets produces N rows (flagged, not changed — each names its own version pair).
+
+**D-2026-08-28-10 · R-9's reference is every open version, or — when none is open — the most recently closed one; `initial` is allowed only while the schedule has no versions.**
+*Why:* Fable's H4 re-tagged a schedule by retracting the open version and inserting a fresh `initial` (or a `succession` with no `supersedes_id`), bypassing R-17's basis-and-review path. With the latest closed version as the reference, the only way to change `service_type` is the correction path — `supersedes_id` + `service_type_change_basis`, over the predecessor's exact valid bracket (H3: the first draft accepted a shifted bracket, i.e. a valid-time-dated service change dressed as a correction).
+
+**D-2026-08-28-11 · Version rows carry a composite FK `(entity_id, tenant_id)` to their header.**
+*Why:* the plain FK let a tenant-2 version row hang off a tenant-1 schedule (Fable M2). The headers gain `UNIQUE (id, tenant_id)` for it.
+
+**D-2026-08-28-12 · Open-row uniqueness on the two lifecycle tables is scoped to asserted rows; drafts may sit beside the live assertion.**
+*Why:* with drafts counted as open, a WNA restatement had to close the approved row before a draft could even be entered, and a draft could then satisfy the successor check (Fable H6). Now a pending restatement can be prepared beside the live month; approving it while the live row is open fails on the unique index, forcing close-first; the successor check ignores drafts.
+
+**D-2026-08-28-13 · No `app.*` GUC carve-out anywhere in the patch.**
+*Why:* design §4.8 suggested reusing `app.void_operation`'s shape for the close transition. The close is instead a row shape the guard recognises (content byte-identical, closing columns set), so there is nothing for a caller to arm and nothing to leak (the A-4 lesson).
+
+**D-2026-08-28-14 · The self-verifying precondition set (R-13 pattern): `industrial` exemptions, unverified asserted exemptions, unapproved non-pending WNA rows, `superseded` franchise rows, archived rows without an expiry, `expired`/`archived` schedules.**
+*Why:* each is a row the new constraints cannot accept and whose mapping only an operator can make; the patch refuses and reports the count rather than inventing values (Kyle: "removes a blocking question rather than adding one"). A fresh deploy has none.
+
+**D-2026-08-28-15 · `application/DECISION-LOG.md` exists here, not in gas-billing-memory.** Kyle's record noted the brief promised a file "nobody maintains" — it looked in the wrong repo. The brief's closing note is corrected; the convention stands: rulings in GBM `kyle-decisions-*`, drafting calls here.
+
+### Flagged, deliberately not changed
+
+- A raw `UPDATE … SET version = version + 1` is accepted (the header trigger enforces monotone +1, not the caller); `assert_reference_version()` is the sanctioned path (AC-14). Distinguishing them needs the option-(a) SECURITY-DEFINER seal — still Ryan's call.
+- `get_user_tenant_id`, `is_platform_admin`, `validate_custom_fields` remain unpinned SECURITY DEFINER (A-23 list, down from six to three).
+- One `service_type` correction over N open brackets → N `anomalies` rows.
+- Versions of a draft schedule are asserted immediately (D-05).
+- `jurisdictions.wna_zone_id`/`wna_applicable` and `meters`/`meter_deployments.rate_schedule_id` assignment history (A-19) remain uni-temporal — this patch is their template.
+- CI-003: revisit **before the first bill-run calculation code lands** (R-16), not after A-3; the explicit-parameter lookups are the layer a GUC-defaulted variant sits over.
+- R-18 (sewer-to-water linkage: three enforcement gaps) → v5.5.
+
+### Failed approaches (permanent record)
+
+- **A Python wrapper that matched an INSERT by its header text** nested one DO block inside another because the third INSERT shared the first's header — the patch failed with a syntax error two statements later. Regenerate a region by its section markers, not by statement text.
+- **Trusting a `SELECT 1` readiness probe on a freshly-run container** — Docker's init runs on a temporary server that accepts connections; the seed ran against a half-built schema and the strict apply died with "database system is shutting down". Wait for `PostgreSQL init process complete` in the logs (memory: `tally-pg-readiness-wait`).
+- **`format('… %: …')`** — `%:` is not a specifier; two error messages raised "unrecognized format() type specifier" instead of the rule. `%s:`.
+- **psql `:var` substitution inside `$$ … $$`** does not happen; 73 battery checks ran with a literal `:rs1`. Inline the literals.
+- **`SET CONSTRAINTS ALL IMMEDIATE` is sticky for the rest of the transaction** — later close-then-insert steps fired the successor check at the close. Pair it with `SET CONSTRAINTS ALL DEFERRED`.
+- **`UPDATE … RETURNING` inside a subquery** is not SQL; run the statement, then assert.
+- **Rejecting a same-transaction close as "zero-width erasure"** — correct in spirit, but it blocks legitimate multi-step work inside one transaction and protects nothing once both stamps are server-set (D-03).
+- **Comparing a uuid column to `jsonb ->> key` without a cast** in the dynamic successor check — `uuid = text`. Cast the column to text.
+- **Dropping a UNIQUE before the FK that depends on it** on re-apply — drop the FK first.
+
+### Outcomes
+
+- Strict standalone apply (`search_path = ''`, `check_function_bodies = on`) clean; re-applied three further times on the same database (including after committed post-patch rows) with zero errors. The R-13 precondition refuses a seeded `industrial` row. Battery: 164 checks green on a fresh container seeded with pre-patch data (backfill of all three `rate_item_history` cases verified).
+- Two pre-mirror reviews (Fable, Codex): Codex 1 CRITICAL + 1 MEDIUM, Fable 2 CRITICAL + 7 HIGH + 5 MEDIUM + 5 LOW — every CRITICAL/HIGH/MEDIUM fixed (D-02, -03, -04, -06, -08, -10, -11, -12), LOWs recorded above. Round-2 verdicts and the mirror are recorded in `sql/DEPLOY-VERIFICATION.md`.
+
+---
+
 ## 2026-08-20 (A-4 follow-up) — v5.4.2-02 after two post-landing assessments
 
 ### Decisions
