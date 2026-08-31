@@ -4,6 +4,16 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-08-31 (A-7 follow-up) — v5.4.2-08: ruled surcharge lines, invoices and rules freeze together
+
+**What was done:** Ryan directed landing the -07 residual (re-parenting a ruled line onto an out-of-cycle draft freed the per-meter cap). Four hash-frozen review rounds (`0f04ee93` → `7acb4dbd` → `cd9abc58` → `f7372b30`) each closed a vector and surfaced the next member of the same family: the line freeze (`invoice_id` frozen like `rate_item_id`), the invoice freeze (`invoice_date` must stay under the SAME rule row — the walk also blinded the compliance view), the rule freeze (a correction cannot shrink its cycle over existing lines; a rule with lines cannot be retracted; unlinked-successor and two-hop launderings blocked by A-1's successor trigger), and the correction/line race (line writers hold the rule row FOR SHARE; corrections/retractions refuse any isolation but READ COMMITTED; RR line writers get a serialization failure and retry). Three live two-session races verified. `sql/v5.4.2-08-surcharge-line-invoice-freeze.sql` (409 lines; reviewed body `f7372b30…`, comment-only delta), mirrored (tu.sql 20,094), fresh-build verified (catalog parity; battery 173 green on the build).
+
+**Decisions:** D-2026-08-31-09…-12; AC-29 (amending AC-26/27). Headline failed approach: closing one vector at a time and disclaiming the rest — the family had five legs and every "as designed" fell to the next round's repro.
+
+**Next:** unchanged — Wave 3 (A-2 first, pending the cluster-27 ruling check); A-8 held.
+
+---
+
 ## 2026-08-31 (A-7 lands — Wave 2 complete) — v5.4.2-07: regulatory cost-recovery surcharge riders — the Texas Pipeline Safety Fee
 
 **What was done:** Drafted **v5.4.2-07** (`sql/v5.4.2-07-regulatory-surcharge-riders.sql`, 1,196 lines; reviewed body `439d125f…`, comment-only delta to `6a322537…`) for A-7 under Kyle D4-1 (no remittance gate, no billing window): `regulatory_surcharge_rules` (rider classification per (rate item, cycle of bill dates): kind, configured cap per service, tax-base exclusion, state-agency exemption; in-place bi-temporal; one PSF rule per tenant per bill date; `regulatory_surcharge_rule_as_of()`), `customers.is_state_agency` with attribute history and `customer_is_state_agency_as_of()` (period end, America/Chicago), `invoice_line_item_bases` (CI-045's materialized base composition; guard + deferred issuance gate; an excluded surcharge line is never a base; citing line re-checked), the surcharge line guard (never a tax, never taxable, 0.00 for a state agency, positive-only per-meter cap on a mutex row, `rate_item_id` frozen), two-way taxability refusal, an INSERT fence on both A-21 ledgers, provenance, the compliance-report view. Mirrored (tu.sql 19,779), fresh-build verified, docs in both repos.

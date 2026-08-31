@@ -6,6 +6,36 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-31 (A-7 follow-up) — v5.4.2-08: ruled surcharge lines, invoices and rules freeze together
+
+Ryan's directive ("land the -08 rider now") on Fable's -07 residual; four review rounds (hashes `0f04ee93` → `7acb4dbd` → `cd9abc58` → `f7372b30`, frozen per round) each closed a vector and surfaced the next member of the same family — every route to billing one service past the cap by moving something OTHER than the line's amount.
+
+### Decisions
+
+**D-2026-08-31-09 · A ruled surcharge line's `invoice_id` is frozen exactly like its `rate_item_id`; reclassifying or relocating a line is delete + new line.**
+*Why:* with the rider link frozen (-07), re-parenting the line onto a draft dated outside the cycle found no rule at the destination — the guard is date-scoped — freeing the (rate item, meter) total in-cycle (Fable, -07 final pass). Uniform refusal beats a destination-date check: delete + rewrite re-runs every check where the line lands.
+
+**D-2026-08-31-10 · An invoice's `invoice_date` cannot walk a ruled line out from under its rule: the NEW date must resolve to the SAME rule row; within-cycle moves are free.**
+*Why (both reviewers, independently):* a draft's date was freely editable; re-dating it out of the cycle dropped its ruled lines from the cap sum AND from `regulatory_surcharge_billing_summary` (the §8.201 report lost the line entirely — Codex). Comparing rule IDENTITY (not "some rule exists") also refuses cycle-to-cycle hops. The into-cycle direction stays with the issuance gate, as before.
+
+**D-2026-08-31-11 · A rule correction cannot shrink its cycle out from under existing non-void lines, and a rule with lines in its cycle cannot be retracted.**
+*Why (Codex):* a routine cycle-shortening correction — a legitimate operational act — silently orphaned a billed line: out of the cap sum, out of the compliance view, meter re-billable to the full cap (2.00 on 1.00 reproduced). Retraction had to be fenced too: retract-then-reassert was the route around the successor check. A-1's deferred successor trigger blocks the unlinked-successor and two-hop launderings (probed). Cap-only corrections, extensions, and shrinks that still cover every line stay free; the message directs to void the bills first.
+
+**D-2026-08-31-12 · Line writers hold the governing rule row FOR SHARE to end of transaction; rule corrections and retractions must run under READ COMMITTED (refused otherwise).**
+*Why (Fable, the last hole):* the shrink/retraction checks read `invoice_line_items` with no coordination — a correction committing between a line's check and its commit could not see the in-flight line (READ COMMITTED phantom) and orphaned it. An advisory lock was the WRONG tool again (the -07 HIGH-4 lesson: it serialises writers, not snapshots). FOR SHARE on the rule row makes the correction's close-UPDATE wait behind every in-flight checked line; requiring READ COMMITTED on the correction path makes its post-wait statement snapshots see them; a REPEATABLE READ line writer whose rule changed fails at the FOR SHARE with Postgres's own serialization error and retries (the AC-27 contract). No deadlock: line writers share the lock, the per-meter mutex upsert comes after the FOR SHARE (no ABBA), verified in both interleavings. Stated contract: an app running admin writes above READ COMMITTED must special-case rule corrections; a line written before its rule exists is unchecked at INSERT (nothing to lock) and is caught at the deferred issuance gate (verified: pre-rule 50.00 vs a later 1.00 cap).
+
+### Failed approaches (permanent record)
+- **Closing one vector at a time and calling the rest "by design"** — the re-parent, the date walk, the shrink, the retraction and the race are ONE family (move the line, the invoice, or the rule so the date-scoped sum no longer sees the pair). Each "as designed" disclaimer fell to the next round's repro. Name the family, then freeze every leg.
+- **A disclaimer where a guard fits** — "the issuance gate governs those, as designed" undersold a live 2x-cap route (Codex re-graded it HIGH).
+- **`SET TRANSACTION ISOLATION LEVEL` inside a savepoint** (reviewer harness) — Postgres refuses it in a subtransaction; test isolation fences in fresh top-level transactions.
+
+### Outcomes
+- tu.sql 20,094 lines (pure append; anchors intact). Catalog after -08: 251 triggers (183 ENABLE ALWAYS) / 384 functions; all other counts unchanged from -07. Fresh build zero errors; battery 173 green on the build; three live races verified.
+- GBM: CI-038 text amended (the freeze family + the two stated contracts); Appendix A-7 addendum; ingestion Section AV.
+- Next: unchanged — Wave 3 (A-2 first, pending the cluster-27 check).
+
+---
+
 ## 2026-08-31 (A-7) — v5.4.2-07: regulatory cost-recovery surcharge riders — the Texas Pipeline Safety Fee
 
 Appendix A-7, CI-038 / CI-045 and Kyle D4-1 (2026-07-10: "PSF is a rate-page line item, no timing enforcement machinery") are the authority; these are the drafting-time calls plus what two reviewers × two rounds (Fable, Codex) changed. Wave 2 closes with this patch.
