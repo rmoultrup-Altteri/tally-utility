@@ -6,6 +6,53 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-08-31 (A-7) — v5.4.2-07: regulatory cost-recovery surcharge riders — the Texas Pipeline Safety Fee
+
+Appendix A-7, CI-038 / CI-045 and Kyle D4-1 (2026-07-10: "PSF is a rate-page line item, no timing enforcement machinery") are the authority; these are the drafting-time calls plus what two reviewers × two rounds (Fable, Codex) changed. Wave 2 closes with this patch.
+
+### Decisions
+
+**D-2026-08-31-01 · No remittance gate and no billing-window check land — D4-1 is read strictly; the structural residue of CI-038 is the cap, the state-agency exemption and the tax-base exclusion.**
+*Why:* Appendix A-7 (written 2026-07-03) names a `regulatory_remittances` ledger and a gate; D4-1 (2026-07-10) ruled both out and made "never bill before remitting" operator guidance. Landing a gate anyway would decide by inertia what Kyle decided the other way. `remitted_on` / `remitted_amount` were drafted on the rule and removed: a later fact on a frozen assertion needed either a mutable column outside the audit trail or a correction close for a non-correction. Lives in: the patch header; CI-038's re-grade names the boundary.
+
+**D-2026-08-31-02 · The rider classification is its own in-place bi-temporal table (`regulatory_surcharge_rules`), keyed by (rate item, assessment cycle), not columns on `rate_item_versions`.**
+*Why:* the cap and its cycle are per assessment, the classification is per rider, and both need the transaction-time pair; one table in the `franchise_fee_rules` shape carries both without re-versioning every rider on a cycle change. The cycle is a bracket of BILL dates (§8.201 speaks of "the billing cycle or cycles"); the rider's own valid-time bracket still says whether it is on the schedule for a service period. The cap is a configured amount, never a literal in a CHECK: CI-038 says $1.00, D4-1's research note $0.50 — Kyle's to resolve.
+
+**D-2026-08-31-03 · "Per service" = per meter; the cap sums only POSITIVE amounts on non-void invoices, drafts included, serialised on a per-(rider, meter) mutex row.**
+*Why:* the fee is per service line; a premise with two gas meters is two service lines, so a capped line without a meter is refused rather than aggregated by location. Drafts count because two concurrent runs would otherwise both pass and both issue. Positives only (Fable HIGH-1, then its round-2 follow-up): any rule that lets a negative line offset lets the discard or void of that line release more than it took — a −5.00 draft let a +6.00 bill issue; the correction path is void + rebill, which releases the voided amount. The mutex row replaces an advisory lock (Fable HIGH-4): an advisory lock serialised the writers but under REPEATABLE READ each summed its own stale snapshot (1.20 on a 1.00 cap); an upsert on a shared row makes the loser fail with a serialization error and retry. Stated gap: a meter change-out mid-cycle resets the cap (candidate Kyle item).
+
+**D-2026-08-31-04 · The state-agency designation is a customer attribute with history (`customers.is_state_agency`, CHECK: government only), evaluated at the END of the billed period from `customer_attribute_history`, day boundary pinned to America/Chicago.**
+*Why:* `customer_type = 'government'` is broader (cities, counties, school districts are not exempt); a certificate-style `customer_tax_exemptions` row is the wrong shape (the PSF is not a tax and the exemption is statutory). Evaluating at period end from history answers a correction rebill of an old period (CI-005) and the axes doc's "prospective from the change date"; a period that predates the account's history uses its earliest recorded value; no history raises. Fable MEDIUM-1: a session-TimeZone cast moved the boundary. A zero-amount line on a state agency is allowed (it shows the exemption, CI-046's shape); a charge is refused.
+
+**D-2026-08-31-05 · A-21's event ledgers gain an INSERT fence here (`enforce_event_written_by_db`: refused at `pg_trigger_depth() < 2` inside the guard unless the writer is a superuser), and boolean attributes are CHECKed to 'true' / 'false'.**
+*Why (Fable HIGH-3, Codex CRITICAL-2):* `tally_app` held INSERT on `customer_attribute_history` and `customer_state_events` with no fence; a direct `is_state_agency = 'false'` (or 'banana') row cancelled the exemption without touching `customers`, and a direct state event rewrote `customer_status_as_of()`. A-7 is the first patch whose enforcement READS that history, so it closes the hole rather than filing an A-21 rider. Revoking INSERT was not an option: the logger runs with the caller's privileges. With TEMP revoked (D-2026-08-28-37) the depth is structural. Note the convention: inside a BEFORE trigger a direct statement is depth 1, the logger's writes depth 2 — the first draft tested `= 0` and fenced nothing.
+
+**D-2026-08-31-06 · The base composition is a first-class table (`invoice_line_item_bases`), frozen with the invoice; every non-zero tax / percentage line must carry one at issuance; an excluded surcharge line can never be cited; the citing line must still carry a base at issuance.**
+*Why:* CI-045 says the per-bill base composition is materialized on the invoice; without it "PSF is excluded from the franchise-fee base" is a promise, not a check. This also makes K4's open question (`franchise_fee_rules.applies_to` vs the per-item `is_taxable` chain) not block CI-038 — whichever the engine uses, the composition is written down and checked. A tax line MAY cite another tax line (tax-on-tax is #23 stage 3 / A-8, unruled). A zero-amount tax / percentage line may have no bases (an empty composition has no rows); a fixed charge may not carry one; a rider re-classified to fixed after its rows were written is refused at issuance (Codex MEDIUM-3). A draft line with a composition cannot be re-parented and a cited line cannot shrink under its base (author's probes); a draft's composition cascades with it.
+
+**D-2026-08-31-07 · The issuance gate judges on CURRENT knowledge — `(invoice_date, now())` for the rules, `(period_end, now())` for the classification — not on the snapshot's coordinate pair.**
+*Why (Fable HIGH-2):* A-3 refuses only a future `recorded_at` and does not bind `valid_at`; a `recorded_at` of 2020 hid the rule, a `valid_at` of 2025 hid the rider's calculation type, and both invoices issued. The snapshot is the run's record of what it used; compliance at issue time is a fact about the bill. A-3's unbound `valid_at` is recorded in A-23 (1e).
+
+**D-2026-08-31-08 · A ruled surcharge line's `rate_item_id` is frozen; the reverse taxability direction is enforced at configuration time; one open `pipeline_safety_fee` rule per tenant per bill date.**
+*Why:* Codex CRITICAL-1 — `UPDATE … SET rate_item_id = NULL` detached a capped line from every check while it kept the label PSF, and 999.00 issued; reclassifying a line is delete + new line, which re-runs every check. A rider made taxable after its rule exists would be a silent CI-045 drift until the next bill; the rule guard and the version / override guards refuse in both directions. Fable MEDIUM-2a — two PSF riders each capped billed 2.00 on one meter; the fee is one assessment per tenant.
+
+### Failed approaches (permanent record)
+- **`pg_trigger_depth() = 0` as an INSERT fence** — inside the trigger the direct statement is already depth 1; the fence admitted everything. Use `< 2` (A-21's convention).
+- **An advisory lock as the cap's concurrency guard** — serialises writers, not snapshots; REPEATABLE READ passed a stale sum. A mutex row that the loser must UPDATE is what raises the serialization error.
+- **Netting negative lines against the cap** — every variant (drafts positive-only, issued netted) leaks through the discard or void of the negative line's invoice. Positives only.
+- **Trusting the snapshot's coordinate in a compliance gate** — it is caller-supplied by A-3's design.
+- **`remitted_on` on a bi-temporal rule** — a later fact on a frozen assertion.
+- **Editing the patch file while reviewers were testing** — both reviewers reported a moving target; both froze copies and re-verified by hash, but every round-2 request must carry the hash and the file must not change between "launch reviewers" and "collect verdicts".
+- **A test harness helper `_f(k text)` reading `WHERE _f.k = k`** — in a SQL function the column shadows the parameter; every fixture resolved to the first row. Prefix parameters.
+- **Fixture `INSERT INTO t SELECT … FROM (INSERT … RETURNING)`** — not legal SQL; use a `WITH … AS (INSERT … RETURNING)`.
+
+### Outcomes
+- tu.sql 18,822 → 19,779 lines (pure append; anchors 337/3600/3679 intact). Catalog after -07: 82 tables / 250 triggers (182 ENABLE ALWAYS) / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 81 policies / 80 FORCE RLS / 571 indexes / 383 functions; TEMP still revoked. Fresh build zero errors; battery 161 green on the build (`sql/DEPLOY-VERIFICATION.md`).
+- GBM: CI-038 → `partially-structurally-enforced` (cap, exemption, exclusion structural; remittance gate and billing window are operator guidance per D4-1); CI-045 text (base composition materialized and checked; stack contents / stacking order still A-8); Appendix A-7 LANDED; A-23 (1e); parity plan A-7 struck — **Wave 2 complete**; ingestion Section AU.
+- Next: Wave 3 (A-2 → A-9 → A-10; A-8 held for a Kyle brief). Before the first bill-run calculation code: CI-003's GUC net (R-16) and A-3's snapshot value contract + `valid_at` binding.
+
+---
+
 ## 2026-08-28 (A-21) — v5.4.2-06: account lifecycle state-events, date-effective attributes, deposit / interest ledger
 
 Appendix A-21, CI-121/125/129–131, Kyle 2026-06-12 (effective-dated rate table) and 2026-07-10 (day-30/31 first) are the authority; these are the drafting-time calls, plus what two reviewers × up to four rounds (Fable, Codex) changed. Numbering continues the day's series.
