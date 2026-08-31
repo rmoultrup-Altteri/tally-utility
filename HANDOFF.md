@@ -14,8 +14,9 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 - [x] **Drafted v5.4.2-07** under D4-1 (NO remittance gate, NO billing window): `regulatory_surcharge_rules` (per (rate item, cycle of BILL dates); kind, configured `cap_per_service`, `excluded_from_tax_bases`, `exempts_state_agencies`; in-place bi-temporal; one open rule per rider per bill date + one open PSF rule per tenant per bill date; `regulatory_surcharge_rule_as_of()`), `customers.is_state_agency` (government only; ninth attribute in `customer_attribute_history`; `customer_is_state_agency_as_of()` at midnight America/Chicago), `invoice_line_item_bases` (CI-045's materialized base composition; guard + deferred issuance gate; an excluded surcharge line is never a base; citing line re-checked), surcharge line guard (never a tax, never taxable, 0.00 for a state agency at period end, per-(rate item, meter) cap over POSITIVE amounts on non-void invoices, drafts counted, serialised on `regulatory_surcharge_service_locks`; `rate_item_id` frozen on a ruled line), two-way taxability refusal, INSERT fence on both A-21 ledgers (`enforce_event_written_by_db`, `< 2`) + boolean CHECK, provenance (`invoice_snapshot_references` admits the rules table), `regulatory_surcharge_billing_summary` (security_invoker).
 - [x] **Verified**: strict apply ×2; **battery 161 green** (scratch + build; `tally_app` end-to-end; replica mode); two-session REPEATABLE READ race (loser gets a serialization failure); pre-seeded backfill; fresh rebuild zero errors; catalog parity (82 tables / 250 triggers, 182 ENABLE ALWAYS / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 81 policies / 80 FORCE RLS / 571 indexes / 383 functions; TEMP false).
 - [x] **Two reviewers × two rounds** (Fable `general-purpose`, Codex `codex:codex-rescue`). Round 1: Fable HIGH ×4 / MEDIUM ×2, Codex CRITICAL ×2 / MEDIUM ×1, plus three author probes — all folded into one body. Round 2 on `439d125f…`: both "sound enough to mirror", nothing new.
-- [x] Docs: DEPLOY-VERIFICATION; DECISION-LOG D-2026-08-31-01…-08; AC-26…AC-28; tally CHANGELOG. GBM: CI-038 → `partially-structurally-enforced` (D4-1 boundary stated); CI-045 text; Appendix A-7 LANDED; A-23 (1e); parity plan A-7 struck, Wave 2 ✅; ingestion Section AU; GBM CHANGELOG.
-- [x] Memory: `trigger-depth-fence-inside-guard`, `freeze-hash-before-reviews`.
+- [x] **The -08 freeze rider (Ryan's directive), four hash-frozen review rounds** (`0f04ee93` → `7acb4dbd` → `cd9abc58` → `f7372b30`; both reviewers re-attacked each fix and found the next leg): ruled line's `invoice_id` frozen like `rate_item_id`; `invoice_date` pinned to the SAME rule row (the walk also blinded the compliance view); a correction cannot shrink its cycle over existing non-void lines; a rule with lines cannot be retracted (retract-then-reassert fenced; unlinked-successor / two-hop launderings blocked by A-1's successor trigger); the correction/line race closed — line writers hold the rule row FOR SHARE, corrections/retractions refuse any isolation but READ COMMITTED, RR line writers retry on a serialization failure. Battery 173 green (F10–F12); three live two-session races verified; fresh rebuild + parity (251 triggers / 183 ENABLE ALWAYS / 384 functions); D-2026-08-31-09…-12; AC-29.
+- [x] Docs: DEPLOY-VERIFICATION (-07 and -08 sections); DECISION-LOG D-2026-08-31-01…-12; AC-26…AC-29; tally CHANGELOG. GBM: CI-038 → `partially-structurally-enforced` (D4-1 boundary stated); CI-045 text; Appendix A-7 LANDED; A-23 (1e); parity plan A-7 struck, Wave 2 ✅; ingestion Section AU; GBM CHANGELOG.
+- [x] Memory: `trigger-depth-fence-inside-guard`, `freeze-hash-before-reviews`, `count-guards-need-lock-handshake` (orphan/cap counts race writers — FOR SHARE handshake + READ COMMITTED pin; advisory locks serialise writers, not snapshots; and: when a reviewer finds one leg, enumerate the family before closing anything).
 
 ## Not Yet Done
 
@@ -32,6 +33,8 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 - **Trusting the snapshot's (valid_at, recorded_at) in a compliance gate** — A-3 accepts any past pair; a backdated one hid the rule and the rider's calc type. Judge on now().
 - **`remitted_on` on a bi-temporal rule** — a later fact on a frozen assertion; D4-1 says the platform owes nothing about remittance.
 - **Editing the patch file while reviewers were testing** — four hash changes in round 1; both reviewers had to freeze copies (memory: `freeze-hash-before-reviews`).
+- **Closing one vector at a time and disclaiming the rest (-08)** — every "as designed" fell to the next round's repro; the family had five legs. Enumerate the family first.
+- **A disclaimer where a guard fits** — "the issuance gate governs those" undersold a live 2x-cap route.
 - **A SQL-function helper `_f(k text)` with `WHERE _f.k = k`** — the column shadows the parameter; every fixture resolved to the first row. Prefix parameters `p_`.
 - **`INSERT INTO t SELECT … FROM (INSERT … RETURNING)`** — not SQL; `WITH s AS (INSERT … RETURNING) INSERT … SELECT FROM s`.
 - **A results table with a serial column used under `SET ROLE tally_app`** — default privileges cover tables and functions, not sequences; GRANT USAGE on the sequence.
@@ -50,10 +53,11 @@ Bring `sql/tu.sql` (the only enforcement artifact — no application code exists
 | Base composition is a table, frozen with the invoice, required at issuance; excluded lines never cited | CI-045 asks for materialization; makes K4 non-blocking |
 | Issuance gate judges on now(), not the snapshot pair | The pair is caller-supplied by A-3's design |
 | Ruled line's `rate_item_id` frozen; taxability refused both ways; one PSF rule per tenant per cycle | Detaching the rider link escaped every check; two riders doubled the cap |
+| -08: line, invoice and rule move only together — `invoice_id` frozen, `invoice_date` pinned to its rule row, corrections cannot shrink over lines, retraction fenced, FOR SHARE handshake + READ COMMITTED pin on corrections | The five vectors were one family: move the line, the invoice, or the rule and the date-scoped cap sum no longer sees the pair |
 
 ## Current State
 
-**Working**: tu.sql 19,779 lines, committed and pushed; `tally-pg` = fresh build (zero init errors), no host port. Catalog above.
+**Working**: tu.sql 20,094 lines, committed and pushed (`e4d8e6a` -07, `39adf91` -08); `tally-pg` = fresh build of the committed tu.sql (zero init errors), no host port. Catalog after -08: 82 tables / 251 triggers (183 ENABLE ALWAYS) / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 81 policies / 80 FORCE RLS / 571 indexes / 384 functions; TEMP revoked.
 **Broken**: nothing known.
 **Uncommitted**: nothing (GBM's untracked `Clippings/` is not ours).
 
@@ -82,5 +86,5 @@ SELECT * FROM public.regulatory_surcharge_billing_summary;                    --
 - Never grant TEMP / CREATE / TRIGGER to `tally_app` without re-reading A-23 (1d).
 - Wait for `PostgreSQL init process complete` before touching a freshly run container; run `tally-pg` without `-p`.
 - Never `git add -A` in GBM.
-- Fixtures for later patches: customers need `status_reason` on any status change and their history is DB-written only; deposits are events-only; issued invoices reject content edits; reads born `pending_review` → approve; a surcharge line needs `meter_id` when capped and must be written before its bases; issuance needs snapshot + bases.
+- Fixtures for later patches: customers need `status_reason` on any status change and their history is DB-written only; deposits are events-only; issued invoices reject content edits; reads born `pending_review` → approve; a surcharge line needs `meter_id` when capped and must be written before its bases; issuance needs snapshot + bases; a ruled line's `rate_item_id`/`invoice_id` and its invoice's `invoice_date` are frozen (delete + rewrite); rule corrections/retractions run only under READ COMMITTED and wait behind in-flight line writes; expect `serialization_failure` retries on capped-line writers (AC-29).
 - Phase 3 judgment-gated items wait; A-8 needs a Kyle brief; finance gate holds A-15/A-6 remainder. Texas-only launch scope.
