@@ -6,6 +6,35 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-09-04 (A-9) — v5.4.2-09: tax exemption certificate evidence and renewal surfacing
+
+Wave 3's first landing (A-2 is fenced by Kyle's own Part 4 stop). Three review rounds (hashes `b8318398` → `af834c44` → `90af192e`, frozen per round); round 1 surfaced a CRITICAL and a HIGH, round 2 caught the author fixing a boundary's display instead of the boundary.
+
+### Decisions
+
+**D-2026-09-04-01 · Certificate evidence means "contains at least one alphanumeric character" — a content whitelist, not a whitespace blacklist.**
+*Why:* the drafted `btrim()` blank-check strips ASCII space only; a single tab, newline or NBSP passed as evidence (Codex CRITICAL, round 1). Enumerating invisible characters is an open-ended family (NBSP variants, zero-width, combining marks); requiring one `[[:alnum:]]` character closes the family in one move and also refuses punctuation-only placeholders. Verified against 20 unicode edge values under `en_US.utf8` (non-Latin scripts pass — no over-blocking; circled digits and lone combining marks refuse). Residual, accepted: letter-bearing placeholders ("N/A") pass — inherent to any content test; the gate is an omission barrier, not a fraud barrier. Lives in `enforce_tax_exemption_lifecycle` and the deploy precondition, expression-identical.
+
+**D-2026-09-04-02 · The deploy precondition blocks on EVERY current assertion head (active, expired, revoked) lacking required evidence — not just active.**
+*Why:* `customer_tax_exemption_as_of` does not filter on status, by A-1 design — a current revoked/expired head still suppresses tax for its bracket on any rebill, and unlike a draft it can never be fixed in place (Codex HIGH, round 1: a pre-patch evidence-less revoked head sailed past as a NOTICE and `should_charge_tax` kept honouring it, unfixable forever). Closed history stays NOTICE-only: as_of never returns it at current knowledge. Old legacy heads blocking a deploy is the correct trade-off vs silently permanent under-taxation — refuse and report, never audit first (the R-13/R-4 pattern).
+
+**D-2026-09-04-03 · The certificate-required-vs-flag-only designation is per category in `tenants.settings` behind a raising accessor, DEFAULT TRUE; wrong shape at ANY path level raises; flips are audited and never re-judge asserted rows.**
+*Why:* R-13 ruled the table holds certificate-backed exemptions only and Rule 3.287 puts the liability on the seller — required is the only defensible default. The A-20 settings-accessor pattern (validated, loud, defaulted) fits because a boolean per enum category has no unit-confusion failure (the CCK-9 objection to jsonb config was a 10x numeric typo); but `#>>` path traversal reads a malformed ancestor as "absent", so both the `tax_exemptions` node and the `certificate_required` node are shape-checked (rounds 1 and 2 each found one level). Config sincerity: the gate consults the knob at entry to assertion only — a later flip cannot invalidate frozen rows — and every flip lands in v5.4.1-02's `tenant_configuration_history` (verified live, full old/new subtree).
+
+**D-2026-09-04-04 · No stored `renewal_due_at`, no `renewal_notice_sent_at` on the exemption row; the renewal prompt is a view plus a tenant window config.**
+*Why:* both are later facts about a frozen assertion — the exact shape D4-1's `remitted_on` rejection named on A-7. `renewal_due_at` is derivable (the view's `notice_window_opened_on`); notice-sent tracking belongs to the communication-log work CI-046's scope note already assigns it to. A mutable timestamp on a bi-temporal row is a hole in the freeze.
+
+**D-2026-09-04-05 · The renewal queue admits a row ON the day exactly N days remain (`<=`), and a LAPSED row stays listed — even with a renewal on file — until its valid-time expiry succession closes it.**
+*Why:* "notify N days before expiry" means the first notice day has N days remaining; the drafted `<` silently gave N−1 days, and the round-2 "fix" bent the displayed `notice_window_opened_on` to match the wrong boundary instead of fixing it (Codex, round 2 — the battery's check asserted the column against its own formula and could not catch it; the replacement check pins the boundary to real dates). Lapsed-stays: a gapped renewal used to hide a lapsed head entirely (Fable, round 1), but the lapsed head owes its expiry succession regardless — it leaves the queue exactly when that succession lands. Suppression by a renewal on file applies only to rows still inside their bracket.
+
+**D-2026-09-04-06 · The legacy `customers.is_tax_exempt` / `tax_exemption_*` columns stay unguarded — recorded residual, not a patch item.**
+*Why:* `should_charge_tax` reads only the exemptions table (verified independently by both reviewers), so the manual flag cannot cause under-taxation; the divergence is display-only (`customer_summary`, `compliance_statistics`, hard-coded 60-day window). The honest fix is a DB-written projection in the A-21 `deposit_*` style, which rebuilds `compliance_statistics` — out of A-9's scope, queued as a register note under CI-046.
+
+**D-2026-09-04-07 · No per-category certificate validity period is seeded.**
+*Why:* "typically 1–5 years" is not a citable figure per category; the certificate's own `effective_end` is the validity period, set per row from the document. Seeding a default length is the corrected-water-rule / R-21 failure mode: a number nobody can cite, in a compliance table.
+
+---
+
 ## 2026-08-31 (A-7 follow-up) — v5.4.2-08: ruled surcharge lines, invoices and rules freeze together
 
 Ryan's directive ("land the -08 rider now") on Fable's -07 residual; four review rounds (hashes `0f04ee93` → `7acb4dbd` → `cd9abc58` → `f7372b30`, frozen per round) each closed a vector and surfaced the next member of the same family — every route to billing one service past the cap by moving something OTHER than the line's amount.
