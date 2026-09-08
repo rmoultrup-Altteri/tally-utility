@@ -1,0 +1,7 @@
+A: snapshot inserted, holding run + target FOR SHARE for 5s|2026-09-08 17:15:57.334329+00
+A: committed|2026-09-08 17:16:01.345736+00
+B: attempting election change (READ COMMITTED)|2026-09-08 17:15:58.822448+00
+psql:/tmp/race-b.sql:4: ERROR:  correction target 00000000-0000-4000-8000-00000000f301 (run 00000000-0000-4000-8000-00000000f002, voided invoice 00000
+B: target update outcome above|2026-09-08 17:16:01.350848+00
+B: run update outcome above|2026-09-08 17:16:01.352165+00
+psql:/tmp/race-b.sql:6: ERROR:  billing run RACE-CORR: correction_rate_mode and run_type cannot change while calculation snapshots exist on the run (v

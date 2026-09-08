@@ -1,0 +1,20 @@
+BEGIN
+SET
+SET
+ fa_snap 
+---------
+ 
+(1 row)
+
+ pg_sleep 
+----------
+ 
+(1 row)
+
+UPDATE 1
+       b       
+---------------
+ B updated run
+(1 row)
+
+COMMIT

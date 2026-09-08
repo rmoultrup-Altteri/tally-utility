@@ -14,6 +14,8 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
+  v5.4.2-10/
+    battery-10.sql          # 58 checks; review/ holds five frozen revisions, five briefs, per-round reviewer repros, races/ (two-session scripts + outputs)
   v5.4.2-09/
     battery-09.sql          # the regression battery (28 checks, all PASS on the -09 build)
     review/

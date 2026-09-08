@@ -1,0 +1,9 @@
+A: snapshot inserted, holding run + target FOR SHARE for 5s|2026-09-08 16:41:15.924739+00
+A: committed|2026-09-08 16:41:20.936586+00
+B: attempting election change (READ COMMITTED)|2026-09-08 16:41:17.474276+00
+psql:/tmp/race-b.sql:4: ERROR:  correction target 00000000-0000-4000-8000-00000000f301 (run 00000000-0000-4000-8000-00000000f002, voided invoice 00000000-0000-4000-8000-00000000f101): a calculation snapshot was checked against this election; the target cannot change or be removed while that snapshot exists (v5.4.2-10) — delete the draft snapshot first
+CONTEXT:  PL/pgSQL function enforce_correction_target_frozen_under_snapshot() line 22 at RAISE
+B: target update outcome above|2026-09-08 16:41:20.951533+00
+psql:/tmp/race-b.sql:6: ERROR:  billing run RACE-CORR: correction_rate_mode cannot change while calculation snapshots exist on the run (v5.4.2-10) — their valid_at was checked against the current election; delete the draft snapshots first, or start a new correction run
+CONTEXT:  PL/pgSQL function enforce_billing_run_clock_and_election() line 31 at RAISE
+B: run update outcome above|2026-09-08 16:41:20.958377+00

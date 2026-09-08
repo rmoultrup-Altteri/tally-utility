@@ -1,0 +1,5 @@
+E: snapshots visible for RACE-W1 = 0
+psql:/tmp/rr-editor-vs-writer.sql:6: ERROR:  could not serialize access due to concurrent update
+psql:/tmp/rr-editor-vs-writer.sql:7: ERROR:  current transaction is aborted, commands ignored until end of transaction b
+W1: snapshot inserted, holding run + target FOR SHARE for 5s|2026-09-08 17:25:15.597994+00
+W1: committed|2026-09-08 17:25:15.598911+00

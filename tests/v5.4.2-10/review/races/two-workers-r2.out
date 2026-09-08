@@ -1,0 +1,6 @@
+W1: snapshot inserted, holding run + target FOR SHARE for 5s|2026-09-08 17:00:58.027527+00
+W1: totals bumped|2026-09-08 17:00:58.028224+00
+W1: committed|2026-09-08 17:01:01.050366+00
+W2: snapshot inserted, holding run + target FOR SHARE for 5s|2026-09-08 17:00:59.519113+00
+W2: totals bumped|2026-09-08 17:01:01.050978+00
+W2: committed|2026-09-08 17:01:02.056804+00

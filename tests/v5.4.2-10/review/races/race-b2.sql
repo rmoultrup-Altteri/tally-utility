@@ -1,0 +1,5 @@
+SET app.user_id = '00000000-0000-4000-8000-00000000fb01';
+SET ROLE tally_app;
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+UPDATE public.correction_run_targets SET rate_date_mode = 'current' WHERE id = '00000000-0000-4000-8000-00000000f301';
+ROLLBACK;

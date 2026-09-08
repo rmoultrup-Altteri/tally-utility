@@ -1,0 +1,10 @@
+SET app.user_id = '00000000-0000-4000-8000-00000000fb01';
+SET ROLE tally_app;
+BEGIN;
+UPDATE public.correction_run_targets SET rate_date_mode = 'historical' WHERE id = '00000000-0000-4000-8000-00000000f301';
+SELECT 'X: target election set, holding 3s' AS x, clock_timestamp();
+SELECT pg_sleep(3);
+UPDATE public.billing_runs SET correction_rate_mode = 'current' WHERE id = '00000000-0000-4000-8000-00000000f002';
+SELECT 'X: run election set' AS x, clock_timestamp();
+COMMIT;
+SELECT 'X: committed' AS x, clock_timestamp();

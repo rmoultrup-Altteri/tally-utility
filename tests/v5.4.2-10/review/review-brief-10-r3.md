@@ -1,0 +1,30 @@
+# Review Brief — v5.4.2-10, ROUND 3 (A-3 follow-up: snapshot coordinate binding)
+
+**File under review:** `sql/v5.4.2-10-snapshot-coordinate-binding.sql`
+**     889 lines, md5 `2530daf72bb474534cbc7cfa5da52874` — FROZEN for this round.** Round 2 was `9160f8af…` (778 lines, both verdicts "sound enough to mirror" with residuals). Round 1 brief: `review-brief-10.md`; round 2: `review-brief-10-r2.md`.
+
+## What changed since round 2 (the round-2 residuals, folded rather than recorded)
+
+| Round-2 finding | Fix in this revision |
+|---|---|
+| Fable MEDIUM-1: a held-then-voided discard (never billed) is a real void row with an attacker-chosen period and anchors a correction | New `invoices.first_issued_at`: stamped now() by the database on the FIRST transition from draft/held into an issued status other than void; write-once; caller-supplied values discarded at INSERT and refused at UPDATE (superusers exempt); backfilled at deploy (issued rows: best row timestamp; void rows: from their `voided` event's `invoice_status_at_void` — stated as an approximation, since invoice_events is app-written and could not itself serve as the check). A correction's replaced bill must carry it. Battery F28 (discard refused), F29a/b/c (stamp, write-once, INSERT discard). **Not** landed: binding the correction's period or customer to the original's — `service_date_error` and `wrong_customer` are void reasons, the rebill legitimately moves both. |
+| Fable MEDIUM-2: one-correction rule scoped per run; a second correction run rebills the same void bill | One LIVE (non-void) snapshotted correction per replaced bill on ANY run; the replaced bill's row is the mutex (validator UPDATEs its `updated_at` — A-4's void seal admits it). A voided correction may be corrected again. Battery F26 (cross-run refused), F27 (void the first → new one lands). Live RC/RR races re-run (`races/corr2-race-*-r3.out`). |
+| Fable LOW-3: lock-order deadlock (operator: target then run; writer: run KEY SHARE then target) | Validator order is now invoice → replaced bill → correction target → billing run, and that is the canonical order stated in the header (AC-31 will carry it). Live: X (target election, hold, run election) vs Y (correction snapshot) — no deadlock, X commits, Y lands (`races/lockorder-r3.out`). |
+| Fable LOW-4 + Codex round-2 item 1: the target-guard isolation pin is redundant (the mutex is a real UPDATE) | Pin dropped on the target guard. |
+| Codex round-1 HIGH-1 (RR edits of never-snapshotted drafts refused), via Fable's round-2 alternative | The validator now writes a row version onto the invoice being snapshotted (`UPDATE … SET updated_at` after the FOR SHARE). Pin dropped on the invoice guard. Live: RR edit of a never-snapshotted draft succeeds (`races/rr-edit-draft-r3.out`); RR editor whose snapshot predates a writer's commit gets Postgres's own `serialization_failure` (`races/rr-editor-vs-writer-r3.out`). The billing_runs guard KEEPS its pin (a row version on the run row would block heartbeats again); EXISTS-first ordering unchanged. |
+
+Battery **53 green** on the clean apply and on the pre-seeded apply (three report NOTICEs now: first_issued_at backfill counts, unbound pre-patch snapshots, runs without started_at). Strict apply ×2 clean. Catalog: +5 functions, +4 triggers (all ENABLE ALWAYS). Heartbeat, election-change, two-worker and REPEATABLE READ run-election-pin races re-run green (`races/*-r3.out`).
+
+## Attack this (round 3 focus)
+
+1. **first_issued_at**: any route for tally_app to get it set on a never-issued bill (the INSERT branch NULLs it; the UPDATE branch refuses changes; the stamp fires only on draft/held → non-void issued)? Does `void_invoice()` (SECURITY DEFINER, owned by the superuser) ever transition a draft/held row in a way that stamps it? Any issued-status path that skips the stamp (INSERT directly in an issued status is refused by A-4 — confirm)? Is the backfill's use of the app-written event log acceptable as a one-time deploy approximation, stated as such?
+2. **The invoice row version**: side effects of the validator's `UPDATE invoices SET updated_at` on a draft (trigger set: immutability, hold metadata, predelivery gate, deferred gates queued twice in an issuance transaction, `set_updated_at`), and on a VOID replaced bill (A-4's void branch admits only notes/metadata/updated_at — confirm nothing else fires). Deadlock shapes with `void_invoice()` on the replaced bill (already void — should be none) or with the issuance transaction of another correction.
+3. **Cross-run uniqueness**: can two corrections of one bill both land through two DIFFERENT replaced-bill rows (e.g. a correction of a correction: bill A voided → correction B → B voided → correction C replaces B; is A's row still the anchor of anything)? Chains: C replaces B replaces A — the binding looks one hop; is one hop right? Can a void correction (status void) still carry a snapshot that anchors an original-world replay of a later correction? (Its snapshot is sealed — is that the right anchor?)
+4. **Lock order**: any remaining cycle with the new order (invoice → replaced bill → target → run) against the guards' own locks (target guard = its row; run guard = FOR UPDATE escalation; invoice guard = its row) or against void_invoice's UPDATE of the replaced bill's neighbours (ledger, reads)?
+5. Re-run your round-1 and round-2 repros against this hash and confirm each outcome.
+
+## How to test
+
+As before: `docker exec tally-pg psql -U tally -d <db>`. `s10c` = fresh + revision 3 (pristine, yours); `s10b` = pre-seeded apply; `s10` = revision 3 + committed race fixtures; `tally` = virgin. Patch `/tmp/p10.sql` (md5sum matches), battery `/tmp/battery-10.sql` (53 checks — its fixtures show the full legal flow: issue → `void_invoice()` → target row → correction → snapshot → issue). A correction's replaced bill must be void AND once issued: issue to `pending` first, then `void_invoice(id, user, reason, notes, true)` with `app.user_id` set to that tenant's user.
+
+Report as before: hash verified; findings most-severe first with repro and fix; disagreements; what held; verdict.

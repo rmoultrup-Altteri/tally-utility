@@ -1,0 +1,3 @@
+A: snapshot inserted, holding run + target FOR SHARE for 5s|2026-09-08 17:00:35.856466+00
+A: committed|2026-09-08 17:00:39.892917+00
+psql:/tmp/corr2-b-rr.sql:12: ERROR:  could not serialize access due to concurrent update

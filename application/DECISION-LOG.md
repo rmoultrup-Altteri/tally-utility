@@ -6,6 +6,55 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-09-08 (A-3 follow-up) — v5.4.2-10: the snapshot's coordinate pair is bound to facts the database holds (A-23 1e)
+
+Kyle-independent work while A-2 waits on his Part 4. Ryan ruled strict on both drafting calls (an ordinary bill is priced at exactly `period_end`; a correction with no correction-run target row is refused). Five hash-frozen review rounds (`bb7cdbd9` → `9160f8af` → `2530daf7` → `2d0ece3c` → `f143c1cb`; Fable `general-purpose`, Codex `codex:codex-rescue`); round 1 found a CRITICAL and two HIGHs, round 2 two semantic MEDIUMs, round 3 one shared lineage gap, round 4 two LOWs (rebill typing; a pre-existing tenant-blind FK), round 5 confirmatory.
+
+### Decisions
+
+**D-2026-09-08-01 · An ordinary bill's `valid_at` IS its `period_end`, exactly — not "a date inside the period".**
+*Why:* the v5.4.2-03 formula convention prices at `period_end`; a snapshot priced at a read date would be a silent engine defect, and a bracket would admit it. If read-date pricing is ever wanted, the guard changes with the engine — visibly. (Ryan, strict.)
+
+**D-2026-09-08-02 · A correction's `valid_at` is whatever `get_correction_rate_date()` resolves at insert; no re-derivation at issuance; the election inputs are frozen instead.**
+*Why:* the v5.2.1 resolver IS Kyle's correction-rate-mode ruling (custom > per-target > run default); reimplementing it would fork the ruling. Its `current` branch is `CURRENT_DATE`, so a re-derivation at a later issuance day would falsely refuse — the freezes on the target row, the run's election and `run_type`, and the draft's binding columns are what hold the insert-time check.
+
+**D-2026-09-08-03 · A correction must sit on a correction run with a `correction_run_targets` row; an off-run manual rebill is refused.**
+*Why (Ryan, strict):* the target row is where the operator's rate-date election is recorded (CI-005); a rebill with nowhere to record its election is exactly the bill an auditor asks about. Nothing previously required this — it is a new rule, chosen knowingly.
+
+**D-2026-09-08-04 · The replaced bill must be RLS-visible, same-tenant, `void`, and once issued (`first_issued_at`).**
+*Why (round 1 Fable HIGH-2/3, Codex MEDIUM-3; round 2 Fable MEDIUM-1/2):* a live draft as the "original" let the resolver read a `period_end` the attacker moved after the check and let a deletable draft snapshot anchor an original-world replay; only a void bill's period and snapshot are sealed (A-4 / CI-015). A held-then-voided discard is a real void row nobody was billed for — hence `first_issued_at`, stamped by the database on the first draft/held → non-void issued transition, write-once, INSERT values discarded (the app-written `invoice_events` could not serve as the check; it serves only the one-time backfill, stated as an approximation). (Uniqueness: D-08.) *Not chosen:* binding the correction's period or customer to the original's — `service_date_error` and `wrong_customer` are void reasons and the rebill legitimately moves both.
+
+**D-2026-09-08-05 · `recorded_at` lies in `[run.started_at, now()]` (on a run), `[invoice.created_at, now()]` (off-run), or — for a correction only — equals the replaced bill's snapshot `recorded_at`; both lower bounds are the database's clock; `data_cutoff_at` is not a coordinate.**
+*Why:* AC-15 says `recorded_at` is now() at calculation, or the original run's instant to reproduce a bill (16-bi-temporality §5.1 "original world's truth"); a correction cannot invent a third instant. `started_at` is stamped on set and write-once; `created_at` is stamped at INSERT and write-once for non-superusers **regardless of snapshot state** — round 1's CRITICAL was a plain UPDATE of `created_at` on an unsnapshotted draft setting the off-run bound to any year. `data_cutoff_at` (Fable, disagreement) is the candidate-set freeze line by entity `created_at`, not the transaction-time coordinate of the reference lookups; an engine wanting cutoff knowledge starts the run at the cutoff. AC-15's "one pair per run" is deliberately not enforced (per-target original-world replays differ) — A-23.
+
+**D-2026-09-08-06 · Writers hold the run row FOR KEY SHARE, never FOR SHARE; the election guard escalates its own row to FOR UPDATE.**
+*Why (author probe, Fable MEDIUM-4):* FOR SHARE conflicts with every plain UPDATE of the row — a heartbeat waited behind a snapshot transaction, and two workers bumping run totals deadlocked. FOR KEY SHARE conflicts only with FOR UPDATE / DELETE / key changes, so heartbeats pass (3 ms live) and the election change still waits behind in-flight writers and then sees them.
+
+**D-2026-09-08-07 · The validator writes a row version onto the invoice, the replaced bill and the target (UPDATE of `updated_at` — the -08 mutex idiom); the invoice and target freeze guards therefore carry no isolation pin; the run guard keeps its pin, EXISTS-first.**
+*Why (Codex round-1 HIGH-1, Fable + Codex round 2, independently):* a REPEATABLE READ editor whose snapshot predates a writer's commit fails on the row version with Postgres's own `serialization_failure`, and one that starts later sees the snapshot — so RR edits of never-snapshotted drafts are admissible. A row version on the run row would block heartbeats again, so there the absence of a concurrent snapshot cannot be verified under RR and the pin stays (checked after EXISTS, so a frozen row says "frozen"). (Lock order: D-08.)
+
+**D-2026-09-08-08 · One live snapshotted correction per bill LINEAGE, not per replaced bill: the check walks `replaces_invoice_id` to the root and looks at every descendant at any hop; the root's row is the mutex.**
+*Why (round 3, Fable LOW-1 and Codex MEDIUM-HIGH, independently):* per-hop scoping let C correct the void B while D corrected A directly — two live bills for one service, the shape round 2 had closed one level down. A correction of a correction supersedes the whole chain; the customer has one live bill per lineage. `invoice_lineage_root()` is bounded at 64 hops (check_reversal_chain_depth caps chains) and runs invoker-rights, so a chain leaving the caller's tenant ends where visibility ends. Lock order: invoice → lineage root → replaced bill → target → run; an operator transaction touching a void bill and its targets edits the bill first (Fable LOW-2).
+
+**D-2026-09-08-09 · Only `correction`, `credit_memo` and `duplicate` may carry `replaces_invoice_id` through the binding; the lineage count covers every other live snapshotted descendant; the `replaces_invoice_id` FK is tenant-composite.**
+*Why (round 4, Fable LOW-1; Codex LOW):* a `regular` bill with `replaces_invoice_id` set was a rebill in all but name and escaped a count keyed on `invoice_type = 'correction'` — typing is caller-chosen, so the count keys on the link, and the ordinary shape refuses the link on any type that is not a credit memo or a reprint. The plain FK let any tenant point `replaces_invoice_id` at any tenant's bill (pre-existing); the lineage walk now traverses that column, so the FK moves onto A-3's `UNIQUE (id, tenant_id)` with a self-verifying precondition that names existing cross-tenant links rather than silently failing the ALTER.
+
+### Failed approaches (permanent record)
+- **Freezing `created_at` only while a snapshot exists** — the draft window before the snapshot is exactly where a caller moves it. Write-once always.
+- **Accepting any `void` row as a correction's original** — a held-then-voided discard is void and never billed. The database needs its own "was issued" fact; the app-written event log is not it.
+- **Uniqueness scoped to (run, replaced bill)** — a second correction run rebilled the same bill. Scope to the bill; mutex on the bill's row.
+- **FOR SHARE on a row the engine heartbeats** — blocks every plain UPDATE for the writer's whole transaction; two writers deadlock through it. FOR KEY SHARE + FOR UPDATE escalation in the guard that must wait.
+- **An isolation pin where a row version does the work** — where the writer UPDATEs the row an editor must also UPDATE, Postgres's write-write detection already makes RR safe; the pin only refused legitimate edits. Keep pins only where no row version can be written.
+- **Counting rebills by `invoice_type`** — the type is caller-chosen; count by the lineage link, and refuse the link on types that are not rebills.
+- **Templating race scripts with sed** — a stray line left a session that never committed, and the "race" passed for the wrong reason. Write each session's SQL out in full.
+
+### Outcomes
+- tu.sql 20,407 → 21,165 (pure append; anchors 337/3600/3679 intact). Catalog after -10: 82 tables / 81 policies / 80 FORCE RLS / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 255 triggers (187 ENABLE ALWAYS) / 571 indexes / 392 functions; TEMP revoked. Battery 58 green on clean, pre-seeded and the fresh build; the -09 battery still green on the build. Nine live two-session shapes green (`tests/v5.4.2-10/review/races/`).
+- GBM: CI-015 text amended (the pair is bound); CI-005 text (target row required; replaced bill void + issued); CI-003 unchanged (the engine's use of the pair is still discipline — R-16); A-23 (1e) → LANDED, new (1f) residue: direct EXECUTE on `get_correction_rate_date` by `tally_app`; AC-15 "one pair per run" unenforced; `duplicate` unbound; parity plan A-3 line amended; ingestion Section BA.
+- Next: the small structural residuals (four views' `security_invoker`, A-23's three unpinned definers, `anomalies.entity_type` CHECK); socialize AC-29–AC-31; Kyle brief consolidation; A-10 / A-2 per the fence.
+
+---
+
 ## 2026-09-04 (A-9) — v5.4.2-09: tax exemption certificate evidence and renewal surfacing
 
 Wave 3's first landing (A-2 is fenced by Kyle's own Part 4 stop). Three review rounds (hashes `b8318398` → `af834c44` → `90af192e`, frozen per round); round 1 surfaced a CRITICAL and a HIGH, round 2 caught the author fixing a boundary's display instead of the boundary.
