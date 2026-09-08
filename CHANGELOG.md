@@ -12,7 +12,9 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 **Decisions:** D-2026-09-08-01…-09; AC-31. NOT landed by decision: `duplicate` binding; `data_cutoff_at` as a coordinate; AC-15 "one pair per run"; binding a correction's period/customer to the original's (`service_date_error` / `wrong_customer` are void reasons); revoking the resolver's direct EXECUTE (A-23). **Headline failed approaches:** freezing `created_at` only under a snapshot; accepting any void row as an original (the app-written event log cannot be the check — the DB needs its own stamp); FOR SHARE on a heartbeated row; an isolation pin where a row version does the work; counting rebills by caller-chosen `invoice_type`.
 
-**Next:** the small structural residuals (four views' `security_invoker`, A-23's three unpinned definers, `anomalies.entity_type` CHECK) as a sibling patch; socialize AC-29–AC-31; consolidate the Kyle brief candidates; A-10 when the finance-gate question is settled; A-2 when Part 4 is empty.
+**Session wrap (same day, later):** the v5.4.2-11 reading pass was done and the session interrupted before drafting — nothing written to `sql/`. Findings carried in HANDOFF: two pre-existing views (`adhoc_void_pending_review`, `void_released_read_alerts`) lack `security_invoker` and are superuser-owned, so `tally_app` reads every tenant's rows through them — a leak, not hygiene; the three unpinned definer helpers and the definer resolver inventoried with a fix plan; `anomalies.entity_type` has no domain anywhere (drafting call).
+
+**Next:** draft v5.4.2-11 from that plan; socialize AC-29–AC-31; consolidate the Kyle brief candidates; A-10 when the finance-gate question is settled; A-2 when Part 4 is empty.
 
 ---
 
