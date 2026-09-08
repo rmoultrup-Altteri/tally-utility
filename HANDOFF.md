@@ -1,90 +1,108 @@
-# Handoff: A-7 landed (v5.4.2-07 + the -08 freeze rider) — Wave 2 complete; next is Wave 3 (A-2 → A-9 → A-10)
+# Handoff: Wave 3 — A-9 landed (v5.4.2-09); A-2 fenced on Kyle's Part 4; housekeeping done 2026-09-08; next is the Kyle-independent queue
 
-**Generated**: 2026-08-31 (session wrap — A-7 drafted, reviewed two rounds by Fable + Codex, mirrored, fresh-build verified, docs in both repos)
-**Branch**: tally-utility `main` (committed + pushed) · gas-billing-memory `main` (committed + pushed; unrelated untracked `Clippings/` left alone)
-**Status**: **A-7 DONE, including the follow-up.** `sql/v5.4.2-08-surcharge-line-invoice-freeze.sql` (409 lines, md5 `ebd8b75a…`; reviewed body `f7372b30…`, comment-only delta) landed after four hash-frozen review rounds: a ruled surcharge line's `invoice_id` is frozen like its `rate_item_id`; an invoice's `invoice_date` must stay under the SAME rule row; a rule correction cannot shrink its cycle over existing non-void lines and a rule with lines cannot be retracted; and the correction/line race is closed (line writers hold the rule row FOR SHARE; corrections/retractions run only under READ COMMITTED; RR line writers get a serialization failure and retry — AC-29). tu.sql 19,779 → **20,094**. The former "Open for Ryan" re-parent item is landed; the date-walk and shrink siblings both reviewers then found are landed with it. `sql/v5.4.2-07-regulatory-surcharge-riders.sql` (1,196 lines, md5 `6a322537…`; reviewed body `439d125f…` at 1,189 lines — comment-only delta) is mirrored into `sql/tu.sql` (18,822 → 19,779, pure append; anchors 337/3600/3679 intact). Container `tally-pg` is a fresh build of the committed tu.sql, run WITHOUT a host port (127.0.0.1:5432 belongs to `langfuse-postgres-1`); use `docker exec`. Phase 4: Wave 1 ✅, **Wave 2 ✅** (A-20, A-21, A-7) → **Wave 3 next**: A-2 → A-9 → A-10; A-8 HELD for a Kyle brief.
+**Generated**: 2026-09-08 (housekeeping session — no schema change; re-based on the 2026-09-04 A-9 landing, which did not rewrite this file)
+**Branch**: tally-utility `main` · gas-billing-memory `main` (head `4dc794b`; unrelated untracked `Clippings/` left alone)
+**Status**: **A-9 DONE** (`sql/v5.4.2-09-tax-exemption-renewal-and-certificate-evidence.sql`, 464 lines, md5 `90af192e…`, three hash-frozen review rounds; tu.sql 20,094 → **20,407**). **A-2 is a brief, not a patch, and is fenced**: Kyle's own 2026-09-02 record says "do not implement until Part 4 is empty" — items 3–7 plus the item-2 semantics pick remain, worked one per Kyle session. **A-8 held** for its brief. Phase 4: Wave 1 ✅, Wave 2 ✅, Wave 3: A-9 ✅ · A-2 ⏸ (Kyle) · A-10 open. Container `tally-pg` = verified build of the committed tu.sql (schema file hash `cacefef2…` matches; catalog matches DEPLOY-VERIFICATION). Batteries now live in `tests/`.
 
 ## Goal
 
-Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. Next: **A-2** — jurisdiction-keyed backbill caps, "a cheap rider" as columns / a child table on the v5.4.0-03 `jurisdictions` table. Read Appendix A-2 and the CI entries it names, decision table cluster 27 (backbilling — the 3E/3F brief said it "has no implementable form at all" and its cause-enum answer is a prerequisite for the cap table's shape: check whether Kyle has ruled on it before drafting; if not, A-2 may be a brief, not a patch), then `jurisdictions` in tu.sql (line 11569).
+Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. While Kyle works Part 4, do the Kyle-independent queue (below) rather than idle or pre-empt his rulings.
 
-## Completed (this session)
+## Completed
 
-- [x] **Reading pass**: Appendix A-7, CI-038, CI-045, Kyle D4-1, the PSF axes doc, decision tables #23 / #26, KB §3.4, the PGA / A-1 / A-3 headers, `rate_item_versions`.
-- [x] **Drafted v5.4.2-07** under D4-1 (NO remittance gate, NO billing window): `regulatory_surcharge_rules` (per (rate item, cycle of BILL dates); kind, configured `cap_per_service`, `excluded_from_tax_bases`, `exempts_state_agencies`; in-place bi-temporal; one open rule per rider per bill date + one open PSF rule per tenant per bill date; `regulatory_surcharge_rule_as_of()`), `customers.is_state_agency` (government only; ninth attribute in `customer_attribute_history`; `customer_is_state_agency_as_of()` at midnight America/Chicago), `invoice_line_item_bases` (CI-045's materialized base composition; guard + deferred issuance gate; an excluded surcharge line is never a base; citing line re-checked), surcharge line guard (never a tax, never taxable, 0.00 for a state agency at period end, per-(rate item, meter) cap over POSITIVE amounts on non-void invoices, drafts counted, serialised on `regulatory_surcharge_service_locks`; `rate_item_id` frozen on a ruled line), two-way taxability refusal, INSERT fence on both A-21 ledgers (`enforce_event_written_by_db`, `< 2`) + boolean CHECK, provenance (`invoice_snapshot_references` admits the rules table), `regulatory_surcharge_billing_summary` (security_invoker).
-- [x] **Verified**: strict apply ×2; **battery 161 green** (scratch + build; `tally_app` end-to-end; replica mode); two-session REPEATABLE READ race (loser gets a serialization failure); pre-seeded backfill; fresh rebuild zero errors; catalog parity (82 tables / 250 triggers, 182 ENABLE ALWAYS / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 81 policies / 80 FORCE RLS / 571 indexes / 383 functions; TEMP false).
-- [x] **Two reviewers × two rounds** (Fable `general-purpose`, Codex `codex:codex-rescue`). Round 1: Fable HIGH ×4 / MEDIUM ×2, Codex CRITICAL ×2 / MEDIUM ×1, plus three author probes — all folded into one body. Round 2 on `439d125f…`: both "sound enough to mirror", nothing new.
-- [x] **The -08 freeze rider (Ryan's directive), four hash-frozen review rounds** (`0f04ee93` → `7acb4dbd` → `cd9abc58` → `f7372b30`; both reviewers re-attacked each fix and found the next leg): ruled line's `invoice_id` frozen like `rate_item_id`; `invoice_date` pinned to the SAME rule row (the walk also blinded the compliance view); a correction cannot shrink its cycle over existing non-void lines; a rule with lines cannot be retracted (retract-then-reassert fenced; unlinked-successor / two-hop launderings blocked by A-1's successor trigger); the correction/line race closed — line writers hold the rule row FOR SHARE, corrections/retractions refuse any isolation but READ COMMITTED, RR line writers retry on a serialization failure. Battery 173 green (F10–F12); three live two-session races verified; fresh rebuild + parity (251 triggers / 183 ENABLE ALWAYS / 384 functions); D-2026-08-31-09…-12; AC-29.
-- [x] Docs: DEPLOY-VERIFICATION (-07 and -08 sections); DECISION-LOG D-2026-08-31-01…-12; AC-26…AC-29; tally CHANGELOG. GBM: CI-038 → `partially-structurally-enforced` (D4-1 boundary stated); CI-045 text; Appendix A-7 LANDED; A-23 (1e); parity plan A-7 struck, Wave 2 ✅; ingestion Section AU; GBM CHANGELOG.
-- [x] Memory: `trigger-depth-fence-inside-guard`, `freeze-hash-before-reviews`, `count-guards-need-lock-handshake` (orphan/cap counts race writers — FOR SHARE handshake + READ COMMITTED pin; advisory locks serialise writers, not snapshots; and: when a reviewer finds one leg, enumerate the family before closing anything).
+**2026-09-08 (this session, housekeeping):**
+- [x] `tests/` created; `tests/v5.4.2-09/` holds the battery (28 checks), review brief, reviewer seed, precondition seed, nine repros, four author attacks. Battery re-run from `tests/` against a clone of the container build: 28 PASS. `tests/README.md` = run recipe + battery conventions. The -07 / -08 batteries were lost with their scratchpads (recorded).
+- [x] CHANGELOG repaired: the -09 entry had been written into the -08 entry; the -08 header is restored, -09 has its own Next. Housekeeping entry added.
+- [x] Container verified against the committed file by hash and by catalog counts (not by timestamp).
+- [x] This HANDOFF rewritten.
 
-## Not Yet Done
+**2026-09-04 (A-9 session):**
+- [x] Kyle's four records processed (R-19…R-25 backbilling; CCK-1…14 customer-class keying; CCK-15/15b + dashboard composition). Nothing folded into the schema — Part 4 fence.
+- [x] Part 4 item 2's Ryan-assigned half verified against tu.sql (GBM `259efe2`, `application/a2-part4-item2-tu-rebase-verification-2026-09-04.md`): a plain child of `jurisdictions` fails on state-default rows and NULL premises — the cap table needs fallback semantics (nullable `jurisdiction_id` = state default) or folds into A-8; Kyle picks. The `applies_to_customer_types` size-tier defect re-targeted to `franchise_fee_rules` (tu.sql 3022) + `rate_item_versions` (15376); the AR-tile hazard confirmed.
+- [x] **v5.4.2-09 landed** (CI-046's remainder — A-1 had already rebuilt `customer_tax_exemptions`): `tax_exemption_certificate_required(tenant, type)` (settings accessor, DEFAULT TRUE per R-13 / Rule 3.287, raises on unknown category or wrong shape at ANY path level); evidence gate folded into `enforce_tax_exemption_lifecycle` (entry to any asserted state needs `certificate_number` or `certificate_url` with ≥1 alphanumeric char; drafts free; asserted rows never re-judged; config flips audited by `tenant_configuration_history`); self-verifying precondition over every CURRENT head (active / expired / revoked — `customer_tax_exemption_as_of` does not filter status); `tax_exemption_renewal_notice_days(tenant)` (default 60) + `customer_tax_exemptions_renewal_due` (security_invoker; enters at exactly N days remaining, `<=`; lapsed rows stay until their expiry succession).
+- [x] Reviews: `b8318398` → `af834c44` → `90af192e`; round 1 Codex CRITICAL (btrim passed a tab as evidence) + HIGH (precondition ignored current revoked heads); round 2 Codex caught the `<` boundary bent to the display and the ancestor-shape hole; round 3 both "sound enough to mirror".
+- [x] Docs: DEPLOY-VERIFICATION -09; D-2026-09-04-01…-07; AC-30; tally CHANGELOG. GBM: CI-046 amended, Appendix A-9 LANDED, parity plan A-9 struck / A-2 annotated Kyle-fenced (Section AY); Kyle outstanding-items index (`kyle-outstanding-2026-09-05.md`, Section AZ).
+- [x] Memory: `blank-checks-whitelist-alnum`, `test-the-boundary-not-the-formula`.
 
-- [ ] **Wave 3**: A-2 (see Goal) → A-9 (exemption certificate metadata) → A-10 (revenue distribution matrix; may slip behind the finance gate). A-8 (`tax_jurisdictions`) needs a Kyle brief before DDL.
-- [ ] **For Kyle** (brief candidates, new this session): the PSF cap figure ($1.00 CI-038 / KB vs $0.50 D4-1 research note); whether `is_state_agency` needs a verifying document; meter change-out mid-cycle vs the per-meter cap; K1 (`is_taxable_default`'s silent false) and K4 (`applies_to` vs `is_taxable`) — still open, no longer blocking CI-038. Carried: the `customers.status` matrix; legacy-deposit refund policy; credit vs disbursement; residential non-cash instruments; instrument-expiry alerting; D14-1b; the Texas deposit-cap ceiling.
-- [ ] **A-3 follow-up** (A-23 1e): bind `invoice_calculation_snapshots.valid_at` to the period (or `recorded_at` to the run) — a caller-chosen pair must never be trusted by a gate; A-7's gate already ignores it.
-- [ ] **Open for Ryan**: `meter_id` swap on a capped line moves the attribution (per-meter cap holds at both meters — stated, not closed); the -07 LOW residuals (kind-labelled PSF EXCLUDE; mutex-row deadlock = retry); the -08 contracts to socialize (rule corrections under READ COMMITTED only; line writers retry on serialization failures — AC-29); the four pre-existing views' `security_invoker` check; A-23's three unpinned definers; `anomalies.entity_type` CHECK; a `tests/` home for the batteries (this session's `battery-07.sql`, `review-brief-07.md`, `patch-07-reviewed-439d125f.sql` are in the session scratchpad only).
+**Earlier (2026-08-31):** A-7 (v5.4.2-07) and its freeze family (v5.4.2-08) — see CHANGELOG entries and DEPLOY-VERIFICATION; the -08 contract is AC-29.
+
+## Not Yet Done — the Kyle-independent queue, in order
+
+- [ ] **A-3 `valid_at` binding (A-23 1e)** — bind `invoice_calculation_snapshots.valid_at` to the period (or `recorded_at` to the run). A caller-chosen pair must never be trusted by a gate; A-7's issuance gate already judges on now(). Required before any bill-run calculation code lands. Full review loop.
+- [ ] **Small structural residuals**, folded into the same patch or a sibling: the four pre-existing views' `security_invoker` check; A-23's three unpinned SECURITY DEFINER functions; `anomalies.entity_type` CHECK.
+- [ ] **Socialize the -08 / -09 contracts** (AC-29: rule corrections under READ COMMITTED only, capped-line writers retry on serialization failure; AC-30: certificate evidence + config shape + renewal queue) into the parity plan / ingestion where they are not yet referenced.
+- [ ] **Consolidate the Kyle brief candidates** into one document (GBM already has the Part 4 index; the carried items below are not in it): the PSF cap figure ($1.00 CI-038 / KB vs $0.50 D4-1 note); whether `is_state_agency` needs a verifying document; meter change-out mid-cycle vs the per-meter cap; K1 (`is_taxable_default`'s silent false) and K4 (`applies_to` vs `is_taxable`); `customers.status` matrix; legacy-deposit refund policy; credit vs disbursement; residential non-cash instruments; instrument-expiry alerting; D14-1b; the Texas deposit-cap ceiling; the `applies_to_customer_types` default-widening confirmation.
+- [ ] **A-10** (revenue distribution matrix) — the last unfenced Wave 3 item; composes with GL neighbours behind the finance gate, so decide with Ryan whether it goes now or slips.
+- [ ] **A-2** when Part 4 is empty (Kyle: items 3–7 + item-2 semantics pick). **A-8** when its brief is answered.
+- [ ] Carried "Open for Ryan": `meter_id` swap on a capped line moves the attribution (stated, not closed); the -07 LOW residuals (kind-labelled PSF EXCLUDE; mutex-row deadlock = retry); the -09 residuals (letter-bearing placeholders like "N/A" pass the evidence test; one tenant's bad notice-days value loud-blocks the platform-admin's global queue; legacy `customers.is_tax_exempt` unguarded, display-only).
 
 ## Failed Approaches (Don't Repeat These)
 
-- **`pg_trigger_depth() = 0` as an INSERT fence** — inside the trigger a direct statement is depth 1; nothing was fenced. `< 2` (memory: `trigger-depth-fence-inside-guard`).
-- **An advisory lock as the cap's concurrency guard** — serialises writers, not snapshots; two REPEATABLE READ sessions billed 1.20 on a 1.00 cap. A mutex row the loser must UPDATE raises the serialization error.
-- **Netting negative lines against the cap** — every variant (drafts positive-only, issued netted) leaks through discard / void of the negative line's invoice. Positives only; void + rebill is the correction path.
-- **Trusting the snapshot's (valid_at, recorded_at) in a compliance gate** — A-3 accepts any past pair; a backdated one hid the rule and the rider's calc type. Judge on now().
-- **`remitted_on` on a bi-temporal rule** — a later fact on a frozen assertion; D4-1 says the platform owes nothing about remittance.
-- **Editing the patch file while reviewers were testing** — four hash changes in round 1; both reviewers had to freeze copies (memory: `freeze-hash-before-reviews`).
-- **Closing one vector at a time and disclaiming the rest (-08)** — every "as designed" fell to the next round's repro; the family had five legs. Enumerate the family first.
-- **A disclaimer where a guard fits** — "the issuance gate governs those" undersold a live 2x-cap route.
-- **A SQL-function helper `_f(k text)` with `WHERE _f.k = k`** — the column shadows the parameter; every fixture resolved to the first row. Prefix parameters `p_`.
-- **`INSERT INTO t SELECT … FROM (INSERT … RETURNING)`** — not SQL; `WITH s AS (INSERT … RETURNING) INSERT … SELECT FROM s`.
-- **A results table with a serial column used under `SET ROLE tally_app`** — default privileges cover tables and functions, not sequences; GRANT USAGE on the sequence.
-- **`docker run -p 5432:5432`** — the port belongs to another project's Postgres; run without `-p` and use `docker exec`.
-- All A-21/A-20/A-3 traps still apply: `public, pg_temp` pin; battery inside one transaction with `SET CONSTRAINTS ALL IMMEDIATE` (deferred gates) and `SET CONSTRAINTS ALL DEFERRED; … ; SET CONSTRAINTS ALL IMMEDIATE` inside a single EXECUTE for close-then-insert corrections; an expected-error chunk must not contain its own setup; mirror after the LAST `-- ====` banner with the `-- MIRROR:` three-line preamble; `now()` is constant within the battery transaction (transaction-time ordering cannot be tested inside one txn).
+- **`btrim(x) <> ''` as a blank check** — passed a single tab / NBSP as certificate evidence. Whitelist ≥1 `[[:alnum:]]` character; coalesce the NULL leg in trigger IFs (memory: `blank-checks-whitelist-alnum`).
+- **Fixing an off-by-one's display column instead of its boundary** — a battery check that asserts a column against its own formula proves nothing. Decide which side is right, then pin both sides to concrete dates (memory: `test-the-boundary-not-the-formula`).
+- **Checking config shape only at the leaf** — a malformed `tax_exemptions` node itself silently defaulted. Raise at every path level.
+- **Trusting a container by its timestamp** — the image was built an hour before the commit. Hash the init-dir schema file against the repo and compare catalog counts.
+- **A disk-wide `find` for stray files** hangs the shell; search the known scratchpad roots.
+- **Leaving batteries in the scratchpad** — -07 and -08 are gone. Commit to `tests/` in the same commit as the patch.
+- **`pg_trigger_depth() = 0` as an INSERT fence** — inside the trigger a direct statement is depth 1. `< 2`.
+- **An advisory lock as a count-guard's concurrency control** — serialises writers, not snapshots. Mutex row + FOR SHARE handshake + READ COMMITTED pin.
+- **Netting negative lines against a cap** — leaks via discard / void. Positives only.
+- **Trusting the snapshot's (valid_at, recorded_at) in a gate** — caller-supplied by A-3's design. Judge on now() (until A-23 1e lands).
+- **Later facts on a frozen bi-temporal row** (`remitted_on`, `renewal_notice_sent_at`) — those are communication-log work.
+- **Editing the patch while reviewers test** — freeze the hash, one revision per round.
+- **Closing one vector at a time and disclaiming the rest** — enumerate the family first (-08 had five legs).
+- **`WHERE _f.k = k` in a SQL helper** — the column shadows the parameter; prefix `p_`.
+- **`INSERT INTO t SELECT … FROM (INSERT … RETURNING)`** — not SQL; use a `WITH … RETURNING` CTE.
+- **A serial column in a results table under `SET ROLE tally_app`** — default privileges skip sequences; GRANT USAGE.
+- **`docker run -p 5432:5432`** — the port belongs to another project; run without `-p`, use `docker exec`.
 
-## Key Decisions (durable copies: `application/DECISION-LOG.md` D-2026-08-31-01…-08)
+## Key Decisions (durable copies: `application/DECISION-LOG.md`)
 
 | Decision | Rationale |
 |---|---|
-| D4-1 read strictly: no gate, no window; structural residue = cap + exemption + exclusion | Landing a gate would decide by inertia what Kyle decided the other way |
-| Rider classification is its own in-place bi-temporal table keyed (rate item, cycle of bill dates); cap configured, never a literal | Cap and cycle are per assessment, classification per rider; the $ figure is Kyle's |
-| Per service = per meter; positives-only cap on non-void invoices, drafts counted; mutex row, not advisory lock | Negatives leak via discard/void; RR snapshots defeat advisory locks |
-| `is_state_agency` as a customer attribute with history, evaluated at period end, Central-time boundary | Government is broader than state agency; a rebill of an old period asks what the account was then |
-| INSERT fence on the A-21 ledgers, boolean CHECK | A direct row cancelled the exemption; A-7 is the first patch that reads that history |
-| Base composition is a table, frozen with the invoice, required at issuance; excluded lines never cited | CI-045 asks for materialization; makes K4 non-blocking |
-| Issuance gate judges on now(), not the snapshot pair | The pair is caller-supplied by A-3's design |
-| Ruled line's `rate_item_id` frozen; taxability refused both ways; one PSF rule per tenant per cycle | Detaching the rider link escaped every check; two riders doubled the cap |
-| -08: line, invoice and rule move only together — `invoice_id` frozen, `invoice_date` pinned to its rule row, corrections cannot shrink over lines, retraction fenced, FOR SHARE handshake + READ COMMITTED pin on corrections | The five vectors were one family: move the line, the invoice, or the rule and the date-scoped cap sum no longer sees the pair |
+| D-2026-09-04-01: evidence = ≥1 alphanumeric character, a content whitelist | Every whitespace blacklist has a next member |
+| -02: precondition blocks on EVERY current head (active / expired / revoked) | A current revoked head still suppresses tax on rebills |
+| -03: certificate-required is per category in `tenants.settings`, DEFAULT TRUE, raising accessor, wrong shape at any level raises | R-13 / Rule 3.287; silent defaults hide misconfiguration |
+| -04: no stored renewal fields; the prompt is a view + a window config | The `remitted_on` lesson — later facts on a frozen assertion |
+| -05: queue admits at exactly N days (`<=`); lapsed stays listed until the expiry succession | `<` silently gave N−1 days; a renewal on file does not close a lapse |
+| -06: legacy `customers.is_tax_exempt` stays unguarded | `should_charge_tax` never reads it — display-only, recorded residual |
+| -07: no per-category validity period seeded | No citable figure (the R-21 lesson) |
+| A-2 is a brief, not a patch, until Part 4 is empty | Kyle's own record fences it; implementing now decides open items by inertia |
+| -08 (D-2026-08-31-09…-12): line, invoice and rule move only together; corrections under READ COMMITTED only | The five 2.00-on-a-1.00-cap vectors were one family |
+| -07 (D-2026-08-31-01…-08): D4-1 read strictly — cap + exemption + exclusion, no remittance gate | Kyle decided the gate the other way |
 
 ## Current State
 
-**Working**: tu.sql 20,094 lines, committed and pushed (`e4d8e6a` -07, `39adf91` -08); `tally-pg` = fresh build of the committed tu.sql (zero init errors), no host port. Catalog after -08: 82 tables / 251 triggers (183 ENABLE ALWAYS) / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 81 policies / 80 FORCE RLS / 571 indexes / 384 functions; TEMP revoked.
+**Working**: tu.sql 20,407 lines, committed and pushed through `f4cf93e` (-09). `tally-pg` = build of that file (verified by hash `cacefef2…` and catalog: 82 tables / 81 policies / 80 FORCE RLS / 357 CHECKs / 357 FKs / 10 EXCLUDE / 59 UNIQUEs / 251 triggers, 183 ENABLE ALWAYS / 571 indexes / 386 functions; TEMP revoked). Only database `tally` exists on it; the -09 scratch DBs are gone with the rebuild — clone with `CREATE DATABASE x TEMPLATE tally`.
 **Broken**: nothing known.
-**Uncommitted**: nothing (GBM's untracked `Clippings/` is not ours).
+**Uncommitted (this session)**: `tests/` (new), `CHANGELOG.md` (repair + entry), `HANDOFF.md` (this rewrite). Commit as `chore:` when Ryan says so.
 
 ## Code Context
 
-Patch header = the contract (`sql/v5.4.2-07-…` lines 1–243). Write protocols: AC-26…AC-28. The PSF path in one glance:
+Patch headers are the contracts (`sql/v5.4.2-09-…` lines 1–~150 for A-9). Write protocols: AC-26…AC-30. A-9 in one glance:
 
 ```sql
-INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies, regulatory_reference) VALUES (:t, :psf_item, 'pipeline_safety_fee', '2026-03-01', '2027-02-28', 1.00, true, true, '16 TAC §8.201');
-UPDATE public.customers SET is_state_agency = true WHERE id = :c;            -- government only; history written by the DB
-INSERT INTO public.invoice_line_items (…, rate_item_id, meter_id, charge_type, amount, is_taxable) VALUES (…, :psf_item, :meter, 'surcharge', 0.25, false);   -- cap / exemption refuse here and again at issuance
-INSERT INTO public.invoice_line_item_bases (tenant_id, invoice_id, line_item_id, base_line_item_id, base_amount) VALUES (:t, :inv, :franchise_line, :customer_charge_line, 10.00);   -- never :psf_line
--- lines → bases → snapshot → UPDATE invoices SET status = 'pending'   (deferred gates at commit)
-SELECT * FROM public.regulatory_surcharge_billing_summary;                    -- the 90-day report's billed side
+-- per-category knob (DEFAULT TRUE when absent); wrong shape at any level raises
+UPDATE public.tenants SET settings = jsonb_set(settings, '{tax_exemptions,certificate_required,government}', 'false') WHERE id = :t;
+-- draft needs nothing; entry to assertion needs evidence with >=1 alphanumeric char
+INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start) VALUES (:t, :c, 'religious', '2026-01-01');
+UPDATE public.customer_tax_exemptions SET status = 'active', verified_by = :u, verified_at = now(), certificate_number = 'TX-12345' WHERE id = :e;
+SELECT * FROM public.customer_tax_exemptions_renewal_due;   -- due (<= N days) and lapsed rows, renewal-suppressed
 ```
+
+Battery recipe: `tests/README.md`.
 
 ## Resume Instructions
 
-1. Read Appendix A-2 and its CI entries, cluster 27 (backbilling) and the 3E/3F brief Part A item A-2, the Kyle decision files for any backbilling ruling, and `jurisdictions` (tu.sql 11569). Decide with Ryan whether A-2 is a patch or a brief.
-2. Same loop as -07: fresh-load scratch (`docker exec` only) → strict apply ×2 → battery inside one transaction with an end-to-end `tally_app` path → pre-seeded check if history is touched → write the brief with `wc -l` + `md5 -q`, **launch both reviewers, then freeze the file** → fold all findings into one revision → round 2 with the new hash → mirror after the LAST banner → fresh rebuild with catalog parity → patch re-apply over the build → DEPLOY-VERIFICATION → register re-grade of exactly the CIs the header names → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → commit + push both repos.
-3. Before the first bill-run calculation code lands: CI-003's GUC net (R-16), A-3's snapshot value contract + replay function, and the A-3 `valid_at` binding (A-23 1e).
+1. Start the Kyle-independent queue with the **A-3 `valid_at` binding**: read A-23 1e in `application/`, `invoice_calculation_snapshots` in tu.sql, and A-7's issuance gate (which ignores the pair). Decide with Ryan whether to bind `valid_at` to the period or `recorded_at` to the run, then draft as `v5.4.2-10`. Fold in the small residuals if they fit the header.
+2. Same loop as -09: fresh clone (`docker exec` only) → strict apply ×2 → battery inside one transaction as `tally_app` → pre-seeded precondition check → brief with `wc -l` + `md5 -q` → **freeze, launch both reviewers** → fold → next round → mirror after the LAST banner → fresh rebuild + catalog parity → battery green on the build → DEPLOY-VERIFICATION → CI re-grade → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → **battery + repros into `tests/v5.4.2-10/`** → commit + push both repos.
+3. Check GBM for a new Kyle record before each session (`git -C ~/code/gas-billing-memory log --oneline -5`; `application/kyle-decisions-*`). If Part 4 has emptied, A-2 moves ahead of everything.
 
 ## Warnings
 
 - tu.sql APPEND-ONLY; anchors 337/3600/3679. Pin `public, pg_temp`; prove qualification with the strict prelude; guards after the backfills they would refuse; a "written by the DB" fence is `pg_trigger_depth() < 2`.
 - Never grant TEMP / CREATE / TRIGGER to `tally_app` without re-reading A-23 (1d).
-- Wait for `PostgreSQL init process complete` before touching a freshly run container; run `tally-pg` without `-p`.
-- Never `git add -A` in GBM.
-- Fixtures for later patches: customers need `status_reason` on any status change and their history is DB-written only; deposits are events-only; issued invoices reject content edits; reads born `pending_review` → approve; a surcharge line needs `meter_id` when capped and must be written before its bases; issuance needs snapshot + bases; a ruled line's `rate_item_id`/`invoice_id` and its invoice's `invoice_date` are frozen (delete + rewrite); rule corrections/retractions run only under READ COMMITTED and wait behind in-flight line writes; expect `serialization_failure` retries on capped-line writers (AC-29).
-- Phase 3 judgment-gated items wait; A-8 needs a Kyle brief; finance gate holds A-15/A-6 remainder. Texas-only launch scope.
+- Wait for `PostgreSQL init process complete` before touching a freshly run container; run `tally-pg` without `-p`; connect as `-U tally` (there is no `postgres` role).
+- Never `git add -A` in GBM. Record every GBM canonical-data change in `application/wiki-ingestion-pending.md`.
+- Fixtures for later patches: customers need `status_reason` on any status change and their history is DB-written only; deposits are events-only; issued invoices reject content edits; reads born `pending_review` → approve; a surcharge line needs `meter_id` when capped and must be written before its bases; issuance needs snapshot + bases; a ruled line's `rate_item_id`/`invoice_id` and its invoice's `invoice_date` are frozen; rule corrections/retractions run only under READ COMMITTED (AC-29); an asserted exemption needs alphanumeric certificate evidence unless its category is flag-only (AC-30).
+- Do not draft A-2 or A-8 DDL while Kyle's Part 4 is open. Finance gate holds A-15 / A-6 remainder and may hold A-10. Texas-only launch scope.
