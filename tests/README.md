@@ -14,6 +14,18 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
+  v5.4.2-11/
+    battery-11.sql          # 41 checks; TWO tenants throughout (every headline check is cross-tenant).
+                            #   Group G is unusual and deliberate: it proves the tenant-isolation
+                            #   assertion CATCHES drift rather than merely passing — G2-G9 each create
+                            #   a leaky object and require a raise, G10a proves a cross-tenant WRITE
+                            #   really lands before G10b requires the raise, G11 guards a false positive.
+    probe-pre-11.sql        # the 11 discriminating checks under SAVEPOINTs, to run against an UNPATCHED
+                            #   build: every line must read PRE-PATCH HOLE there and "as expected" here
+    review/
+      review-brief-11.md          # round 1 (hash frozen)
+      review-brief-11-round2.md   # round 2 — every round-1 finding and its disposition
+      review-brief-11-round3.md   # round 3 — confirmation, scoped to section 7 and R5
   v5.4.2-10/
     battery-10.sql          # 58 checks; review/ holds five frozen revisions, five briefs, per-round reviewer repros, races/ (two-session scripts + outputs)
   v5.4.2-09/

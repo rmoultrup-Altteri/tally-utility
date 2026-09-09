@@ -421,3 +421,35 @@ docker exec tally-pg psql -U tally -d tally -c "<catalog queries>"
 ```
 
 No host port is required (5432 was occupied locally); use `docker exec`. Each container start applies the schema fresh — this is the standing deployability test. **Re-run this verification after every patch set and update this file's counts.**
+
+## v5.4.2-11 verification (2026-09-09) — definer hygiene and the tenant-isolation gate
+
+Fresh image build from the mirrored `tu.sql` (21,916 lines), container recreated, zero error/fatal lines in `docker logs`. Init file hash equals the committed file: `6edac2aad61505edd5654f214d62b351` both sides — verified by hash, never by timestamp.
+
+| object | after -11 | after -10 | note |
+|---|---|---|---|
+| tables | 82 | 82 | unchanged |
+| views | 5 | 5 | all five now `security_invoker = true` (was 3 of 5) |
+| materialized views | 4 | 4 | now readable by **nobody but the owner** |
+| RLS policies | 81 | 81 | unchanged |
+| FORCE RLS relations | 80 | 80 | unchanged |
+| triggers (non-internal) | 255 | 255 | unchanged |
+| functions | **393** | 392 | +1 exactly: `assert_tenant_isolation_invariants()` |
+| foreign keys | 357 | 357 | unchanged |
+| SECURITY DEFINER functions | **3** | 5 | `validate_custom_fields` and `get_correction_rate_date` moved to invoker |
+| definer functions PUBLIC-executable | **0** | 5 | the blanket grant is gone, and the default that would restore it |
+
+### Batteries on the rebuilt image
+
+| battery | result |
+|---|---|
+| `tests/v5.4.2-09/battery-09.sql` | 28 PASS, 0 errors |
+| `tests/v5.4.2-10/battery-10.sql` | 58 PASS, 0 errors |
+| `tests/v5.4.2-11/battery-11.sql` | 41 PASS, 0 errors |
+| `tests/v5.4.2-11/probe-pre-11.sql` | 11 `as expected`, 0 holes (11 holes on the -10 build) |
+
+`SELECT public.assert_tenant_isolation_invariants();` returns clean on the fresh build.
+
+### Review
+
+Five hash-frozen rounds: `133546f8` → `5b27cc38` → `1a0f6c84` → `c35698ac` → `a275c67d`. The final delta is comment-only (residuals R6/R7, recorded after both reviewers approved `c35698ac`); re-verified by strict apply ×2 and battery 41/41 after the edit. Both reviewers returned "confirmed, no findings" on round 5.

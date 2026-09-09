@@ -6,6 +6,50 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-09-09 (definer hygiene) — v5.4.2-11: the surfaces that ran with `tally`'s rights, and a re-runnable tenant-isolation gate
+
+`tally` is a superuser with `rolbypassrls`, so anything executing with its rights reads every tenant. Five hash-frozen review rounds (`133546f8` → `5b27cc38` → `1a0f6c84` → `c35698ac` → `a275c67d`; Fable `general-purpose`, Codex `codex:codex-rescue`). Round 1 found a CRITICAL neither the patch nor its self-check could see; rounds 4 and 5 each found a defect in code written *during* the review. Both reviewers converged independently three times — on the matviews, on the tables, and on the `WITH CHECK` hole.
+
+### Decisions
+
+**D-2026-09-09-01 · `get_correction_rate_date` is re-issued with INVOKER rights rather than having its EXECUTE revoked.**
+A revoke deletes a capability the function's own COMMENT documents for the billing engine. Invoker rights keep it and make it tenant-correct, and the new behaviour for a foreign id — NULL — is already the documented contract. Its in-schema caller proves visibility of the run, the replaced invoice and the target row before consulting it, so the change costs that path nothing.
+
+**D-2026-09-09-02 · The blanket `PUBLIC EXECUTE` grant is cleaned up here, not deferred.**
+The reading pass had proposed revoking `tally_app`'s direct EXECUTE on one function; the catalog showed `=X/tally` on all five, so `tally_app` would have kept it through PUBLIC and the fix would have been a no-op. Scope added deliberately with Ryan's approval.
+
+**D-2026-09-09-03 · `anomalies.entity_type` gets fifteen singular values, derived from the 37 `anomaly_type` values; `adhoc_charge` and `service_order` are NOT seeded.**
+Singular is settled by evidence (GBM's routing table, the only writer, and `account_ledger.reference_type`), not taste. The width asymmetry decides the rest: widening a CHECK later is one line, narrowing it means cleaning up rows that are already routed.
+
+**D-2026-09-09-04 · The four statistics matviews are REVOKED, not wrapped.**
+A matview holds its own copy of the rows, refreshed under the owner's BYPASSRLS rights, and can carry neither `security_invoker` nor a policy — the grant is the only lever. A `security_invoker` wrapper is impossible (it needs the *caller* to hold SELECT on the matview). The workable alternative, an owner-rights wrapper with a hand-written tenant predicate, is a second copy of the policy running with the same rights as the hole being closed. No application exists to have a read path yet; it is designed with the dashboard (R5).
+
+**D-2026-09-09-05 · The verification becomes `assert_tenant_isolation_invariants()`, a function every future patch calls, rather than a one-shot DO block.**
+Both reviewers reached the same weakness from different directions: the invariants are true when a patch applies and drift at the next `CREATE`, because `ALTER DEFAULT PRIVILEGES ... ON TABLES` covers views and matviews. The declined alternative was a `ddl_command_end` event trigger — it catches drift earlier but adds a new privileged execution surface to a patch whose purpose is removing them. Invoker rights and owner-only: a checking routine must never run elevated, and must never be the thing that grants.
+
+**D-2026-09-09-06 · The assertion covers TABLES, folded in rather than deferred to a `-12`.**
+Found independently by both reviewers (Codex HIGH, Fable MEDIUM) after the function already existed: it was named for tenant isolation and looked only at `relkind` `v` and `m`. Shipping a gate silent on 79 of 82 tables invites exactly the misplaced confidence the `relkind = 'v'` filter had already cost this patch once. Keyed on the column name `tenant_id`, which needs no allowlist — the only three tables without one are `tenants` (checked separately, keyed on `id`), `program_types` and `materialized_view_refresh_log`.
+
+**D-2026-09-09-07 · `polqual` and `polwithcheck` are checked INDEPENDENTLY; RESTRICTIVE policies are exempt from the canonical-string test.**
+The first draft coalesced them, so a canonical `USING` with `WITH CHECK (true)` passed while any session could write rows tagged with any tenant — read-isolated, write-open. The restrictive exemption is required in the other direction: restrictive policies are AND-ed and can only narrow, so demanding they be canonical refused a legitimate extra guard. A table must still carry at least one PERMISSIVE policy, since RLS on with none denies everything.
+
+**D-2026-09-09-08 · The operand-order false positive is ACCEPTED, not fixed.**
+A semantically identical predicate with swapped operands renders differently and raises. It fails closed and loudly, and one canonical spelling across every policy is worth the friction; the HINT says a table whose predicate must legitimately differ is an explicit edit of the invariant, not a reason to weaken it.
+
+**D-2026-09-09-09 · The broken `refresh_statistics_views()` is recorded, not fixed.**
+`RETURNS TABLE(view_name ...)` makes `ON CONFLICT (view_name)` ambiguous, so it has never worked for anyone. Unrelated pre-existing defect; this is a hygiene patch. R5 records it so the dashboard work fixes the read path and the refresh path together.
+
+### Corrections to reviewer findings (recorded because the code would have been wrong)
+
+- Fable's proposed `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ... FROM PUBLIC` is a silent **no-op**. PUBLIC's EXECUTE comes from the GLOBAL, schema-less default ACL; only the unqualified `FOR ROLE` form works. Measured both.
+- Fable reported all 81 policies render to one canonical string. There are **two** — `tenants` is keyed on `id`, having no `tenant_id` column. A strict-equality check written from that prose would have false-positived immediately.
+- Codex described the per-schema default as taking *precedence* over the global one. They are **additive**; a PUBLIC item in either is sufficient. The conclusion held, the mechanism did not.
+- Both proposed a `security_invoker` wrapper over a matview. Impossible, per D-04.
+
+### Residuals
+
+R1 `void_invoice` stays `public, pg_temp` (body fully qualified — the TEMP premise does not hold on clones). R2 the ~190 trigger functions are not re-pinned to `''` though the A-23 (1c) lift now permits it. R3 non-definer functions are not audited for PUBLIC EXECUTE. R4 `anomalies.entity_id` has no polymorphic FK. R5 the matviews have no tenant-scoped read path, and their refresh is broken. R6 a permissive policy with neither `USING` nor `WITH CHECK` passes the assertion — verified fail-closed, raised by Codex after both had approved, so recorded rather than folded. R7 the matview and definer checks name `tally_app`/PUBLIC, so a future second application role would be unwatched.
+
 ## 2026-09-08 (A-3 follow-up) — v5.4.2-10: the snapshot's coordinate pair is bound to facts the database holds (A-23 1e)
 
 Kyle-independent work while A-2 waits on his Part 4. Ryan ruled strict on both drafting calls (an ordinary bill is priced at exactly `period_end`; a correction with no correction-run target row is refused). Five hash-frozen review rounds (`bb7cdbd9` → `9160f8af` → `2530daf7` → `2d0ece3c` → `f143c1cb`; Fable `general-purpose`, Codex `codex:codex-rescue`); round 1 found a CRITICAL and two HIGHs, round 2 two semantic MEDIUMs, round 3 one shared lineage gap, round 4 two LOWs (rebill typing; a pre-existing tenant-blind FK), round 5 confirmatory.

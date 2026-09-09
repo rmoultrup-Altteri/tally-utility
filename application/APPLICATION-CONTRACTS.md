@@ -277,3 +277,22 @@ Config shape is enforced loudly at read: `tax_exemptions` must be an object when
 `customer_tax_exemptions_renewal_due` is the renewal work queue (security_invoker; RLS applies): a row enters ON the day exactly `renewal_notice_days_before` days remain (`notice_window_opened_on = effective_end − N`). `'renewal_due'` rows want a renewal entered as a NEW row — never an `effective_end` edit (the bracket froze with the assertion); they are quieted by a renewal on file (a later-bracketed open active assertion, same customer and category). `'lapsed'` rows (past `effective_end` — the end date itself is still covered, the bracket is inclusive) stay listed even with a renewal on file: they owe their valid-time expiry succession (close + `expired` successor carrying the same bracket and the evidence) and leave the queue when it lands. The queue reads the exemptions table only — the legacy `customers.is_tax_exempt` display columns are not consulted by any tax path and must not be treated as authoritative.
 
 Deploy note: the v5.4.2-09 precondition refuses to apply while any CURRENT assertion head (active, or an unsuperseded expired/revoked head — those still suppress tax for their bracket on rebills) lacks required evidence. Remediation: a correction row carrying the evidence, a retraction (certificate never existed), or the flag-only flip. Preconditions bind only under the repo-standard `psql -v ON_ERROR_STOP=1` apply.
+
+### AC-32 — Every patch calls `assert_tenant_isolation_invariants()` in its tail; a new table, view or matview is born leaky until it does — REJECTS
+
+`public.assert_tenant_isolation_invariants()` (v5.4.2-11, owner-only, invoker rights) raises unless every tenant-isolation invariant still holds. **Call it in the tail of every future patch, and last in the container build.** It is not decoration: these invariants are true when a patch applies and drift at the next `CREATE`, because `tu.sql`'s `ALTER DEFAULT PRIVILEGES ... ON TABLES TO tally_app` covers views and matviews.
+
+What the database will refuse to certify:
+
+| Drift | What you must do |
+|---|---|
+| A new table with a `tenant_id` column | `ENABLE` **and** `FORCE ROW LEVEL SECURITY`, plus a policy `USING (is_platform_admin() OR tenant_id = get_user_tenant_id())` — written in exactly that form and order |
+| A partition child | Give it its own row security; it does **not** inherit the parent's, and a direct read of the child bypasses the parent's policy |
+| A second permissive policy | Permissive policies are OR-ed — one `USING (true)` opens the table. Every permissive policy must be canonical, in **both** its `USING` and its `WITH CHECK` |
+| A permissive `WITH CHECK (true)` beside a canonical `USING` | Read-isolated but **write-open**: any session can write rows tagged with any tenant. Refused |
+| A new view | `ALTER VIEW ... SET (security_invoker = true)` — `CREATE VIEW` has no such default, and the owner is a BYPASSRLS superuser |
+| A new materialized view | `REVOKE ALL ... FROM tally_app, PUBLIC`. A matview can carry neither `security_invoker` nor RLS; the grant is the only lever, and column-level grants count |
+| A new `SECURITY DEFINER` function | Pin its `search_path` and keep it un-executable by PUBLIC |
+| A default privilege granting PUBLIC EXECUTE | Global **or** per-schema — either reopens it for every new function |
+
+`RESTRICTIVE` policies are exempt from the canonical-predicate test (they are AND-ed and can only narrow), but a table must still carry at least one permissive policy. A table whose predicate must legitimately differ is an explicit edit of the assertion, not a reason to weaken it. The key is the column name `tenant_id`: a tenant table whose discriminator is called something else is outside the check by construction.
