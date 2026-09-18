@@ -1,8 +1,26 @@
-# Handoff: v5.4.2-11 landed (definer hygiene; A-23 1c/1d closed; the tenant-isolation gate is now a function every patch must call); A-2 still fenced on Kyle's Part 4
+# Handoff: two workstreams — `ui-concepts/` is a runnable first-iteration UI awaiting a direction call; on the schema side v5.4.2-11 is landed and A-2 is still fenced on Kyle's Part 4
 
-**Generated**: 2026-09-09 (wrap — v5.4.2-11 landed after five hash-frozen review rounds; both repos committed and pushed)
-**Branch**: tally-utility `main` @ `026ed9f` · gas-billing-memory `main` @ `c52434f` (both clean; GBM's unrelated untracked `Clippings/` left alone)
+**Generated**: 2026-09-18 (wrap — the UI prototype landed across six commits; tally-utility committed and pushed, working tree clean)
+**Branch**: tally-utility `main` @ `e6ef17e` (clean, pushed) · gas-billing-memory untouched this session, still `main` @ `c52434f`
 **Status**: **v5.4.2-11 DONE** (`sql/v5.4.2-11-definer-hygiene-and-view-rls.sql`, 1,100 lines, md5 `a275c67d…`; tu.sql 21,165 → **21,916**; battery **41** + an 11-check pre-patch probe in `tests/v5.4.2-11/`; catalog 82 tables / 5 views / 4 matviews / 81 policies / 80 FORCE RLS / 255 triggers / **393** functions / 357 FKs; container `tally-pg` = fresh build of the committed tu.sql, verified by hash `6edac2aa…`). Phase 4: Wave 1 ✅, Wave 2 ✅, Wave 3: A-9 ✅ · A-2 ⏸ (Kyle) · A-10 open. A-8 held for its brief.
+
+## Workstream A — `ui-concepts/` (this session's work)
+
+**Status:** fifteen screens, all ten from the domain report's Screen list, on fixtures. `pnpm dev` on **port 4182**; `pnpm build` and `pnpm check:fixtures` both green; every screen shot in both themes with no console errors. Nothing writes — interactions are presentational by design.
+
+**THE ONE THING TO CARRY FORWARD (UI):** run **`pnpm check:fixtures`** after any fixture edit, and add a check whenever a screen starts *stating* something about data it does not compute. It exists because the bill's derivation rail multiplied by the meter multiplier twice and looked correct on every account for as long as every multiplier was 1.0000. That is the shape of the whole class — an identity that holds for free until the one record arrives where it does not — and four of the five defects found this session were invisible to screenshots. The checks are mutation-tested; a check that has never failed is not evidence of anything.
+
+**Waiting on Ryan:** whether this iteration is the direction. Everything below is cheap to redo and should not be built on until that call is made.
+
+**Ordered queue if it is:** Screen 4's editor half (rate item rows, tier/bracket editor, version diff, rollback — the sandbox half is built); Screen 6's standalone portal view plus hover tooltip, click-a-bar explainer and balance-point line; AR bucket drilldowns (they must sum back to the tile — that reconciliation is T8-6/7's acceptance test); wiring the keyboard affordances, which are drawn but inert.
+
+**Open decision, not a bug:** the shell overflows horizontally below ~600px on every screen — the 208px sidebar and the fixed-width quick-find never collapse. The target user is at a desk, but that should be a decision rather than an accident.
+
+**Do not ingest as canonical:** the G-1 tariff rates, the Texas collections parameters (§7.460 scope is real; the forecast values are not) and the January exposure volumes are prototype inventions chosen to make screens legible. They are internally consistent, which is not the same as true.
+
+---
+
+## Workstream B — schema (`sql/tu.sql`), unchanged this session
 
 ## Goal
 
