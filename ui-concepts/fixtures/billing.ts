@@ -59,6 +59,38 @@ export const sandboxRun: BillingRun = {
   recorded_at: '2026-02-15T11:22:03-06:00',
 }
 
+/**
+ * The January cycle. It is in the fixtures because three screens talk about it
+ * — the voided bill names it, the dashboard's rate card reads its as-billed
+ * rates, and the PGA console counts the bills it issued — and a run that three
+ * screens cite ought to exist.
+ *
+ * Its coordinate is the whole point: recorded 16 Jan 2026, six weeks before
+ * the January PGA factor was filed. Nothing it did was wrong at the time.
+ */
+export const januaryRun: BillingRun = {
+  id: 'run-2026-01-04',
+  run_number: 'BR-2026-01-04',
+  billing_period: 'Jan 2026',
+  period_start: '2025-12-15',
+  period_end: '2026-01-14',
+  run_type: 'regular',
+  is_dry_run: false,
+  correction_rate_mode: 'historical',
+  status: 'posted',
+  total_locations: 3412,
+  total_invoices: 3412,
+  total_amount: '402118.66',
+  total_exceptions: 11,
+  total_estimated_reads: 39,
+  started_at: '2026-01-16T04:00:10-06:00',
+  completed_at: '2026-01-16T04:12:55-06:00',
+  approved_at: '2026-01-16T17:41:02-06:00',
+  posted_at: '2026-01-16T17:58:20-06:00',
+  valid_at: '2026-01-14',
+  recorded_at: '2026-01-16T04:00:10-06:00',
+}
+
 /** The correction run that carries the rebill for the voided February bill. */
 export const correctionRun: BillingRun = {
   id: 'run-2026-02-cor',
@@ -83,7 +115,7 @@ export const correctionRun: BillingRun = {
   recorded_at: '2026-02-16T10:04:00-06:00',
 }
 
-export const runs = [currentRun, correctionRun, sandboxRun]
+export const runs = [currentRun, correctionRun, sandboxRun, januaryRun]
 
 export const invoices: Invoice[] = [
   /* The signature bill: high usage, all-actual reads, priced in-period. */
@@ -1074,7 +1106,7 @@ export const rateCard: { scheduleCode: string; scheduleName: string; lastPostedR
     {
       itemCode: 'WNA-RES',
       label: 'Weather normalization',
-      asBilled: '-0.014200',
+      asBilled: '-0.018700',
       currentEffective: '-0.021300',
       rateUnit: 'per_therm',
     },

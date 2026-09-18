@@ -173,8 +173,33 @@ export const pgaVersions: RateItemVersion[] = [
   },
 ]
 
+/**
+ * The gas utility tax. A small municipal levy every class pays, carried as a
+ * rate item rather than hard-coded because it is date-effective like anything
+ * else and an invoice line cites it by code.
+ */
+export const gutItem: RateItemVersion = {
+  id: 'gut-v1',
+  item_code: 'GUT-TX',
+  item_name: 'Gas utility tax',
+  display_group: 'taxes_fees',
+  calculation_type: 'percentage_of_charges',
+  rate: '0.005000',
+  rate_unit: 'percent',
+  effective_from: '2019-10-01',
+  effective_to: null,
+  recorded_from: '2019-09-12T11:30:00-05:00',
+  recorded_until: null,
+  supersedes_id: null,
+  change_type: 'initial',
+  change_reason: 'Municipal gas utility tax adopted city-wide',
+  regulatory_reference: 'City of Bryan Ord. 2019-081',
+  changed_by: 'K. Shaffer',
+}
+
 /** The other rate items on R-1, at their currently standing versions. */
 export const r1Items: RateItemVersion[] = [
+  gutItem,
   {
     id: 'cust-v2',
     item_code: 'CUST-CHG-RES',

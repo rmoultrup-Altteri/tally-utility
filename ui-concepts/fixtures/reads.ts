@@ -178,7 +178,7 @@ export const readings: MeterReading[] = [
     gas_therms: '81.53',
     consumption_prior_period: '81.00',
     consumption_same_period_last_year: '84.00',
-    consumption_pct_vs_typical: '-4.10',
+    consumption_pct_vs_typical: '-5.95',
     notes: 'Estimated from prior-year same period. At state cap of 3.',
   },
   {

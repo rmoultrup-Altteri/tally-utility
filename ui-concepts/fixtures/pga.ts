@@ -76,7 +76,7 @@ export const recordedInstants: RecordedInstant[] = [
     label: 'January cycle billed',
     kind: 'billing',
     detail:
-      '412 bills issued for service through 14 Jan. No January factor had been recorded — the run priced them anyway.',
+      'BR-2026-01-04 issued 3,412 bills for service through 14 Jan. No January factor had been recorded — the run priced them anyway.',
   },
   {
     id: 'ri-v5',
@@ -164,18 +164,27 @@ export const backfillExposure = {
   billedFactor: '0.412000',
   filedFactor: '0.376400',
   deltaFactor: '0.035600',
-  billsIssued: 412,
-  billsOverThreshold: 412,
+  billsIssued: 3412,
+  /**
+   * Not every affected bill is worth voiding. A de-minimis threshold exists so
+   * that a correction run does not mail three thousand replacement statements
+   * to recover a dollar each; below it the difference is carried as an
+   * adjustment on the next bill instead. The split here is the breakpoint at
+   * 54 therms, which is where $0.035600 plus franchise fee clears $2.00.
+   */
   thresholdAmount: '2.00',
-  therms: '84460.00',
-  gasDelta: '3006.78',
-  franchiseDelta: '120.27',
-  totalCredit: '3127.05',
+  thresholdTherms: '54.0',
+  billsOverThreshold: 2592,
+  billsUnderThreshold: 820,
+  therms: '525835.55',
+  gasDelta: '18719.75',
+  taxDelta: '1084.32',
+  totalCredit: '19804.07',
   rebilled: 1,
   /** Credit already returned by the one bill repriced so far. */
   creditIssued: '7.57',
-  remainingBills: 411,
-  remainingCredit: '3119.48',
+  remainingBills: 2591,
+  remainingCredit: '19796.50',
 } as const
 
 /** The single fully-modelled bill in the exposure, for the worklist row. */

@@ -24,8 +24,8 @@ import { StateBlock, StateFlag } from '@/components/ui/State'
  * across a row and you see everything it knew at one moment. The staircase
  * that results is the normal shape: knowledge arrives shortly before the month
  * it governs. January breaks the staircase — its factor lands two rows below
- * where the pattern puts it, and the cells above it are empty even though 412
- * bills were issued out of them.
+ * where the pattern puts it, and the cells above it are empty even though the
+ * whole January cycle was issued out of them.
  *
  * Empty is the point. An empty cell is not zero and not "use the last known
  * value"; it is a coordinate at which the factor is unknowable, and the
@@ -312,7 +312,7 @@ function Probe({ selection }: { selection: Selection | null }) {
           <StateBlock tone="critical">
             <p className="text-data text-ink-primary">
               <strong className="font-semibold">
-                The January run priced 412 bills out of this empty cell.
+                The January run priced 3,412 bills out of this empty cell.
               </strong>{' '}
               No PGA version stood at this coordinate — December&rsquo;s valid time had already
               closed and January&rsquo;s had not yet been recorded. The run carried December forward

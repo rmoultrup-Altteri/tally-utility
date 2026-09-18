@@ -112,8 +112,8 @@ export default function PgaConsolePage() {
               <strong className="font-semibold">Read down the January column.</strong> The factor
               appears two rows below where the staircase puts every other month, because Gas Supply
               recorded it 46 days after the period opened. The cells above it are not stale values —
-              they are empty. Nothing was knowable there, and 412 bills were issued out of that
-              emptiness anyway.
+              they are empty. Nothing was knowable there, and the entire January cycle — 3,412
+              bills — was issued out of that emptiness anyway.
             </p>
           </StateBlock>
 
@@ -131,14 +131,18 @@ export default function PgaConsolePage() {
                 {fmtRate(backfillExposure.deltaFactor)}
               </Exposure>
               <Exposure label="Therms affected">{therms(backfillExposure.therms)}</Exposure>
-              <Exposure label="Credit owed" hint="gas + franchise fee">
+              <Exposure label="Credit owed" hint="gas + franchise fee + sales tax">
                 <Money value={backfillExposure.totalCredit} />
               </Exposure>
             </div>
             <p className="px-4 py-3 text-micro text-ink-secondary border-b border-rule-hair">
-              All {count(backfillExposure.billsOverThreshold)} bills exceed the{' '}
-              <Money value={backfillExposure.thresholdAmount} /> de-minimis threshold, so every one
-              requires void-and-rebill rather than a carried adjustment. The correction run elects{' '}
+              {count(backfillExposure.billsOverThreshold)} of the{' '}
+              {count(backfillExposure.billsIssued)} bills clear the{' '}
+              <Money value={backfillExposure.thresholdAmount} /> de-minimis threshold and require
+              void-and-rebill. The other {count(backfillExposure.billsUnderThreshold)} fall below it
+              — under {backfillExposure.thresholdTherms} therms the difference is worth less than the
+              postage — and carry as an adjustment on the next bill instead. The correction run
+              elects{' '}
               <span className="text-ink-primary">
                 {humanize(correctionRun.correction_rate_mode ?? '')}
               </span>{' '}

@@ -118,6 +118,23 @@ domain expert and live in `gas-billing-memory/application/`:
 `T8-2` (favorites: reports, record lists and saved searches only — nothing
 record-level, no recents) is **not built yet**.
 
+## Fixture invariants
+
+`pnpm check:fixtures` asserts every identity the screens display but nothing
+enforces — referential integrity, the gas derivation chain, invoice arithmetic,
+rate version chains, lifecycle rules, and the cross-fixture numbers one screen
+states in prose about another's rows.
+
+It exists because of a bug that hid in plain sight: the bill's derivation rail
+applied the meter multiplier twice, and looked correct on every account for as
+long as every multiplier was 1.0000. That is the shape of the whole class — an
+identity that holds for free until the one record arrives where it doesn't —
+and eyeballing screenshots will not find it.
+
+The checks are mutation-tested rather than assumed: breaking a cent, a
+multiplier, a day count, a version chain or a narrative total each produce a
+finding. A check that has never failed is not evidence of anything.
+
 ## Known gaps
 
 - Interactions are presentational. Nothing writes; buttons do not submit.
