@@ -35,6 +35,7 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/collections` | Collections & disconnect worklist — bypass evaluation, stay exclusion, relight queue |
 | `/rates` | Rate versions and the bi-temporal timeline |
 | `/rates/pga` | PGA console — the bi-temporal lattice, late-filing exposure, filing discipline |
+| `/rates/sandbox` | Tariff sandbox — move a rate, rehearse it against a closed cycle's actual volumes |
 | `/customers/cus-0001` | Customer 360 with usage-vs-weather |
 
 ## Design direction

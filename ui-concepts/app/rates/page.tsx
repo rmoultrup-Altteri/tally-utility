@@ -32,7 +32,9 @@ export default function RatesPage() {
         meta="Residential Firm Gas Service · R-1 · RRC tariff GUD-10928"
         actions={
           <>
-            <Button>Rehearse against last cycle</Button>
+            <Link href="/rates/sandbox">
+              <Button>Rehearse against last cycle</Button>
+            </Link>
             <Button variant="primary">New rate version</Button>
           </>
         }

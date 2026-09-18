@@ -26,6 +26,7 @@ const NAV: NavItem[] = [
   { href: '/collections', label: 'Collections' },
   { href: '/rates', label: 'Rates & tariffs' },
   { href: '/rates/pga', label: 'PGA console' },
+  { href: '/rates/sandbox', label: 'Tariff sandbox' },
   { href: '/customers/cus-0001' as Route, label: 'Accounts' },
 ]
 

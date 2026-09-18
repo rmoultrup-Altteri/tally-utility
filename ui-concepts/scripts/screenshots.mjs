@@ -12,6 +12,7 @@ const pages = [
   ['collections', '/collections'],
   ['rates', '/rates'],
   ['pga', '/rates/pga'],
+  ['sandbox', '/rates/sandbox'],
   ['customer', '/customers/cus-0001'],
 ]
 const BASE = process.env.BASE_URL ?? 'http://localhost:4182'
