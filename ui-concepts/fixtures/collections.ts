@@ -221,7 +221,7 @@ export const worklist: WorklistRow[] = [
     isResidential: false,
     address: '311 S Main St',
     city: 'Bryan',
-    balance: '1204.55',
+    balance: '489.31',
     pastDueDays: 38,
     stage: 'shutoff_scheduled',
     lastNotice: { type: 'Formal disconnect notice', sentAt: '2026-02-02', channel: 'Certified mail' },

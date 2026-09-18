@@ -148,7 +148,7 @@ export const customers: Customer[] = [
     is_tax_exempt: false,
     move_in_date: '2022-06-11',
     deposit_amount: '600.00',
-    balance: '1204.55',
+    balance: '489.31',
   },
   {
     id: 'cus-0008',

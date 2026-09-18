@@ -29,6 +29,7 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/runs/run-2026-02-04` | Billing run cockpit with the post gate |
 | `/runs/run-2026-02-sbx` | The same, as a dry run |
 | `/invoices/inv-0001` | The bill, with its derivation rail |
+| `/invoices/inv-0002` | A held commercial bill on G-1 — declining block, no sales-tax exemption |
 | `/invoices/inv-0003` | A voided bill showing lineage |
 | `/invoices/inv-0003/rebill` | Void → rebill, with the rate-date election |
 | `/invoices/inv-0004/diff` | Correction diff — both input sets, balanced delta |

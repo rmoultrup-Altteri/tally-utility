@@ -304,6 +304,110 @@ export const r1Items: RateItemVersion[] = [
 ]
 
 /**
+ * G-1 rate items, at their currently standing versions.
+ *
+ * Small commercial differs from residential in three ways that matter on a
+ * bill: a higher customer charge, a declining block (volume is cheaper per
+ * therm above the breakpoint, the opposite of the residential inclining
+ * intent), and no sales-tax exemption — residential gas is exempt in Texas and
+ * commercial is not, which is why the bakery carries a tax line the houses
+ * do not. PGA, GRIP and the pipeline safety fee are class-independent and are
+ * the same rows R-1 reads.
+ */
+export const g1Items: RateItemVersion[] = [
+  {
+    id: 'custgs-v2',
+    item_code: 'CUST-CHG-GS',
+    item_name: 'General service customer charge',
+    display_group: 'base_charges',
+    calculation_type: 'fixed_monthly',
+    rate: '48.000000',
+    rate_unit: 'per_month',
+    effective_from: '2025-04-01',
+    effective_to: null,
+    recorded_from: '2025-03-11T13:20:00-05:00',
+    recorded_until: null,
+    supersedes_id: 'custgs-v1',
+    change_type: 'succession',
+    change_reason: 'GRIP rate case settlement — general service base charge',
+    regulatory_reference: 'RRC GUD-10928 · Final Order ¶16',
+    changed_by: 'K. Shaffer',
+  },
+  {
+    id: 'distgs1-v2',
+    item_code: 'DIST-GS-T1',
+    item_name: 'Distribution — first 500 therms',
+    display_group: 'usage_charges',
+    calculation_type: 'tiered_usage',
+    rate: '0.108500',
+    rate_unit: 'per_therm',
+    effective_from: '2025-04-01',
+    effective_to: null,
+    recorded_from: '2025-03-11T13:20:00-05:00',
+    recorded_until: null,
+    supersedes_id: 'distgs1-v1',
+    change_type: 'succession',
+    change_reason: 'GRIP rate case settlement — general service block 1',
+    regulatory_reference: 'RRC GUD-10928 · Final Order ¶16',
+    changed_by: 'K. Shaffer',
+  },
+  {
+    id: 'distgs2-v2',
+    item_code: 'DIST-GS-T2',
+    item_name: 'Distribution — over 500 therms',
+    display_group: 'usage_charges',
+    calculation_type: 'tiered_usage',
+    rate: '0.084200',
+    rate_unit: 'per_therm',
+    effective_from: '2025-04-01',
+    effective_to: null,
+    recorded_from: '2025-03-11T13:20:00-05:00',
+    recorded_until: null,
+    supersedes_id: 'distgs2-v1',
+    change_type: 'succession',
+    change_reason: 'GRIP rate case settlement — general service block 2, declining',
+    regulatory_reference: 'RRC GUD-10928 · Final Order ¶16',
+    changed_by: 'K. Shaffer',
+  },
+  {
+    id: 'wnags-v3',
+    item_code: 'WNA-GS',
+    item_name: 'Weather normalization adjustment',
+    display_group: 'adjustments',
+    calculation_type: 'usage_modifier',
+    rate: '-0.018400',
+    rate_unit: 'per_therm',
+    effective_from: '2026-02-01',
+    effective_to: '2026-02-28',
+    recorded_from: '2026-02-03T08:15:00-06:00',
+    recorded_until: null,
+    supersedes_id: 'wnags-v2',
+    change_type: 'succession',
+    change_reason: 'February 2026 WNA — zone BV-N, Form 2, general service coefficient',
+    regulatory_reference: 'RRC GUD-10928 · WNA Schedule',
+    changed_by: 'system',
+  },
+  {
+    id: 'salestax-v1',
+    item_code: 'TX-SALES',
+    item_name: 'TX state sales tax',
+    display_group: 'taxes_fees',
+    calculation_type: 'percentage_of_charges',
+    rate: '0.062500',
+    rate_unit: 'percent',
+    effective_from: '2015-09-01',
+    effective_to: null,
+    recorded_from: '2015-08-14T09:00:00-05:00',
+    recorded_until: null,
+    supersedes_id: null,
+    change_type: 'initial',
+    change_reason: 'State sales tax on non-residential gas service',
+    regulatory_reference: 'TX Tax Code §151.317',
+    changed_by: 'K. Shaffer',
+  },
+]
+
+/**
  * Resolve the version standing at a bi-temporal coordinate.
  *
  * Both axes are required and there is no fallback to "the current value" —

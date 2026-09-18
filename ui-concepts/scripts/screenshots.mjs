@@ -6,6 +6,7 @@ const pages = [
   ['run', '/runs/run-2026-02-04'],
   ['dryrun', '/runs/run-2026-02-sbx'],
   ['bill', '/invoices/inv-0001'],
+  ['held', '/invoices/inv-0002'],
   ['void', '/invoices/inv-0003'],
   ['rebill', '/invoices/inv-0003/rebill'],
   ['diff', '/invoices/inv-0004/diff'],

@@ -104,7 +104,7 @@ export const exceptions: Exception[] = [
     detected_at: '2026-02-15T04:22:14-06:00',
     recurrence_count: 1,
     first_detected_at: '2026-02-15T04:22:14-06:00',
-    estimated_impact: '1204.55',
+    estimated_impact: '489.31',
     assigned_to: 'Dana Pearce',
     blocks_delivery: true,
   },
