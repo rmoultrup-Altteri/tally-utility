@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import type { ReactNode } from 'react'
@@ -6,6 +7,7 @@ import { blockingCount, openExceptions } from '@/fixtures/exceptions'
 import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
 import { ThemeControl } from '@/components/shell/ThemeControl'
+import { Favorites } from '@/components/shell/Favorites'
 
 /**
  * The application frame.
@@ -128,6 +130,13 @@ function Sidebar({ current }: { current: string }) {
           )
         })}
       </ul>
+
+      {/* The rail reads the query string to mark the active saved view, which
+          would otherwise opt every prerendered page into client rendering.
+          The boundary keeps the rest of the shell static. */}
+      <Suspense fallback={<div className="border-t border-rule-hair px-3 py-2.5 h-24" />}>
+        <Favorites />
+      </Suspense>
 
       <div className="border-t border-rule-hair px-3 py-2.5">
         <ThemeControl />

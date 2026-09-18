@@ -1,4 +1,5 @@
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
+import { ListStar } from '@/components/shell/Favorites'
 import { Button, Key } from '@/components/ui/Panel'
 import { Rail, StateFlag, StateBlock, humanize } from '@/components/ui/State'
 import type { Tone } from '@/components/ui/State'
@@ -74,6 +75,7 @@ export default function ReadValidationPage() {
         }
         actions={
           <>
+            <ListStar list="reads" />
             <Button>Export</Button>
             <Button variant="primary">Release clean reads to billing</Button>
           </>

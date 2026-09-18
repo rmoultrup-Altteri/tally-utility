@@ -16,6 +16,8 @@ import { exceptions } from '../fixtures/exceptions.ts'
 import { worklist, BYPASSES, reconnectQueue, stayedAccounts, evaluate } from '../fixtures/collections.ts'
 import { pgaVersions, r1Items, g1Items, rateSchedules, versionAsOf } from '../fixtures/rates.ts'
 import { backfillExposure } from '../fixtures/pga.ts'
+import { seedFavorites } from '../fixtures/favorites.ts'
+import { LISTS, applyFilters, isFiltered } from '../lib/views.ts'
 import { baseline as sandboxBaseline, billFor, currentCard } from '../fixtures/tariff.ts'
 
 const findings = []
@@ -250,6 +252,23 @@ if (janRun) {
   if (!close(n(backfillExposure.billedFactor) - n(backfillExposure.filedFactor), n(backfillExposure.deltaFactor), 1e-6))
     fail('narrative', 'pga', 'deltaFactor is not the difference between the billed and filed factors')
 }
+/* A run cannot report fewer exceptions than the queue actually holds. */
+{
+  const open = exceptions.filter((e) => e.status !== 'resolved' && e.status !== 'false_positive')
+  const run = runs.find((r) => r.id === 'run-2026-02-04')
+  if (run && run.total_exceptions < open.length)
+    fail('narrative', 'queue', `${run.run_number} reports ${run.total_exceptions} exceptions but ${open.length} open ones are modelled`)
+}
+/* Every favorite must point at a destination that exists. */
+for (const f of seedFavorites) {
+  if (f.kind === 'report') { fail('favorites', f.id, 'report favorite exists but no report is built'); continue }
+  if (!LISTS[f.list]) fail('favorites', f.id, `points at unknown list ${f.list}`)
+  if (f.kind === 'named_view' && !isFiltered(f.filters))
+    fail('favorites', f.id, 'saved view carries no filters — it is the plain list')
+  if (f.kind === 'named_view' && applyFilters(exceptions, f.filters, 'Dana Pearce').length === 0)
+    fail('favorites', f.id, `saved view "${f.name}" matches nothing in the fixtures`)
+}
+
 /* The sandbox's baseline cycle must be a run that exists, with its counts. */
 const sbRun = runs.find((r) => r.run_number === sandboxBaseline.runNumber)
 if (!sbRun) fail('narrative', 'sandbox', `baseline cites ${sandboxBaseline.runNumber}, which is not a run`)

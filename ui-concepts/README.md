@@ -118,6 +118,24 @@ domain expert and live in `gas-billing-memory/application/`:
 `T8-2` (favorites: reports, record lists and saved searches only — nothing
 record-level, no recents) is **not built yet**.
 
+## Favorites and saved views (T8-2)
+
+Favorites cover reports, record lists and saved searches only. Nothing
+record-level, and no recents list — the reasoning is lifespan, since a report
+stays useful for years and a customer record for the length of one call.
+
+That exclusion is enforced by **shape**, not by convention: `lib/views.ts`
+defines a three-variant target union with no `entity_type` / `entity_id` pair
+anywhere. A polymorphic favorite would reopen record-level the first time
+somebody wrote a row with `entity_type = 'customer'`, and no review catches
+that reliably; a union with nowhere to put a customer id catches it at compile
+time.
+
+A saved search and a saved filtered view are one object, because given T8-1
+they are one thing. Filter state on the exception queue lives in the URL, so a
+filtered queue is already a shareable link and a saved view is that link with a
+name on it — `?severity=critical&blocking=1&assignee=unassigned`.
+
 ## Fixture invariants
 
 `pnpm check:fixtures` asserts every identity the screens display but nothing
@@ -138,7 +156,7 @@ finding. A check that has never failed is not evidence of anything.
 ## Known gaps
 
 - Interactions are presentational. Nothing writes; buttons do not submit.
-- Favorites (T8-2) and the AR bucket drilldown lists are not built.
+- The AR bucket drilldown lists are not built.
 - Collections rules are Texas-specific (16 TAC §7.460 forecast rule, no
   calendar moratorium). A real deployment parameterises these per jurisdiction;
   the fixture hard-codes one state.

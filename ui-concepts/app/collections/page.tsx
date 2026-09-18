@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
+import { ListStar } from '@/components/shell/Favorites'
 import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Rail, StateBlock, StateFlag, humanize, type Tone } from '@/components/ui/State'
 import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
@@ -88,6 +89,7 @@ export default function CollectionsPage() {
         meta={`Evaluated ${stamp(evaluatedAt)} · ${count(pipeline.total)} accounts in the dunning pipeline · Railroad Commission of Texas rules`}
         actions={
           <>
+            <ListStar list="collections" />
             <Button>Re-run evaluation</Button>
             <Button variant="primary" disabled={eligible.length === 0}>
               Create {count(eligible.length)} disconnect orders

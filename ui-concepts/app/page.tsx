@@ -5,6 +5,10 @@ import { Rail, StateFlag, StateBlock, severityTone, humanize } from '@/component
 import { Confidence } from '@/components/ui/Flags'
 import { Money } from '@/components/ui/Money'
 import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
+import { ListStar } from '@/components/shell/Favorites'
+import { QueueFilterBar } from '@/components/queue/QueueFilters'
+import { applyFilters, describeFilters, isFiltered, parseFilters } from '@/lib/views'
+import { currentUser } from '@/fixtures/tenant'
 import { byConsequence, openExceptions, exceptions, blockingCount } from '@/fixtures/exceptions'
 import { customerById, meterById } from '@/fixtures/accounts'
 import { currentRun } from '@/fixtures/billing'
@@ -22,10 +26,13 @@ import { stamp, date, dateShort } from '@/lib/format'
  * whole route gone wrong requires seeing its neighbours.
  */
 
-export default function ExceptionQueuePage() {
-  const rows = byConsequence(openExceptions)
+export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'>) {
+  const filters = parseFilters(await searchParams)
+  const all = byConsequence(openExceptions)
+  const rows = applyFilters(all, filters, currentUser.name)
   const selected = rows[0]
   const cleared = exceptions.length - openExceptions.length
+  const filtered = isFiltered(filters)
 
   return (
     <AppShell current="Exceptions">
@@ -39,6 +46,7 @@ export default function ExceptionQueuePage() {
         }
         actions={
           <>
+            <ListStar list="exceptions" />
             <Button>Assign selected</Button>
             <Button variant="primary" disabled title={`${blockingCount} exceptions still block delivery`}>
               Post run
@@ -59,10 +67,21 @@ export default function ExceptionQueuePage() {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <section className="min-w-0 border-r border-rule-solid flex flex-col">
+          <QueueFilterBar filters={filters} shown={rows.length} total={all.length} />
+
           <div className="flex items-center justify-between gap-4 px-cell-x py-2 border-b border-rule-hair bg-surface">
             <p className="text-micro text-ink-secondary">
-              <strong className="text-ink-primary font-semibold">{rows.length} remaining</strong> ·{' '}
-              {cleared} cleared today
+              {filtered ? (
+                <>
+                  <strong className="text-ink-primary font-semibold">{rows.length} shown</strong> ·{' '}
+                  {describeFilters(filters)}
+                </>
+              ) : (
+                <>
+                  <strong className="text-ink-primary font-semibold">{rows.length} remaining</strong>{' '}
+                  · {cleared} cleared today
+                </>
+              )}
             </p>
             <p className="text-micro text-ink-tertiary flex items-center gap-1.5">
               <Key>j</Key>
@@ -159,7 +178,11 @@ export default function ExceptionQueuePage() {
               </tbody>
             </Table>
           </div>
-          <TableFooter shown={rows.length} total={currentRun.total_exceptions} noun="exceptions" />
+          <TableFooter
+            shown={rows.length}
+            total={filtered ? all.length : currentRun.total_exceptions}
+            noun={filtered ? 'open exceptions on this queue' : 'exceptions in this run'}
+          />
         </section>
 
         {selected ? <ExceptionDetail exception={selected} /> : null}
