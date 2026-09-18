@@ -1,0 +1,847 @@
+import type { BillingRun, Invoice, InvoiceLine } from '@/schemas/models'
+
+/**
+ * The Cycle 04 billing run and the bills it produced.
+ *
+ * The run has resolved its bi-temporal coordinate pair once (`valid_at` /
+ * `recorded_at`) and passed it to every rate lookup, which is why the bills it
+ * produced can be reproduced exactly years later.
+ *
+ * Three bills carry the interesting states: one held behind a blocking
+ * exception, one voided with a live correction replacing it, and that
+ * correction itself — priced in the original period's world, not today's.
+ */
+
+export const currentRun: BillingRun = {
+  id: 'run-2026-02-04',
+  run_number: 'BR-2026-02-04',
+  billing_period: 'Feb 2026',
+  period_start: '2026-01-15',
+  period_end: '2026-02-14',
+  run_type: 'regular',
+  is_dry_run: false,
+  correction_rate_mode: 'historical',
+  status: 'review',
+  total_locations: 3412,
+  total_invoices: 3398,
+  total_amount: '412884.19',
+  total_exceptions: 14,
+  total_estimated_reads: 47,
+  started_at: '2026-02-15T04:00:12-06:00',
+  completed_at: '2026-02-15T04:41:55-06:00',
+  approved_at: null,
+  posted_at: null,
+  valid_at: '2026-02-14',
+  recorded_at: '2026-02-15T04:00:12-06:00',
+}
+
+/** A rate-change rehearsal against last cycle's actual data. Nothing it shows is real. */
+export const sandboxRun: BillingRun = {
+  id: 'run-2026-02-sbx',
+  run_number: 'BR-2026-02-SBX',
+  billing_period: 'Feb 2026',
+  period_start: '2026-01-15',
+  period_end: '2026-02-14',
+  run_type: 'dry_run',
+  is_dry_run: true,
+  correction_rate_mode: 'historical',
+  status: 'in_progress',
+  total_locations: 3412,
+  total_invoices: 3412,
+  total_amount: '431092.44',
+  total_exceptions: 2,
+  total_estimated_reads: 47,
+  started_at: '2026-02-15T11:22:03-06:00',
+  completed_at: null,
+  approved_at: null,
+  posted_at: null,
+  valid_at: '2026-03-01',
+  recorded_at: '2026-02-15T11:22:03-06:00',
+}
+
+/** The correction run that carries the rebill for the voided February bill. */
+export const correctionRun: BillingRun = {
+  id: 'run-2026-02-cor',
+  run_number: 'BR-2026-02-COR-1',
+  billing_period: 'Feb 2026',
+  period_start: '2026-01-15',
+  period_end: '2026-02-14',
+  run_type: 'correction',
+  is_dry_run: false,
+  correction_rate_mode: 'historical',
+  status: 'posted',
+  total_locations: 1,
+  total_invoices: 1,
+  total_amount: '148.21',
+  total_exceptions: 0,
+  total_estimated_reads: 0,
+  started_at: '2026-02-16T10:04:00-06:00',
+  completed_at: '2026-02-16T10:04:09-06:00',
+  approved_at: '2026-02-16T10:08:31-06:00',
+  posted_at: '2026-02-16T10:09:02-06:00',
+  valid_at: '2026-01-14',
+  recorded_at: '2026-02-16T10:04:00-06:00',
+}
+
+export const runs = [currentRun, correctionRun, sandboxRun]
+
+export const invoices: Invoice[] = [
+  /* The signature bill: high usage, all-actual reads, priced in-period. */
+  {
+    id: 'inv-0001',
+    invoice_number: 'INV-2026-02-004182',
+    billing_run_id: 'run-2026-02-04',
+    customer_id: 'cus-0001',
+    location_id: 'loc-0001',
+    invoice_type: 'regular',
+    replaces_invoice_id: null,
+    invoice_date: '2026-02-17',
+    billing_period: 'Feb 2026',
+    period_start: '2026-01-15',
+    period_end: '2026-02-14',
+    due_date: '2026-03-09',
+    previous_balance: '92.43',
+    total_charges: '218.94',
+    total_credits: '0.00',
+    total_taxes: '7.07',
+    total_adjustments: '0.00',
+    amount_due: '318.44',
+    amount_paid: '0.00',
+    balance: '318.44',
+    tax_breakdown: [
+      { label: 'City of Bryan franchise fee', basis: '218.94', rate: '0.040000', amount: '8.76' },
+      { label: 'TX state sales tax (residential exempt)', basis: '0.00', rate: '0.062500', amount: '0.00' },
+      { label: 'Gas utility tax', basis: '218.94', rate: '0.005000', amount: '1.09' },
+    ],
+    has_estimated_reads: false,
+    estimated_read_count: 0,
+    dunning_stage: 'current',
+    has_anomalies: true,
+    held_at: null,
+    hold_reason: null,
+    sent_at: null,
+    voided_at: null,
+    void_reason_code: null,
+    void_reason_notes: null,
+    void_rebill_expected: true,
+    first_issued_at: null,
+    status: 'draft',
+  },
+  /* Held behind a blocking exception — a human stopped it, a human releases it. */
+  {
+    id: 'inv-0002',
+    invoice_number: 'INV-2026-02-062118',
+    billing_run_id: 'run-2026-02-04',
+    customer_id: 'cus-0007',
+    location_id: 'loc-0007',
+    invoice_type: 'regular',
+    replaces_invoice_id: null,
+    invoice_date: '2026-02-17',
+    billing_period: 'Feb 2026',
+    period_start: '2026-01-15',
+    period_end: '2026-02-14',
+    due_date: '2026-03-09',
+    previous_balance: '0.00',
+    total_charges: '1164.02',
+    total_credits: '0.00',
+    total_taxes: '40.53',
+    total_adjustments: '0.00',
+    amount_due: '1204.55',
+    amount_paid: '0.00',
+    balance: '1204.55',
+    tax_breakdown: [
+      { label: 'City of Bryan franchise fee', basis: '1164.02', rate: '0.040000', amount: '46.56' },
+      { label: 'TX state sales tax', basis: '1164.02', rate: '0.062500', amount: '72.75' },
+    ],
+    has_estimated_reads: false,
+    estimated_read_count: 0,
+    dunning_stage: 'current',
+    has_anomalies: true,
+    held_at: '2026-02-15T05:12:44-06:00',
+    hold_reason: 'Tamper counter changed and usage up 78.9% — field verification before mailing',
+    sent_at: null,
+    voided_at: null,
+    void_reason_code: null,
+    void_reason_notes: null,
+    void_rebill_expected: true,
+    first_issued_at: null,
+    status: 'held',
+  },
+  /* The voided January bill — wrong PGA factor applied. */
+  {
+    id: 'inv-0003',
+    invoice_number: 'INV-2026-01-004913',
+    billing_run_id: 'run-2026-01-04',
+    customer_id: 'cus-0005',
+    location_id: 'loc-0005',
+    invoice_type: 'regular',
+    replaces_invoice_id: null,
+    invoice_date: '2026-01-16',
+    billing_period: 'Jan 2026',
+    period_start: '2025-12-15',
+    period_end: '2026-01-14',
+    due_date: '2026-02-05',
+    previous_balance: '0.00',
+    total_charges: '140.66',
+    total_credits: '0.00',
+    total_taxes: '5.63',
+    total_adjustments: '0.00',
+    amount_due: '146.29',
+    amount_paid: '0.00',
+    balance: '0.00',
+    tax_breakdown: [
+      { label: 'City of Bryan franchise fee', basis: '140.66', rate: '0.040000', amount: '5.63' },
+    ],
+    has_estimated_reads: true,
+    estimated_read_count: 1,
+    dunning_stage: 'current',
+    has_anomalies: false,
+    held_at: null,
+    hold_reason: null,
+    sent_at: '2026-01-16T18:02:00-06:00',
+    voided_at: '2026-02-16T09:58:12-06:00',
+    void_reason_code: 'wrong_rate',
+    void_reason_notes:
+      'January PGA adder applied at the December factor. Superseded factor was recorded late by Gas Supply.',
+    void_rebill_expected: true,
+    first_issued_at: '2026-01-16T18:02:00-06:00',
+    status: 'void',
+  },
+  /* The live rebill, priced in the original period's world. */
+  {
+    id: 'inv-0004',
+    invoice_number: 'INV-2026-02-C00418',
+    billing_run_id: 'run-2026-02-cor',
+    customer_id: 'cus-0005',
+    location_id: 'loc-0005',
+    invoice_type: 'correction',
+    replaces_invoice_id: 'inv-0003',
+    invoice_date: '2026-02-16',
+    billing_period: 'Jan 2026',
+    period_start: '2025-12-15',
+    period_end: '2026-01-14',
+    due_date: '2026-03-09',
+    previous_balance: '0.00',
+    total_charges: '133.38',
+    total_credits: '0.00',
+    total_taxes: '5.34',
+    total_adjustments: '0.00',
+    amount_due: '138.72',
+    amount_paid: '0.00',
+    balance: '138.72',
+    tax_breakdown: [
+      { label: 'City of Bryan franchise fee', basis: '133.38', rate: '0.040000', amount: '5.34' },
+    ],
+    has_estimated_reads: true,
+    estimated_read_count: 1,
+    dunning_stage: 'current',
+    has_anomalies: false,
+    held_at: null,
+    hold_reason: null,
+    sent_at: '2026-02-16T10:14:00-06:00',
+    voided_at: null,
+    void_reason_code: null,
+    void_reason_notes: null,
+    void_rebill_expected: true,
+    first_issued_at: '2026-02-16T10:14:00-06:00',
+    status: 'sent',
+  },
+]
+
+export const invoiceById = new Map(invoices.map((i) => [i.id, i]))
+export const invoiceByNumber = new Map(invoices.map((i) => [i.invoice_number, i]))
+
+/**
+ * Line items for the signature bill.
+ *
+ * The derivation chain is carried on the line itself — Ccf, meter factor, BTU
+ * factor, therms, commodity rate — so the inspector rail can show a customer
+ * exactly how 219 Ccf of gas became $218.94 without leaving the document.
+ */
+export const lines: InvoiceLine[] = [
+  {
+    id: 'lin-0001',
+    invoice_id: 'inv-0001',
+    line_order: 10,
+    charge_type: 'customer_charge',
+    description: 'Residential customer charge',
+    display_group: 'base_charges',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'CUST-CHG-RES',
+    usage_quantity: null,
+    usage_unit: null,
+    rate: '22.500000',
+    tier_label: null,
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: true,
+    taxable_amount: '22.50',
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: null,
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    amount: '22.50',
+  },
+  {
+    id: 'lin-0002',
+    invoice_id: 'inv-0001',
+    line_order: 20,
+    charge_type: 'volumetric',
+    description: 'Distribution charge — first 50 therms',
+    display_group: 'usage_charges',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'DIST-RES-T1',
+    usage_quantity: '50.00',
+    usage_unit: 'therms',
+    rate: '0.182400',
+    tier_label: 'Block 1 · 0–50 th',
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: true,
+    taxable_amount: '9.12',
+    gas_meter_factor: '1.000000',
+    gas_ccf_used: '48.45',
+    gas_therms_billed: '50.00',
+    gas_commodity_rate: null,
+    gas_btu_factor: '1.032000',
+    amount: '9.12',
+  },
+  {
+    id: 'lin-0003',
+    invoice_id: 'inv-0001',
+    line_order: 30,
+    charge_type: 'volumetric',
+    description: 'Distribution charge — over 50 therms',
+    display_group: 'usage_charges',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'DIST-RES-T2',
+    usage_quantity: '176.01',
+    usage_unit: 'therms',
+    rate: '0.141900',
+    tier_label: 'Block 2 · 50+ th',
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: true,
+    taxable_amount: '24.98',
+    gas_meter_factor: '1.000000',
+    gas_ccf_used: '170.55',
+    gas_therms_billed: '176.01',
+    gas_commodity_rate: null,
+    gas_btu_factor: '1.032000',
+    amount: '24.98',
+  },
+  {
+    id: 'lin-0004',
+    invoice_id: 'inv-0001',
+    line_order: 40,
+    charge_type: 'pga',
+    description: 'Purchased gas adjustment',
+    display_group: 'usage_charges',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'PGA-GAS',
+    usage_quantity: '226.01',
+    usage_unit: 'therms',
+    rate: '0.438500',
+    tier_label: null,
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: true,
+    taxable_amount: '99.11',
+    gas_meter_factor: '1.000000',
+    gas_ccf_used: '219.00',
+    gas_therms_billed: '226.01',
+    gas_commodity_rate: '0.438500',
+    gas_btu_factor: '1.032000',
+    amount: '99.11',
+  },
+  {
+    id: 'lin-0005',
+    invoice_id: 'inv-0001',
+    line_order: 50,
+    charge_type: 'wna',
+    description: 'Weather normalization adjustment',
+    display_group: 'adjustments',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'WNA-RES',
+    usage_quantity: '226.01',
+    usage_unit: 'therms',
+    rate: '-0.021300',
+    tier_label: 'Zone BV-N · Form 2',
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: true,
+    taxable_amount: '-4.81',
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: '226.01',
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    amount: '-4.81',
+  },
+  {
+    id: 'lin-0006',
+    invoice_id: 'inv-0001',
+    line_order: 60,
+    charge_type: 'rider',
+    description: 'Pipeline safety fee',
+    display_group: 'riders',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'PSF-TX',
+    usage_quantity: null,
+    usage_unit: null,
+    rate: '0.500000',
+    tier_label: null,
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: false,
+    taxable_amount: '0.00',
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: null,
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    amount: '0.50',
+  },
+  {
+    id: 'lin-0007',
+    invoice_id: 'inv-0001',
+    line_order: 70,
+    charge_type: 'rider',
+    description: 'Cost of service adjustment (GRIP)',
+    display_group: 'riders',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'GRIP-2025',
+    usage_quantity: '226.01',
+    usage_unit: 'therms',
+    rate: '0.030700',
+    tier_label: null,
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: true,
+    taxable_amount: '6.94',
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: '226.01',
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    amount: '6.94',
+  },
+  {
+    id: 'lin-0008',
+    invoice_id: 'inv-0001',
+    line_order: 80,
+    charge_type: 'franchise_fee',
+    description: 'City of Bryan franchise fee',
+    display_group: 'taxes_fees',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'FRAN-BRYAN',
+    usage_quantity: null,
+    usage_unit: null,
+    rate: '0.040000',
+    tier_label: null,
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: false,
+    taxable_amount: '0.00',
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: null,
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    amount: '5.98',
+  },
+  {
+    id: 'lin-0009',
+    invoice_id: 'inv-0001',
+    line_order: 90,
+    charge_type: 'tax',
+    description: 'Gas utility tax',
+    display_group: 'taxes_fees',
+    rate_schedule_code: 'R-1',
+    rate_item_code: 'GUT-TX',
+    usage_quantity: null,
+    usage_unit: null,
+    rate: '0.005000',
+    tier_label: null,
+    coverage_start: '2026-01-15',
+    coverage_end: '2026-02-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    is_taxable: false,
+    taxable_amount: '0.00',
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: null,
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    amount: '1.09',
+  },
+]
+
+export const linesByInvoiceId = (invoiceId: string) =>
+  lines.filter((l) => l.invoice_id === invoiceId).sort((a, b) => a.line_order - b.line_order)
+
+/**
+ * The January pair: the voided original and its rebill.
+ *
+ * Identical in every respect but one — the commodity rate. The original was
+ * priced with December's PGA because no January factor had been recorded when
+ * it ran; the rebill uses the January factor, recorded six weeks late. Every
+ * other line is byte-for-byte the same, which is exactly what a correction
+ * should look like and exactly what the diff has to prove.
+ */
+function januaryLines(invoiceId: string, pgaRate: string, pgaAmount: string, franchise: string): InvoiceLine[] {
+  const base = {
+    invoice_id: invoiceId,
+    rate_schedule_code: 'R-1',
+    coverage_start: '2025-12-15',
+    coverage_end: '2026-01-14',
+    days_covered: 30,
+    days_in_period: 30,
+    partial_period_policy_applied: null,
+    gas_meter_factor: null,
+    gas_ccf_used: null,
+    gas_therms_billed: null,
+    gas_commodity_rate: null,
+    gas_btu_factor: null,
+    tier_label: null,
+    usage_quantity: null,
+    usage_unit: null,
+  } as const
+
+  return [
+    {
+      ...base,
+      id: `${invoiceId}-l1`,
+      line_order: 10,
+      charge_type: 'customer_charge',
+      description: 'Residential customer charge',
+      display_group: 'base_charges',
+      rate_item_code: 'CUST-CHG-RES',
+      rate: '22.500000',
+      is_taxable: true,
+      taxable_amount: '22.50',
+      amount: '22.50',
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l2`,
+      line_order: 20,
+      charge_type: 'volumetric',
+      description: 'Distribution charge — first 50 therms',
+      display_group: 'usage_charges',
+      rate_item_code: 'DIST-RES-T1',
+      usage_quantity: '50.00',
+      usage_unit: 'therms',
+      rate: '0.182400',
+      tier_label: 'Block 1 · 0–50 th',
+      gas_therms_billed: '50.00',
+      is_taxable: true,
+      taxable_amount: '9.12',
+      amount: '9.12',
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l3`,
+      line_order: 30,
+      charge_type: 'volumetric',
+      description: 'Distribution charge — over 50 therms',
+      display_group: 'usage_charges',
+      rate_item_code: 'DIST-RES-T2',
+      usage_quantity: '154.34',
+      usage_unit: 'therms',
+      rate: '0.141900',
+      tier_label: 'Block 2 · 50+ th',
+      gas_therms_billed: '154.34',
+      is_taxable: true,
+      taxable_amount: '21.90',
+      amount: '21.90',
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l4`,
+      line_order: 40,
+      charge_type: 'pga',
+      description: 'Purchased gas adjustment',
+      display_group: 'usage_charges',
+      rate_item_code: 'PGA-GAS',
+      usage_quantity: '204.34',
+      usage_unit: 'therms',
+      rate: pgaRate,
+      gas_ccf_used: '198.00',
+      gas_meter_factor: '1.000000',
+      gas_btu_factor: '1.032000',
+      gas_therms_billed: '204.34',
+      gas_commodity_rate: pgaRate,
+      is_taxable: true,
+      taxable_amount: pgaAmount,
+      amount: pgaAmount,
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l5`,
+      line_order: 50,
+      charge_type: 'wna',
+      description: 'Weather normalization adjustment',
+      display_group: 'adjustments',
+      rate_item_code: 'WNA-RES',
+      usage_quantity: '204.34',
+      usage_unit: 'therms',
+      rate: '-0.018700',
+      tier_label: 'Zone BV-N · Form 2',
+      gas_therms_billed: '204.34',
+      is_taxable: true,
+      taxable_amount: '-3.82',
+      amount: '-3.82',
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l6`,
+      line_order: 60,
+      charge_type: 'rider',
+      description: 'Pipeline safety fee',
+      display_group: 'riders',
+      rate_item_code: 'PSF-TX',
+      rate: '0.500000',
+      is_taxable: false,
+      taxable_amount: '0.00',
+      amount: '0.50',
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l7`,
+      line_order: 70,
+      charge_type: 'rider',
+      description: 'Cost of service adjustment (GRIP)',
+      display_group: 'riders',
+      rate_item_code: 'GRIP-2025',
+      usage_quantity: '204.34',
+      usage_unit: 'therms',
+      rate: '0.030700',
+      gas_therms_billed: '204.34',
+      is_taxable: true,
+      taxable_amount: '6.27',
+      amount: '6.27',
+    },
+    {
+      ...base,
+      id: `${invoiceId}-l8`,
+      line_order: 80,
+      charge_type: 'franchise_fee',
+      description: 'City of Bryan franchise fee',
+      display_group: 'taxes_fees',
+      rate_item_code: 'FRAN-BRYAN',
+      rate: '0.040000',
+      is_taxable: false,
+      taxable_amount: '0.00',
+      amount: franchise,
+    },
+  ]
+}
+
+lines.push(...januaryLines('inv-0003', '0.412000', '84.19', '5.63'))
+lines.push(...januaryLines('inv-0004', '0.376400', '76.91', '5.34'))
+
+/**
+ * The input set that produced a bill — what proves a rebill used the original
+ * period's world rather than today's. Each value carries the effective date it
+ * was resolved at.
+ */
+export type PricingInput = {
+  label: string
+  value: string
+  effectiveFrom: string
+  recordedAt: string
+}
+
+export const inputSets: Record<string, PricingInput[]> = {
+  'inv-0003': [
+    { label: 'Rate schedule', value: 'R-1 rev. 2025-04-01', effectiveFrom: '2025-04-01', recordedAt: '2025-03-11T13:20:00-05:00' },
+    { label: 'PGA factor', value: '$0.41200 /therm', effectiveFrom: '2025-12-01', recordedAt: '2025-11-25T11:18:00-06:00' },
+    { label: 'BTU factor', value: '1.0320', effectiveFrom: '2025-12-01', recordedAt: '2025-11-25T11:18:00-06:00' },
+    { label: 'WNA normal HDD', value: '548', effectiveFrom: '2026-01-01', recordedAt: '2026-01-03T08:15:00-06:00' },
+    { label: 'WNA actual HDD', value: '529', effectiveFrom: '2026-01-01', recordedAt: '2026-01-03T08:15:00-06:00' },
+    { label: 'Franchise fee', value: '4.0000%', effectiveFrom: '2023-01-01', recordedAt: '2022-11-30T15:45:00-06:00' },
+  ],
+  'inv-0004': [
+    { label: 'Rate schedule', value: 'R-1 rev. 2025-04-01', effectiveFrom: '2025-04-01', recordedAt: '2025-03-11T13:20:00-05:00' },
+    { label: 'PGA factor', value: '$0.37640 /therm', effectiveFrom: '2026-01-01', recordedAt: '2026-02-16T08:52:00-06:00' },
+    { label: 'BTU factor', value: '1.0320', effectiveFrom: '2025-12-01', recordedAt: '2025-11-25T11:18:00-06:00' },
+    { label: 'WNA normal HDD', value: '548', effectiveFrom: '2026-01-01', recordedAt: '2026-01-03T08:15:00-06:00' },
+    { label: 'WNA actual HDD', value: '529', effectiveFrom: '2026-01-01', recordedAt: '2026-01-03T08:15:00-06:00' },
+    { label: 'Franchise fee', value: '4.0000%', effectiveFrom: '2023-01-01', recordedAt: '2022-11-30T15:45:00-06:00' },
+  ],
+}
+
+/* ---- Dashboard sources ------------------------------------------------
+   Shapes for the locked dashboard elements (T8-4 … T8-8). */
+
+/**
+ * Portlet placement is by ITEM TYPE, from a tenant-overridable map — never by
+ * reading a row's severity (T8-4). Several of these item types carry no
+ * severity column at all: a held invoice is `invoices.status = 'held'`, a
+ * failed calculation is `billing_run_meters.outcome`, a delivery failure is
+ * `invoices.delivery_failed_reason`. Placing by row severity would mean
+ * inventing values for them, and would make a count nobody can explain.
+ */
+export type PortletRow = { itemType: string; label: string; count: number }
+
+export const portlets: { tier: 'Critical' | 'Medium' | 'Low'; rows: PortletRow[]; more: number }[] = [
+  {
+    tier: 'Critical',
+    rows: [
+      { itemType: 'failed_calculation', label: 'Failed calculations', count: 3 },
+      { itemType: 'negative_consumption', label: 'Negative consumption', count: 1 },
+      { itemType: 'estimated_streak', label: 'Estimate streak at cap', count: 6 },
+      { itemType: 'held_invoice', label: 'Held invoices', count: 4 },
+      { itemType: 'backbilling_cap', label: 'Backbilling cap breach', count: 0 },
+      { itemType: 'tamper_detected', label: 'Tamper detected', count: 2 },
+    ],
+    more: 2,
+  },
+  {
+    tier: 'Medium',
+    rows: [
+      { itemType: 'high_usage', label: 'High usage vs baseline', count: 28 },
+      { itemType: 'zero_usage', label: 'Zero usage', count: 11 },
+      { itemType: 'delivery_failure', label: 'Delivery failures', count: 9 },
+      { itemType: 'endpoint_offline', label: 'AMI endpoints silent', count: 14 },
+      { itemType: 'rate_schedule_mismatch', label: 'Rate schedule mismatch', count: 5 },
+      { itemType: 'unbilled_service', label: 'Unbilled service', count: 2 },
+    ],
+    more: 3,
+  },
+  {
+    tier: 'Low',
+    rows: [
+      { itemType: 'deposit_refund_overdue', label: 'Deposit refunds due', count: 17 },
+      { itemType: 'tax_exemption_expired', label: 'Exemptions expiring', count: 6 },
+      { itemType: 'credit_balance_stale', label: 'Stale credit balances', count: 23 },
+      { itemType: 'address_mismatch', label: 'Address mismatches', count: 8 },
+    ],
+    more: 0,
+  },
+]
+
+/**
+ * Billed nets voids at the VOID date, not the original invoice date (T8-5), so
+ * a closed month never restates. No ratio is shown between billed and
+ * collected: payments this month are largely against last month's invoices, and
+ * any percentage between them gets read as a collection rate and lies.
+ */
+export const revenue = {
+  billedNetOfVoids: '412884.19',
+  billedPriorMonthSameDay: '398120.44',
+  collected: '361447.02',
+  collectedPriorMonthSameDay: '372889.51',
+  windowLabel: 'Calendar month to date · 1–15 Feb 2026',
+}
+
+/**
+ * Aged BY INVOICE, not by customer (T8-7). A customer with unpaid invoices of
+ * different ages appears in more than one bucket — intended, and marked as such
+ * on the drilldown row. The drilldown lists must sum back to these dollars;
+ * that reconciliation is the acceptance test, not a nicety.
+ */
+export const arAging = [
+  { bucket: 'Current', amount: '284119.88', accounts: 2691 },
+  { bucket: '30 days', amount: '61402.15', accounts: 512 },
+  { bucket: '60 days', amount: '22884.60', accounts: 168 },
+  { bucket: '90+ days', amount: '31447.33', accounts: 204 },
+]
+
+/**
+ * The rate card strip reads AS-BILLED values from `invoice_line_items.rate` for
+ * the last posted run — never live configuration (T8-8). The two are different
+ * datasets that agree only if nothing changed since the run posted, and for a
+ * gas tenant they routinely will not: PGA and WNA update monthly.
+ *
+ * The current effective rate appears only where it differs, as a drift marker.
+ * Drift is a feature, not a caveat — a rate that moved after a run posted is a
+ * correction-run trigger.
+ */
+export type RateCardRow = {
+  itemCode: string
+  label: string
+  asBilled: string | null
+  currentEffective: string | null
+  rateUnit: string
+  brackets?: number
+}
+
+export const rateCard: { scheduleCode: string; scheduleName: string; lastPostedRun: string; rows: RateCardRow[] } = {
+  scheduleCode: 'R-1',
+  scheduleName: 'Residential Firm Gas Service',
+  lastPostedRun: 'BR-2026-01-04 · posted 16 Jan 2026',
+  rows: [
+    {
+      itemCode: 'CUST-CHG-RES',
+      label: 'Residential customer charge',
+      asBilled: '22.500000',
+      currentEffective: '22.500000',
+      rateUnit: 'per_month',
+    },
+    {
+      itemCode: 'DIST-RES',
+      label: 'Distribution charge',
+      asBilled: null,
+      currentEffective: null,
+      rateUnit: 'per_therm',
+      brackets: 2,
+    },
+    {
+      itemCode: 'PGA-GAS',
+      label: 'Purchased gas adjustment',
+      asBilled: '0.412000',
+      currentEffective: '0.438500',
+      rateUnit: 'per_therm',
+    },
+    {
+      itemCode: 'WNA-RES',
+      label: 'Weather normalization',
+      asBilled: '-0.014200',
+      currentEffective: '-0.021300',
+      rateUnit: 'per_therm',
+    },
+    {
+      itemCode: 'GRIP-2025',
+      label: 'Cost of service adjustment',
+      asBilled: '0.030700',
+      currentEffective: '0.030700',
+      rateUnit: 'per_therm',
+    },
+    {
+      itemCode: 'PSF-TX',
+      label: 'Pipeline safety fee',
+      asBilled: '0.500000',
+      currentEffective: '0.500000',
+      rateUnit: 'per_month',
+    },
+  ],
+}

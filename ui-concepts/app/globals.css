@@ -1,0 +1,120 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-ink-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-data);
+    line-height: var(--text-data--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Tabular figures and a slashed zero are not optional here. Meter serials
+     get read aloud on the phone. */
+  body,
+  table,
+  input,
+  select,
+  button {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3, h4 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* A 2px inset ring that stays visible over hover and selection washes.
+     Never removed — these users navigate by keyboard. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-wash);
+  }
+
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  /* Motion is never load-bearing, so nothing breaks when it goes. */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0s !important;
+      transition-duration: 0s !important;
+    }
+  }
+}
+
+/* ======================================================================
+   Vocabulary utilities. These exist so screens compose meaning rather than
+   re-deriving the same twelve-class incantation on every row.
+   ====================================================================== */
+
+/** The uppercase micro-label that titles panels, fields and column groups. */
+@utility label-caps {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  font-weight: var(--text-label--font-weight);
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
+}
+
+/** A key you would read aloud or paste: account, meter serial, invoice no. */
+@utility ident {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: -0.01em;
+}
+
+/** Numbers in a column. Tabular, right-aligned, never wrapped. */
+@utility figures {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/** The paper a bill or notice is printed on — white in every theme. */
+@utility stock {
+  background-color: var(--color-surface-document);
+  font-family: var(--font-doc);
+  color: var(--color-ink-primary);
+}
+
+/** A struck record: void invoices, superseded versions. Never hidden. */
+@utility struck {
+  color: var(--color-state-void-text);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/** Accounting rules, borrowed literally: above a subtotal, under a total. */
+@utility rule-subtotal {
+  border-top: 1px solid var(--color-rule-doc);
+}
+
+@utility rule-total {
+  border-top: 1px solid var(--color-rule-doc);
+  border-bottom: 3px double var(--color-rule-doc);
+}
+
+/** Nothing under this hatch is real. Used on dry-run chrome only. */
+@utility hatch-dryrun {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    var(--color-state-dryrun-hatch) 5px,
+    var(--color-state-dryrun-hatch) 10px
+  );
+}

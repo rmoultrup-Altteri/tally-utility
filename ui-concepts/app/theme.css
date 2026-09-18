@@ -1,0 +1,196 @@
+/*
+ * TallyUtility — "Pressroom".
+ *
+ * Editorial-utilitarian: a warm paper ground, hairline rules instead of card
+ * shadows, and one deliberate pairing — a grotesque for the tool, a serif for
+ * the artifact. Bills and notices are set in the serif on white stock; the
+ * instrument around them is sans.
+ *
+ * Tokens are named for their ROLE IN GAS BILLING, never for hue, so a palette
+ * change never requires renaming a class. Text colour tiers live under
+ * `--color-ink-*` because Tailwind v4 owns `--text-*` for font sizes.
+ */
+
+@theme {
+  /* ==== Surface layers ================================================
+     Warm neutral paper, hue 95, very low chroma. White reads as RAISED
+     against warm paper — elevation without shadows. */
+  --color-surface-sunken: oklch(95.2% 0.004 95);
+  --color-surface: oklch(98.4% 0.003 95);
+  --color-surface-raised: oklch(100% 0 0);
+  --color-surface-inset: oklch(92.8% 0.005 95);
+  --color-surface-document: oklch(100% 0 0);
+  --color-surface-ink: oklch(21% 0.01 95);
+  --color-surface-scrim: oklch(21% 0.01 95 / 0.38);
+
+  /* ==== Ink (text tiers) ==============================================
+     Primary on surface is ~14:1. AAA, not AA — these people read numbers
+     for eight hours. */
+  --color-ink-primary: oklch(20% 0.008 95);
+  --color-ink-secondary: oklch(43% 0.008 95);
+  --color-ink-tertiary: oklch(57% 0.006 95);
+  --color-ink-muted: oklch(70% 0.004 95);
+  --color-ink-inverse: oklch(98% 0.003 95);
+
+  /* ==== Accent — interaction ONLY, never status ======================= */
+  --color-accent: oklch(46% 0.15 262);
+  --color-accent-hover: oklch(40% 0.155 262);
+  --color-accent-active: oklch(35% 0.15 262);
+  --color-accent-wash: oklch(94% 0.03 262);
+  --color-accent-wash-hover: oklch(91% 0.038 262);
+
+  /* ==== Exception severity ============================================
+     anomalies.severity + blocking state. Each carries a rail (>=3:1
+     non-text), a text tint (>=4.5:1 on paper), and a row wash. */
+  --color-exception-critical-rail: oklch(52% 0.19 27);
+  --color-exception-critical-text: oklch(44% 0.17 27);
+  --color-exception-critical-wash: oklch(96% 0.028 27);
+
+  --color-exception-warning-rail: oklch(72% 0.15 75);
+  --color-exception-warning-text: oklch(46% 0.105 70);
+  --color-exception-warning-wash: oklch(96.5% 0.032 80);
+
+  --color-exception-info-rail: oklch(58% 0.1 250);
+  --color-exception-info-text: oklch(45% 0.1 250);
+  --color-exception-info-wash: oklch(96% 0.02 250);
+
+  --color-exception-cleared-rail: oklch(55% 0.13 150);
+  --color-exception-cleared-text: oklch(43% 0.11 150);
+  --color-exception-cleared-wash: oklch(96% 0.025 150);
+
+  --color-exception-snoozed-rail: oklch(72% 0.006 95);
+  --color-exception-snoozed-text: oklch(57% 0.006 95);
+  --color-exception-snoozed-wash: oklch(96.8% 0.003 95);
+
+  /* ==== Lifecycle state — billing_runs.status / invoices.status ======= */
+  --color-state-draft-rail: oklch(72% 0.006 95);
+  --color-state-draft-text: oklch(57% 0.006 95);
+  --color-state-pending-rail: oklch(58% 0.1 250);
+  --color-state-pending-text: oklch(45% 0.1 250);
+  --color-state-approved-rail: oklch(55% 0.13 150);
+  --color-state-approved-text: oklch(43% 0.11 150);
+  --color-state-posted-rail: oklch(45% 0.12 150);
+  --color-state-posted-text: oklch(38% 0.105 150);
+  --color-state-failed-rail: oklch(52% 0.19 27);
+  --color-state-failed-text: oklch(44% 0.17 27);
+  --color-state-void-rail: oklch(80% 0.005 95);
+  --color-state-void-text: oklch(62% 0.005 95);
+  --color-state-superseded-rail: oklch(80% 0.005 95);
+  --color-state-superseded-text: oklch(62% 0.005 95);
+
+  /* HELD is neither failed nor pending: a human stopped it, and a human
+     must release it. Burnt orange, used nowhere else. */
+  --color-state-held-rail: oklch(62% 0.14 40);
+  --color-state-held-text: oklch(44% 0.125 40);
+  --color-state-held-wash: oklch(96.5% 0.026 40);
+
+  /* DRY RUN — nothing on screen is real. Carried by colour AND a diagonal
+     hatch, because treating a dry run as posted is the most expensive
+     mistake this product can make. */
+  --color-state-dryrun-rail: oklch(60% 0.075 300);
+  --color-state-dryrun-text: oklch(45% 0.085 300);
+  --color-state-dryrun-wash: oklch(96.5% 0.018 300);
+  --color-state-dryrun-hatch: oklch(88% 0.03 300);
+
+  /* ==== Read provenance ===============================================
+     Actual vs estimated vs disputed — the most consequential distinction
+     on a read-validation grid. */
+  --color-read-actual-rail: oklch(55% 0.13 150);
+  --color-read-actual-text: oklch(43% 0.11 150);
+  --color-read-estimated-rail: oklch(72% 0.15 75);
+  --color-read-estimated-text: oklch(46% 0.105 70);
+  --color-read-estimated-wash: oklch(96.5% 0.032 80);
+  --color-read-unvalidated-rail: oklch(58% 0.1 250);
+  --color-read-unvalidated-text: oklch(45% 0.1 250);
+  --color-read-disputed-rail: oklch(52% 0.19 27);
+  --color-read-disputed-text: oklch(44% 0.17 27);
+  --color-read-locked-text: oklch(57% 0.006 95);
+  --color-read-tamper-rail: oklch(52% 0.19 27);
+
+  /* ==== Money =========================================================
+     Sign is typographic, not chromatic: red is already exception, and
+     sign-by-colour fails ~8% of male analysts. Red appears in money only
+     for aged arrears. */
+  --color-money: oklch(20% 0.008 95);
+  --color-money-positive: oklch(20% 0.008 95);
+  --color-money-credit: oklch(42% 0.085 160);
+  --color-money-arrears: oklch(44% 0.17 27);
+  --color-money-adjustment: oklch(45% 0.1 262);
+  --color-money-zero: oklch(57% 0.006 95);
+
+  /* ==== Rules — borders do the work, not shadows ====================== */
+  --color-rule-hair: oklch(89% 0.004 95);
+  --color-rule-solid: oklch(82% 0.005 95);
+  --color-rule-heavy: oklch(30% 0.008 95);
+  --color-rule-doc: oklch(35% 0.006 95);
+
+  /* ==== Type ==========================================================
+     Mono is SEMANTIC — "a key you will read aloud or paste". */
+  --font-sans: var(--font-grotesque), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-numeric), "IBM Plex Mono", ui-monospace, monospace;
+  --font-doc: var(--font-record), "Source Serif 4", Georgia, serif;
+
+  /* Fixed scale — an application at controlled density, so no clamp(). */
+  --text-label: 11px;
+  --text-label--line-height: 14px;
+  --text-label--letter-spacing: 0.06em;
+  --text-label--font-weight: 600;
+
+  --text-micro: 11px;
+  --text-micro--line-height: 15px;
+
+  --text-data: 13px;
+  --text-data--line-height: 18px;
+
+  --text-body: 14px;
+  --text-body--line-height: 21px;
+
+  --text-h3: 15px;
+  --text-h3--line-height: 20px;
+  --text-h3--font-weight: 600;
+
+  --text-h2: 18px;
+  --text-h2--line-height: 24px;
+  --text-h2--font-weight: 600;
+
+  --text-h1: 22px;
+  --text-h1--line-height: 28px;
+  --text-h1--font-weight: 600;
+
+  --text-figure: 28px;
+  --text-figure--line-height: 32px;
+  --text-figure--font-weight: 600;
+
+  /* The bill is measured in print units because it is a printed object. */
+  --text-doc: 10.5pt;
+  --text-doc--line-height: 15pt;
+  --text-doc-h: 13pt;
+  --text-doc-h--line-height: 17pt;
+
+  /* ==== Spacing — 4px base, named extras where a name beats a number == */
+  --spacing: 4px;
+  --spacing-cell-x-compact: 10px;
+  --spacing-cell-y-compact: 6px;
+  --spacing-cell-x: 12px;
+  --spacing-cell-y: 8px;
+  --spacing-rail: 3px;
+  --spacing-row-compact: 26px;
+  --spacing-row: 30px;
+  --spacing-row-comfy: 36px;
+  --spacing-doc-measure: 8.5in;
+
+  /* ==== Radius — table cells and document edges are square ============ */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+
+  /* ==== Elevation — exactly three levels ============================== */
+  --shadow-overlay: 0 8px 24px -12px oklch(20% 0.01 95 / 0.28);
+  --shadow-modal: 0 24px 48px -20px oklch(20% 0.01 95 / 0.34);
+  --shadow-sticky: 0 1px 0 0 oklch(20% 0.01 95 / 0.12);
+
+  /* ==== Motion — transform/opacity only, never inside a table body ==== */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 90ms;
+  --duration-base: 140ms;
+}

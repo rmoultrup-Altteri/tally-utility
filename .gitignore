@@ -1,2 +1,6 @@
 # IDE / editor
 .idea/
+
+# Prototype build artifacts
+ui-concepts/node_modules/
+ui-concepts/.next/

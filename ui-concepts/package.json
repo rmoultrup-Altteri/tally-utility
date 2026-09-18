@@ -1,0 +1,27 @@
+{
+  "name": "ui-concepts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 4182",
+    "build": "next build",
+    "start": "next start --port 4182",
+    "screenshots": "node scripts/screenshots.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwindcss": "^4.3.3",
+    "zod": "^4.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "playwright": "^1.63.0",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@11.9.0"
+}
