@@ -66,7 +66,7 @@ export default function RatesPage() {
                       </span>
                     </span>
                   ) : null}
-                  <Link href="/rates/pga" className="text-data text-accent hover:underline">
+                  <Link href="/rates/pga" className="text-data text-accent-text hover:underline">
                     Open PGA console
                   </Link>
                 </>
@@ -121,7 +121,7 @@ export default function RatesPage() {
                         {prior ? (
                           <Delta from={prior.rate} to={v.rate} />
                         ) : (
-                          <span className="text-ink-muted">—</span>
+                          <span className="text-ink-tertiary">—</span>
                         )}
                       </Td>
                       <Td>
@@ -268,7 +268,7 @@ function Timeline({
                 <div className="flex h-full items-center justify-center">
                   <span
                     className={`figures text-data ${
-                      future ? 'text-ink-muted' : standing ? 'text-ink-primary font-medium' : 'text-ink-secondary'
+                      future ? 'text-ink-tertiary' : standing ? 'text-ink-primary font-medium' : 'text-ink-secondary'
                     }`}
                   >
                     {fmtRate(v.rate)}

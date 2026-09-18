@@ -57,6 +57,35 @@ their **role in gas billing** rather than by hue — `--color-read-estimated-rai
 (`<Money>`, `<StateFlag>`, `<Rail>`) rather than scattering utility classes;
 the long class strings live inside the primitives.
 
+### Two lights
+
+Every colour is declared **once**, as `light-dark(day, night)`. There is no
+second palette to keep in sync — the dark theme is the second half of each
+token, resolved by the browser against the nearest `color-scheme`. Day is ink
+on warm paper; night is warm near-black with panels rising out of it, not an
+inversion.
+
+The switch has three states, because "follow the OS" and "pin it" are different
+needs: an analyst working a night close wants the machine to decide, one
+reading a bill against a printout wants it fixed. *System* is the absence of
+`data-theme` and needs no JavaScript at all; *Day* and *Night* pin the
+attribute, and a small inline script in the layout applies a stored pin before
+first paint so the other palette never flashes.
+
+**The bill is exempt.** A statement is a printed object, so the `stock` utility
+pins `color-scheme: light` inside the sheet: every token in that subtree
+resolves to its day value, and the document stays white paper with dark ink in
+both themes without any of its markup knowing themes exist.
+
+Contrast is audited rather than asserted — all rendered text meets WCAG AA in
+both themes. Getting there moved three things: accent split into a fill role
+and a text role (a blue dark enough to carry white button text is unreadable
+as a link on a dark panel), voided records now carry their meaning in the
+strikethrough rather than in being faint, and `--color-ink-muted` is reserved
+for placeholders and `aria-hidden` separators — anything an operator must read,
+including the em-dash that means "no value recorded", sits at `ink-tertiary` or
+above.
+
 ## What the concepts are arguing
 
 Three schema invariants drove most of these decisions:
@@ -99,8 +128,6 @@ record-level, no recents) is **not built yet**.
   target user is at a desk, but it should be a deliberate decision rather than
   an accident.
 - Keyboard affordances are shown (`j`/`k`, `⌘K`) but not yet wired.
-- No dark theme yet. The token set is structured for one (`[data-theme="dark"]`
-  overrides), and the bill document must stay white paper in both.
 - A large share of the features these screens imply are marked `✗ gap` in
   `gas-billing-memory/application/feature-list.md`. These are built to the spec,
   not to the current schema — deliberately, since concepts are a cheap way to

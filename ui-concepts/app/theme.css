@@ -1,5 +1,5 @@
 /*
- * TallyUtility — "Pressroom".
+ * TallyUtility — "Pressroom", in two lights.
  *
  * Editorial-utilitarian: a warm paper ground, hairline rules instead of card
  * shadows, and one deliberate pairing — a grotesque for the tool, a serif for
@@ -9,119 +9,141 @@
  * Tokens are named for their ROLE IN GAS BILLING, never for hue, so a palette
  * change never requires renaming a class. Text colour tiers live under
  * `--color-ink-*` because Tailwind v4 owns `--text-*` for font sizes.
+ *
+ * Every colour is declared ONCE, as `light-dark(day, night)`. The browser
+ * resolves it against the nearest `color-scheme`, so the dark theme is not a
+ * second palette to keep in sync — it is the second half of each token. The
+ * root sets `color-scheme: light dark` and an explicit `[data-theme]` pins it.
+ *
+ * The dark side is not an inversion. Day is ink on warm paper; night is warm
+ * near-black press metal with the panels rising out of it. The one thing that
+ * does not change is the bill: a statement is a printed object, so it stays a
+ * white sheet under a lamp in both. See the `stock` utility, which re-declares
+ * this token set at print values for anything inside a document.
  */
 
 @theme {
   /* ==== Surface layers ================================================
-     Warm neutral paper, hue 95, very low chroma. White reads as RAISED
-     against warm paper — elevation without shadows. */
-  --color-surface-sunken: oklch(95.2% 0.004 95);
-  --color-surface: oklch(98.4% 0.003 95);
-  --color-surface-raised: oklch(100% 0 0);
-  --color-surface-inset: oklch(92.8% 0.005 95);
+     Day: white reads as RAISED against warm paper — elevation without
+     shadows. Night keeps the role and flips the direction: panels are
+     LIGHTER than the ground they sit on. */
+  --color-surface-sunken: light-dark(oklch(95.2% 0.004 95), oklch(17.5% 0.006 95));
+  --color-surface: light-dark(oklch(98.4% 0.003 95), oklch(20.5% 0.006 95));
+  --color-surface-raised: light-dark(oklch(100% 0 0), oklch(24% 0.007 95));
+  --color-surface-inset: light-dark(oklch(92.8% 0.005 95), oklch(14.5% 0.005 95));
   --color-surface-document: oklch(100% 0 0);
-  --color-surface-ink: oklch(21% 0.01 95);
-  --color-surface-scrim: oklch(21% 0.01 95 / 0.38);
+  --color-surface-ink: light-dark(oklch(21% 0.01 95), oklch(12% 0.008 95));
+  --color-surface-scrim: light-dark(oklch(21% 0.01 95 / 0.38), oklch(8% 0.01 95 / 0.58));
 
   /* ==== Ink (text tiers) ==============================================
-     Primary on surface is ~14:1. AAA, not AA — these people read numbers
-     for eight hours. */
-  --color-ink-primary: oklch(20% 0.008 95);
-  --color-ink-secondary: oklch(43% 0.008 95);
-  --color-ink-tertiary: oklch(57% 0.006 95);
-  --color-ink-muted: oklch(70% 0.004 95);
+     Primary on surface is ~14:1 in day and ~13:1 at night. AAA, not AA —
+     these people read numbers for eight hours. */
+  --color-ink-primary: light-dark(oklch(20% 0.008 95), oklch(95% 0.004 95));
+  --color-ink-secondary: light-dark(oklch(43% 0.008 95), oklch(79% 0.006 95));
+  --color-ink-tertiary: light-dark(oklch(52% 0.006 95), oklch(68% 0.006 95));
+  --color-ink-muted: light-dark(oklch(70% 0.004 95), oklch(50% 0.005 95));
+  /* Text on the dark chrome band and on a filled accent button. Light in
+     both themes, because both of those grounds are dark in both themes. */
   --color-ink-inverse: oklch(98% 0.003 95);
 
-  /* ==== Accent — interaction ONLY, never status ======================= */
-  --color-accent: oklch(46% 0.15 262);
-  --color-accent-hover: oklch(40% 0.155 262);
-  --color-accent-active: oklch(35% 0.15 262);
-  --color-accent-wash: oklch(94% 0.03 262);
-  --color-accent-wash-hover: oklch(91% 0.038 262);
+  /* ==== Accent — interaction ONLY, never status =======================
+     Split into a FILL and a TEXT role for the same reason severity is:
+     a colour dark enough to carry white button text is far too dark to
+     read as a link on a dark panel. One token cannot do both jobs. */
+  --color-accent: light-dark(oklch(46% 0.15 262), oklch(52% 0.17 262));
+  --color-accent-text: light-dark(oklch(46% 0.15 262), oklch(76% 0.13 262));
+  --color-accent-text-hover: light-dark(oklch(35% 0.15 262), oklch(86% 0.1 262));
+  --color-accent-hover: light-dark(oklch(40% 0.155 262), oklch(58% 0.17 262));
+  --color-accent-active: light-dark(oklch(35% 0.15 262), oklch(46% 0.16 262));
+  --color-accent-wash: light-dark(oklch(94% 0.03 262), oklch(28% 0.055 262));
+  --color-accent-wash-hover: light-dark(oklch(91% 0.038 262), oklch(32% 0.065 262));
 
   /* ==== Exception severity ============================================
      anomalies.severity + blocking state. Each carries a rail (>=3:1
-     non-text), a text tint (>=4.5:1 on paper), and a row wash. */
-  --color-exception-critical-rail: oklch(52% 0.19 27);
-  --color-exception-critical-text: oklch(44% 0.17 27);
-  --color-exception-critical-wash: oklch(96% 0.028 27);
+     non-text), a text tint (>=4.5:1 on its ground), and a row wash. */
+  --color-exception-critical-rail: light-dark(oklch(52% 0.19 27), oklch(58% 0.19 27));
+  --color-exception-critical-text: light-dark(oklch(44% 0.17 27), oklch(75% 0.15 27));
+  --color-exception-critical-wash: light-dark(oklch(96% 0.028 27), oklch(26% 0.05 27));
 
-  --color-exception-warning-rail: oklch(72% 0.15 75);
-  --color-exception-warning-text: oklch(46% 0.105 70);
-  --color-exception-warning-wash: oklch(96.5% 0.032 80);
+  --color-exception-warning-rail: light-dark(oklch(72% 0.15 75), oklch(72% 0.15 75));
+  --color-exception-warning-text: light-dark(oklch(46% 0.105 70), oklch(80% 0.12 75));
+  --color-exception-warning-wash: light-dark(oklch(96.5% 0.032 80), oklch(27% 0.045 75));
 
-  --color-exception-info-rail: oklch(58% 0.1 250);
-  --color-exception-info-text: oklch(45% 0.1 250);
-  --color-exception-info-wash: oklch(96% 0.02 250);
+  --color-exception-info-rail: light-dark(oklch(58% 0.1 250), oklch(62% 0.12 250));
+  --color-exception-info-text: light-dark(oklch(45% 0.1 250), oklch(77% 0.1 250));
+  --color-exception-info-wash: light-dark(oklch(96% 0.02 250), oklch(26% 0.04 250));
 
-  --color-exception-cleared-rail: oklch(55% 0.13 150);
-  --color-exception-cleared-text: oklch(43% 0.11 150);
-  --color-exception-cleared-wash: oklch(96% 0.025 150);
+  --color-exception-cleared-rail: light-dark(oklch(55% 0.13 150), oklch(60% 0.14 150));
+  --color-exception-cleared-text: light-dark(oklch(43% 0.11 150), oklch(76% 0.12 150));
+  --color-exception-cleared-wash: light-dark(oklch(96% 0.025 150), oklch(25% 0.04 150));
 
-  --color-exception-snoozed-rail: oklch(72% 0.006 95);
-  --color-exception-snoozed-text: oklch(57% 0.006 95);
-  --color-exception-snoozed-wash: oklch(96.8% 0.003 95);
+  --color-exception-snoozed-rail: light-dark(oklch(72% 0.006 95), oklch(48% 0.006 95));
+  --color-exception-snoozed-text: light-dark(oklch(57% 0.006 95), oklch(64% 0.006 95));
+  --color-exception-snoozed-wash: light-dark(oklch(96.8% 0.003 95), oklch(22% 0.004 95));
 
   /* ==== Lifecycle state — billing_runs.status / invoices.status ======= */
-  --color-state-draft-rail: oklch(72% 0.006 95);
-  --color-state-draft-text: oklch(57% 0.006 95);
-  --color-state-pending-rail: oklch(58% 0.1 250);
-  --color-state-pending-text: oklch(45% 0.1 250);
-  --color-state-approved-rail: oklch(55% 0.13 150);
-  --color-state-approved-text: oklch(43% 0.11 150);
-  --color-state-posted-rail: oklch(45% 0.12 150);
-  --color-state-posted-text: oklch(38% 0.105 150);
-  --color-state-failed-rail: oklch(52% 0.19 27);
-  --color-state-failed-text: oklch(44% 0.17 27);
-  --color-state-void-rail: oklch(80% 0.005 95);
-  --color-state-void-text: oklch(62% 0.005 95);
-  --color-state-superseded-rail: oklch(80% 0.005 95);
-  --color-state-superseded-text: oklch(62% 0.005 95);
+  --color-state-draft-rail: light-dark(oklch(72% 0.006 95), oklch(48% 0.006 95));
+  --color-state-draft-text: light-dark(oklch(57% 0.006 95), oklch(64% 0.006 95));
+  --color-state-pending-rail: light-dark(oklch(58% 0.1 250), oklch(62% 0.12 250));
+  --color-state-pending-text: light-dark(oklch(45% 0.1 250), oklch(77% 0.1 250));
+  --color-state-approved-rail: light-dark(oklch(55% 0.13 150), oklch(60% 0.14 150));
+  --color-state-approved-text: light-dark(oklch(43% 0.11 150), oklch(76% 0.12 150));
+  --color-state-posted-rail: light-dark(oklch(45% 0.12 150), oklch(68% 0.15 150));
+  --color-state-posted-text: light-dark(oklch(38% 0.105 150), oklch(80% 0.13 150));
+  --color-state-failed-rail: light-dark(oklch(52% 0.19 27), oklch(58% 0.19 27));
+  --color-state-failed-text: light-dark(oklch(44% 0.17 27), oklch(75% 0.15 27));
+  --color-state-void-rail: light-dark(oklch(80% 0.005 95), oklch(42% 0.005 95));
+  --color-state-void-text: light-dark(oklch(52% 0.006 95), oklch(68% 0.006 95));
+  --color-state-superseded-rail: light-dark(oklch(80% 0.005 95), oklch(42% 0.005 95));
+  --color-state-superseded-text: light-dark(oklch(52% 0.006 95), oklch(68% 0.006 95));
 
   /* HELD is neither failed nor pending: a human stopped it, and a human
      must release it. Burnt orange, used nowhere else. */
-  --color-state-held-rail: oklch(62% 0.14 40);
-  --color-state-held-text: oklch(44% 0.125 40);
-  --color-state-held-wash: oklch(96.5% 0.026 40);
+  --color-state-held-rail: light-dark(oklch(62% 0.14 40), oklch(66% 0.15 40));
+  --color-state-held-text: light-dark(oklch(44% 0.125 40), oklch(79% 0.12 40));
+  --color-state-held-wash: light-dark(oklch(96.5% 0.026 40), oklch(27% 0.05 40));
 
   /* DRY RUN — nothing on screen is real. Carried by colour AND a diagonal
      hatch, because treating a dry run as posted is the most expensive
      mistake this product can make. */
-  --color-state-dryrun-rail: oklch(60% 0.075 300);
-  --color-state-dryrun-text: oklch(45% 0.085 300);
-  --color-state-dryrun-wash: oklch(96.5% 0.018 300);
-  --color-state-dryrun-hatch: oklch(88% 0.03 300);
+  --color-state-dryrun-rail: light-dark(oklch(60% 0.075 300), oklch(64% 0.09 300));
+  --color-state-dryrun-text: light-dark(oklch(45% 0.085 300), oklch(77% 0.08 300));
+  --color-state-dryrun-wash: light-dark(oklch(96.5% 0.018 300), oklch(26% 0.035 300));
+  --color-state-dryrun-hatch: light-dark(oklch(88% 0.03 300), oklch(36% 0.05 300));
 
   /* ==== Read provenance ===============================================
      Actual vs estimated vs disputed — the most consequential distinction
      on a read-validation grid. */
-  --color-read-actual-rail: oklch(55% 0.13 150);
-  --color-read-actual-text: oklch(43% 0.11 150);
-  --color-read-estimated-rail: oklch(72% 0.15 75);
-  --color-read-estimated-text: oklch(46% 0.105 70);
-  --color-read-estimated-wash: oklch(96.5% 0.032 80);
-  --color-read-unvalidated-rail: oklch(58% 0.1 250);
-  --color-read-unvalidated-text: oklch(45% 0.1 250);
-  --color-read-disputed-rail: oklch(52% 0.19 27);
-  --color-read-disputed-text: oklch(44% 0.17 27);
-  --color-read-locked-text: oklch(57% 0.006 95);
-  --color-read-tamper-rail: oklch(52% 0.19 27);
+  --color-read-actual-rail: light-dark(oklch(55% 0.13 150), oklch(60% 0.14 150));
+  --color-read-actual-text: light-dark(oklch(43% 0.11 150), oklch(76% 0.12 150));
+  --color-read-estimated-rail: light-dark(oklch(72% 0.15 75), oklch(72% 0.15 75));
+  --color-read-estimated-text: light-dark(oklch(46% 0.105 70), oklch(80% 0.12 75));
+  --color-read-estimated-wash: light-dark(oklch(96.5% 0.032 80), oklch(27% 0.045 75));
+  --color-read-unvalidated-rail: light-dark(oklch(58% 0.1 250), oklch(62% 0.12 250));
+  --color-read-unvalidated-text: light-dark(oklch(45% 0.1 250), oklch(77% 0.1 250));
+  --color-read-disputed-rail: light-dark(oklch(52% 0.19 27), oklch(58% 0.19 27));
+  --color-read-disputed-text: light-dark(oklch(44% 0.17 27), oklch(75% 0.15 27));
+  --color-read-locked-text: light-dark(oklch(57% 0.006 95), oklch(64% 0.006 95));
+  --color-read-tamper-rail: light-dark(oklch(52% 0.19 27), oklch(58% 0.19 27));
 
   /* ==== Money =========================================================
      Sign is typographic, not chromatic: red is already exception, and
      sign-by-colour fails ~8% of male analysts. Red appears in money only
      for aged arrears. */
-  --color-money: oklch(20% 0.008 95);
-  --color-money-positive: oklch(20% 0.008 95);
-  --color-money-credit: oklch(42% 0.085 160);
-  --color-money-arrears: oklch(44% 0.17 27);
-  --color-money-adjustment: oklch(45% 0.1 262);
-  --color-money-zero: oklch(57% 0.006 95);
+  --color-money: light-dark(oklch(20% 0.008 95), oklch(95% 0.004 95));
+  --color-money-positive: light-dark(oklch(20% 0.008 95), oklch(95% 0.004 95));
+  --color-money-credit: light-dark(oklch(42% 0.085 160), oklch(76% 0.11 160));
+  --color-money-arrears: light-dark(oklch(44% 0.17 27), oklch(75% 0.15 27));
+  --color-money-adjustment: light-dark(oklch(45% 0.1 262), oklch(76% 0.1 262));
+  --color-money-zero: light-dark(oklch(57% 0.006 95), oklch(60% 0.006 95));
 
-  /* ==== Rules — borders do the work, not shadows ====================== */
-  --color-rule-hair: oklch(89% 0.004 95);
-  --color-rule-solid: oklch(82% 0.005 95);
-  --color-rule-heavy: oklch(30% 0.008 95);
+  /* ==== Rules — borders do the work, not shadows ======================
+     `heavy` is the column-header underline, so it inverts: near-black on
+     paper, near-white on press metal. `doc` belongs to the printed bill
+     and never changes. */
+  --color-rule-hair: light-dark(oklch(89% 0.004 95), oklch(28% 0.005 95));
+  --color-rule-solid: light-dark(oklch(82% 0.005 95), oklch(35% 0.006 95));
+  --color-rule-heavy: light-dark(oklch(30% 0.008 95), oklch(74% 0.008 95));
   --color-rule-doc: oklch(35% 0.006 95);
 
   /* ==== Type ==========================================================
@@ -184,10 +206,11 @@
   --radius-xs: 2px;
   --radius-sm: 4px;
 
-  /* ==== Elevation — exactly three levels ============================== */
-  --shadow-overlay: 0 8px 24px -12px oklch(20% 0.01 95 / 0.28);
-  --shadow-modal: 0 24px 48px -20px oklch(20% 0.01 95 / 0.34);
-  --shadow-sticky: 0 1px 0 0 oklch(20% 0.01 95 / 0.12);
+  /* ==== Elevation — exactly three levels ==============================
+     Shadows deepen at night, where a soft grey shadow would vanish. */
+  --shadow-overlay: 0 8px 24px -12px light-dark(oklch(20% 0.01 95 / 0.28), oklch(0% 0 0 / 0.65));
+  --shadow-modal: 0 24px 48px -20px light-dark(oklch(20% 0.01 95 / 0.34), oklch(0% 0 0 / 0.75));
+  --shadow-sticky: 0 1px 0 0 light-dark(oklch(20% 0.01 95 / 0.12), oklch(0% 0 0 / 0.45));
 
   /* ==== Motion — transform/opacity only, never inside a table body ==== */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);

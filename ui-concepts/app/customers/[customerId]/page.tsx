@@ -221,7 +221,7 @@ export default async function CustomerPage({
                       {e.severity}
                     </StateFlag>
                     <span className="text-data text-ink-primary">{e.description}</span>
-                    <Link href="/" className="ml-auto text-micro text-accent underline">
+                    <Link href="/" className="ml-auto text-micro text-accent-text underline">
                       Open in queue
                     </Link>
                   </li>
@@ -257,7 +257,7 @@ export default async function CustomerPage({
                       <Td>
                         <Link
                           href={`/invoices/${inv.id}`}
-                          className={`ident underline ${voided ? 'struck' : 'text-accent hover:text-accent-hover'}`}
+                          className={`ident underline ${voided ? 'struck' : 'text-accent-text hover:text-accent-text-hover'}`}
                         >
                           {inv.invoice_number}
                         </Link>

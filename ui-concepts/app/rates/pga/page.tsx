@@ -181,7 +181,7 @@ export default function PgaConsolePage() {
                   <Td>
                     <Link
                       href={`/invoices/${exposureSample.rebillId}/diff` as Route}
-                      className="ident text-accent hover:underline"
+                      className="ident text-accent-text hover:underline"
                     >
                       {exposureSample.rebillNumber}
                     </Link>

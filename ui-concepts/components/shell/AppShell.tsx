@@ -5,6 +5,7 @@ import { asOf, currentUser, cycle, tenant } from '@/fixtures/tenant'
 import { blockingCount, openExceptions } from '@/fixtures/exceptions'
 import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
+import { ThemeControl } from '@/components/shell/ThemeControl'
 
 /**
  * The application frame.
@@ -126,6 +127,10 @@ function Sidebar({ current }: { current: string }) {
           )
         })}
       </ul>
+
+      <div className="border-t border-rule-hair px-3 py-2.5">
+        <ThemeControl />
+      </div>
 
       <div className="border-t border-rule-hair px-3 py-2.5">
         <p className="text-micro text-ink-primary">{currentUser.name}</p>

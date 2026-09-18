@@ -86,7 +86,7 @@ export default async function InvoicePage({
                 This correction replaces{' '}
                 <Link
                   href={`/invoices/${replaces.id}`}
-                  className="ident text-accent hover:text-accent-hover underline"
+                  className="ident text-accent-text hover:text-accent-text-hover underline"
                 >
                   {replaces.invoice_number}
                 </Link>
@@ -94,7 +94,7 @@ export default async function InvoicePage({
                 <em>{humanize(replaces.void_reason_code ?? '')}</em>.{' '}
                 <Link
                   href={`/invoices/${invoice.id}/diff`}
-                  className="text-accent hover:text-accent-hover underline"
+                  className="text-accent-text hover:text-accent-text-hover underline"
                 >
                   Compare them
                 </Link>
@@ -109,14 +109,14 @@ export default async function InvoicePage({
                 Superseded by{' '}
                 <Link
                   href={`/invoices/${replacedBy.id}`}
-                  className="ident text-accent hover:text-accent-hover underline"
+                  className="ident text-accent-text hover:text-accent-text-hover underline"
                 >
                   {replacedBy.invoice_number}
                 </Link>
                 .{' '}
                 <Link
                   href={`/invoices/${replacedBy.id}/diff`}
-                  className="text-accent hover:text-accent-hover underline"
+                  className="text-accent-text hover:text-accent-text-hover underline"
                 >
                   Compare them
                 </Link>
@@ -435,7 +435,7 @@ function Inspector({
             <span className="ident">{gasLine?.rate_schedule_code ?? '—'}</span>
           </Field>
           <Field label="Rate item">
-            <Link href="/rates" className="ident text-accent hover:text-accent-hover underline">
+            <Link href="/rates" className="ident text-accent-text hover:text-accent-text-hover underline">
               {gasLine?.rate_item_code ?? '—'}
             </Link>
           </Field>

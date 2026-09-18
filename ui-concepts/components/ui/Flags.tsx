@@ -33,7 +33,12 @@ export function readFlags(read: MeterReading): Flag[] {
 
 export function Flags({ flags }: { flags: Flag[] }) {
   if (flags.length === 0) {
-    return <span className="text-ink-muted">·</span>
+    return (
+      <>
+        <span aria-hidden className="text-ink-muted">·</span>
+        <span className="sr-only">No flags</span>
+      </>
+    )
   }
   return (
     <span className="ident inline-flex gap-0.5">
@@ -56,7 +61,7 @@ export function Flags({ flags }: { flags: Flag[] }) {
  * invites arguing with the model; a bar invites judgement.
  */
 export function Confidence({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-ink-muted">—</span>
+  if (value === null) return <span className="text-ink-tertiary">—</span>
   const filled = Math.round(value * 5)
   return (
     <span

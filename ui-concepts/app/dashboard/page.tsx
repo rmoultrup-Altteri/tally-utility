@@ -64,7 +64,7 @@ export default function DashboardPage() {
                   ))}
                   {p.more > 0 ? (
                     <li className="px-4 py-1.5">
-                      <Link href="/" className="text-micro text-accent hover:text-accent-hover underline">
+                      <Link href="/" className="text-micro text-accent-text hover:text-accent-text-hover underline">
                         +{p.more} more types
                       </Link>
                     </li>
@@ -260,7 +260,7 @@ function RateCardLine({ row }: { row: RateCardRow }) {
           <p className="ident text-ink-tertiary">{row.itemCode}</p>
         </td>
         <td className="px-cell-x py-cell-y-compact text-right">
-          <Link href="/rates" className="text-micro text-accent hover:text-accent-hover underline">
+          <Link href="/rates" className="text-micro text-accent-text hover:text-accent-text-hover underline">
             {row.brackets} brackets
           </Link>
         </td>
@@ -284,7 +284,7 @@ function RateCardLine({ row }: { row: RateCardRow }) {
             <span className="text-ink-tertiary text-[0.85em]">{rateUnitLabel(row.rateUnit)}</span>
           </>
         ) : (
-          <span className="text-ink-muted">—</span>
+          <span className="text-ink-tertiary">—</span>
         )}
       </td>
       <td className="px-cell-x py-cell-y-compact figures border-l border-rule-solid">
@@ -295,7 +295,10 @@ function RateCardLine({ row }: { row: RateCardRow }) {
             <span className="text-[0.85em]">{rateUnitLabel(row.rateUnit)}</span>
           </span>
         ) : (
-          <span className="text-ink-muted">·</span>
+          <>
+            <span aria-hidden className="text-ink-muted">·</span>
+            <span className="sr-only">No drift</span>
+          </>
         )}
       </td>
       <td className="px-cell-x py-cell-y-compact">

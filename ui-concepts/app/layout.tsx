@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, Source_Serif_4, IBM_Plex_Mono } from 'next/font/google'
+import { THEME_BOOTSTRAP } from '@/components/shell/ThemeControl'
 import './globals.css'
 
 /* The instrument. */
@@ -34,7 +35,15 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html
       lang="en"
       className={`${grotesque.variable} ${record.variable} ${numeric.variable}`}
+      /* The bootstrap script below stamps `data-theme` before React hydrates,
+         so the server markup and the live DOM differ on this element by
+         design. Scoped to <html> only — nothing inside it is exempted. */
+      suppressHydrationWarning
     >
+      <head>
+        {/* Before first paint, so a pinned theme never flashes the other one. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      </head>
       <body>{children}</body>
     </html>
   )

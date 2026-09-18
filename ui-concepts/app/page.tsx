@@ -123,14 +123,14 @@ export default function ExceptionQueuePage() {
                             <p className="ident text-ink-tertiary">{customer.customer_number}</p>
                           </>
                         ) : (
-                          <span className="text-ink-muted">—</span>
+                          <span className="text-ink-tertiary">—</span>
                         )}
                       </Td>
                       <Td>
                         {meter ? (
                           <span className="ident text-ink-secondary">{meter.meter_number}</span>
                         ) : (
-                          <span className="text-ink-muted">—</span>
+                          <span className="text-ink-tertiary">—</span>
                         )}
                       </Td>
                       <Td align="center">
@@ -140,12 +140,12 @@ export default function ExceptionQueuePage() {
                         {e.estimated_impact ? (
                           <Money value={e.estimated_impact} />
                         ) : (
-                          <span className="text-ink-muted">—</span>
+                          <span className="text-ink-tertiary">—</span>
                         )}
                       </Td>
                       <Td>
                         <span className="text-micro text-ink-secondary">
-                          {e.assigned_to ?? <span className="text-ink-muted">Unassigned</span>}
+                          {e.assigned_to ?? <span className="text-ink-tertiary">Unassigned</span>}
                         </span>
                       </Td>
                       <Td>
@@ -189,7 +189,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
             {customer ? (
               <Link
                 href={`/customers/${customer.id}`}
-                className="text-accent hover:text-accent-hover underline"
+                className="text-accent-text hover:text-accent-text-hover underline"
               >
                 {customerName(customer)}
               </Link>

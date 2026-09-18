@@ -2,6 +2,25 @@
 @import "./theme.css";
 
 @layer base {
+  /*
+   * Three states, which is one more than a toggle implies. No attribute is
+   * "follow the operating system" and is the default; `light` and `dark` pin
+   * it. Every colour token resolves through `light-dark()` against whichever
+   * of these is in force, so switching costs one attribute and no reflow of
+   * the palette.
+   */
+  :root {
+    color-scheme: light dark;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
   }
@@ -77,6 +96,11 @@
   letter-spacing: -0.01em;
 }
 
+/* `--color-ink-muted` is reserved for placeholder text and aria-hidden
+   separators. Anything an operator must READ — including the em-dash that
+   means "no value recorded" — sits at `ink-tertiary` or above, which clears
+   WCAG AA in both themes. */
+
 /** Numbers in a column. Tabular, right-aligned, never wrapped. */
 @utility figures {
   font-variant-numeric: tabular-nums;
@@ -84,11 +108,35 @@
   white-space: nowrap;
 }
 
-/** The paper a bill or notice is printed on — white in every theme. */
+/**
+ * The paper a bill or notice is printed on.
+ *
+ * A statement is a printed object: it is white stock with dark ink whatever
+ * the operator has the rest of the application set to. Pinning
+ * `color-scheme: light` inside the sheet makes every `light-dark()` token in
+ * the subtree resolve to its day value, so nested type, rules, money and the
+ * VOID stamp stay printable without any of them knowing about themes. The few
+ * tiers below are re-declared rather than inherited because the document reads
+ * at 10.5pt on white and wants slightly tighter contrast than the tool does.
+ */
 @utility stock {
+  color-scheme: light;
   background-color: var(--color-surface-document);
   font-family: var(--font-doc);
   color: var(--color-ink-primary);
+
+  --color-ink-primary: oklch(20% 0.008 95);
+  --color-ink-secondary: oklch(41% 0.008 95);
+  --color-ink-tertiary: oklch(52% 0.006 95);
+  --color-ink-muted: oklch(66% 0.004 95);
+  --color-rule-hair: oklch(86% 0.004 95);
+  --color-rule-solid: oklch(78% 0.005 95);
+  --color-state-void-text: oklch(52% 0.006 95);
+  --color-money: oklch(20% 0.008 95);
+  --color-money-positive: oklch(20% 0.008 95);
+  --color-money-credit: oklch(40% 0.085 160);
+  --color-money-arrears: oklch(44% 0.17 27);
+  --color-money-zero: oklch(57% 0.006 95);
 }
 
 /** A struck record: void invoices, superseded versions. Never hidden. */

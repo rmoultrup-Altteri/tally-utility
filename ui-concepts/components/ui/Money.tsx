@@ -78,7 +78,7 @@ export function Therms({ value }: { value: string | null }) {
  */
 export function Nil() {
   return (
-    <span className="figures text-ink-muted" title="No value recorded">
+    <span className="figures text-ink-tertiary" title="No value recorded">
       —
     </span>
   )
@@ -92,7 +92,12 @@ export function Variance({ pct, threshold = 5 }: { pct: string | null; threshold
   if (pct === null) return <Nil />
   const value = Number(pct)
   if (Math.abs(value) < threshold) {
-    return <span className="figures text-ink-muted">·</span>
+    return (
+      <>
+        <span aria-hidden className="figures text-ink-muted">·</span>
+        <span className="sr-only">Within threshold</span>
+      </>
+    )
   }
   const up = value > 0
   return (

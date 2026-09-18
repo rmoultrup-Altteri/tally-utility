@@ -140,7 +140,7 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
                 <strong className="font-semibold">This run cannot post.</strong>{' '}
                 {blockingCount} exceptions block delivery. Bills on those accounts cannot reach{' '}
                 <em>pending</em> or <em>sent</em> until each is resolved.{' '}
-                <Link href="/" className="text-accent hover:text-accent-hover underline">
+                <Link href="/" className="text-accent-text hover:text-accent-text-hover underline">
                   Work the queue
                 </Link>
                 .
@@ -200,7 +200,7 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
                         <Td>
                           <Link
                             href={`/invoices/${inv.id}`}
-                            className="ident text-accent hover:text-accent-hover underline"
+                            className="ident text-accent-text hover:text-accent-text-hover underline"
                           >
                             {inv.invoice_number}
                           </Link>

@@ -431,7 +431,7 @@ function WorklistLine({ row, category }: { row: WorklistRow; category: BypassCat
         {row.customerId ? (
           <Link
             href={`/customers/${row.customerId}` as Route}
-            className="text-data text-ink-primary hover:text-accent hover:underline"
+            className="text-data text-ink-primary hover:text-accent-text hover:underline"
           >
             {row.name}
           </Link>
@@ -471,7 +471,7 @@ function WorklistLine({ row, category }: { row: WorklistRow; category: BypassCat
             </p>
           </>
         ) : (
-          <span className="text-ink-muted">—</span>
+          <span className="text-ink-tertiary">—</span>
         )}
       </Td>
       <Td>
@@ -501,14 +501,14 @@ function WorklistLine({ row, category }: { row: WorklistRow; category: BypassCat
         <StateFlag tone={CATEGORY_TONE[category]}>{verdict.eligible ? 'Yes' : 'No'}</StateFlag>
         <p className="text-micro text-ink-secondary mt-0.5">{verdict.reason}</p>
         {row.nextAction ? (
-          <p className="text-micro text-accent mt-0.5">{row.nextAction}</p>
+          <p className="text-micro text-accent-text mt-0.5">{row.nextAction}</p>
         ) : null}
       </Td>
       <Td align="right">
         {Number(row.deposit) > 0 ? (
           <Money value={row.deposit} />
         ) : (
-          <span className="text-ink-muted">—</span>
+          <span className="text-ink-tertiary">—</span>
         )}
       </Td>
     </Row>

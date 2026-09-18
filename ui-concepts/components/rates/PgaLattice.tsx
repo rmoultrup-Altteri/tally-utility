@@ -197,7 +197,9 @@ function Cell({
           </span>
         ) : defect ? (
           <span className="block leading-tight">
-            <span className="ident text-data struck">{fmtRate(carryForwardDefect.billedFactor)}</span>
+            <span className="ident text-data line-through decoration-1 text-exception-critical-text">
+              {fmtRate(carryForwardDefect.billedFactor)}
+            </span>
             <span className="block text-label uppercase tracking-[0.06em] font-semibold text-exception-critical-text">
               billed anyway
             </span>
@@ -289,7 +291,7 @@ function Probe({ selection }: { selection: Selection | null }) {
             {version ? (
               <span className="ident text-ink-primary font-medium">{fmtRate(version.rate)}</span>
             ) : (
-              <span className="text-ink-muted">—</span>
+              <span className="text-ink-tertiary">—</span>
             )}
           </dd>
         </div>

@@ -182,7 +182,10 @@ export default async function DiffPage({ params }: PageProps<'/invoices/[invoice
                           {changed ? (
                             <Money value={String(lineDelta)} />
                           ) : (
-                            <span className="text-ink-muted">·</span>
+                            <>
+                            <span aria-hidden className="text-ink-muted">·</span>
+                            <span className="sr-only">No change</span>
+                          </>
                           )}
                         </td>
                       </tr>
@@ -279,7 +282,7 @@ function Side({
       <p className="text-figure mt-1">{money(invoice.amount_due)}</p>
       <Link
         href={href as never}
-        className="ident text-accent hover:text-accent-hover underline mt-1 inline-block"
+        className="ident text-accent-text hover:text-accent-text-hover underline mt-1 inline-block"
       >
         {invoice.invoice_number}
       </Link>
