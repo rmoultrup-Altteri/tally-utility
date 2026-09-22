@@ -1,37 +1,42 @@
-# Handoff: A-2 is unfenced and specced — one scope call stands between it and DDL; `ui-concepts/` still awaits a direction call
+# Handoff: A-2 drafted and reviewed, held on two Kyle rulings; `ui-concepts/` still awaits a direction call
 
-**Generated**: 2026-09-22 (wrap — documentation and scoping session, no DDL; both repos committed and pushed, working trees clean)
-**Branch**: tally-utility `main` · gas-billing-memory `main` @ `a8d3478`
-**Status**: **Kyle's Part 4 CLOSED 2026-09-14 — the A-2 fence is LIFTED.** v5.4.2-11 remains the last patch (tu.sql 21,916 lines; container rebuilt and verified this session, zero init errors). A-2 is consolidated into an implementation brief with Ryan's four scope decisions taken; two questions are with Kyle and are not blocking. One scope call is open (below). Also found and documented: **229 tenant-blind foreign keys**, live-verified.
+**Generated**: 2026-09-22 (wrap — A-2 drafted, one adversarial review round (two independent reviewers) folded, committed UNLANDED; both repos clean and pushed)
+**Branch**: tally-utility `main` @ `ef27cb1` · gas-billing-memory `main` @ `2da510b`
+**Status**: **v5.4.2-12 is DRAFTED, REVIEWED ONCE, AND BLOCKED.** `sql/v5.4.2-12-backbilling-caps.sql`, 1,993 lines, md5 `01032a02726d54ed53a3baec3bfb0f27`; battery-12 **66 PASS**; regressions 28 / 58 / 41. **NOT mirrored into `tu.sql`** — tu.sql remains 21,916 lines through v5.4.2-11. Two questions with Kyle block it, and one of them may reorder the next two patches.
 
 ## THE ONE THING TO CARRY FORWARD
 
-**Read `gas-billing-memory/application/a2-implementation-brief-2026-09-21.md` first — sections 7 and 8 especially.** It consolidates R-19…R-31 plus the CCK rulings into a buildable spec, re-based against `tu.sql`, and records eight places where the rulings collide with the shipped schema. Four of those are decided (§7); the fifth is the only thing still open.
+**Do not land A-2 until Kyle answers `application/kyle-questions-2026-09-22-a2-straddle-and-last-test.md`.** Both questions change the code, not merely its wording:
 
-**Speak to Ryan in plain language.** He owns the schema but did not author the decision corpus — item codes (F-5), ruling codes (R-19, CCK-14), contract codes (AC-32) and register entries (CI-046) mean nothing to him on sight. Build the meaning into the question. He asked for this explicitly on 2026-09-21; memory `explain-jargon-in-the-question`.
+- **Q-C, the straddling billing period.** The rulings settle a period wholly inside the window and one wholly outside; they say nothing about one that begins before it opens and ends after. With monthly periods and a mid-month window that is the COMMON case. The draft prorated by days, which assumes uniform consumption (false for gas) and has no fixed point — the trim is proportional to a delta derived from the draft, so re-drafting at the trimmed figure re-prorates it. **The patch currently REFUSES a straddling period outright.** That is a holding position, not the answer. Q-C decides whether a trim mechanism should exist at all.
+- **Q-D, which test date governs the `meter_error` bound.** Against `meters.last_test_date` the ordinary sequence — test, record, correct — CANNOT COMPLETE: recording the discovery test opens the window on the anchor, so every period precedes it and the correction is refused in full. **If "the last test" means the last one that found the meter ACCURATE, CI-091's append-only test history becomes a PREREQUISITE for A-2 rather than the patch behind it**, because `last_test_date` is one field each test overwrites.
 
-**Every patch still ends by calling `public.assert_tenant_isolation_invariants()`** (AC-32), now written into the parity plan's per-wave acceptance rather than living only in narrative about v5.4.2-11.
+**Every patch still ends by calling `public.assert_tenant_isolation_invariants()`** (AC-32), and its checks must be shown to RAISE on planted drift, not merely to pass. Battery-12 H4–H7 does this on the three new tables.
 
-## THE OPEN CALL — where the FK remediation patch sits
-
-229 foreign keys name a target row's id without its tenant. The question is whether that patch lands **before** A-2, **after** it, or is **split** with the 96-link `users` tier going early on its own. My recommendation is after: A-2 has statutory weight and a closed ruling set, and this has been latent since the schema was written. Full inventory and reasoning in `tenant-blind-foreign-keys-2026-09-22.md`.
+**Speak to Ryan in plain language** — item codes (F-5), ruling codes (R-19, CCK-14), contract codes (AC-32) and register entries (CI-046) mean nothing on sight; build the meaning into the question (memory `explain-jargon-in-the-question`).
 
 ## Workstream C — A-2 (the live workstream)
 
-**Decided by Ryan 2026-09-22** (all recorded in the brief §7, in plain language):
+**What is built** (`sql/v5.4.2-12-backbilling-caps.sql`, committed unlanded at `ef27cb1`): `backbilling_cap_rules` with both bounds and explicit non-null scope enums on each side, Texas gas seeds for both classes (unprotected rows written explicitly `uncapped`, so an absent rule is an error not a permission); `backbill_cause` + `anchor_date` on the target with the under-reach override in database-stamped write-once columns; `correction_run_target_events` and `backbilling_period_evaluations`, both append-only; the R-30 read classification as a platform-fixed function; gates (ii) and (iii); the -10 target freeze extended to the two new columns; `tenants.regulatory_class_mode` (CCK-14 default, volumetric mode declared but REFUSING); `UNIQUE (id, tenant_id)` on `jurisdictions` and `correction_run_targets` plus the `service_locations.jurisdiction_id` repair; the AC-32 tail.
 
-1. **Ship the simple protection default.** CCK-14's `all_non_residential_protected` — no volumetric resolver, no per-meter determination record, no promote/demote hysteresis inside A-2. Roughly halves the patch and errs toward protection, which can never be a violation. CCK-4…CCK-13 become their own later patch.
-2. **The under-reach override gets a database-stamped write-once home**, not a row in `invoice_events` — that log is app-insertable, so the software could otherwise clear its own warning. The log keeps the audit trail; it stops being what the gate believes.
-3. **The correction-run target rows get their own append-only log** for setup-time events, because `invoice_events.invoice_id` is NOT NULL and at gate (ii) no correction invoice exists yet.
-4. **Build narrow on both Kyle questions.** `backbill_cause` / `anchor_date` freeze at snapshot existence rather than at post; the override takes a short evidentiary-impossibility reason-code list rather than free text. Both are narrower than R-19 / R-27 as written, both are with Kyle, and narrow-first is the cheap direction under an append-only schema.
+**Round 1 (Codex + Fable, both on the frozen hash) found four critical/high defects. All fixed, all pinned by battery group J:**
 
-**With Kyle, not blocking** — `application/kyle-questions-2026-09-22-a2-override-and-cause-freeze.md`: is the evidentiary-impossibility list the right list, and is freezing the cause at the snapshot consistent with what R-19 intended?
+1. **The trim was recorded and never applied** — the evidence row said "forfeited" and the bill issued at the full delta, because the gate only refused a TOTAL trim. Now refused outright pending Q-C.
+2. **`amount_due` is caller-set and tied to nothing** (both reviewers, independently). **The first fix was the same defect mirrored** — reading only the line items left the ledger path open, since `void_invoice()` reverses exactly `-(amount_due)`. The measure is now the GREATER of the two paths.
+3. **The gate was keyed on `invoice_type`** — a `duplicate`, a `credit_memo`, and a plain `regular` rebill of the voided period all walked past it. Re-keyed on the act: was this premise and period billed before, and does this bill charge more.
+4. **The target's `meter_id` / `customer_id` were unbound to the bill they correct**, and both choose the cap. Now bound; the evidence row records the meter and the `last_test_date` it used.
 
-**Still to decide inside the patch** (recorded in the brief §4): `invoice_events.event_type` needs new values; `jurisdictions` needs `UNIQUE (id, tenant_id)` before A-2's link can be tenant-checked; the billable bound needs the same explicit discriminator R-20 gave the enforceable one (a NULL read as "no limit" bills past statutory authority); and both new tables are born leaky under AC-32.
+**Residuals stated in the patch tail, R1–R9.** The ones that matter: only Texas gas is seeded (anything else refuses); a tenant created after this patch has no cap rules until onboarding calls `seed_backbilling_cap_defaults()`; an adverse period on a meter with no recorded test refuses rather than inferring a date (R-31); `anchor_basis` is hard-coded `test_date` even for discovery-anchored causes; the enforceable bound is recorded but wired to nothing; and **R9 — `invoices.amount_due` has no tie to its line items**, which A-2 is the first thing to rest a statutory gate on.
 
-**Known provisional:** A-2's jurisdiction work may be partly redone if the shared-place split goes ahead — see `jurisdictions-shared-place-modelling-2026-09-22.md`. One constraint and one FK, cheap to redo, recorded knowingly rather than discovered later.
+**Also recorded for the register, pre-existing and not A-2's:** `tally_app` can post a charge directly into `account_ledger` outside any invoice gate — the ledger and the bill are both application-asserted.
 
-**Then, immediately behind A-2:** CI-091's append-only meter test history table (R-31) — its own brief and patch, required before the first gas tenant goes live, because `meters.last_test_date` is a single mutable field overwritten by each test, so any period without history is a permanent hole.
+**Not done, all waiting on Kyle:** round 2 reviews; the mirror into `tu.sql`; DEPLOY-VERIFICATION; CI re-grades (CI-008, CI-092, CI-091); the Appendix and DECISION-LOG entries.
+
+**Then, behind A-2 (or possibly ahead of it — see Q-D):** CI-091's append-only meter test history (R-31), required before the first gas tenant goes live.
+
+## THE OPEN CALL, ANSWERED — where the FK remediation patch sits
+
+**Ryan, 2026-09-22: A-2 first, the 229-link remediation after.** A-2 repaired the three links it resolves through (`jurisdictions` gets `UNIQUE (id, tenant_id)`, its own cap-table FK is composite, and `service_locations.jurisdiction_id` is repaired). The remaining ~226 are their own patch; full inventory in `tenant-blind-foreign-keys-2026-09-22.md`.
 
 ---
 
@@ -87,6 +92,17 @@ The container build runs the assertion last. If it raises, read the HINT — it 
 - [ ] Carried "Open for Ryan": `meter_id` swap on a capped line moves the attribution; the -07 LOW residuals; the -09 residuals (letter-bearing placeholders like "N/A" pass the evidence test; one tenant's bad notice-days value loud-blocks the platform admin's global queue; legacy `customers.is_tax_exempt` unguarded, display-only).
 
 ## Failed Approaches (Don't Repeat These)
+
+**New in -12 (all four found by review round 1, or by the author fixing it):**
+- **A guard that RECORDS its own enforcement instead of performing it.** The trim wrote "9.00 forfeited" to the permanent evidence row, raised a NOTICE saying so, and then let the bill issue at the full 31.00 — the gate refused only a TOTAL trim. A log asserting a control that did not run is worse than no control, because the log is what a regulator reads.
+- **A proportional trim of a figure derived from the thing being trimmed.** It has no fixed point: re-drafting at the trimmed amount re-prorates the already-trimmed number, forever. If a rule reduces X and X is computed from the draft, the draft cannot also be the answer.
+- **Fixing "the gate reads the wrong number" by reading the OTHER wrong number.** Told `amount_due` was caller-set, the first fix read only the line items — but `void_invoice()` reverses exactly `-(amount_due)`, so that column reaches the ledger regardless. One direction closed, its mirror opened, reproduced. When two fields are both "the money", the fix is a measure over both, not a swap.
+- **Keying a guard on what a thing is CALLED rather than what it DOES.** `invoice_type = 'correction'` was walked past by a `duplicate`, a `credit_memo`, and — needing no `replaces_invoice_id` at all — a plain `regular` rebill of the voided period. The patch had quoted "the regulated act is the charge, not the void" one function earlier.
+- **Letting a caller name the inputs that choose the rule.** The correction target's `meter_id` and `customer_id` were unbound to the bill being corrected, and both select the cap: a sibling meter with an older test date lengthens the window; a differently-classed customer uncaps it.
+- **Recording a window without recording the mutable fact that produced it.** `meters.last_test_date` is overwritten by each test, so an evidence row naming neither the meter nor the date it read could not be re-derived — which is the entire purpose of an evidence row.
+- **A constraint that contradicts its own table.** `UNIQUE (target, period)` on an append-only table whose gate demands a fresh row: the gate wants a new answer, append-only forbids editing the old one, and the unique key forbids adding one, so the flow deadlocks. Also: ordering "the row that governs" by `evaluated_at` when `now()` is constant within a transaction — a tie silently picks one of two different answers.
+- **Writing a diagnosis into a comment without measuring it.** The equality rule between `amount_due` and the line items was rejected because it broke batteries 10 and 11 — but that had to be confirmed as the cause, rather than cross-battery contamination, before the reasoning was baked into the patch.
+- **A battery fixture less realistic than the thing it tests.** The invoices built no line-item `meter_id`, so the meter binding fell through to a weaker premise-level check and the test passed without exercising the rule it named.
 
 **New in -11:**
 - **A self-check filtered by a narrower key than the property it certifies.** `relkind = 'v'` while asserting "views run with invoker rights" — blind to four leaking matviews one relkind away and 79 tables two away. Same shape three more times: `has_table_privilege` ignores COLUMN grants; a five-signature by-name check cannot see the sixth function; `coalesce(polqual, polwithcheck)` never inspects `WITH CHECK` while `USING` is non-NULL (read-isolated, write-OPEN). Write the assertion against the property, and **test that it RAISES** (memory: `checks-narrower-than-their-claim`).
