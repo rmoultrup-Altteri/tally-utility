@@ -1,10 +1,41 @@
-# Handoff: two workstreams — `ui-concepts/` is a runnable first-iteration UI awaiting a direction call; on the schema side v5.4.2-11 is landed and A-2 is still fenced on Kyle's Part 4
+# Handoff: A-2 is unfenced and specced — one scope call stands between it and DDL; `ui-concepts/` still awaits a direction call
 
-**Generated**: 2026-09-18 (wrap — the UI prototype landed across six commits; tally-utility committed and pushed, working tree clean)
-**Branch**: tally-utility `main` @ `e6ef17e` (clean, pushed) · gas-billing-memory untouched this session, still `main` @ `c52434f`
-**Status**: **v5.4.2-11 DONE** (`sql/v5.4.2-11-definer-hygiene-and-view-rls.sql`, 1,100 lines, md5 `a275c67d…`; tu.sql 21,165 → **21,916**; battery **41** + an 11-check pre-patch probe in `tests/v5.4.2-11/`; catalog 82 tables / 5 views / 4 matviews / 81 policies / 80 FORCE RLS / 255 triggers / **393** functions / 357 FKs; container `tally-pg` = fresh build of the committed tu.sql, verified by hash `6edac2aa…`). Phase 4: Wave 1 ✅, Wave 2 ✅, Wave 3: A-9 ✅ · A-2 ⏸ (Kyle) · A-10 open. A-8 held for its brief.
+**Generated**: 2026-09-22 (wrap — documentation and scoping session, no DDL; both repos committed and pushed, working trees clean)
+**Branch**: tally-utility `main` · gas-billing-memory `main` @ `a8d3478`
+**Status**: **Kyle's Part 4 CLOSED 2026-09-14 — the A-2 fence is LIFTED.** v5.4.2-11 remains the last patch (tu.sql 21,916 lines; container rebuilt and verified this session, zero init errors). A-2 is consolidated into an implementation brief with Ryan's four scope decisions taken; two questions are with Kyle and are not blocking. One scope call is open (below). Also found and documented: **229 tenant-blind foreign keys**, live-verified.
 
-## Workstream A — `ui-concepts/` (this session's work)
+## THE ONE THING TO CARRY FORWARD
+
+**Read `gas-billing-memory/application/a2-implementation-brief-2026-09-21.md` first — sections 7 and 8 especially.** It consolidates R-19…R-31 plus the CCK rulings into a buildable spec, re-based against `tu.sql`, and records eight places where the rulings collide with the shipped schema. Four of those are decided (§7); the fifth is the only thing still open.
+
+**Speak to Ryan in plain language.** He owns the schema but did not author the decision corpus — item codes (F-5), ruling codes (R-19, CCK-14), contract codes (AC-32) and register entries (CI-046) mean nothing to him on sight. Build the meaning into the question. He asked for this explicitly on 2026-09-21; memory `explain-jargon-in-the-question`.
+
+**Every patch still ends by calling `public.assert_tenant_isolation_invariants()`** (AC-32), now written into the parity plan's per-wave acceptance rather than living only in narrative about v5.4.2-11.
+
+## THE OPEN CALL — where the FK remediation patch sits
+
+229 foreign keys name a target row's id without its tenant. The question is whether that patch lands **before** A-2, **after** it, or is **split** with the 96-link `users` tier going early on its own. My recommendation is after: A-2 has statutory weight and a closed ruling set, and this has been latent since the schema was written. Full inventory and reasoning in `tenant-blind-foreign-keys-2026-09-22.md`.
+
+## Workstream C — A-2 (the live workstream)
+
+**Decided by Ryan 2026-09-22** (all recorded in the brief §7, in plain language):
+
+1. **Ship the simple protection default.** CCK-14's `all_non_residential_protected` — no volumetric resolver, no per-meter determination record, no promote/demote hysteresis inside A-2. Roughly halves the patch and errs toward protection, which can never be a violation. CCK-4…CCK-13 become their own later patch.
+2. **The under-reach override gets a database-stamped write-once home**, not a row in `invoice_events` — that log is app-insertable, so the software could otherwise clear its own warning. The log keeps the audit trail; it stops being what the gate believes.
+3. **The correction-run target rows get their own append-only log** for setup-time events, because `invoice_events.invoice_id` is NOT NULL and at gate (ii) no correction invoice exists yet.
+4. **Build narrow on both Kyle questions.** `backbill_cause` / `anchor_date` freeze at snapshot existence rather than at post; the override takes a short evidentiary-impossibility reason-code list rather than free text. Both are narrower than R-19 / R-27 as written, both are with Kyle, and narrow-first is the cheap direction under an append-only schema.
+
+**With Kyle, not blocking** — `application/kyle-questions-2026-09-22-a2-override-and-cause-freeze.md`: is the evidentiary-impossibility list the right list, and is freezing the cause at the snapshot consistent with what R-19 intended?
+
+**Still to decide inside the patch** (recorded in the brief §4): `invoice_events.event_type` needs new values; `jurisdictions` needs `UNIQUE (id, tenant_id)` before A-2's link can be tenant-checked; the billable bound needs the same explicit discriminator R-20 gave the enforceable one (a NULL read as "no limit" bills past statutory authority); and both new tables are born leaky under AC-32.
+
+**Known provisional:** A-2's jurisdiction work may be partly redone if the shared-place split goes ahead — see `jurisdictions-shared-place-modelling-2026-09-22.md`. One constraint and one FK, cheap to redo, recorded knowingly rather than discovered later.
+
+**Then, immediately behind A-2:** CI-091's append-only meter test history table (R-31) — its own brief and patch, required before the first gas tenant goes live, because `meters.last_test_date` is a single mutable field overwritten by each test, so any period without history is a permanent hole.
+
+---
+
+## Workstream A — `ui-concepts/` (parked, awaiting Ryan's direction call)
 
 **Status:** fifteen screens, all ten from the domain report's Screen list, on fixtures. `pnpm dev` on **port 4182**; `pnpm build` and `pnpm check:fixtures` both green; every screen shot in both themes with no console errors. Nothing writes — interactions are presentational by design.
 
@@ -20,11 +51,11 @@
 
 ---
 
-## Workstream B — schema (`sql/tu.sql`), unchanged this session
+## Workstream B — schema background (unchanged since v5.4.2-11; A-2 supersedes its queue)
 
 ## Goal
 
-Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. While Kyle works Part 4, do the Kyle-independent queue rather than idle or pre-empt his rulings.
+Bring `sql/tu.sql` (the only enforcement artifact — no application code exists) to parity with the spec corpus per `gas-billing-memory/application/schema-parity-plan.md`. **Superseded 2026-09-22:** Kyle's Part 4 is closed and A-2 is the live item — Workstream C above replaces this section's queue. The failed approaches, key decisions and warnings below all still stand.
 
 ## THE ONE THING TO CARRY FORWARD
 
@@ -91,8 +122,9 @@ The container build runs the assertion last. If it raises, read the HINT — it 
 
 ## Resume Instructions
 
-1. **Check GBM for a new Kyle record first** (`git -C ~/code/gas-billing-memory log --oneline -5`; `application/kyle-decisions-*`). If Part 4 has emptied, **A-2 moves ahead of everything**.
-2. Otherwise take the Kyle-independent queue in order (socialize the contracts → consolidate the Kyle brief → A-10 with Ryan).
+1. **Read the A-2 implementation brief** (`gas-billing-memory/application/a2-implementation-brief-2026-09-21.md`), §7 and §8 first. Part 4 closed 2026-09-14 — do not re-check the fence, it is lifted.
+2. **Get Ryan's one open call** (where the FK remediation patch sits relative to A-2), then draft A-2 DDL against the brief. CI-091's meter test history follows immediately behind it.
+3. Still queued but subordinate to A-2: socialize AC-29 / AC-30 / AC-31 (their likely home is the register and the fixture catalog, not the acceptance line — AC-32 is done); consolidate the Kyle brief candidates; A-10 with Ryan when the finance gate is settled.
 3. **Whatever you draft, end the patch by calling `public.assert_tenant_isolation_invariants()`** and add its checks to your battery. If you add a table, view, matview or definer function, the assertion tells you what you forgot.
 4. Same loop as -10/-11: fresh clone (`docker exec` only) → strict apply ×2 (`search_path=''`, `check_function_bodies=on`) → battery in one transaction as `tally_app` → brief with `wc -l` + `md5 -q` → **freeze, launch both reviewers** → fold into ONE revision per round → mirror after the LAST banner → fresh rebuild + catalog parity → batteries green on the build → DEPLOY-VERIFICATION → CI re-grade → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → **battery + repros into `tests/v5.4.2-NN/`** → commit + push both repos.
 
