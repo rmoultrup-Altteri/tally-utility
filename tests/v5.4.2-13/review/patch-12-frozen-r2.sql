@@ -1436,17 +1436,17 @@ CREATE TRIGGER z_enforce_backbilling_gate_setup
 -- STRADDLING period unaddressed, because a period that begins before the
 -- window opens and ends after it is partly billable and partly not.
 --
--- This function MEASURES the out-of-window share of a straddling period by
--- DAYS (days before window_start over days in the period) and records it on
--- the evidence row as trimmed / trimmed_amount. It does NOT apply that trim:
--- gate (iii) refuses any adverse period whose evaluation shows a trim, so a
--- straddling period is currently REFUSED OUTRIGHT (review round 1 — see the
--- gate). The day measure assumes uniform consumption, which for gas is false,
--- and a trim derived from the draft has no fixed point. How a straddle is
--- treated — billable whole, forfeited whole, or divisible — is Kyle's Q-C
--- (kyle-questions-2026-09-22-a2-straddle-and-last-test.md). The evidence row
--- carries the window and the measured share either way, so the ruling is a
--- re-evaluation, not archaeology.
+-- This patch prorates the adverse delta by DAYS: the forfeited share is the
+-- days before window_start over the days in the period. That assumes uniform
+-- consumption across the period, which for gas is false — a January period
+-- straddling a window is not consumed evenly across its days. It is the only
+-- method available without per-day reads, it errs in no consistent direction,
+-- and it is therefore RECORDED AS AN OPEN QUESTION for Kyle and tariff
+-- counsel rather than presented as settled. The alternatives are to forfeit
+-- the whole straddling period (protective, over-forfeits) or to bill it whole
+-- (over-collects, and over-collection is the direction §7.45 exists to stop).
+-- The evidence row carries the window and the trimmed amount either way, so
+-- changing this rule later is a re-evaluation, not archaeology.
 
 CREATE OR REPLACE FUNCTION public.backbilling_evaluate_period(
         p_target_id             uuid,
@@ -1527,9 +1527,8 @@ BEGIN
     -- R-25's direction test, from the DATABASE's arithmetic rather than an
     -- operator's declaration: a computed fact dressed as a judgment call was
     -- one of the rejected alternatives.
-    -- Measured with backbilling_invoice_charge() on both sides — the GREATER
-    -- of line-item sum and amount_due (round 1, CRITICAL: amount_due is
-    -- caller-set and tied to nothing; the lines alone were its mirror).
+    -- From the LINE ITEMS on both sides (round 1, CRITICAL): amount_due is
+    -- caller-set and tied to nothing.
     v_delta := coalesce(v_corr.charge, 0) - coalesce(v_orig.charge, 0);
     v_direction := CASE WHEN v_delta > 0 THEN 'customer_owes'
                         WHEN v_delta < 0 THEN 'customer_owed'
@@ -1559,8 +1558,8 @@ BEGIN
             v_trimmed := true;
             v_trim_amount := v_delta;
         ELSIF v_orig.period_start < v_window THEN
-            -- Straddling. See the note above: the day share is MEASURED and
-            -- recorded here; gate (iii) refuses the period rather than apply it.
+            -- Straddling. See the note above: day-proration, stated as an
+            -- approximation and carried to Kyle as an open question.
             v_days_total := (v_orig.period_end - v_orig.period_start) + 1;
             v_days_out   := (v_window - v_orig.period_start);
             IF v_days_total > 0 AND v_days_out > 0 THEN
@@ -1611,7 +1610,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.backbilling_evaluate_period(uuid, uuid) IS
-    'A-2 (v5.4.2-12), R-25 / R-23 / R-29 / R-30. Evaluates one (target, original billing period) pair and appends its evidence row, which gate (iii) then requires before the correction may be issued. Direction is computed from the database''s own arithmetic (backbilling_invoice_charge of the correction minus that of the original — the greater of line-item sum and amount_due on each), never declared by an operator. A period where the customer is OWED money passes uncapped. An adverse period wholly before window_start is recorded as trimmed by its whole delta; a STRADDLING period is recorded as trimmed by a day-proportional share. The trim is a measurement, not an applied reduction: gate (iii) refuses any adverse period whose evaluation shows a trim, pending Kyle''s Q-C on the straddle, because R-23 does not address it. anchor_basis is hard-coded test_date (R-29, v1). No statutory duty attaches to disclosing the forfeited portion on the customer''s bill: (v)(II) is permissive, so billing less than the ceiling is expressly contemplated.';
+    'A-2 (v5.4.2-12), R-25 / R-23 / R-29 / R-30. Evaluates one (target, original billing period) pair and appends its evidence row, which gate (iii) then requires before the correction may be issued. Direction is computed from the database''s own arithmetic (correction amount_due minus original amount_due), never declared by an operator. A period where the customer is OWED money passes uncapped. An adverse period wholly before window_start forfeits its whole delta; a STRADDLING period is prorated by days — an approximation that assumes uniform consumption, recorded as an open question for Kyle and tariff counsel rather than presented as settled, because R-23 does not address the straddle. anchor_basis is hard-coded test_date (R-29, v1). No statutory duty attaches to disclosing the forfeited portion on the customer''s bill: (v)(II) is permissive, so billing less than the ceiling is expressly contemplated.';
 
 
 -- ----------------------------------------------------------------------------
@@ -1661,13 +1660,9 @@ BEGIN
     -- Reproduced before it was closed (battery J7).
     --
     -- So: engage on the GREATER of the two for the bill being issued — the
-    -- most the customer could be exposed to by either path. The code below
-    -- ALSO measures previously-billed charges with the greater (the max of
-    -- backbilling_invoice_charge over the prior voided bills). An earlier
-    -- draft of this comment said the prior side used the LESSER, so an
-    -- already-divergent legacy bill could not raise the bar; the code does
-    -- not do that. OPEN FOR REVIEW ROUND 2: which measure the prior side
-    -- should use. (Recorded 2026-09-23, comment-only housekeeping.)
+    -- most the customer could be exposed to by either path — and on the
+    -- LESSER for what was previously billed, so an already-divergent legacy
+    -- bill cannot raise the bar. Once engaged, the two must AGREE.
     v_new_charge := public.backbilling_invoice_charge(NEW.id);
 
     -- IS THIS A REBILL, AND DOES IT CHARGE MORE?
@@ -1780,9 +1775,7 @@ BEGIN
     -- passes every other check in this gate. Found by the author before
     -- round 1; the round-1 reviewers then showed the first version of this
     -- check was reading amount_due, which the caller sets on both sides, so
-    -- it is now re-derived with backbilling_invoice_charge(), the greater of
-    -- lines and amount_due (battery I1). The MESSAGE below still says "line
-    -- items"; it reports that measure.
+    -- it is now re-derived from the LINE ITEMS (battery I1).
     IF v_delta IS DISTINCT FROM v_eval.delta_amount THEN
         RAISE EXCEPTION USING
             MESSAGE = format('backbilling cap: invoice %s was evaluated at a delta of %s but its line items now total %s against the replaced bill''s %s (delta %s) — the evidence on the record describes a different bill; re-evaluate before issuing', NEW.invoice_number, v_eval.delta_amount, v_new_charge, v_orig_charge, v_delta),
@@ -1830,7 +1823,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_backbilling_gate_issue() IS
-    'A-2 (v5.4.2-12), gate (iii) — R-22 / R-23 / R-25 / R-27, re-keyed after review round 1. BEFORE UPDATE OF status on invoices, on the transition INTO an issued status: the moment the customer is charged. Deliberately NOT inside void_invoice() (R-22) — the regulated act is the charge, not the void. It engages on the FACTS rather than on invoice_type: it asks whether this premise and period were billed before (on a bill since voided, once issued) and whether this bill charges MORE, measuring both with backbilling_invoice_charge() — the GREATER of the line-item sum and the caller-set amount_due, since either path reaches the customer. Round 1 walked three things past the earlier type-keyed version — a duplicate, a credit_memo and a plain regular rebill of the voided period. A bill that charges more must be a correction with a target, a cause, and a current evaluation whose delta still matches the line items; it is refused while an under-reach warning stands unoverridden, and refused outright where the evaluation shows any trim, because the straddle is unruled (Kyle Q-C).';
+    'A-2 (v5.4.2-12), gate (iii) — R-22 / R-23 / R-25 / R-27, re-keyed after review round 1. BEFORE UPDATE OF status on invoices, on the transition INTO an issued status: the moment the customer is charged. Deliberately NOT inside void_invoice() (R-22) — the regulated act is the charge, not the void. It engages on the FACTS rather than on invoice_type: it asks whether this premise and period were billed before (on a bill since voided, once issued) and whether this bill charges MORE, measuring both from the LINE ITEMS rather than the caller-set amount_due. Round 1 walked three things past the earlier type-keyed version — a duplicate, a credit_memo and a plain regular rebill of the voided period. A bill that charges more must be a correction with a target, a cause, and a current evaluation whose delta still matches the line items; it is refused while an under-reach warning stands unoverridden, and refused outright where the evaluation shows any trim, because the straddle is unruled (Kyle Q-C).';
 
 DROP TRIGGER IF EXISTS a_enforce_backbilling_gate_issue ON public.invoices;
 CREATE TRIGGER a_enforce_backbilling_gate_issue
@@ -1910,15 +1903,14 @@ CREATE TRIGGER a_enforce_correction_target_frozen_under_snapshot
 
 
 -- ----------------------------------------------------------------------------
--- 15. Residuals, stated (R1–R9, with R7b)
+-- 15. Residuals, stated (R1–R8)
 -- ----------------------------------------------------------------------------
--- R1. A STRADDLING PERIOD IS REFUSED OUTRIGHT. The evaluation records a
---     day-proportional trim as a measurement; gate (iii) refuses any adverse
---     period that shows one, because applying the trim assumed uniform gas
---     consumption and had no fixed point (review round 1). R-23 does not
---     address the straddle: billable whole, forfeited whole, or divisible is
---     Kyle's Q-C. With monthly periods and a mid-month window this refuses the
---     COMMON case — a holding position, not the answer.
+-- R1. THE STRADDLING PERIOD IS PRORATED BY DAYS, and that assumes uniform
+--     consumption, which for gas is false. R-23 does not address the straddle;
+--     the two alternatives are forfeiting the whole period (over-forfeits) and
+--     billing it whole (over-collects, the direction §7.45 exists to stop).
+--     OPEN QUESTION for Kyle and tariff counsel. The evidence row carries the
+--     window and the trimmed amount, so a different rule is a re-evaluation.
 --
 -- R2. THE UNKNOWN-PRIOR-TEST PATH REFUSES rather than asking. Refinement 5
 --     rules that an operator confirms before an adverse charge lands; there is
@@ -1967,12 +1959,11 @@ CREATE TRIGGER a_enforce_correction_target_frozen_under_snapshot
 -- R9. invoices.amount_due IS NOT DERIVED FROM invoice_line_items, and both are
 --     "the money": the lines are the itemised bill content (6)(B)(v) requires,
 --     amount_due is what posts to the ledger (void_invoice reverses exactly
---     -(amount_due)). Nothing in tu.sql ties them together. This patch does
---     not require them to agree (equality refused bills the earlier batteries
---     build, where amount_due = 0 against non-zero lines); it measures the
---     GREATER of the two (backbilling_invoice_charge), so inflating either
---     path raises the measured charge. The schema-wide invariant belongs to
---     the invoice, not to A-2, and is recorded here for the register. Both
+--     -(amount_due)). Nothing in tu.sql ties them together. This patch
+--     requires them to AGREE on a bill that increases what a customer owes
+--     for an already-billed period, which is the narrowest rule that makes a
+--     §7.45 window meaningful — but the schema-wide invariant belongs to the
+--     invoice, not to A-2, and is recorded here for the register. Both
 --     round-1 reviewers found the first draft resting on amount_due alone;
 --     the first round-2 draft then rested on the lines alone, which was the
 --     same defect mirrored.

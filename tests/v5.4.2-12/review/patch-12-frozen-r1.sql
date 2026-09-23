@@ -1,1776 +1,1336 @@
 -- ============================================================================
--- PATCH v5.4.2-12 — backbilling caps: how far back the law lets us bill, and
---                    the per-period evidence that makes a trim defensible
---                    (schema-parity-plan Phase 4 Wave 3, item A-2)
+-- PATCH v5.4.2-12 — the meter test history: every test a meter has had, what
+--                    it found, and which one governs a backbilling window
+--                    (CI-091 / CI-092; Kyle R-31, R-34…R-36)
 -- ============================================================================
--- Authority:   Kyle's A-2 record, rulings R-19…R-31 (closed 2026-09-14), the
---              customer-class-keying record CCK-1…CCK-14, and the
---              consolidation GBM application/a2-implementation-brief-2026-09-21.md.
---              Statutory basis is 16 TAC §7.45, read in full by Kyle on
---              2026-09-02 and quoted to the clause in his record. NOTHING in
---              this patch is a fresh reading of the rule; R-28 carries an
---              explicit caveat that the (4)(E)(vi) closing clause was not
---              re-read on 2026-09-14, and that caveat travels here unchanged.
+-- Authority:   Kyle's R-31 (2026-09-02 A-2 record: an append-only test history
+--              before the first gas tenant goes live), and R-34…R-36 with
+--              findings F-2…F-5 (GBM application/kyle-decisions-2026-09-22-
+--              a2-straddle-and-meter-test-anchor.md), which settle the three
+--              questions the drafting brief left open and endorse its shape:
+--              D-1 two tables, D-3 outcome computed by the database, D-4
+--              customer and location required on a customer-requested test,
+--              D-5 accept a late-entered test and flag it, D-6 a tenant-bound
+--              key on users. Erratum E-1 (2026-09-23 record): the customer-
+--              requested test and the 2.0% definition are §7.45(7)(B)(iv)(I)
+--              and (II), not (7)(A)(iv). Drafting spec: GBM application/
+--              ci091-meter-test-history-implementation-brief-2026-09-22.md.
 --
---              Ryan, 2026-09-22 (brief §7, plain language):
---                (1) ship the simple protection default — CCK-14's
---                    all_non_residential_protected, no volumetric resolver,
---                    no per-meter determination record, no promote/demote
---                    hysteresis inside A-2 (F-5);
---                (2) the under-reach override gets a database-stamped
---                    write-once home, NOT a row in invoice_events — that log
---                    is app-insertable, so the software could otherwise clear
---                    its own warning (F-3);
---                (3) the correction-run target rows get their own append-only
---                    log for setup-time events, because invoice_events.
---                    invoice_id is NOT NULL and at gate (ii) no correction
---                    invoice exists yet (F-1);
---                (4) build narrow on both Kyle questions — backbill_cause and
---                    anchor_date freeze at snapshot existence rather than at
---                    post (F-4), and the override takes a short
---                    evidentiary-impossibility reason-code list rather than
---                    free text. Both are narrower than R-19 / R-27 as
---                    written, both are with Kyle
---                    (application/kyle-questions-2026-09-22-a2-override-and-cause-freeze.md),
---                    and narrow-first is the cheap direction under an
---                    append-only schema: widening a CHECK later is one line,
---                    narrowing means judging every row already written under
---                    the loose rule (D-2026-09-09-03).
+--              Ryan, 2026-09-23: the test_kind domain is the brief's proposed
+--              list — periodic, customer_requested, complaint, post_repair,
+--              acceptance, other (D-2). Narrow first: widening a CHECK is one
+--              line, narrowing means judging every row written under it.
 --
---              Ryan, 2026-09-22: A-2 lands BEFORE the tenant-blind foreign
---              key remediation patch (brief §8's open call, answered). A-2
---              still repairs the three links it resolves through, below.
+--              Build order (R-34): this patch lands BEFORE A-2, which is
+--              renumbered v5.4.2-13 and reads its governing test date from
+--              here — meters.last_test_date is removed from that path, not
+--              kept as a fallback.
 --
--- The rule, in one sentence: when a utility discovers it under-charged a
--- customer, §7.45 limits how far back it may bill — and for a meter found
--- more than 2% fast the limit runs the OTHER way, making the refund
--- mandatory rather than optional.
+-- The rule, in one sentence: §7.45(7)(B)(v)(I) lets a utility correct a
+-- defective meter's readings back to "the shorter of the last six months or
+-- the last test of the meter" — and until now the schema kept only ONE test
+-- date per meter, overwritten by each new test, so the test that DISCOVERS an
+-- error erased the one that bounds the correction.
+--
+-- ----------------------------------------------------------------------------
+-- The arithmetic this history exists to serve (Kyle, 2026-09-22 record §1)
+-- ----------------------------------------------------------------------------
+--
+--     window_start = MAX(anchor_date − 6 months, governing_test_date)
+--
+--   The last-test prong can only move the window start LATER. It is the
+--   protective prong, so its absence defaults every correction to the longest
+--   span — which is why A-2 cannot ship on a six-month-only bound, and why
+--   this patch comes first. A-2 computes the MAX; this patch supplies the
+--   governing test (meter_governing_test(), section 11) and the facts A-2's
+--   gate needs about how far that test can be trusted.
+--
+--   Consequence used by R-36: every migrated test date is at or before the
+--   tenant's cutover C (section 3 enforces it). For a discovery later than
+--   C + 6 months, anchor − 6 months > C ≥ every migrated date, so a migrated
+--   date can never set the window. Migrated provenance is a bounded,
+--   transitional exposure — and the supervisor gate it needs lapses on its own.
 --
 -- ----------------------------------------------------------------------------
 -- The two shapes this patch exists to avoid
 -- ----------------------------------------------------------------------------
 --
---   A NULLABLE INTEGER WHERE NULL MEANS SOMETHING. R-20 ruled the enforceable
---   bound an explicit enum precisely because a nullable month count where
---   NULL means "never" is the NULL-poisoning class from the 2026-08-26 coda:
---   a CHECK passes on NULL, so the guard fails open silently, and a guard
---   that fails open is worse than none because it is trusted. F-7 found the
---   billable side had the same three-shape problem and no discriminator —
---   and there a NULL read as "no limit" bills PAST STATUTORY AUTHORITY, which
---   is the more expensive direction. Both sides get an explicit non-null
---   scope enum with an IS NOT NULL conjunct in the CHECK.
+--   A STORED RESULT THAT CAN DISAGREE WITH ITS OWN EVIDENCE. The A-2 review
+--   found invoices.amount_due and the line items were two versions of the
+--   same money with nothing tying them together. A test outcome typed in by
+--   the caller beside load results that say otherwise would be that defect
+--   again, exactly where A-2 will rest a statutory window. So the caller
+--   submits RAW READINGS (the standard meter's volume and the tested meter's
+--   volume at each load point); the database computes each load's error from
+--   them with one function, and the outcome from those errors against a
+--   threshold held in data. Nothing that decides a result is caller-asserted.
 --
---   AN APP-WRITTEN EVENT STANDING IN FOR A GUARD'S FACT. invoice_events is
---   insertable by tally_app (tu.sql policy invoice_events_insert), so an
---   under-reach override recorded only as an event is assertable by the
---   application: any session that can write the event can clear the warning,
---   with no human in it. That is the same shape as the app.void_operation
---   carve-out recorded in Appendix A-23 (1). The override therefore lives in
---   database-stamped write-once columns that only this patch's trigger sets;
---   the log backfills the audit trail rather than carrying the decision.
+--   A POINTER THAT CAN BE WRITTEN AROUND. meters.last_test_date and
+--   last_test_result stay, as a convenience pointer maintained by trigger
+--   from the history — and direct writes to them are refused, with the same
+--   trigger-depth fence the read-validation gate already uses for
+--   meters.consecutive_estimate_count (tu.sql, enforce_meter_estimate_counter).
+--   The fence is sound only because tally_app can define no code (TEMP and
+--   CREATE revoked, v5.4.2-06 / -11).
 --
 -- Verified on the v5.4.2-11 build before drafting, not assumed:
---   meter_readings.access_status      CHECK at tu.sql:3575 — twelve values
---   meter_readings.estimation_reason  CHECK at tu.sql:3578 — ten values
---   meters test columns               tu.sql:3691-3694
---   correction_run_targets            tu.sql:1581-1598; its freeze trigger
---                                     (v5.4.2-10:332) is COLUMN-LISTED, so a
---                                     new column is unfrozen by construction
---   invoice_events.invoice_id         NOT NULL (tu.sql:3252); event_type
---                                     CHECK carries eleven values (3262)
---   jurisdictions                     tu.sql:11569-11604 — NO UNIQUE (id, tenant_id)
---   service_locations.jurisdiction_id FK at 11608 is TENANT-BLIND
---   pg_constraint                     15 tables carry UNIQUE (id, tenant_id);
---                                     neither jurisdictions nor
---                                     correction_run_targets is among them
+--   meters test columns            tu.sql:3691-3694, result CHECK 3718; NOTHING
+--                                  in tu.sql reads or writes them (Kyle's
+--                                  2026-09-22 grep agrees for the snapshot)
+--   meters.location_id             NOT NULL (tu.sql:3667)
+--   service_locations.state        text NOT NULL (tu.sql:4450)
+--   service_orders                 order_type meter_test /
+--                                  meter_test_failed_replace require meter_id
+--                                  (CHECK service_orders_check1)
+--   UNIQUE (id, tenant_id)         on meters, customers, service_orders;
+--                                  NOT on service_locations or users
+--   users.tenant_id                NOT NULL (tu.sql:4872)
+--   program_types                  the precedent for platform reference data:
+--                                  no tenant_id, no RLS, tally_app SELECT only
+--   btree_gist                     installed (EXCLUDE on the threshold table)
 --
 -- ----------------------------------------------------------------------------
 -- What lands
 -- ----------------------------------------------------------------------------
 --
---   1. THE PROTECTION MODE (CCK-14, F-5). tenants.regulatory_class_mode,
---      three values, default all_non_residential_protected. Under the default
---      every non-residential account is in §7.45 scope, which is correct for
---      any tenant whose filed tariff has no size tier and fails toward
---      protection. explicit_class and volumetric_threshold are declared here
---      so the later CCK patch widens nothing; volumetric_threshold is
---      REFUSED at resolve time until that patch ships its substrate, rather
---      than silently behaving like the default.
+--   1. COMPOSITE-KEY GROUNDWORK. UNIQUE (id, tenant_id) on service_locations
+--      and on users (D-6), so every link this patch adds is tenant-composite
+--      from day one rather than a 230th tenant-blind one.
 --
---   2. COMPOSITE-KEY GROUNDWORK (F-6). UNIQUE (id, tenant_id) on
---      jurisdictions and on correction_run_targets, so this patch's own links
---      can be tenant-composite, plus the repair of
---      service_locations.jurisdiction_id — A-2 resolves a cap through that
---      column, so its blindness is A-2's business. This is three of the 229
---      links in the inventory; the rest are their own patch.
+--   2. THE PRECONDITION. Any meter already carrying last_test_date or
+--      last_test_result with no history behind it refuses the patch: those
+--      values have no provenance, and inventing a history row for them would
+--      manufacture evidence. Load them as migrated_date_only rows first.
 --
---   3. THE CAP TABLE (R-20, R-26, F-7). backbilling_cap_rules, two bounds per
---      row because the billable and enforceable limits diverge and do not
---      coincide for the metering causes, keyed
---      (tenant_id, jurisdiction_id NULLABLE, service_type, customer_class,
---      cause) with most-specific-wins over two levels only. Seeded with the
---      Texas gas rows for both classes — an unprotected row is written
---      EXPLICITLY uncapped rather than left absent, so a missing rule is an
---      error rather than a silent permission.
+--   3. THE CUTOVER DATE (R-36; the per-tenant home Kyle's 2026-09-23 record
+--      asks for). tenants.cutover_date. Migrated test rows require it and must
+--      be dated on or before it; it may be changed, but never to a date
+--      earlier than a migrated test already loaded, so R-36's arithmetic
+--      holds whatever value it takes.
 --
---   4. THE TARGET COLUMNS (R-19). backbill_cause and anchor_date on
---      correction_run_targets, findings-based not intent-based: the statute
---      triggers on "if any meter test reveals" and on the meter being "found
---      not to register", so the cause is created by evidence. The void-reason
---      enum is NOT extended and stays operational (decision table Open
---      question 1). anchor_date exists because (v)(II) runs back from
---      DISCOVERY and (v)(I) from the TEST — treating both as discovery
---      silently misdates one of them.
+--   4. THE THRESHOLD (F-3). meter_accuracy_thresholds, platform-fixed and
+--      date-effective, keyed by state and service type: 2.0% is the Railroad
+--      Commission's gas figure and other services do not share it. Seeded
+--      with Texas gas only. tally_app reads it and cannot write it — a tenant
+--      able to widen its own threshold could declare a failing meter accurate
+--      and dodge the mandatory refund at (7)(B)(iv)(II).
 --
---   5. THE OVERRIDE'S PROTECTED HOME (R-27, F-3). Write-once, database-
---      stamped columns on the target, set only by this patch's trigger from a
---      short evidentiary-impossibility reason-code list.
+--   5. THE HISTORY. meter_tests (one row per test, append-only) and
+--      meter_test_load_results (one row per load point, written only by the
+--      database from the test row's submitted readings, append-only).
+--      record_basis — recorded / migrated_full / migrated_date_only — sets
+--      which fields are required (F-2: the (7)(B)(ii) field list attaches to
+--      a customer-requested test, and a date-only record is exactly what the
+--      (7)(B)(i) equipment record requires, so it is not deficient).
 --
---   6. THE SETUP-TIME LOG (F-1). correction_run_target_events, append-only,
---      for the decisions taken before any correction invoice exists.
+--   6. CORRECTIONS WITHOUT EDITS. A mistaken row is never updated; a
+--      correcting row names it in supersedes_test_id with a reason, once.
 --
---   7. THE READ CLASSIFICATION (R-30). access_status / estimation_reason
---      mapped to three buckets as a platform-fixed mapping, with the four
---      ambiguous values left in the safe third bucket per refinement 3.
+--   7. THE POINTER. meters.last_test_date / last_test_result follow the
+--      latest non-superseded test_date — not the last row inserted, so a late
+--      entry with an earlier date never moves them backwards. Direct writes
+--      refused. next_test_due_date and test_interval_months stay writable:
+--      they are scheduling, and R-31 excludes scheduling.
 --
---   8. THE EVIDENCE RECORD (R-25). backbilling_period_evaluations, append-
---      only, one row per original billing period evaluated. Direction is
---      tested PER ORIGINAL BILLING PERIOD, not per invoice: periods where the
---      customer owes more are capped and trimmed if outside the window;
---      periods where the customer is OWED money always pass, uncapped.
+--   8. THE ABSENCE FLAG (R-35 refinements 2 and 4). meter_test_absence_
+--      declarations, append-only: attested_none (the tenant states no prior
+--      test exists) or unknown (migration could not tell). They compute
+--      identically; they differ for the gap report and the R-36 gate.
+--      meters.test_history_absence is the pointer.
 --
---   9. THE TWO GATES (R-22, R-23, R-25, R-27). Gate (ii) at correction-run
---      setup — refuse where the entire period sits beyond the bound, raise
---      the under-reach warning otherwise. Gate (iii) at correction-invoice
---      creation — the per-period test and the TRIM (R-23: the rebill proceeds
---      for the permitted window and the out-of-bounds remainder is forfeited;
---      outright rejection only where the whole target period is beyond the
---      bound). Neither is inside void_invoice() (R-22): the regulated act is
---      the charge, not the void.
+--   9. THE GOVERNING TEST (R-34). meter_governing_test(meter, anchor_date):
+--      the most recent non-superseded test on the SAME meter dated strictly
+--      before the anchor, WHATEVER ITS OUTCOME and whatever its test_kind.
+--      Where there is none it returns no test and says why — never a date
+--      inferred from install_date, test_interval_months, or
+--      next_test_due_date − test_interval_months (R-31, R-35 refinement 3).
+--      It also computes the R-36 gate flag. A-2 enforces the gate; this
+--      patch supplies the fact.
 --
---  10. THE FREEZE EXTENSION (F-4). backbill_cause and anchor_date join the
---      v5.4.2-10 target freeze at SNAPSHOT EXISTENCE. R-19 says the cause
---      freezes at correction-invoice post, but the calculation snapshot is
---      validated BEFORE issuance and the evidence record is written against
---      the cause in force at gate (iii) — a cause changed between snapshot
---      and post would leave frozen evidence describing a window the target no
---      longer claims. Stated here as an amendment to R-19, not an oversight.
+--  10. THE GAP REPORT (R-35 refinement 1). meter_test_history_gaps, a
+--      standing invoker-rights view of every meter with no test history, and
+--      what its tenant has declared about that.
 --
---  11. THE AC-32 TAIL. Both new tables are born leaky; the patch ends by
---      calling public.assert_tenant_isolation_invariants(), and the battery
---      shows it RAISES on planted drift rather than merely passing.
+--  11. THE AC-32 TAIL.
 --
 -- ----------------------------------------------------------------------------
 -- What is deliberately NOT here
 -- ----------------------------------------------------------------------------
 --
---   The meter test history table (R-31 / CI-091) — its own brief and patch,
---   immediately behind this one, required before the first gas tenant goes
---   live because meters.last_test_date is a single mutable field overwritten
---   by each test, so any period without history is a permanent hole. The
---   hard constraint R-31 places on THIS patch is honoured below: NEVER derive
---   a test date from test_interval_months. Back-computing a plausible
---   last-test date manufactures evidence for the exact figure a dispute will
---   contest.
---
---   The CCK volumetric resolver (CCK-4…CCK-13) — mode-only in v1 per F-5.
---   Collections behaviour on the enforceable bound — R-20 hands it to
---   Family 9 as a recorded value, not a wired behaviour.
---   The Phase 8 correction diff view and the gate (ii) operator surface.
---   estimation_reason's cause/method conflation (R-30's separate defect).
---   CI-093's incorporated/unincorporated question, which R-26 de-gated.
---
---   Two bill-content duties attach to a backbill and belong to the invoice
---   renderer, recorded here as consumers rather than enforced: (6)(B)(v)
---   requires adjustment totals AND the amount per billing unit, and
---   (6)(B)(viii) requires distinct marking of an estimated bill — which a
---   (v)(II) backbill is by definition, since the rule computes it from
---   like-period consumption or from similarly situated customers.
+--   ENFORCEMENT OF THE R-36 GATE, the late-entry flag on evidence already
+--   written (D-5), and the refusal to supersede a test an evidence row cites
+--   (brief §3.6) — all three act on A-2's evidence rows, which do not exist
+--   until v5.4.2-13. This patch records the facts they need
+--   (entered_out_of_order; supervisor_gate) so A-2 does not have to infer them.
+--   The fee rule — free test if none in four years, $15 cap, refund when more
+--   than 2.0% off (§7.45(7)(B)(iv)). The history makes it answerable;
+--   charging it is adhoc-charge work.
+--   Test scheduling and due-date alerting (R-31 excludes them).
+--   Test disputes (meter_test_disputes is a named gap in CI-091).
+--   The migration loader — the tables accept migrated rows; the tool that
+--   produces them is onboarding work.
+--   Kyle's 2026-09-23 side finding (meters carries both num_dials and
+--   dial_count) — unrelated; for Ryan.
 --
 -- ============================================================================
 
--- ----------------------------------------------------------------------------
--- 1. The protection mode (CCK-14, F-5)
--- ----------------------------------------------------------------------------
--- §7.45 protects residential and small commercial customers, so the system
--- must decide which side of that line an account falls on. Kyle designed a
--- full mechanism (measure each meter against a configured threshold, move
--- accounts across the line only after three consecutive periods, require
--- operator approval before REMOVING protection, keep a permanent
--- determination record). None of that substrate exists in tu.sql, and
--- building it inside A-2 roughly doubles the patch. CCK-14 makes the default
--- tractable on its own.
---
--- All three modes are declared now so the later CCK patch widens no CHECK.
--- volumetric_threshold is accepted by the CHECK but REFUSED at resolve time
--- until that patch ships its substrate — a mode that silently degraded to the
--- default would be a guard failing open under a name that says otherwise.
-
-ALTER TABLE public.tenants
-    ADD COLUMN IF NOT EXISTS regulatory_class_mode text
-        DEFAULT 'all_non_residential_protected'::text NOT NULL;
-
-ALTER TABLE public.tenants DROP CONSTRAINT IF EXISTS tenants_regulatory_class_mode_check;
-ALTER TABLE public.tenants ADD CONSTRAINT tenants_regulatory_class_mode_check
-    CHECK ((regulatory_class_mode = ANY (ARRAY[
-        'all_non_residential_protected'::text,
-        'explicit_class'::text,
-        'volumetric_threshold'::text])));
-
-COMMENT ON COLUMN public.tenants.regulatory_class_mode IS
-    'CCK-14. How this tenant decides whether an account is inside 16 TAC §7.45''s protected class (residential and small commercial). all_non_residential_protected (default, v1): every non-residential account is in scope — correct for any tenant whose filed tariff has no size tier, fails toward protection, touches no rate calculation, so under-billing risk is zero and the over-protection cost is bounded and operator-visible. explicit_class: trust the size-tier values on customers.customer_type. volumetric_threshold: the CCK-4…CCK-13 resolver — DECLARED here so that patch widens no CHECK, and REFUSED by backbilling_customer_class() until its substrate exists, because a mode that silently behaved like the default would be a guard failing open under a name that says otherwise.';
-
 
 -- ----------------------------------------------------------------------------
--- 2. Composite-key groundwork (F-6)
+-- 1. Composite-key groundwork (D-6; brief §5)
 -- ----------------------------------------------------------------------------
--- A tenant-composite foreign key needs a UNIQUE (id, tenant_id) on its
--- target. Neither jurisdictions nor correction_run_targets carries one, so
--- this patch's own links could not be tenant-checked without adding them —
--- the same move v5.4.2-10 made for invoices.replaces_invoice_id.
---
--- Both are cheap and neither is speculative: A-2 resolves a cap row through a
--- jurisdiction and hangs two append-only tables off a correction target.
---
--- KNOWINGLY PROVISIONAL: if the shared-place restructure goes ahead
--- (GBM application/jurisdictions-shared-place-modelling-2026-09-22.md), the
--- jurisdiction half of this is partly redone. One constraint and one foreign
--- key — cheap to redo, recorded here rather than discovered later.
+-- Both columns are already primary keys, so neither UNIQUE can be violated by
+-- existing data. Two of the 229 links in GBM tenant-blind-foreign-keys-
+-- 2026-09-22.md become repairable by these keys; this patch repairs none of
+-- the existing links, only refuses to add new blind ones.
 
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint
-                    WHERE conname = 'jurisdictions_id_tenant_id_key'
-                      AND conrelid = 'public.jurisdictions'::regclass) THEN
-        ALTER TABLE public.jurisdictions
-            ADD CONSTRAINT jurisdictions_id_tenant_id_key UNIQUE (id, tenant_id);
+                    WHERE conname = 'service_locations_id_tenant_id_key'
+                      AND conrelid = 'public.service_locations'::regclass) THEN
+        ALTER TABLE public.service_locations
+            ADD CONSTRAINT service_locations_id_tenant_id_key UNIQUE (id, tenant_id);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint
-                    WHERE conname = 'correction_run_targets_id_tenant_id_key'
-                      AND conrelid = 'public.correction_run_targets'::regclass) THEN
-        ALTER TABLE public.correction_run_targets
-            ADD CONSTRAINT correction_run_targets_id_tenant_id_key UNIQUE (id, tenant_id);
+                    WHERE conname = 'users_id_tenant_id_key'
+                      AND conrelid = 'public.users'::regclass) THEN
+        ALTER TABLE public.users
+            ADD CONSTRAINT users_id_tenant_id_key UNIQUE (id, tenant_id);
     END IF;
 END;
 $$;
 
--- The premise-side repair. service_locations.jurisdiction_id named a city's
--- id with nothing requiring the city to belong to the same utility. Row-level
--- security still governed reads, so this was never a browse-another-tenant
--- vector; the realistic routes are a bad import or backfill (which runs with
--- elevated rights), a platform administrator (who bypasses RLS by design), or
--- an application bug writing an id it should not have. It is a data-integrity
--- hole rather than an attack vector — but jurisdiction already decides
--- weather-normalisation applicability and the tariff variant, and under this
--- patch it also decides how far back the law lets us bill.
---
--- Refuse to create the composite key over data that already violates it: a
--- silent ALTER that succeeded because NOT VALID was passed would be exactly
--- the fails-open shape this patch is about.
+
+-- ----------------------------------------------------------------------------
+-- 2. The precondition — no pointer without a history behind it
+-- ----------------------------------------------------------------------------
+-- After this patch, meters.last_test_date and last_test_result mean "what the
+-- history says". A value already sitting in them was written by whoever wrote
+-- the meter row, with no record of who tested or what was found. Refuse
+-- rather than either discard it (data loss) or turn it into a history row
+-- (manufactured provenance). Counted against meters with NO history, so a
+-- second apply over a populated build passes.
+
 DO $$
 DECLARE v_bad bigint;
 BEGIN
-    SELECT count(*) INTO v_bad
-      FROM public.service_locations sl
-      JOIN public.jurisdictions j ON j.id = sl.jurisdiction_id
-     WHERE sl.jurisdiction_id IS NOT NULL
-       AND j.tenant_id IS DISTINCT FROM sl.tenant_id;
+    IF to_regclass('public.meter_tests') IS NULL THEN
+        SELECT count(*) INTO v_bad FROM public.meters m
+         WHERE m.last_test_date IS NOT NULL OR m.last_test_result IS NOT NULL;
+    ELSE
+        EXECUTE 'SELECT count(*) FROM public.meters m
+                  WHERE (m.last_test_date IS NOT NULL OR m.last_test_result IS NOT NULL)
+                    AND NOT EXISTS (SELECT 1 FROM public.meter_tests t WHERE t.meter_id = m.id)'
+           INTO v_bad;
+    END IF;
     IF v_bad > 0 THEN
-        RAISE EXCEPTION 'v5.4.2-12: % service_locations row(s) point at another tenant''s jurisdiction; repair the data before applying this patch', v_bad
+        RAISE EXCEPTION 'v5.4.2-12: % meter(s) carry last_test_date / last_test_result with no test history behind them', v_bad
             USING ERRCODE = 'integrity_constraint_violation',
-                  HINT = 'SELECT sl.id, sl.tenant_id, sl.jurisdiction_id FROM public.service_locations sl JOIN public.jurisdictions j ON j.id = sl.jurisdiction_id WHERE j.tenant_id IS DISTINCT FROM sl.tenant_id;';
+                  HINT = 'Record each as a meter_tests row (record_basis = migrated_date_only, with tenants.cutover_date set first) or clear the columns, then re-apply. The patch will not invent a history for them.';
     END IF;
 END;
 $$;
 
-ALTER TABLE public.service_locations DROP CONSTRAINT IF EXISTS service_locations_jurisdiction_id_fkey;
-ALTER TABLE public.service_locations ADD CONSTRAINT service_locations_jurisdiction_id_fkey
-    FOREIGN KEY (jurisdiction_id, tenant_id) REFERENCES public.jurisdictions(id, tenant_id);
-
-COMMENT ON COLUMN public.service_locations.jurisdiction_id IS
-    'The premise''s jurisdiction (D5-2, v5.4.0-03) — the service-location attribute through which WNA applicability, the WNA tariff variant and (since v5.4.2-12) the §7.45 backbilling cap resolve. Its foreign key was tenant-blind until v5.4.2-12 and is now composite on jurisdictions(id, tenant_id); it is one of the 229 links inventoried in GBM application/tenant-blind-foreign-keys-2026-09-22.md and is repaired here because A-2 resolves a statutory cap through this column. Nullable: population is a tenant-onboarding/backfill concern, and the existing inside_city_limits/franchise_city columns remain as-is.';
-
 
 -- ----------------------------------------------------------------------------
--- 3. The cap table (R-20, R-26, F-7)
+-- 3. The cutover date (R-36; Kyle 2026-09-23 "a per-tenant cutover date is
+--    required")
 -- ----------------------------------------------------------------------------
--- Two bounds per row, because R-20 found the billable and enforceable limits
--- DIVERGE and do not coincide for the metering causes. The billable bound is
--- how far back we may BILL; the enforceable bound is how far back we may
--- pursue COLLECTION on what we billed. For a meter found not to register,
--- three months may be billed and none of it may ever be enforced.
+-- R-36's transitional gate runs for six months after cutover, and is safe to
+-- lapse because every migrated test date is at or before cutover. That last
+-- clause is the invariant, so it is what the guard enforces: a migrated test
+-- must be dated on or before cutover_date (section 8), and cutover_date may
+-- move — a go-live slips — but never below a migrated test already loaded,
+-- and never back to NULL once one exists. Any value satisfying that keeps the
+-- arithmetic true, so no write-once rule is needed.
 --
--- Both scopes are explicit non-null enums with the month count nullable ONLY
--- under the counted variants, with an IS NOT NULL conjunct in the CHECK.
--- R-20 ruled this for the enforceable side against the NULL-poisoning class
--- from the 2026-08-26 coda; F-7 found the billable side had the same
--- three-shape problem and no discriminator, where a NULL read as "no limit"
--- bills past statutory authority.
+-- Concurrency: a migrated test insert takes FOR SHARE on its tenant row before
+-- reading cutover_date (section 8), and this guard runs inside the UPDATE
+-- that holds the row lock, so the two cannot interleave: whichever commits
+-- second sees the other.
 
-CREATE TABLE IF NOT EXISTS public.backbilling_cap_rules (
-    id                  uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    tenant_id           uuid NOT NULL,
-    jurisdiction_id     uuid,
-    service_type        text NOT NULL,
-    customer_class      text NOT NULL,
-    cause               text NOT NULL,
-    billable_scope      text NOT NULL,
-    billable_months     integer,
-    enforceable_scope   text NOT NULL,
-    enforceable_months  integer,
-    source_note         text NOT NULL,
-    created_at          timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at          timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT backbilling_cap_rules_pkey PRIMARY KEY (id),
-    CONSTRAINT backbilling_cap_rules_id_tenant_id_key UNIQUE (id, tenant_id),
-    -- Refinement 1 (R-26 mechanics). NULLS NOT DISTINCT so that two conflicting
-    -- state-default rows cannot both exist: under ordinary UNIQUE semantics
-    -- every NULL jurisdiction_id is distinct from every other, and resolution
-    -- would become nondeterministic — the same fails-open-on-NULL class R-20
-    -- ruled against. PG16 cluster; two partial indexes split on
-    -- jurisdiction_id IS NULL is the fallback if this form causes trouble.
-    CONSTRAINT backbilling_cap_rules_key UNIQUE NULLS NOT DISTINCT
-        (tenant_id, jurisdiction_id, service_type, customer_class, cause),
-    CONSTRAINT backbilling_cap_rules_tenant_id_fkey
-        FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
-    CONSTRAINT backbilling_cap_rules_jurisdiction_fkey
-        FOREIGN KEY (jurisdiction_id, tenant_id)
-        REFERENCES public.jurisdictions(id, tenant_id),
-    CONSTRAINT backbilling_cap_rules_service_type_check
-        CHECK ((service_type = ANY (ARRAY['water'::text, 'sewer'::text, 'electric'::text, 'gas'::text, 'stormwater'::text, 'trash'::text, 'reclaimed_water'::text]))),
-    CONSTRAINT backbilling_cap_rules_customer_class_check
-        CHECK ((customer_class = ANY (ARRAY['protected'::text, 'unprotected'::text]))),
-    CONSTRAINT backbilling_cap_rules_cause_check
-        CHECK ((cause = ANY (ARRAY['non_registering_meter'::text, 'meter_error'::text, 'rate_misapplication'::text, 'estimation_catchup'::text, 'tampering_theft'::text]))),
-    CONSTRAINT backbilling_cap_rules_billable_scope_check
-        CHECK ((billable_scope = ANY (ARRAY['uncapped'::text, 'months_from_anchor'::text, 'shorter_of_months_or_last_test'::text]))),
-    CONSTRAINT backbilling_cap_rules_enforceable_scope_check
-        CHECK ((enforceable_scope = ANY (ARRAY['uncapped'::text, 'months'::text, 'never'::text, 'conditional_on_read_classification'::text]))),
-    -- The month count is present exactly under the counted variants and absent
-    -- otherwise. Written as an equivalence, not as two one-way implications:
-    -- a one-way rule lets the uncounted variants carry a stray integer that
-    -- reads as a limit nobody applies.
-    CONSTRAINT backbilling_cap_rules_billable_months_check
-        CHECK ((((billable_scope = ANY (ARRAY['months_from_anchor'::text, 'shorter_of_months_or_last_test'::text])) AND (billable_months IS NOT NULL) AND (billable_months > 0))
-             OR ((billable_scope = 'uncapped'::text) AND (billable_months IS NULL)))),
-    CONSTRAINT backbilling_cap_rules_enforceable_months_check
-        CHECK ((((enforceable_scope = 'months'::text) AND (enforceable_months IS NOT NULL) AND (enforceable_months > 0))
-             OR ((enforceable_scope <> 'months'::text) AND (enforceable_months IS NULL)))),
-    -- R-21 rejected inheriting meter_error's six months for estimation_catchup
-    -- as exactly the uncited-number failure the water-rule miscitation already
-    -- cost this project once. Every row must say where its numbers come from.
-    CONSTRAINT backbilling_cap_rules_source_note_check
-        CHECK ((source_note ~ '[[:alnum:]]'::text))
-);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS cutover_date date;
 
-CREATE INDEX IF NOT EXISTS idx_backbilling_cap_rules_tenant ON public.backbilling_cap_rules USING btree (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_backbilling_cap_rules_resolve ON public.backbilling_cap_rules USING btree (tenant_id, service_type, customer_class, cause);
+COMMENT ON COLUMN public.tenants.cutover_date IS
+    'v5.4.2-12 (R-36). The date this utility went live on Tally — the boundary between migrated and recorded history. Migrated meter test rows require it and must be dated on or before it; it may be changed, but never to a date earlier than a migrated test already loaded, so every migrated date stays at or before it. R-36''s supervisor gate on weakly-evidenced adverse corrections runs from here for six months and then lapses, because beyond that a migrated date can no longer affect a backbilling window. NULL = not yet cut over (the gate applies). Also the home Kyle''s R-37 record asks for.';
 
-ALTER TABLE public.backbilling_cap_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.backbilling_cap_rules FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON public.backbilling_cap_rules;
-CREATE POLICY tenant_isolation ON public.backbilling_cap_rules USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
-
-DROP TRIGGER IF EXISTS set_updated_at ON public.backbilling_cap_rules;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.backbilling_cap_rules FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
-
-COMMENT ON TABLE public.backbilling_cap_rules IS
-    'A-2 (v5.4.2-12). How far back 16 TAC §7.45 lets this tenant bill, and separately how far back it may enforce collection, per (jurisdiction, service type, customer class, cause). Two bounds because R-20 found they diverge: for a non-registering meter three months may be BILLED and none of it may ever be ENFORCED. Resolution is most-specific-wins over exactly two levels (R-26) — the service location''s jurisdiction, else the NULL-jurisdiction state/filed-tariff default row; municipal rows are admitted only where the tenant operates under a lawfully established differing municipal standard evidenced by an ordinance or filed instrument, never created speculatively per franchise city. Seeded by seed_backbilling_cap_defaults() with the Texas gas rows for BOTH customer classes: an unprotected row is written explicitly uncapped rather than left absent, so a missing rule is an error the gate raises rather than a silent permission.';
-
-COMMENT ON COLUMN public.backbilling_cap_rules.jurisdiction_id IS
-    'R-26. NULL is the state / filed-tariff default row, not "unknown" — and the UNIQUE carries NULLS NOT DISTINCT so two conflicting defaults cannot coexist and make resolution nondeterministic.';
-
-COMMENT ON COLUMN public.backbilling_cap_rules.customer_class IS
-    'Whether the account is inside §7.45''s protected class. Resolved by backbilling_customer_class() from tenants.regulatory_class_mode (CCK-14), NOT stored on the customer: the class is a finding about an account at a moment, and v1''s default makes it a constant.';
-
-COMMENT ON COLUMN public.backbilling_cap_rules.billable_scope IS
-    'F-7. The discriminator R-20 gave the enforceable side and the billable side lacked. uncapped = no §7.45 billing limit for this cause. months_from_anchor = billable_months back from anchor_date. shorter_of_months_or_last_test = the shorter of billable_months and the interval back to the last meter test, from the test date — (7)(B)(v)(I). A nullable integer here would fail open in the expensive direction: NULL read as "no limit" bills past statutory authority.';
-
-COMMENT ON COLUMN public.backbilling_cap_rules.enforceable_scope IS
-    'R-20. How far back collection may be pursued on what was billed. never = billed but never enforceable, the (4)(E)(vi) outcome for the metering causes. conditional_on_read_classification = the estimation_catchup case, resolved per billing period from the contemporaneous read record by backbilling_read_classification() (R-30), defaulting to never where no basis was recorded. Handed to Family 9 as a recorded value; this patch wires no collections behaviour.';
-
-COMMENT ON COLUMN public.backbilling_cap_rules.source_note IS
-    'The clause these numbers come from. Required and non-blank: R-21 rejected inheriting meter_error''s six months for estimation_catchup as exactly the uncited-number failure the water-rule miscitation already cost this project once.';
-
--- The Texas gas seed rows (R-20's table), as NULL-jurisdiction defaults.
---
--- Written as a re-runnable function rather than a one-shot INSERT because a
--- tenant created AFTER this patch would otherwise have no cap rules at all,
--- and the gates below fail closed — correct, but it would bite every new
--- tenant's first correction. Tenant onboarding calls this. It is idempotent
--- and never overwrites a row a tenant has edited.
-
-CREATE OR REPLACE FUNCTION public.seed_backbilling_cap_defaults(p_tenant_id uuid)
-    RETURNS integer
+CREATE OR REPLACE FUNCTION public.enforce_tenant_cutover_date() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_inserted integer;
+    v_latest date;
 BEGIN
-    INSERT INTO public.backbilling_cap_rules
-        (tenant_id, jurisdiction_id, service_type, customer_class, cause,
-         billable_scope, billable_months, enforceable_scope, enforceable_months, source_note)
-    VALUES
-    -- PROTECTED — residential and small commercial, the §7.45 class.
-        (p_tenant_id, NULL, 'gas', 'protected', 'non_registering_meter',
-         'months_from_anchor', 3, 'never', NULL,
-         '16 TAC 7.45(7)(B)(v)(II) — three months back from discovery where the meter is found not to register; (4)(E)(vi) bars enforcement.'),
-        (p_tenant_id, NULL, 'gas', 'protected', 'meter_error',
-         'shorter_of_months_or_last_test', 6, 'never', NULL,
-         '16 TAC 7.45(7)(B)(v)(I) — the shorter of six months and the interval back to the last test, from the test date; (4)(E)(vi) bars enforcement.'),
-        (p_tenant_id, NULL, 'gas', 'protected', 'rate_misapplication',
-         'uncapped', NULL, 'months', 6,
-         '16 TAC 7.45(4)(E)(v) — no billing cap on correcting a misapplied rate; (3)(C)(iii) bounds enforcement at six months.'),
-        (p_tenant_id, NULL, 'gas', 'protected', 'estimation_catchup',
-         'uncapped', NULL, 'conditional_on_read_classification', NULL,
-         'No 7.45 billing cap on an estimation catch-up; estimation is governed by (6)(C) and enforcement by (4)(E)(vii), which turns on whether the failure to read was beyond the utility''s control. R-21 expressly REJECTED inheriting meter_error''s six months here — that number has no citation for this cause.'),
-        (p_tenant_id, NULL, 'gas', 'protected', 'tampering_theft',
-         'uncapped', NULL, 'uncapped', NULL,
-         '16 TAC 7.45(4)(D)(v) — tampering and theft of service sit outside the backbilling limits; (4)(E)(vi) carve-out.'),
-    -- UNPROTECTED — written explicitly rather than left absent, so that a
-    -- missing rule stays an error the gate raises instead of quietly reading
-    -- as permission. Under v1's all_non_residential_protected mode nothing
-    -- resolves to this class; the rows exist so that enabling explicit_class
-    -- later is a settings change rather than a data migration.
-        (p_tenant_id, NULL, 'gas', 'unprotected', 'non_registering_meter',
-         'uncapped', NULL, 'uncapped', NULL,
-         '16 TAC 7.45 does not reach this class; ordinary limitations law governs and is outside this table.'),
-        (p_tenant_id, NULL, 'gas', 'unprotected', 'meter_error',
-         'uncapped', NULL, 'uncapped', NULL,
-         '16 TAC 7.45 does not reach this class; ordinary limitations law governs and is outside this table.'),
-        (p_tenant_id, NULL, 'gas', 'unprotected', 'rate_misapplication',
-         'uncapped', NULL, 'uncapped', NULL,
-         '16 TAC 7.45 does not reach this class; ordinary limitations law governs and is outside this table.'),
-        (p_tenant_id, NULL, 'gas', 'unprotected', 'estimation_catchup',
-         'uncapped', NULL, 'uncapped', NULL,
-         '16 TAC 7.45 does not reach this class; ordinary limitations law governs and is outside this table.'),
-        (p_tenant_id, NULL, 'gas', 'unprotected', 'tampering_theft',
-         'uncapped', NULL, 'uncapped', NULL,
-         '16 TAC 7.45 does not reach this class; ordinary limitations law governs and is outside this table.')
-    ON CONFLICT ON CONSTRAINT backbilling_cap_rules_key DO NOTHING;
-    GET DIAGNOSTICS v_inserted = ROW_COUNT;
-    RETURN v_inserted;
-END;
-$$;
-
-COMMENT ON FUNCTION public.seed_backbilling_cap_defaults(uuid) IS
-    'A-2 (v5.4.2-12). Seeds one tenant''s Texas GAS backbilling cap defaults (R-20''s table) as NULL-jurisdiction rows, for both customer classes. Idempotent — ON CONFLICT DO NOTHING, so a tenant''s edited row is never overwritten. Tenant onboarding must call this: a tenant with no cap rules cannot run a correction at all, because the gates fail closed. Texas-only launch scope — no water/sewer/electric rows are seeded, and no jurisdiction-specific rows; a municipal row is admitted only where the tenant operates under a lawfully established differing municipal standard evidenced by an ordinance or filed instrument (R-26).';
-
-DO $$
-DECLARE r record; v_n integer; v_total integer := 0; v_tenants integer := 0;
-BEGIN
-    FOR r IN SELECT id FROM public.tenants LOOP
-        v_n := public.seed_backbilling_cap_defaults(r.id);
-        v_total := v_total + v_n;
-        v_tenants := v_tenants + 1;
-    END LOOP;
-    RAISE NOTICE 'v5.4.2-12: seeded % backbilling cap rule(s) across % tenant(s); onboarding must call seed_backbilling_cap_defaults() for tenants created after this patch', v_total, v_tenants;
-END;
-$$;
-
-
--- ----------------------------------------------------------------------------
--- 4. The target columns, and the override's protected home (R-19, R-27, F-3)
--- ----------------------------------------------------------------------------
--- backbill_cause is FINDINGS-BASED, not intent-based: the statute triggers on
--- "if any meter test reveals" and on the meter being "found not to register",
--- so the cause is created by evidence — a test result, a tamper
--- investigation, a rate audit — not by an operator's stated purpose. The
--- void-reason enum is NOT extended and stays operational (decision table
--- Open question 1, answered by R-19 this way).
---
--- Revision is real and expected: meter_error -> tampering_theft is the common
--- progression, because the test result is often what opens the tamper
--- investigation. The cap re-evaluates on every cause change. Section 10
--- below is where that revisability stops.
---
--- anchor_date exists because the two anchors DIFFER: (7)(B)(v)(II) runs back
--- from DISCOVERY and (v)(I) from the TEST. Treating both as discovery
--- silently misdates one of them by however long the investigation took.
---
--- NULLABLE, and deliberately so. Not every correction is a §7.45 backbill —
--- a clerical re-issue has no statutory cause, and forcing one would mean
--- operators picking the least-wrong value from a list none of which is true.
--- The discipline sits at gate (iii) instead: a target with no cause may only
--- REDUCE what the customer owes. Nothing may be billed ADDITIONALLY without a
--- cause on the record.
-
-ALTER TABLE public.correction_run_targets
-    ADD COLUMN IF NOT EXISTS backbill_cause text,
-    ADD COLUMN IF NOT EXISTS anchor_date date,
-    ADD COLUMN IF NOT EXISTS underreach_override_reason text,
-    ADD COLUMN IF NOT EXISTS underreach_override_at timestamp with time zone,
-    ADD COLUMN IF NOT EXISTS underreach_override_by uuid;
-
-ALTER TABLE public.correction_run_targets DROP CONSTRAINT IF EXISTS correction_run_targets_backbill_cause_check;
-ALTER TABLE public.correction_run_targets ADD CONSTRAINT correction_run_targets_backbill_cause_check
-    CHECK ((backbill_cause IS NULL OR (backbill_cause = ANY (ARRAY['non_registering_meter'::text, 'meter_error'::text, 'rate_misapplication'::text, 'estimation_catchup'::text, 'tampering_theft'::text]))));
-
--- The cause and its anchor travel together. A cause with no anchor has no
--- window to compute; an anchor with no cause names a window nothing claims.
-ALTER TABLE public.correction_run_targets DROP CONSTRAINT IF EXISTS correction_run_targets_anchor_pairing_check;
-ALTER TABLE public.correction_run_targets ADD CONSTRAINT correction_run_targets_anchor_pairing_check
-    CHECK (((backbill_cause IS NULL) = (anchor_date IS NULL)));
-
--- R-27's override, narrowed per Ryan's decision 4 to a short
--- evidentiary-impossibility list rather than free text. Kyle recorded the
--- constraint himself: (7)(B)(v)(I) permits foregoing the correction only
--- where the error is to the UTILITY'S disadvantage, so an unrestricted
--- override lets an operator decline a duty the statute does not allow to be
--- declined. With Kyle; narrow-first because widening this CHECK later is one
--- line where narrowing it means judging every free-text row already written.
-ALTER TABLE public.correction_run_targets DROP CONSTRAINT IF EXISTS correction_run_targets_underreach_reason_check;
-ALTER TABLE public.correction_run_targets ADD CONSTRAINT correction_run_targets_underreach_reason_check
-    CHECK ((underreach_override_reason IS NULL OR (underreach_override_reason = ANY (ARRAY['no_read_history'::text, 'meter_replaced'::text, 'records_predate_acquisition'::text]))));
-
--- The stamp and the reason travel together, and the stamp is the database's.
-ALTER TABLE public.correction_run_targets DROP CONSTRAINT IF EXISTS correction_run_targets_underreach_pairing_check;
-ALTER TABLE public.correction_run_targets ADD CONSTRAINT correction_run_targets_underreach_pairing_check
-    CHECK (((underreach_override_reason IS NULL) = (underreach_override_at IS NULL)));
-
-COMMENT ON COLUMN public.correction_run_targets.backbill_cause IS
-    'R-19 (A-2, v5.4.2-12). Why this bill is being corrected, as a FINDING from evidence — a test result, a tamper investigation, a rate audit — not an operator''s stated intent: §7.45 triggers on "if any meter test reveals" and on the meter being "found not to register". Selects the governing backbilling_cap_rules row. Revisable (meter_error -> tampering_theft is the common progression) until a calculation snapshot exists for the correction, at which point it freezes with the rest of the election (F-4, an amendment to R-19''s "freezes at post"). NULL is legitimate — a clerical re-issue has no statutory cause — but a target with no cause may only REDUCE what the customer owes.';
-
-COMMENT ON COLUMN public.correction_run_targets.anchor_date IS
-    'R-19 (A-2, v5.4.2-12). The date the billable window counts back FROM. It exists because the two anchors differ: (7)(B)(v)(II) runs from DISCOVERY and (v)(I) from the TEST, so treating both as discovery silently misdates one of them by however long the investigation took. Which reading produced it is recorded per period on backbilling_period_evaluations.anchor_basis (R-29), so a reversal is a re-resolution rather than archaeology.';
-
-COMMENT ON COLUMN public.correction_run_targets.underreach_override_reason IS
-    'R-27 (A-2, v5.4.2-12), narrowed by Ryan 2026-09-22. The operator''s recorded ground for correcting LESS than (7)(B)(v)(I) mandates where a meter over-registered. A short evidentiary-impossibility list, not free text: Kyle recorded that (v)(I) permits foregoing the correction only where the error is to the UTILITY''S disadvantage, so an unrestricted override would let an operator decline a duty the statute does not allow to be declined. With Kyle (kyle-questions-2026-09-22-a2-override-and-cause-freeze.md); widening this CHECK later is one line.';
-
-COMMENT ON COLUMN public.correction_run_targets.underreach_override_at IS
-    'When the override was recorded — the DATABASE''S clock, write-once, never caller-supplied (superusers exempt for migrations). This column and its reason are what the gate believes. They are deliberately NOT an invoice_events row: that log is insertable by tally_app, so an override recorded only as an event would be assertable by the application with no human in it — the same shape as the app.void_operation carve-out in Appendix A-23 (1). The log backfills the audit trail; it does not carry the decision (F-3).';
-
--- The write-once guard. This is what decision 2 bought: the override becomes
--- a fact the DATABASE stamped, not a claim the application made about itself.
--- Same shape as v5.4.2-10's invoices.first_issued_at.
---
--- Pins public, pg_temp rather than '': this is a trigger function that reads
--- pg_roles and is called under RLS. A-23 (1c) now permits '' for trigger
--- functions, but the ~190 existing ones are not re-pinned and consistency
--- with its neighbours is worth more here than the pin.
-
-CREATE OR REPLACE FUNCTION public.enforce_underreach_override_write_once() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path = public, pg_temp
-    AS $$
-DECLARE
-    v_super boolean := (SELECT r.rolsuper FROM pg_roles r WHERE r.rolname = current_user);
-    v_user  uuid;
-BEGIN
-    IF TG_OP = 'INSERT' THEN
-        -- A target is never born overridden: the warning has not been raised
-        -- yet, so there is nothing to override.
-        IF NOT v_super AND (NEW.underreach_override_reason IS NOT NULL
-                         OR NEW.underreach_override_at IS NOT NULL
-                         OR NEW.underreach_override_by IS NOT NULL) THEN
-            RAISE EXCEPTION USING
-                MESSAGE = 'correction target: the under-reach override cannot be set at INSERT — the warning it answers is raised at gate (ii), after the target exists (R-27; v5.4.2-12)',
-                ERRCODE = 'restrict_violation';
-        END IF;
+    IF TG_OP = 'UPDATE' AND NEW.cutover_date IS NOT DISTINCT FROM OLD.cutover_date THEN
         RETURN NEW;
     END IF;
-
-    -- Write-once: once stamped, neither the reason, the stamp nor the actor moves.
-    IF OLD.underreach_override_at IS NOT NULL AND NOT v_super
-       AND (NEW.underreach_override_reason IS DISTINCT FROM OLD.underreach_override_reason
-         OR NEW.underreach_override_at     IS DISTINCT FROM OLD.underreach_override_at
-         OR NEW.underreach_override_by     IS DISTINCT FROM OLD.underreach_override_by) THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('correction target %s: the under-reach override is write-once — it was recorded at %s and cannot be changed or cleared (R-27, F-3; v5.4.2-12)', OLD.id, OLD.underreach_override_at),
-            ERRCODE = 'restrict_violation';
+    IF to_regclass('public.meter_tests') IS NULL THEN
+        RETURN NEW;
     END IF;
-
-    -- Setting it: the caller supplies the REASON only. The clock and the
-    -- actor are the database's, so a caller cannot backdate its own override
-    -- or attribute it to someone else.
-    IF OLD.underreach_override_reason IS NULL AND NEW.underreach_override_reason IS NOT NULL THEN
-        IF NOT v_super THEN
-            -- The actor from the RLS session context, read the way every
-            -- other stamping trigger in this schema reads it (tu.sql:13114):
-            -- tolerate a missing or malformed GUC rather than failing the
-            -- write, and record NULL when the caller set none.
-            BEGIN
-                v_user := NULLIF(current_setting('app.user_id', true), '')::uuid;
-            EXCEPTION WHEN OTHERS THEN
-                v_user := NULL;
-            END;
-            NEW.underreach_override_at := now();
-            NEW.underreach_override_by := v_user;
-        ELSE
-            NEW.underreach_override_at := coalesce(NEW.underreach_override_at, now());
-        END IF;
+    SELECT max(t.test_date) INTO v_latest
+      FROM public.meter_tests t
+     WHERE t.tenant_id = NEW.id
+       AND t.record_basis IN ('migrated_full', 'migrated_date_only');
+    IF v_latest IS NOT NULL AND (NEW.cutover_date IS NULL OR NEW.cutover_date < v_latest) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('tenant %s: cutover_date %s would fall before a migrated meter test dated %s — every migrated test must stay on or before cutover, or R-36''s six-month gate could lapse while a migrated date still sets a backbilling window', NEW.id, coalesce(NEW.cutover_date::text, 'NULL'), v_latest),
+            ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_underreach_override_write_once() IS
-    'A-2 (v5.4.2-12), R-27 / F-3. BEFORE INSERT OR UPDATE OF underreach_override_reason, underreach_override_at, underreach_override_by on correction_run_targets: a target is never born overridden; the caller supplies only the reason code and the database stamps the clock and the actor; once stamped nothing moves (superusers exempt for migrations). This is what makes the override a fact the gate can believe — an invoice_events row would not be, because tally_app can write that log itself.';
+COMMENT ON FUNCTION public.enforce_tenant_cutover_date() IS
+    'v5.4.2-12 (R-36). tenants.cutover_date may move but never below the latest migrated meter test (nor back to NULL once one exists). Invoker rights; reads meter_tests under the caller''s row security, which for tally_app is exactly this tenant.';
 
-DROP TRIGGER IF EXISTS a_enforce_underreach_override_write_once ON public.correction_run_targets;
-CREATE TRIGGER a_enforce_underreach_override_write_once
-    BEFORE INSERT OR UPDATE OF underreach_override_reason, underreach_override_at, underreach_override_by
-    ON public.correction_run_targets
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_underreach_override_write_once();
+DROP TRIGGER IF EXISTS a_enforce_tenant_cutover_date ON public.tenants;
+CREATE TRIGGER a_enforce_tenant_cutover_date
+    BEFORE INSERT OR UPDATE OF cutover_date ON public.tenants
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_tenant_cutover_date();
 
 
 -- ----------------------------------------------------------------------------
--- 5. The setup-time log (F-1, Ryan's decision 3)
+-- 4. The accuracy threshold (F-3; §7.45(7)(B)(iv)(II) per erratum E-1)
 -- ----------------------------------------------------------------------------
--- R-19 and R-27 both specify appended event rows for cause changes and
--- under-reach overrides. invoice_events cannot hold them: its invoice_id is
--- NOT NULL (tu.sql:3252) and at correction-run setup the correction invoice
--- does not exist — correction_run_targets.correction_invoice_id stays NULL
--- until Phase 7. The only invoice in hand is the VOIDED ORIGINAL, and
--- attaching the correction's decisions to the original's event stream
--- conflates two bills' histories: a reader of the original's timeline would
--- find decisions about a bill that had not been written yet.
+-- "More than nominally defective" = a deviation of more than 2.0% from
+-- accurate registration, in EITHER direction. Platform reference data, like
+-- program_types: no tenant_id, no row security, and tally_app may only read.
+-- Date-effective with a no-overlap exclusion, because a test is judged by the
+-- threshold in force on its test date, not by today's.
 --
--- So the target gets its own log. Append-only in the strict sense — no
--- UPDATE, no DELETE, for anyone but a superuser.
+-- effective_from is the date of the rule text Kyle read (as amended effective
+-- 2004-07-12); whether the 2.0% figure predates that amendment was not
+-- checked, so no earlier row is seeded. A migrated_full test dated before it
+-- finds no threshold and refuses — load it as migrated_date_only instead
+-- (residual R6).
 
-CREATE TABLE IF NOT EXISTS public.correction_run_target_events (
-    id                  uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    tenant_id           uuid NOT NULL,
-    target_id           uuid NOT NULL,
-    event_type          text NOT NULL,
-    operator_id         uuid,
-    occurred_at         timestamp with time zone DEFAULT now() NOT NULL,
-    metadata            jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT correction_run_target_events_pkey PRIMARY KEY (id),
-    CONSTRAINT correction_run_target_events_tenant_id_fkey
-        FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
-    CONSTRAINT correction_run_target_events_target_fkey
-        FOREIGN KEY (target_id, tenant_id)
-        REFERENCES public.correction_run_targets(id, tenant_id) ON DELETE CASCADE,
-    CONSTRAINT correction_run_target_events_event_type_check
-        CHECK ((event_type = ANY (ARRAY[
-            'backbill_cause_set'::text,
-            'backbill_cause_changed'::text,
-            'underreach_warning_raised'::text,
-            'underreach_override_recorded'::text,
-            'read_classification_overridden'::text,
-            'target_refused_beyond_cap'::text])))
+CREATE TABLE IF NOT EXISTS public.meter_accuracy_thresholds (
+    id              uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    state_code      text NOT NULL,
+    service_type    text NOT NULL,
+    threshold_pct   numeric(6,3) NOT NULL,
+    effective_from  date NOT NULL,
+    effective_to    date,
+    source_note     text NOT NULL,
+    created_at      timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT meter_accuracy_thresholds_pkey PRIMARY KEY (id),
+    CONSTRAINT meter_accuracy_thresholds_state_code_check
+        CHECK ((state_code ~ '^[A-Z]{2}$'::text)),
+    CONSTRAINT meter_accuracy_thresholds_service_type_check
+        CHECK ((service_type = ANY (ARRAY['water'::text, 'sewer'::text, 'electric'::text, 'gas'::text, 'stormwater'::text, 'trash'::text, 'reclaimed_water'::text]))),
+    CONSTRAINT meter_accuracy_thresholds_pct_check
+        CHECK (((threshold_pct > (0)::numeric) AND (threshold_pct < (100)::numeric))),
+    CONSTRAINT meter_accuracy_thresholds_range_check
+        CHECK (((effective_to IS NULL) OR (effective_to > effective_from))),
+    CONSTRAINT meter_accuracy_thresholds_source_note_check
+        CHECK ((source_note ~ '[[:alnum:]]'::text)),
+    CONSTRAINT meter_accuracy_thresholds_no_overlap
+        EXCLUDE USING gist (state_code WITH =, service_type WITH =,
+                            daterange(effective_from, effective_to, '[)'::text) WITH &&)
 );
 
-CREATE INDEX IF NOT EXISTS idx_correction_run_target_events_tenant ON public.correction_run_target_events USING btree (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_correction_run_target_events_target ON public.correction_run_target_events USING btree (target_id, occurred_at);
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.meter_accuracy_thresholds FROM tally_app;
+GRANT SELECT ON public.meter_accuracy_thresholds TO tally_app;
 
-ALTER TABLE public.correction_run_target_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.correction_run_target_events FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON public.correction_run_target_events;
-CREATE POLICY tenant_isolation ON public.correction_run_target_events USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+INSERT INTO public.meter_accuracy_thresholds
+    (state_code, service_type, threshold_pct, effective_from, effective_to, source_note)
+SELECT 'TX', 'gas', 2.000, DATE '2004-07-12', NULL,
+       '16 TAC 7.45(7)(B)(iv)(II) — more than nominally defective means a deviation of more than 2.0% from accurate registration, in either direction (Railroad Commission of Texas; rule text as amended effective 2004-07-12, re-read by Kyle 2026-09-22/23; cite corrected by erratum E-1).'
+ WHERE NOT EXISTS (SELECT 1 FROM public.meter_accuracy_thresholds
+                    WHERE state_code = 'TX' AND service_type = 'gas'
+                      AND effective_from = DATE '2004-07-12');
 
-COMMENT ON TABLE public.correction_run_target_events IS
-    'A-2 (v5.4.2-12), F-1. The append-only setup-time history of one correction_run_targets row: cause set and changed (R-19), under-reach warning raised and overridden (R-27), read classification overridden (R-30), target refused as wholly beyond the cap (R-22). It exists because these decisions are taken BEFORE any correction invoice does — invoice_events.invoice_id is NOT NULL and correction_invoice_id is NULL until Phase 7 — and hanging them on the voided original would conflate two bills'' histories. This log is the AUDIT TRAIL, not the guard''s fact: tally_app can write it, so what the gate believes is the write-once column on the target (F-3).';
+COMMENT ON TABLE public.meter_accuracy_thresholds IS
+    'v5.4.2-12 (F-3). The accuracy threshold a meter test is judged against, per state and service type, date-effective. Platform-fixed: tally_app may read and never write, because a tenant able to widen its own threshold could declare a failing meter accurate and dodge the mandatory refund at §7.45(7)(B)(iv)(II). A test''s outcome is DERIVED against the row in force on its test_date; the test row records which row and which figure it used. Seeded with Texas gas (2.0%) only.';
 
--- Append-only: this log records what happened, and what happened does not
--- change afterwards. Superusers are exempt so a migration can still repair it.
-CREATE OR REPLACE FUNCTION public.enforce_target_events_append_only() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.meter_accuracy_threshold_for(
+        p_state_code    text,
+        p_service_type  text,
+        p_on            date)
+    RETURNS public.meter_accuracy_thresholds
     LANGUAGE plpgsql
+    STABLE
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_super boolean := (SELECT r.rolsuper FROM pg_roles r WHERE r.rolname = current_user);
+    v_row public.meter_accuracy_thresholds;
 BEGIN
-    IF v_super THEN
-        IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
-        RETURN NEW;
+    IF p_state_code IS NULL OR p_service_type IS NULL OR p_on IS NULL THEN
+        RAISE EXCEPTION 'meter_accuracy_threshold_for: state, service type and date are all required (got %, %, %)', p_state_code, p_service_type, p_on
+            USING ERRCODE = 'null_value_not_allowed';
     END IF;
-    RAISE EXCEPTION USING
-        MESSAGE = format('correction_run_target_events is append-only (v5.4.2-12): %s is refused', TG_OP),
-        ERRCODE = 'restrict_violation';
+    SELECT * INTO v_row
+      FROM public.meter_accuracy_thresholds th
+     WHERE th.state_code = p_state_code
+       AND th.service_type = p_service_type
+       AND th.effective_from <= p_on
+       AND (th.effective_to IS NULL OR th.effective_to > p_on);
+    IF v_row.id IS NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('no meter accuracy threshold for %s %s in force on %s — the test''s outcome cannot be derived', p_state_code, p_service_type, p_on),
+            ERRCODE = 'no_data_found',
+            HINT = 'Only Texas gas is seeded (effective 2004-07-12). A service location''s state must be a two-letter code. A historical test with no threshold on record can be loaded as record_basis = migrated_date_only.';
+    END IF;
+    RETURN v_row;
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_target_events_append_only() IS
-    'A-2 (v5.4.2-12). BEFORE UPDATE OR DELETE on correction_run_target_events: refused for everyone but a superuser. CI-014''s discipline for a log that a regulator may read years later.';
-
-DROP TRIGGER IF EXISTS a_enforce_target_events_append_only ON public.correction_run_target_events;
-CREATE TRIGGER a_enforce_target_events_append_only
-    BEFORE UPDATE OR DELETE ON public.correction_run_target_events
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_target_events_append_only();
+COMMENT ON FUNCTION public.meter_accuracy_threshold_for(text, text, date) IS
+    'v5.4.2-12 (F-3). The threshold row in force for (state, service type) on a date; raises rather than defaulting when there is none. NULL arguments raise.';
 
 
 -- ----------------------------------------------------------------------------
--- 6. The invoice_events domain (F-2)
+-- 5. The one error formula
 -- ----------------------------------------------------------------------------
--- Widened, not replaced. Two values, for the two things that happen to a
--- correction AFTER its invoice exists and therefore do belong on the
--- invoice's own timeline: the cap trimmed the bill, and the bill was refused
--- outright. The setup-time decisions stay on the target's log above.
---
--- D-2026-09-09-03: widening a CHECK is one line; narrowing means finding and
--- judging every row already routed under the loose rule.
+-- Used by BOTH the load table's generated error column and the outcome
+-- derivation, so the two can never compute different numbers. Exact numeric
+-- throughout — no rounding before the threshold comparison, so 2.0000001%
+-- is not rounded into "accurate". Inputs are refused beyond four decimal
+-- places at intake (section 8) so the value compared is the value stored.
 
-ALTER TABLE public.invoice_events DROP CONSTRAINT IF EXISTS invoice_events_event_type_check;
-ALTER TABLE public.invoice_events ADD CONSTRAINT invoice_events_event_type_check
-    CHECK ((event_type = ANY (ARRAY['created'::text, 'sent'::text, 'held'::text, 'released_from_hold'::text, 'voided'::text, 'void_attempted_blocked'::text, 'correction_initiated'::text, 'correction_posted'::text, 'payment_applied'::text, 'written_off'::text, 'status_changed'::text, 'backbill_cap_trimmed'::text, 'backbill_cap_refused'::text])));
-
-
--- ----------------------------------------------------------------------------
--- 7. The read classification (R-30)
--- ----------------------------------------------------------------------------
--- (4)(E)(vii) turns on whether the failure to read was beyond the utility's
--- control. R-30 ruled that this is DERIVED FROM THE CONTEMPORANEOUS READ
--- RECORD wherever possible, on the reasoning that the field tech who could
--- not read the meter recorded why AT THE TIME, and that is better evidence
--- than a billing operator reconstructing it months later.
---
--- THE MAPPING IS PLATFORM-FIXED, NEVER TENANT-CONFIGURABLE. It is a reading
--- of the rule, not a business preference. A tenant able to reclassify
--- ami_offline as beyond its control would be granting itself a disconnection
--- right §7.45 does not give. That is why this is a function and not a table.
---
--- THE BUCKET ASSIGNMENTS ARE AN ENGINEERING PROPOSAL, NOT KYLE'S RULING.
--- Kyle ruled the mechanism and the default. The customer-side / utility-side
--- line on meter_buried, meter_obstructed, key_required and seasonal_closure
--- is arguably a question for tariff counsel and rides with the R-28/R-29
--- referral. Until then they sit in the third bucket, which is the safe
--- direction and costs only operator friction (refinement 3).
---
--- historical_average and same_period_prior_year are in the third bucket for a
--- different reason: they describe HOW the estimate was computed, not WHY the
--- read was missed, so a read carrying either has no recorded cause at all.
--- That conflation is R-30's separately-recorded schema defect and is NOT
--- fixed here.
-
-CREATE OR REPLACE FUNCTION public.backbilling_read_classification(
-        p_access_status     text,
-        p_estimation_reason text)
-    RETURNS text
-    LANGUAGE plpgsql
+CREATE OR REPLACE FUNCTION public.meter_test_error_pct(
+        p_standard_volume numeric,
+        p_meter_volume    numeric)
+    RETURNS numeric
+    LANGUAGE sql
     IMMUTABLE
-    SET search_path = pg_catalog, pg_temp
-    AS $$
-DECLARE
-    -- Rank by CONSERVATISM, most protective first, so that "the more
-    -- conservative bucket wins" is a max() and not a chain of IFs that can
-    -- be got wrong. within_utility_control outranks determination_required:
-    -- both yield 'never' today, but determination_required can be lifted by
-    -- an operator basis and within_utility_control cannot.
-    v_access text;
-    v_reason text;
-    v_rank_access int;
-    v_rank_reason int;
-    v_best int;
-BEGIN
-    -- access_status
-    v_access := CASE p_access_status
-        WHEN 'locked_gate'          THEN 'beyond_utility_control'
-        WHEN 'aggressive_dog'       THEN 'beyond_utility_control'
-        WHEN 'unsafe_conditions'    THEN 'beyond_utility_control'
-        WHEN 'no_access_permission' THEN 'beyond_utility_control'
-        WHEN 'ami_offline'          THEN 'within_utility_control'
-        WHEN 'meter_damaged'        THEN 'within_utility_control'
-        WHEN 'meter_not_found'      THEN 'within_utility_control'
-        WHEN 'meter_buried'         THEN 'determination_required'
-        WHEN 'meter_obstructed'     THEN 'determination_required'
-        WHEN 'key_required'         THEN 'determination_required'
-        WHEN 'other'                THEN 'determination_required'
-        -- 'accessed' contributes nothing: the meter WAS read, so it carries
-        -- no evidence about a failure to read. It must not be allowed to
-        -- read as "beyond control" by omission.
-        ELSE NULL
-    END;
-
-    -- estimation_reason. 'access_issue' DELEGATES: R-30's resolution rule is
-    -- that where estimation_reason = 'access_issue' the classification is
-    -- taken from access_status, which carries the detail.
-    v_reason := CASE p_estimation_reason
-        WHEN 'access_issue'               THEN NULL
-        WHEN 'weather_prevented_read'     THEN 'beyond_utility_control'
-        WHEN 'ami_sync_failure'           THEN 'within_utility_control'
-        WHEN 'meter_malfunction'          THEN 'within_utility_control'
-        WHEN 'new_meter_install'          THEN 'within_utility_control'
-        WHEN 'prior_estimation_correction' THEN 'within_utility_control'
-        WHEN 'seasonal_closure'           THEN 'determination_required'
-        WHEN 'other'                      THEN 'determination_required'
-        -- method, not cause — no recorded reason at all (R-30's defect)
-        WHEN 'historical_average'         THEN 'determination_required'
-        WHEN 'same_period_prior_year'     THEN 'determination_required'
-        ELSE NULL
-    END;
-
-    v_rank_access := CASE v_access
-        WHEN 'within_utility_control'  THEN 3
-        WHEN 'determination_required'  THEN 2
-        WHEN 'beyond_utility_control'  THEN 1
-        ELSE NULL END;
-    v_rank_reason := CASE v_reason
-        WHEN 'within_utility_control'  THEN 3
-        WHEN 'determination_required'  THEN 2
-        WHEN 'beyond_utility_control'  THEN 1
-        ELSE NULL END;
-
-    v_best := greatest(coalesce(v_rank_access, 0), coalesce(v_rank_reason, 0));
-
-    -- Nothing classifiable — including a period with no read row at all,
-    -- which reaches here as (NULL, NULL). R-30: the standing default, not a
-    -- fallback of last resort.
-    IF v_best = 0 THEN
-        RETURN 'determination_required';
-    END IF;
-    RETURN CASE v_best
-        WHEN 3 THEN 'within_utility_control'
-        WHEN 2 THEN 'determination_required'
-        ELSE        'beyond_utility_control'
-    END;
-END;
-$$;
-
-COMMENT ON FUNCTION public.backbilling_read_classification(text, text) IS
-    'A-2 (v5.4.2-12), R-30. Classifies one billing period''s contemporaneous read record into (4)(E)(vii)''s three buckets: beyond_utility_control (disconnection permitted for that period), within_utility_control (protection stands, enforceable_scope never), determination_required (never until an operator records a basis). PLATFORM-FIXED, never tenant-configurable — it is a reading of the rule, not a business preference, and a tenant able to reclassify ami_offline as beyond its control would be granting itself a disconnection right §7.45 does not give. Where estimation_reason = access_issue the classification is taken from access_status, which carries the detail; where the two disagree the more conservative bucket wins. (NULL, NULL) — a period with no read row — returns determination_required, R-30''s standing default. The bucket assignments for meter_buried, meter_obstructed, key_required and seasonal_closure are an ENGINEERING PROPOSAL riding with the R-28/R-29 counsel referral, not Kyle''s ruling; they sit in the safe third bucket meanwhile.';
-
-
--- ----------------------------------------------------------------------------
--- 8. The resolvers: which class, and which cap row (CCK-14, R-26)
--- ----------------------------------------------------------------------------
--- Both run with INVOKER rights and read tenant-scoped tables under RLS, so a
--- caller sees only its own tenant's configuration. Neither is SECURITY
--- DEFINER: nothing here needs to outrank the caller, and v5.4.2-11 spent five
--- review rounds removing definers that did.
-
-CREATE OR REPLACE FUNCTION public.backbilling_customer_class(p_customer_id uuid)
-    RETURNS text
-    LANGUAGE plpgsql
-    STABLE
     SET search_path = public, pg_temp
     AS $$
-DECLARE
-    v_mode text;
-    v_type text;
-BEGIN
-    SELECT t.regulatory_class_mode, c.customer_type
-      INTO v_mode, v_type
-      FROM public.customers c
-      JOIN public.tenants t ON t.id = c.tenant_id
-     WHERE c.id = p_customer_id;
-
-    IF v_mode IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling class: customer %s is not visible in this session', p_customer_id),
-            ERRCODE = 'no_data_found',
-            HINT = 'The customer must exist and be visible under this session''s tenant isolation.';
-    END IF;
-
-    IF v_mode = 'volumetric_threshold' THEN
-        -- Declared in the CHECK so the CCK patch widens nothing, and refused
-        -- here because its substrate (tenant_regulatory_class_rules,
-        -- meter_regulatory_class_determinations) does not exist. Silently
-        -- behaving like the default would be a guard failing open under a
-        -- name that says otherwise.
-        RAISE EXCEPTION USING
-            MESSAGE = 'backbilling class: regulatory_class_mode = volumetric_threshold is not implemented — its resolver and determination record (CCK-4…CCK-13) ship in their own patch',
-            ERRCODE = 'feature_not_supported',
-            HINT = 'Set tenants.regulatory_class_mode to all_non_residential_protected (the v1 default) or explicit_class.';
-    END IF;
-
-    IF v_mode = 'all_non_residential_protected' THEN
-        -- CCK-14. Residential is protected by statute; every non-residential
-        -- account is swept in by the mode. So in v1 this is a constant — and
-        -- deliberately so: it is correct for any tenant whose filed tariff
-        -- has no size tier, it touches no rate calculation, and it fails
-        -- toward protection. The cost is flexibility, never a violation.
-        RETURN 'protected';
-    END IF;
-
-    -- explicit_class: trust the size-tier values on customer_type. §7.45
-    -- reaches residential and SMALL commercial; a bare 'commercial' is
-    -- ambiguous on this axis and is read as protected, the safe direction.
-    RETURN CASE
-        WHEN v_type IN ('residential', 'small_commercial', 'commercial') THEN 'protected'
-        ELSE 'unprotected'
-    END;
-END;
+    SELECT (p_meter_volume - p_standard_volume) / p_standard_volume * 100;
 $$;
 
-COMMENT ON FUNCTION public.backbilling_customer_class(uuid) IS
-    'A-2 (v5.4.2-12), CCK-14. Whether this customer sits inside 16 TAC §7.45''s protected class, per tenants.regulatory_class_mode. Under the v1 default all_non_residential_protected the answer is always protected — residential by statute, everything else by the mode — which errs toward protection and can never be a violation. Under explicit_class a bare commercial reads as protected, because that value is ambiguous on the size-tier axis and the safe direction is in-scope. volumetric_threshold RAISES: it is declared so the CCK patch widens no CHECK, and refused because its substrate does not exist — a mode that silently degraded to the default would be a guard failing open under a name that says otherwise.';
-
-
-CREATE OR REPLACE FUNCTION public.backbilling_resolve_cap(
-        p_tenant_id       uuid,
-        p_jurisdiction_id uuid,
-        p_service_type    text,
-        p_customer_class  text,
-        p_cause           text)
-    RETURNS public.backbilling_cap_rules
-    LANGUAGE plpgsql
-    STABLE
-    SET search_path = public, pg_temp
-    AS $$
-DECLARE
-    v_rule public.backbilling_cap_rules;
-BEGIN
-    -- R-26: most-specific-wins over EXACTLY TWO LEVELS — the service
-    -- location's jurisdiction, else the NULL-jurisdiction state /
-    -- filed-tariff default. No deeper hierarchy, and no silent widening: an
-    -- ORDER BY over a jurisdiction that does not match would quietly pick
-    -- another city's rule, so the match is explicit.
-    SELECT r.* INTO v_rule
-      FROM public.backbilling_cap_rules r
-     WHERE r.tenant_id      = p_tenant_id
-       AND r.service_type   = p_service_type
-       AND r.customer_class = p_customer_class
-       AND r.cause          = p_cause
-       AND (r.jurisdiction_id = p_jurisdiction_id
-            OR r.jurisdiction_id IS NULL)
-     ORDER BY (r.jurisdiction_id IS NULL)      -- false (specific) sorts first
-     LIMIT 1;
-
-    IF v_rule.id IS NULL THEN
-        -- Fail CLOSED and loudly. An absent rule is not permission: the
-        -- unprotected rows are seeded EXPLICITLY uncapped precisely so that
-        -- nothing has to infer "no rule means no limit".
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling cap: no rule for (service %s, class %s, cause %s) in this tenant — a correction cannot be evaluated against a cap that is not configured', p_service_type, p_customer_class, p_cause),
-            ERRCODE = 'no_data_found',
-            HINT = 'SELECT public.seed_backbilling_cap_defaults(<tenant_id>); — tenant onboarding must seed the statutory defaults. A tenant created after v5.4.2-12 has none until it does.';
-    END IF;
-    RETURN v_rule;
-END;
-$$;
-
-COMMENT ON FUNCTION public.backbilling_resolve_cap(uuid, uuid, text, text, text) IS
-    'A-2 (v5.4.2-12), R-26. Resolves the governing backbilling_cap_rules row, most-specific-wins over exactly two levels: the service location''s jurisdiction, else the NULL-jurisdiction state / filed-tariff default. RAISES where no rule resolves rather than returning NULL — an absent rule is not permission, which is why the unprotected rows are seeded explicitly uncapped. Municipal rows are admitted only where the tenant operates under a lawfully established differing municipal standard evidenced by an ordinance or filed instrument, never created speculatively per franchise city.';
+COMMENT ON FUNCTION public.meter_test_error_pct(numeric, numeric) IS
+    'v5.4.2-12. Registration error at one load point, in percent: (tested meter volume − standard volume) / standard volume × 100. Positive = the meter over-registers (fast), negative = under-registers (slow), −100 = registered nothing. The single formula behind meter_test_load_results.error_pct and meter_tests.outcome.';
 
 
 -- ----------------------------------------------------------------------------
--- 9. The per-period evidence record (R-25, R-29, R-30)
+-- 6. meter_tests — one row per test, append-only
 -- ----------------------------------------------------------------------------
--- R-25 is the STRUCTURAL ruling of this patch: direction is tested PER
--- ORIGINAL BILLING PERIOD, not per invoice. Periods where the customer owes
--- more are capped and trimmed if outside the window; periods where the
--- customer is OWED money always pass, uncapped.
+-- WHAT THE CALLER SUPPLIES versus WHAT THE DATABASE STAMPS.
+--   Caller: the meter, the test date and kind, the record basis, where and
+--   for whom (customer-requested), who tested and with what, the meter's
+--   constants as the tester recorded them, the raw readings (load_results),
+--   an inconclusive reason if the test produced no valid measurement, a
+--   service order link, a supersession.
+--   Database: outcome, max_abs_error_pct, the threshold used (row, figure,
+--   state), entered_out_of_order, recorded_at, recorded_by, recorded_seq.
+--   A caller-supplied value for any database-owned column is REFUSED rather
+--   than silently overwritten, so a caller that believes it set an outcome
+--   learns immediately that it did not.
 --
--- The rejected alternatives are worth carrying, because each names a failure
--- this shape avoids:
---   * NETTING PER INVOICE lets time-barred charges ride into a bill hidden
---     behind favourable months — the customer pays for a period the statute
---     put out of reach, and the arithmetic conceals it.
---   * OPERATOR-DECLARED DIRECTION is a computed fact dressed as a judgment
---     call.
---   * SUPPRESSING ADVERSE DELTAS WITHOUT PERIOD STRUCTURE leaves no clean way
---     to present the result against (6)(B)(v)'s per-billing-unit requirement.
---
--- This record is CI-008's uniform-evaluation evidence, and it is what makes a
--- trim defensible eighteen months later.
+-- load_results is the submission as received: a JSON array of
+-- {load_point, standard_volume, meter_volume[, notes]}. The database writes
+-- the typed rows of meter_test_load_results from it in the same statement,
+-- and they are the queryable record. Both are append-only and produced
+-- together by the database, so they cannot drift apart.
 
--- Monotonic within and across transactions, so "the evaluation that governs"
--- is a fact rather than a coin toss. GRANTed explicitly: a sequence default
--- under SET ROLE tally_app fails without USAGE, and the blanket ALTER DEFAULT
--- PRIVILEGES in tu.sql covers TABLES, not SEQUENCES.
-CREATE SEQUENCE IF NOT EXISTS public.backbilling_period_evaluations_seq;
-GRANT USAGE, SELECT ON SEQUENCE public.backbilling_period_evaluations_seq TO tally_app;
-
-CREATE TABLE IF NOT EXISTS public.backbilling_period_evaluations (
+CREATE TABLE IF NOT EXISTS public.meter_tests (
     id                      uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     tenant_id               uuid NOT NULL,
-    target_id               uuid NOT NULL,
-    period_start            date NOT NULL,
-    period_end              date NOT NULL,
-    direction               text NOT NULL,
-    delta_amount            numeric(12,2) NOT NULL,
-    cap_rule_id             uuid NOT NULL,
-    jurisdiction_level      text NOT NULL,
-    cause                   text NOT NULL,
-    anchor_date             date NOT NULL,
-    anchor_basis            text NOT NULL,
-    billable_scope          text NOT NULL,
-    window_start            date,
-    enforceable_scope       text NOT NULL,
-    enforceable_months      integer,
-    read_classification     text,
-    read_id                 uuid,
-    trimmed                 boolean DEFAULT false NOT NULL,
-    trimmed_amount          numeric(12,2) DEFAULT 0.00 NOT NULL,
-    underreach_warning      boolean DEFAULT false NOT NULL,
-    underreach_override_reason text,
-    evaluated_at            timestamp with time zone DEFAULT now() NOT NULL,
-    evaluation_seq          bigint DEFAULT nextval('public.backbilling_period_evaluations_seq') NOT NULL,
-    CONSTRAINT backbilling_period_evaluations_pkey PRIMARY KEY (id),
-    CONSTRAINT backbilling_period_evaluations_tenant_id_fkey
+    meter_id                uuid NOT NULL,
+    test_date               date NOT NULL,
+    test_kind               text NOT NULL,
+    customer_requested      boolean GENERATED ALWAYS AS ((test_kind = 'customer_requested'::text)) STORED,
+    record_basis            text NOT NULL,
+    location_id             uuid,
+    customer_id             uuid,
+    performed_by_user_id    uuid,
+    performed_by_name       text,
+    test_equipment          text,
+    test_equipment_serial   text,
+    meter_serial_at_test    text,
+    multiplier_at_test      numeric(10,4),
+    meter_factor_at_test    numeric(10,6),
+    gas_btu_factor_at_test  numeric(10,6),
+    load_results            jsonb,
+    inconclusive_reason     text,
+    outcome                 text,
+    max_abs_error_pct       numeric,
+    threshold_id            uuid,
+    threshold_pct           numeric(6,3),
+    threshold_state         text,
+    entered_out_of_order    boolean DEFAULT false NOT NULL,
+    service_order_id        uuid,
+    supersedes_test_id      uuid,
+    supersede_reason        text,
+    notes                   text,
+    recorded_at             timestamp with time zone DEFAULT now() NOT NULL,
+    recorded_by             uuid,
+    recorded_seq            bigint GENERATED ALWAYS AS IDENTITY,
+    CONSTRAINT meter_tests_pkey PRIMARY KEY (id),
+    CONSTRAINT meter_tests_id_tenant_id_key UNIQUE (id, tenant_id),
+    -- A row may be superseded once. NULLs are distinct, so unsuperseding rows
+    -- do not collide.
+    CONSTRAINT meter_tests_supersedes_once_key UNIQUE (supersedes_test_id),
+    CONSTRAINT meter_tests_tenant_id_fkey
         FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
-    CONSTRAINT backbilling_period_evaluations_target_fkey
-        FOREIGN KEY (target_id, tenant_id)
-        REFERENCES public.correction_run_targets(id, tenant_id) ON DELETE CASCADE,
-    CONSTRAINT backbilling_period_evaluations_cap_rule_fkey
-        FOREIGN KEY (cap_rule_id, tenant_id)
-        REFERENCES public.backbilling_cap_rules(id, tenant_id),
-    CONSTRAINT backbilling_period_evaluations_read_fkey
-        FOREIGN KEY (read_id, tenant_id)
-        REFERENCES public.meter_readings(id, tenant_id),
-    -- DELIBERATELY NOT UNIQUE on (target_id, period_start, period_end). A
-    -- draft moves while it is worked, and gate (iii) refuses to issue on an
-    -- evaluation that no longer describes the bill — so RE-EVALUATION is a
-    -- normal part of the flow, and on an append-only table a re-evaluation is
-    -- a new row. A unique key here would have made the two rules
-    -- contradictory: the gate demands a fresh answer, the table forbids
-    -- editing the old one, and the constraint forbids adding one, so a
-    -- changed draft could never be issued at all. (Caught by battery I2.)
-    --
-    -- Which row governs is not left to chance: evaluation_seq is monotonic
-    -- and the gate reads the highest. now() is constant within a
-    -- transaction, so ordering on evaluated_at would be a tie — and a tie
-    -- here silently picks one of two different answers.
-    CONSTRAINT backbilling_period_evaluations_period_check
-        CHECK ((period_end >= period_start)),
-    CONSTRAINT backbilling_period_evaluations_direction_check
-        CHECK ((direction = ANY (ARRAY['customer_owes'::text, 'customer_owed'::text, 'neutral'::text]))),
-    CONSTRAINT backbilling_period_evaluations_jurisdiction_level_check
-        CHECK ((jurisdiction_level = ANY (ARRAY['municipal'::text, 'state_default'::text]))),
-    CONSTRAINT backbilling_period_evaluations_cause_check
-        CHECK ((cause = ANY (ARRAY['non_registering_meter'::text, 'meter_error'::text, 'rate_misapplication'::text, 'estimation_catchup'::text, 'tampering_theft'::text]))),
-    CONSTRAINT backbilling_period_evaluations_anchor_basis_check
-        CHECK ((anchor_basis = ANY (ARRAY['test_date'::text, 'discovery_date'::text, 'tariff_specified'::text]))),
-    CONSTRAINT backbilling_period_evaluations_billable_scope_check
-        CHECK ((billable_scope = ANY (ARRAY['uncapped'::text, 'months_from_anchor'::text, 'shorter_of_months_or_last_test'::text]))),
-    CONSTRAINT backbilling_period_evaluations_enforceable_scope_check
-        CHECK ((enforceable_scope = ANY (ARRAY['uncapped'::text, 'months'::text, 'never'::text, 'conditional_on_read_classification'::text]))),
-    CONSTRAINT backbilling_period_evaluations_read_classification_check
-        CHECK ((read_classification IS NULL OR (read_classification = ANY (ARRAY['beyond_utility_control'::text, 'within_utility_control'::text, 'determination_required'::text])))),
-    -- An uncapped scope has no window; a counted scope must have computed one.
-    -- Left as two implications rather than an equivalence on purpose: the
-    -- window is genuinely absent under uncapped, and present otherwise.
-    CONSTRAINT backbilling_period_evaluations_window_check
-        CHECK ((((billable_scope = 'uncapped'::text) AND (window_start IS NULL))
-             OR ((billable_scope <> 'uncapped'::text) AND (window_start IS NOT NULL)))),
-    -- A trim must carry its amount, and an untrimmed period must not claim one.
-    CONSTRAINT backbilling_period_evaluations_trim_check
-        CHECK (((trimmed AND (trimmed_amount <> (0)::numeric)) OR ((NOT trimmed) AND (trimmed_amount = (0)::numeric)))),
-    -- An override reason without the warning it answers is a record of
-    -- nothing; it would read as an override of a duty that never attached.
-    CONSTRAINT backbilling_period_evaluations_override_check
-        CHECK (((underreach_override_reason IS NULL) OR underreach_warning))
+    CONSTRAINT meter_tests_meter_fkey
+        FOREIGN KEY (meter_id, tenant_id) REFERENCES public.meters(id, tenant_id),
+    CONSTRAINT meter_tests_location_fkey
+        FOREIGN KEY (location_id, tenant_id) REFERENCES public.service_locations(id, tenant_id),
+    CONSTRAINT meter_tests_customer_fkey
+        FOREIGN KEY (customer_id, tenant_id) REFERENCES public.customers(id, tenant_id),
+    CONSTRAINT meter_tests_performed_by_fkey
+        FOREIGN KEY (performed_by_user_id, tenant_id) REFERENCES public.users(id, tenant_id),
+    CONSTRAINT meter_tests_service_order_fkey
+        FOREIGN KEY (service_order_id, tenant_id) REFERENCES public.service_orders(id, tenant_id),
+    CONSTRAINT meter_tests_supersedes_fkey
+        FOREIGN KEY (supersedes_test_id, tenant_id) REFERENCES public.meter_tests(id, tenant_id),
+    CONSTRAINT meter_tests_threshold_fkey
+        FOREIGN KEY (threshold_id) REFERENCES public.meter_accuracy_thresholds(id),
+    CONSTRAINT meter_tests_test_kind_check
+        CHECK ((test_kind = ANY (ARRAY['periodic'::text, 'customer_requested'::text, 'complaint'::text, 'post_repair'::text, 'acceptance'::text, 'other'::text]))),
+    CONSTRAINT meter_tests_record_basis_check
+        CHECK ((record_basis = ANY (ARRAY['recorded'::text, 'migrated_full'::text, 'migrated_date_only'::text]))),
+    CONSTRAINT meter_tests_outcome_check
+        CHECK ((outcome = ANY (ARRAY['accurate'::text, 'fast'::text, 'slow'::text, 'non_registering'::text, 'inconclusive'::text]))),
+    -- The (7)(B)(ii) field list, required on a full record (recorded or
+    -- migrated_full) and not on a date-only one (F-2). Blank checks require an
+    -- alphanumeric character and coalesce the NULL leg: `x ~ '...'` is NULL on
+    -- a NULL x, and a CHECK passes on NULL.
+    CONSTRAINT meter_tests_full_record_fields_check
+        CHECK (((record_basis = 'migrated_date_only'::text)
+             OR ((COALESCE(performed_by_name, ''::text) ~ '[[:alnum:]]'::text)
+                 AND (COALESCE(test_equipment, ''::text) ~ '[[:alnum:]]'::text)
+                 AND (COALESCE(meter_serial_at_test, ''::text) ~ '[[:alnum:]]'::text)
+                 AND (multiplier_at_test IS NOT NULL) AND (multiplier_at_test > (0)::numeric)))),
+    -- A full record either carries readings or says why it could not.
+    CONSTRAINT meter_tests_full_record_result_check
+        CHECK (((record_basis = 'migrated_date_only'::text)
+             OR ((outcome IS NOT NULL)
+                 AND ((load_results IS NOT NULL) <> (inconclusive_reason IS NOT NULL))))),
+    -- A date-only record has no readings and no derived figures; it may carry
+    -- the result the utility's records show, or none.
+    CONSTRAINT meter_tests_date_only_shape_check
+        CHECK (((record_basis <> 'migrated_date_only'::text)
+             OR ((load_results IS NULL) AND (inconclusive_reason IS NULL)
+                 AND (max_abs_error_pct IS NULL) AND (threshold_id IS NULL)
+                 AND (threshold_pct IS NULL) AND (threshold_state IS NULL)))),
+    CONSTRAINT meter_tests_inconclusive_reason_check
+        CHECK (((inconclusive_reason IS NULL) OR (inconclusive_reason ~ '[[:alnum:]]'::text))),
+    -- D-4, confirmed by F-5: the four-year look-back is "for the same customer
+    -- at the same location".
+    CONSTRAINT meter_tests_customer_requested_check
+        CHECK (((test_kind <> 'customer_requested'::text)
+             OR ((location_id IS NOT NULL) AND (customer_id IS NOT NULL)))),
+    CONSTRAINT meter_tests_supersede_pairing_check
+        CHECK ((((supersedes_test_id IS NULL) AND (supersede_reason IS NULL))
+             OR ((supersedes_test_id IS NOT NULL) AND (supersede_reason ~ '[[:alnum:]]'::text)
+                 AND (supersedes_test_id <> id)))),
+    CONSTRAINT meter_tests_load_results_shape_check
+        CHECK (((load_results IS NULL) OR ((jsonb_typeof(load_results) = 'array'::text) AND (jsonb_array_length(load_results) > 0))))
 );
 
-CREATE INDEX IF NOT EXISTS idx_backbilling_period_evaluations_tenant ON public.backbilling_period_evaluations USING btree (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_backbilling_period_evaluations_target ON public.backbilling_period_evaluations USING btree (target_id, period_start, period_end, evaluation_seq DESC);
+CREATE INDEX IF NOT EXISTS idx_meter_tests_tenant ON public.meter_tests USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_meter_tests_meter_date ON public.meter_tests USING btree (meter_id, test_date DESC, recorded_seq DESC);
+CREATE INDEX IF NOT EXISTS idx_meter_tests_location ON public.meter_tests USING btree (location_id) WHERE (location_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_meter_tests_customer ON public.meter_tests USING btree (customer_id) WHERE (customer_id IS NOT NULL);
 
-ALTER TABLE public.backbilling_period_evaluations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.backbilling_period_evaluations FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON public.backbilling_period_evaluations;
-CREATE POLICY tenant_isolation ON public.backbilling_period_evaluations USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+ALTER TABLE public.meter_tests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meter_tests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.meter_tests;
+CREATE POLICY tenant_isolation ON public.meter_tests USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
 
-COMMENT ON TABLE public.backbilling_period_evaluations IS
-    'A-2 (v5.4.2-12), R-25. One append-only row per ORIGINAL billing period evaluated by a correction — the structural ruling of A-2: direction is tested per period, never per invoice. Periods where the customer owes more are capped and trimmed if outside the window; periods where the customer is OWED money always pass, uncapped. Netting per invoice was rejected because it lets time-barred charges ride into a bill hidden behind favourable months. Each row carries the governing cap rule, the direction and delta found, the computed window and the anchor used, the jurisdiction level that resolved (R-26), the R-30 read classification with the read row it came from, whether the period was trimmed and by how much, and the under-reach warning state with any override (R-27). This is CI-008''s uniform-evaluation evidence, and it is what makes a trim defensible eighteen months later.';
+-- Append-only: tally_app may read and insert, never update or delete. The
+-- triggers repeat it so that an owner session, or a future grant, still
+-- cannot edit a recorded test.
+REVOKE UPDATE, DELETE, TRUNCATE ON public.meter_tests FROM tally_app;
 
-COMMENT ON COLUMN public.backbilling_period_evaluations.anchor_basis IS
-    'R-29. Which reading produced the window, so that a reversal is a re-resolution rather than archaeology. HARD-CODED to test_date in v1 — no operator choice and no tenant setting; discovery_date and tariff_specified are declared so a later patch widens no CHECK.';
+DROP TRIGGER IF EXISTS append_only ON public.meter_tests;
+CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.meter_tests
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_append_only();
+DROP TRIGGER IF EXISTS no_truncate ON public.meter_tests;
+CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.meter_tests
+    FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+ALTER TABLE public.meter_tests ENABLE ALWAYS TRIGGER append_only;
+ALTER TABLE public.meter_tests ENABLE ALWAYS TRIGGER no_truncate;
 
-COMMENT ON COLUMN public.backbilling_period_evaluations.evaluation_seq IS
-    'Which evaluation governs. A period may be evaluated more than once — a draft moves while it is worked and gate (iii) refuses stale evidence — and on an append-only table each re-evaluation is a new row, so the gate reads the HIGHEST seq. Not evaluated_at: now() is constant within a transaction, so two evaluations in one transaction would tie and the gate would silently pick one of two different answers.';
+COMMENT ON TABLE public.meter_tests IS
+    'v5.4.2-12 (CI-091 / CI-092; R-31, R-34…R-36). One row per meter test, append-only — never updated or deleted; a mistake is corrected by a new row naming it in supersedes_test_id. The outcome is DERIVED by the database from the submitted readings against meter_accuracy_thresholds, never asserted by the caller. meters.last_test_date / last_test_result are a pointer maintained from here. meter_governing_test() reads it for A-2''s backbilling window.';
+COMMENT ON COLUMN public.meter_tests.test_kind IS
+    'D-2 (Ryan, 2026-09-23): periodic, customer_requested, complaint, post_repair, acceptance (before first install), other. Every kind anchors a backbilling window (R-34) — a customer-requested test is off-schedule and mandatory, and carries the full (7)(B)(ii) record.';
+COMMENT ON COLUMN public.meter_tests.customer_requested IS
+    'Generated from test_kind — one fact, one source. §7.45(7)(B)(ii)''s field list and (7)(B)(iv)(I)''s four-year look-back attach to a customer-requested test; location_id and customer_id are required on one (D-4 / F-5).';
+COMMENT ON COLUMN public.meter_tests.record_basis IS
+    'What the row can prove (R-35 / R-36). recorded = captured in Tally at or after the test, full field list. migrated_full = loaded at onboarding with the full field list. migrated_date_only = loaded with a date and at most a result — exactly what the (7)(B)(i) equipment record requires, so not deficient (F-2), but it cannot win a dispute over the test''s accuracy. A date-only row still anchors a window (R-36), marked, behind the supervisor gate meter_governing_test() computes. Migrated rows must be dated on or before tenants.cutover_date.';
+COMMENT ON COLUMN public.meter_tests.load_results IS
+    'The raw readings as submitted: a JSON array of {load_point, standard_volume, meter_volume[, notes]}, volumes in the same unit, at most four decimal places, standard_volume > 0, meter_volume >= 0. The database derives each load''s error and the test''s outcome from these and writes meter_test_load_results from them in the same statement. Absent on a date-only row, and on a full row that records an inconclusive_reason instead.';
+COMMENT ON COLUMN public.meter_tests.outcome IS
+    'DERIVED, never caller-set on a full record. accurate: every load within the threshold (a deviation of exactly the threshold is accurate — the rule says MORE than 2.0%). fast / slow: the largest deviation exceeds it, signed by that load. non_registering: every load registered nothing — zero registration only (Kyle R-39: a very slow meter that registers is meter_error, not non_registering), which selects the (7)(B)(v)(II) bound. inconclusive: the test produced no valid measurement (inconclusive_reason), or its largest deviations are equal and opposite. On a date-only row it is the result the utility''s records show, or NULL.';
+COMMENT ON COLUMN public.meter_tests.entered_out_of_order IS
+    'Stamped by the database: true when, at the moment of recording, the meter already had a non-superseded test dated LATER than this one. D-5 (accept and flag): a late entry is accepted, and A-2 (v5.4.2-13) uses this to flag evidence computed before it arrived.';
+COMMENT ON COLUMN public.meter_tests.supersedes_test_id IS
+    'Corrections without edits (brief §3.6): names the row this one corrects, which then drops out of the pointer and of meter_governing_test(). Same meter only; each row may be superseded once; a reason is required.';
+COMMENT ON COLUMN public.meter_tests.threshold_pct IS
+    'The threshold figure the outcome was derived against, copied from threshold_id at recording so the evidence is re-derivable without trusting that the reference row never changed.';
+COMMENT ON COLUMN public.meter_tests.threshold_state IS
+    'The state the threshold was resolved for: the state of the METER''s location (upper-cased, trimmed) — never the caller''s location_id, which could otherwise name a past deployment in another state and so choose the rule the test is judged by. A location_id in a different state is refused.';
+COMMENT ON COLUMN public.meter_tests.meter_serial_at_test IS
+    'The meter''s identifying number and constants as the tester recorded them ((7)(B)(ii)), with multiplier_at_test, meter_factor_at_test and gas_btu_factor_at_test. Caller-supplied on purpose: they are what was observed at the test, and a late-entered or migrated test must not be stamped with today''s values from the mutable meter row (residual R4).';
+COMMENT ON COLUMN public.meter_tests.recorded_seq IS
+    'Insertion order. Ties on test_date are broken by this, never by recorded_at: now() is constant within a transaction, so two rows recorded together share a timestamp.';
 
-COMMENT ON COLUMN public.backbilling_period_evaluations.direction IS
-    'R-25. Which way this period moves for the CUSTOMER. customer_owes = the correction increases what they owe, so the cap applies. customer_owed = the correction returns money, which always passes uncapped — a limit on refunding a customer is not what §7.45 is for. neutral = no change.';
 
-COMMENT ON COLUMN public.backbilling_period_evaluations.read_id IS
-    'The contemporaneous read row the R-30 classification came from (v5.4.2-12). NULL where the period has no read row at all, which R-30 classifies as determination_required — the standing default, not a fallback of last resort.';
+-- ----------------------------------------------------------------------------
+-- 7. meter_test_load_results — one row per load point, written by the database
+-- ----------------------------------------------------------------------------
+-- D-1: a typed child table rather than a jsonb blob, because the error at
+-- each load is the figure a dispute contests and needs types, a CHECK and a
+-- query path. Rows are written ONLY by meter_tests' own AFTER INSERT trigger,
+-- in the statement that records the test — so once a test is recorded its
+-- load rows are fixed, and no load row can be added to a test later to change
+-- what it found. The fence is trigger depth (a direct INSERT fires this
+-- table's BEFORE trigger at depth 1; the parent's trigger inserts at depth 2).
 
--- Append-only, for the same reason as the target log: a regulator may read it
--- years later and it must say what was decided at the time.
-CREATE OR REPLACE FUNCTION public.enforce_period_evaluations_append_only() RETURNS trigger
+CREATE TABLE IF NOT EXISTS public.meter_test_load_results (
+    id              uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    tenant_id       uuid NOT NULL,
+    meter_test_id   uuid NOT NULL,
+    load_point      text NOT NULL,
+    standard_volume numeric(14,4) NOT NULL,
+    meter_volume    numeric(14,4) NOT NULL,
+    error_pct       numeric GENERATED ALWAYS AS (public.meter_test_error_pct(standard_volume, meter_volume)) STORED,
+    notes           text,
+    created_at      timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT meter_test_load_results_pkey PRIMARY KEY (id),
+    CONSTRAINT meter_test_load_results_point_key UNIQUE (meter_test_id, load_point),
+    CONSTRAINT meter_test_load_results_tenant_id_fkey
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
+    CONSTRAINT meter_test_load_results_test_fkey
+        FOREIGN KEY (meter_test_id, tenant_id) REFERENCES public.meter_tests(id, tenant_id),
+    CONSTRAINT meter_test_load_results_load_point_check
+        CHECK ((load_point ~ '[[:alnum:]]'::text)),
+    CONSTRAINT meter_test_load_results_standard_check
+        CHECK ((standard_volume > (0)::numeric)),
+    CONSTRAINT meter_test_load_results_meter_check
+        CHECK ((meter_volume >= (0)::numeric))
+);
+
+CREATE INDEX IF NOT EXISTS idx_meter_test_load_results_tenant ON public.meter_test_load_results USING btree (tenant_id);
+
+ALTER TABLE public.meter_test_load_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meter_test_load_results FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.meter_test_load_results;
+CREATE POLICY tenant_isolation ON public.meter_test_load_results USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+
+REVOKE UPDATE, DELETE, TRUNCATE ON public.meter_test_load_results FROM tally_app;
+
+CREATE OR REPLACE FUNCTION public.enforce_load_results_written_by_test() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
-DECLARE
-    v_super boolean := (SELECT r.rolsuper FROM pg_roles r WHERE r.rolname = current_user);
 BEGIN
-    IF v_super THEN
-        IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
-        RETURN NEW;
+    IF pg_trigger_depth() < 2 THEN
+        RAISE EXCEPTION USING
+            MESSAGE = 'meter_test_load_results rows are written only by the database, from meter_tests.load_results, in the statement that records the test — a load row added later would change what a recorded test found',
+            ERRCODE = 'restrict_violation',
+            HINT = 'Record the readings in meter_tests.load_results. To correct a recorded test, insert a new meter_tests row with supersedes_test_id.';
     END IF;
-    RAISE EXCEPTION USING
-        MESSAGE = format('backbilling_period_evaluations is append-only (v5.4.2-12): %s is refused — a re-evaluation is a new row, not an edit of the old answer', TG_OP),
-        ERRCODE = 'restrict_violation';
+    RETURN NEW;
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_period_evaluations_append_only() IS
-    'A-2 (v5.4.2-12). BEFORE UPDATE OR DELETE on backbilling_period_evaluations: refused for everyone but a superuser. The evidence record is what a trim is defended with; an editable one defends nothing.';
+COMMENT ON FUNCTION public.enforce_load_results_written_by_test() IS
+    'v5.4.2-12. Refuses a direct INSERT into meter_test_load_results (trigger depth < 2). Sound only while tally_app can define no code of its own — TEMP and CREATE revoked.';
 
-DROP TRIGGER IF EXISTS a_enforce_period_evaluations_append_only ON public.backbilling_period_evaluations;
-CREATE TRIGGER a_enforce_period_evaluations_append_only
-    BEFORE UPDATE OR DELETE ON public.backbilling_period_evaluations
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_period_evaluations_append_only();
+DROP TRIGGER IF EXISTS a_enforce_load_results_written_by_test ON public.meter_test_load_results;
+CREATE TRIGGER a_enforce_load_results_written_by_test BEFORE INSERT ON public.meter_test_load_results
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_load_results_written_by_test();
+DROP TRIGGER IF EXISTS append_only ON public.meter_test_load_results;
+CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.meter_test_load_results
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_append_only();
+DROP TRIGGER IF EXISTS no_truncate ON public.meter_test_load_results;
+CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.meter_test_load_results
+    FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+ALTER TABLE public.meter_test_load_results ENABLE ALWAYS TRIGGER a_enforce_load_results_written_by_test;
+ALTER TABLE public.meter_test_load_results ENABLE ALWAYS TRIGGER append_only;
+ALTER TABLE public.meter_test_load_results ENABLE ALWAYS TRIGGER no_truncate;
+
+COMMENT ON TABLE public.meter_test_load_results IS
+    'v5.4.2-12 (D-1). The error at each load point of a meter test — the figure a dispute contests. Written only by the database from meter_tests.load_results, in the statement that records the test, and append-only thereafter. error_pct is generated by meter_test_error_pct(), the same function that derives the test''s outcome.';
 
 
 -- ----------------------------------------------------------------------------
--- 10. The window (R-20's three shapes, R-31's hard constraint)
+-- 8. Recording a test — validation, stamping, and the derived outcome
 -- ----------------------------------------------------------------------------
--- window_start is the EARLIEST date the billable bound reaches back to. A
--- period ending before it is wholly beyond the cap; a period straddling it is
--- trimmed to the part at or after it.
---
--- "The SHORTER of six months and the last test" means the LATER of the two
--- candidate start dates: a shorter reach starts later. Getting that backwards
--- reads as a longer reach and over-collects, which is the expensive
--- direction, so both sides of the comparison are pinned in the battery.
---
--- R-31'S HARD CONSTRAINT, WHICH BINDS THIS PATCH AND NOT ONLY CI-091:
--- NEVER DERIVE A TEST DATE FROM test_interval_months. Back-computing a
--- plausible last-test date manufactures evidence for the exact figure a
--- dispute will contest. Where the meter carries no recorded test date and the
--- period is adverse, this function REFUSES rather than guessing — see the
--- residual note in the tail.
+-- Lock order, stated once: tenant row (FOR SHARE, migrated rows only) → meter
+-- row (FOR UPDATE). The meter lock serialises every test and absence
+-- declaration for one meter, so the pointer and entered_out_of_order are
+-- computed against a history no concurrent writer is changing. Under READ
+-- COMMITTED each later statement in the trigger sees rows committed while
+-- it waited.
 
-CREATE OR REPLACE FUNCTION public.backbilling_window_start(
-        p_billable_scope  text,
-        p_billable_months integer,
-        p_anchor_date     date,
-        p_last_test_date  date,
-        p_direction       text)
-    RETURNS date
+-- 8a. The readings: shape, and exactly four decimal places at most, so the
+-- number the outcome is derived from is the number the load table stores.
+CREATE OR REPLACE FUNCTION public.meter_test_check_load_results(p_loads jsonb)
+    RETURNS void
     LANGUAGE plpgsql
     IMMUTABLE
-    SET search_path = pg_catalog, pg_temp
+    SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_by_months date;
+    v_e    jsonb;
+    v_key  text;
+    v_std  numeric;
+    v_met  numeric;
 BEGIN
-    IF p_billable_scope = 'uncapped' THEN
-        RETURN NULL;                       -- no §7.45 billing limit for this cause
+    IF p_loads IS NULL OR jsonb_typeof(p_loads) <> 'array' OR jsonb_array_length(p_loads) = 0 THEN
+        RAISE EXCEPTION 'meter test load_results must be a non-empty JSON array of {load_point, standard_volume, meter_volume}'
+            USING ERRCODE = 'invalid_parameter_value';
     END IF;
-
-    v_by_months := p_anchor_date - make_interval(months => p_billable_months);
-
-    IF p_billable_scope = 'months_from_anchor' THEN
-        RETURN v_by_months;
-    END IF;
-
-    -- shorter_of_months_or_last_test — (7)(B)(v)(I)
-    IF p_last_test_date IS NULL THEN
-        -- A favourable period is uncapped anyway (R-25), so the missing test
-        -- date cannot hurt the customer there and the months bound stands.
-        IF p_direction <> 'customer_owes' THEN
-            RETURN v_by_months;
+    FOR v_e IN SELECT e FROM jsonb_array_elements(p_loads) AS a(e) LOOP
+        IF jsonb_typeof(v_e) <> 'object' THEN
+            RAISE EXCEPTION 'meter test load_results: every element must be an object, got %', v_e
+                USING ERRCODE = 'invalid_parameter_value';
         END IF;
-        -- Adverse, and the meter has no recorded test. Reaching the full six
-        -- months over-collects wherever an unrecorded test sits inside the
-        -- window, and reversing that means refunds rather than a patch
-        -- (refinement 5, Kyle's reasoning). Refuse; do NOT infer a date.
-        RAISE EXCEPTION USING
-            MESSAGE = 'backbilling window: this meter has no recorded last test date, so the (7)(B)(v)(I) window cannot be computed for a period that increases what the customer owes',
-            ERRCODE = 'no_data_found',
-            HINT = 'Record the meter''s last test date. It must NOT be derived from test_interval_months (R-31): back-computing a plausible test date manufactures evidence for the exact figure a dispute will contest.';
-    END IF;
-
-    -- The SHORTER window is the LATER start.
-    RETURN greatest(v_by_months, p_last_test_date);
+        FOR v_key IN SELECT jsonb_object_keys(v_e) LOOP
+            IF v_key <> ALL (ARRAY['load_point', 'standard_volume', 'meter_volume', 'notes']) THEN
+                RAISE EXCEPTION 'meter test load_results: unknown key "%" — allowed: load_point, standard_volume, meter_volume, notes', v_key
+                    USING ERRCODE = 'invalid_parameter_value';
+            END IF;
+        END LOOP;
+        IF jsonb_typeof(v_e -> 'load_point') IS DISTINCT FROM 'string'
+           OR coalesce(v_e ->> 'load_point', '') !~ '[[:alnum:]]' THEN
+            RAISE EXCEPTION 'meter test load_results: load_point must be a non-blank string, got %', v_e
+                USING ERRCODE = 'invalid_parameter_value';
+        END IF;
+        IF jsonb_typeof(v_e -> 'standard_volume') IS DISTINCT FROM 'number'
+           OR jsonb_typeof(v_e -> 'meter_volume') IS DISTINCT FROM 'number' THEN
+            RAISE EXCEPTION 'meter test load_results: standard_volume and meter_volume must be JSON numbers, got %', v_e
+                USING ERRCODE = 'invalid_parameter_value';
+        END IF;
+        v_std := (v_e ->> 'standard_volume')::numeric;
+        v_met := (v_e ->> 'meter_volume')::numeric;
+        IF v_std <= 0 OR v_met < 0 THEN
+            RAISE EXCEPTION 'meter test load_results: standard_volume must be > 0 and meter_volume >= 0, got %', v_e
+                USING ERRCODE = 'invalid_parameter_value';
+        END IF;
+        IF v_std <> round(v_std, 4) OR v_met <> round(v_met, 4)
+           OR v_std >= 1e10 OR v_met >= 1e10 THEN
+            RAISE EXCEPTION 'meter test load_results: volumes carry at most four decimal places and must be below 10^10, got % — the outcome is derived from exactly the value stored', v_e
+                USING ERRCODE = 'invalid_parameter_value';
+        END IF;
+    END LOOP;
 END;
 $$;
 
-COMMENT ON FUNCTION public.backbilling_window_start(text, integer, date, date, text) IS
-    'A-2 (v5.4.2-12), R-20. The earliest date the billable bound reaches back to; NULL under uncapped. months_from_anchor counts back from the anchor. shorter_of_months_or_last_test returns the LATER of (anchor - months) and the last test date, because a shorter reach starts later — reading that backwards over-collects. Where the meter has no recorded test date the months bound stands for a favourable period (uncapped anyway under R-25) and the function REFUSES for an adverse one: R-31 forbids deriving a test date from test_interval_months, because back-computing one manufactures evidence for the exact figure a dispute will contest.';
+COMMENT ON FUNCTION public.meter_test_check_load_results(jsonb) IS
+    'v5.4.2-12. Validates a submitted load_results array; raises on the first defect. Four decimal places at most, so the outcome is derived from the same value numeric(14,4) stores.';
 
+-- 8b. The derivation. One formula (meter_test_error_pct), one threshold.
+CREATE OR REPLACE FUNCTION public.meter_test_derive_outcome(
+        p_loads          jsonb,
+        p_threshold_pct  numeric,
+        OUT outcome           text,
+        OUT max_abs_error_pct numeric)
+    LANGUAGE plpgsql
+    IMMUTABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_all_zero boolean;
+    v_max_pos  numeric;
+    v_min_neg  numeric;
+BEGIN
+    SELECT bool_and((e ->> 'meter_volume')::numeric = 0),
+           max(abs(public.meter_test_error_pct((e ->> 'standard_volume')::numeric, (e ->> 'meter_volume')::numeric))),
+           max(public.meter_test_error_pct((e ->> 'standard_volume')::numeric, (e ->> 'meter_volume')::numeric)),
+           min(public.meter_test_error_pct((e ->> 'standard_volume')::numeric, (e ->> 'meter_volume')::numeric))
+      INTO v_all_zero, max_abs_error_pct, v_max_pos, v_min_neg
+      FROM jsonb_array_elements(p_loads) AS a(e);
 
--- ----------------------------------------------------------------------------
--- 11. Gate (ii) — correction-run setup (R-22, R-27)
--- ----------------------------------------------------------------------------
--- The coarse pre-check. Refuse the target where the ENTIRE original period
--- sits beyond the billable bound — there is nothing left to bill, so letting
--- setup proceed only defers the refusal to a point where more work has been
--- done. Otherwise raise the under-reach warning where it applies.
---
--- AFTER, not BEFORE: this gate appends to correction_run_target_events, whose
--- foreign key needs the target row to exist. A BEFORE INSERT trigger would
--- have nothing to point at.
---
--- The under-reach warning is a SINGLE-CAUSE guard — meter_error only —
--- because (7)(B)(v)(I) is the only MANDATORY bound. (v)(II) is permissive on
--- its face and the other three causes are billable-uncapped, so there is no
--- window to fall short of. A warning on those would be noise that teaches
--- operators to dismiss the one that matters.
---
--- Direction is not known at setup — no correction lines exist yet — so the
--- window is computed on the favourable branch, which yields the LONGEST
--- window the cap can produce. A refusal against the longest window is a
--- refusal against every shorter one, so this cannot refuse a target that
--- gate (iii) would have allowed.
+    IF v_all_zero THEN
+        -- Zero registration at every load point: (7)(B)(v)(II), not (v)(I).
+        outcome := 'non_registering';
+    ELSIF max_abs_error_pct <= p_threshold_pct THEN
+        -- "MORE than 2.0%" — a deviation of exactly the threshold is accurate.
+        outcome := 'accurate';
+    ELSIF v_max_pos = max_abs_error_pct AND -v_min_neg = max_abs_error_pct THEN
+        -- Equal and opposite beyond the threshold: defective, but with no
+        -- direction to correct in. Recorded, not guessed (residual R11).
+        outcome := 'inconclusive';
+    ELSIF v_max_pos = max_abs_error_pct THEN
+        outcome := 'fast';
+    ELSE
+        outcome := 'slow';
+    END IF;
+END;
+$$;
 
-CREATE OR REPLACE FUNCTION public.enforce_backbilling_gate_setup() RETURNS trigger
+COMMENT ON FUNCTION public.meter_test_derive_outcome(jsonb, numeric) IS
+    'v5.4.2-12 (D-3). A test''s outcome from its readings: non_registering if every load registered nothing; accurate if the largest deviation is at most the threshold; else fast or slow by the sign of the largest deviation; inconclusive if the largest deviations are equal and opposite. Uses meter_test_error_pct(), the formula behind the stored load errors.';
+
+-- 8c. The BEFORE INSERT guard.
+CREATE OR REPLACE FUNCTION public.enforce_meter_test_record() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_inv           record;
-    v_meter         record;
-    v_class         text;
-    v_jurisdiction  uuid;
-    v_rule          public.backbilling_cap_rules;
-    v_window        date;
+    v_meter     record;
+    v_cutover   date;
+    v_state     text;
+    v_threshold public.meter_accuracy_thresholds;
+    v_derived   record;
+    v_target    record;
+    v_order     record;
 BEGIN
-    -- A correction with no statutory cause is a clerical re-issue. It is
-    -- bounded at gate (iii) instead, where it may only REDUCE what is owed.
-    IF NEW.backbill_cause IS NULL THEN
-        RETURN NULL;
+    IF NEW.tenant_id IS NULL OR NEW.meter_id IS NULL OR NEW.test_date IS NULL OR NEW.record_basis IS NULL THEN
+        RAISE EXCEPTION 'meter test: tenant_id, meter_id, test_date and record_basis are required'
+            USING ERRCODE = 'not_null_violation';
     END IF;
 
-    SELECT i.period_start, i.period_end, i.invoice_number
-      INTO v_inv
-      FROM public.invoices i
-     WHERE i.id = NEW.voided_invoice_id AND i.tenant_id = NEW.tenant_id;
-    IF v_inv IS NULL THEN
+    -- DATABASE-OWNED COLUMNS ARE NOT THE CALLER'S TO SET. Refused, not
+    -- overwritten, so a caller that thinks it set an outcome finds out.
+    IF NEW.max_abs_error_pct IS NOT NULL OR NEW.threshold_id IS NOT NULL
+       OR NEW.threshold_pct IS NOT NULL OR NEW.threshold_state IS NOT NULL
+       OR (NEW.outcome IS NOT NULL AND NEW.record_basis <> 'migrated_date_only') THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('correction target %s: the voided invoice is not visible in this session', NEW.id),
-            ERRCODE = 'no_data_found';
+            MESSAGE = format('meter test on meter %s: outcome, max_abs_error_pct and the threshold columns are derived by the database from the readings, never supplied — a %s row''s result comes from its load_results', NEW.meter_id, NEW.record_basis),
+            ERRCODE = 'restrict_violation',
+            HINT = 'Submit the raw readings in load_results, or an inconclusive_reason if the test produced no valid measurement. Only a migrated_date_only row may carry a result the utility''s records show.';
+    END IF;
+    NEW.recorded_at := now();
+    NEW.recorded_by := NULLIF(current_setting('app.user_id', true), '')::uuid;
+    NEW.entered_out_of_order := false;
+
+    -- A migrated test must be dated on or before cutover (R-36's invariant).
+    -- FOR SHARE on the tenant row: a concurrent cutover_date change waits for
+    -- this insert, and this insert reads the latest committed cutover.
+    IF NEW.record_basis IN ('migrated_full', 'migrated_date_only') THEN
+        SELECT t.cutover_date INTO v_cutover
+          FROM public.tenants t WHERE t.id = NEW.tenant_id FOR SHARE;
+        IF v_cutover IS NULL OR NEW.test_date > v_cutover THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('meter test on meter %s: a %s row must be dated on or before the tenant''s cutover_date (test_date %s, cutover %s)', NEW.meter_id, NEW.record_basis, NEW.test_date, coalesce(v_cutover::text, 'not set')),
+                ERRCODE = 'check_violation',
+                HINT = 'Set tenants.cutover_date before loading migrated history. A test performed after cutover is record_basis = recorded.';
+        END IF;
     END IF;
 
-    SELECT m.service_type, m.last_test_date INTO v_meter
+    SELECT m.id, m.tenant_id, m.location_id, m.service_type INTO v_meter
       FROM public.meters m
-     WHERE m.id = NEW.meter_id AND m.tenant_id = NEW.tenant_id;
-    IF v_meter IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('correction target %s: the meter is not visible in this session', NEW.id),
-            ERRCODE = 'no_data_found';
+     WHERE m.id = NEW.meter_id AND m.tenant_id = NEW.tenant_id
+       FOR UPDATE;
+    IF v_meter.id IS NULL THEN
+        RAISE EXCEPTION 'meter test: meter % is not a meter of tenant %', NEW.meter_id, NEW.tenant_id
+            USING ERRCODE = 'foreign_key_violation';
     END IF;
 
-    v_class := public.backbilling_customer_class(NEW.customer_id);
-
-    -- The premise's jurisdiction, where the target names one. NULL resolves
-    -- to the state / filed-tariff default row (R-26).
-    SELECT sl.jurisdiction_id INTO v_jurisdiction
-      FROM public.service_locations sl
-     WHERE sl.id = NEW.location_id AND sl.tenant_id = NEW.tenant_id;
-
-    v_rule := public.backbilling_resolve_cap(
-        NEW.tenant_id, v_jurisdiction, v_meter.service_type, v_class, NEW.backbill_cause);
-
-    v_window := public.backbilling_window_start(
-        v_rule.billable_scope, v_rule.billable_months, NEW.anchor_date,
-        v_meter.last_test_date, 'customer_owed');
-
-    -- The whole period is out of reach. R-23 trims rather than rejects, but a
-    -- trim that removes everything is a rejection, and saying so here is
-    -- clearer than issuing a correction for nothing.
-    IF v_window IS NOT NULL AND v_inv.period_end < v_window THEN
-        INSERT INTO public.correction_run_target_events
-            (tenant_id, target_id, event_type, metadata)
-        VALUES (NEW.tenant_id, NEW.id, 'target_refused_beyond_cap',
-                jsonb_build_object('cause', NEW.backbill_cause,
-                                   'anchor_date', NEW.anchor_date,
-                                   'window_start', v_window,
-                                   'period_start', v_inv.period_start,
-                                   'period_end', v_inv.period_end,
-                                   'cap_rule_id', v_rule.id));
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling cap: invoice %s covers %s..%s, which is wholly before the %s window opening %s — there is nothing within the billable bound to correct (16 TAC 7.45; %s)', v_inv.invoice_number, v_inv.period_start, v_inv.period_end, NEW.backbill_cause, v_window, v_rule.source_note),
-            ERRCODE = 'restrict_violation';
+    IF NEW.test_date > CURRENT_DATE THEN
+        RAISE EXCEPTION 'meter test on meter %: test_date % is in the future', NEW.meter_id, NEW.test_date
+            USING ERRCODE = 'check_violation';
     END IF;
 
-    -- The under-reach warning (R-27). The corrected period begins after the
-    -- mandatory window opened, so in-window periods earlier than this one are
-    -- going uncorrected — the utility is reaching back less far than
-    -- (7)(B)(v)(I) requires where a meter over-registered.
-    IF NEW.backbill_cause = 'meter_error'
-       AND v_window IS NOT NULL
-       AND v_inv.period_start > v_window
-       AND NEW.underreach_override_reason IS NULL THEN
-        INSERT INTO public.correction_run_target_events
-            (tenant_id, target_id, event_type, metadata)
-        VALUES (NEW.tenant_id, NEW.id, 'underreach_warning_raised',
-                jsonb_build_object('window_start', v_window,
-                                   'period_start', v_inv.period_start,
-                                   'anchor_date', NEW.anchor_date,
-                                   'cap_rule_id', v_rule.id));
-        RAISE WARNING 'backbilling under-reach: the (7)(B)(v)(I) window for invoice % opens %, but this correction begins % — periods between those dates are not being corrected. Where the meter over-registered the correction is MANDATORY back to the window; record an evidentiary-impossibility override on the target if it genuinely cannot be made (R-27).', v_inv.invoice_number, v_window, v_inv.period_start;
+    -- Where the meter stood: its current location, or one it has been deployed
+    -- at. Not bound to the deployment covering test_date (residual R3).
+    IF NEW.location_id IS NOT NULL
+       AND NEW.location_id IS DISTINCT FROM v_meter.location_id
+       AND NOT EXISTS (SELECT 1 FROM public.meter_deployments d
+                        WHERE d.meter_id = NEW.meter_id AND d.tenant_id = NEW.tenant_id
+                          AND d.location_id = NEW.location_id) THEN
+        RAISE EXCEPTION 'meter test on meter %: location % is neither the meter''s location nor one it has been deployed at', NEW.meter_id, NEW.location_id
+            USING ERRCODE = 'check_violation';
     END IF;
 
-    -- Log the cause itself, so the target's history says when the finding was
-    -- made and what it was. TG_OP tells set from changed.
-    INSERT INTO public.correction_run_target_events
-        (tenant_id, target_id, event_type, metadata)
-    VALUES (NEW.tenant_id, NEW.id,
-            CASE WHEN TG_OP = 'INSERT' OR OLD.backbill_cause IS NULL
-                 THEN 'backbill_cause_set' ELSE 'backbill_cause_changed' END,
-            jsonb_build_object('cause', NEW.backbill_cause,
-                               'previous_cause', CASE WHEN TG_OP = 'UPDATE' THEN OLD.backbill_cause END,
-                               'anchor_date', NEW.anchor_date,
-                               'window_start', v_window,
-                               'cap_rule_id', v_rule.id,
-                               'customer_class', v_class,
-                               'jurisdiction_level', CASE WHEN v_rule.jurisdiction_id IS NULL THEN 'state_default' ELSE 'municipal' END));
+    IF NEW.service_order_id IS NOT NULL THEN
+        SELECT so.meter_id, so.order_type INTO v_order
+          FROM public.service_orders so
+         WHERE so.id = NEW.service_order_id AND so.tenant_id = NEW.tenant_id;
+        IF v_order.meter_id IS DISTINCT FROM NEW.meter_id
+           OR v_order.order_type NOT IN ('meter_test', 'meter_test_failed_replace') THEN
+            RAISE EXCEPTION 'meter test on meter %: service order % is not a meter-test order for this meter (order_type %, meter %)', NEW.meter_id, NEW.service_order_id, v_order.order_type, v_order.meter_id
+                USING ERRCODE = 'check_violation';
+        END IF;
+    END IF;
+
+    IF NEW.supersedes_test_id IS NOT NULL THEN
+        SELECT t.meter_id INTO v_target
+          FROM public.meter_tests t
+         WHERE t.id = NEW.supersedes_test_id AND t.tenant_id = NEW.tenant_id;
+        IF v_target.meter_id IS DISTINCT FROM NEW.meter_id THEN
+            RAISE EXCEPTION 'meter test on meter %: it may supersede only a test of the same meter (test % is on meter %)', NEW.meter_id, NEW.supersedes_test_id, v_target.meter_id
+                USING ERRCODE = 'check_violation';
+        END IF;
+        IF EXISTS (SELECT 1 FROM public.meter_tests s WHERE s.supersedes_test_id = NEW.supersedes_test_id) THEN
+            RAISE EXCEPTION 'meter test on meter %: test % has already been superseded — supersede the row that superseded it', NEW.meter_id, NEW.supersedes_test_id
+                USING ERRCODE = 'unique_violation';
+        END IF;
+    END IF;
+
+    -- The derived result, for a full record with readings.
+    IF NEW.record_basis <> 'migrated_date_only' THEN
+        IF NEW.inconclusive_reason IS NOT NULL THEN
+            IF NEW.load_results IS NOT NULL THEN
+                RAISE EXCEPTION 'meter test on meter %: a test with readings is judged by them — an inconclusive_reason is for a test that produced no valid measurement', NEW.meter_id
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            NEW.outcome := 'inconclusive';
+        ELSE
+            PERFORM public.meter_test_check_load_results(NEW.load_results);
+            -- The threshold's state comes from the METER's location, never
+            -- from the caller's location_id: a caller able to name a past
+            -- deployment in another state would be choosing the rule its own
+            -- test is judged by. A named location in a different state is
+            -- refused rather than silently judged by the wrong one.
+            SELECT upper(btrim(sl.state)) INTO v_state
+              FROM public.service_locations sl
+             WHERE sl.id = v_meter.location_id AND sl.tenant_id = NEW.tenant_id;
+            IF NEW.location_id IS NOT NULL AND EXISTS (
+                   SELECT 1 FROM public.service_locations sl
+                    WHERE sl.id = NEW.location_id AND sl.tenant_id = NEW.tenant_id
+                      AND upper(btrim(sl.state)) IS DISTINCT FROM v_state) THEN
+                RAISE EXCEPTION 'meter test on meter %: location % is in a different state from the meter''s location (%) — the accuracy threshold is resolved from the meter''s location and cannot judge a test taken under another state''s rule', NEW.meter_id, NEW.location_id, v_state
+                    USING ERRCODE = 'check_violation';
+            END IF;
+            v_threshold := public.meter_accuracy_threshold_for(v_state, v_meter.service_type, NEW.test_date);
+            SELECT d.outcome, d.max_abs_error_pct INTO v_derived
+              FROM public.meter_test_derive_outcome(NEW.load_results, v_threshold.threshold_pct) AS d;
+            NEW.outcome := v_derived.outcome;
+            NEW.max_abs_error_pct := v_derived.max_abs_error_pct;
+            NEW.threshold_id := v_threshold.id;
+            NEW.threshold_pct := v_threshold.threshold_pct;
+            NEW.threshold_state := v_state;
+        END IF;
+    END IF;
+
+    -- D-5: accepted, and flagged, if a later-dated test was already on record.
+    NEW.entered_out_of_order := EXISTS (
+        SELECT 1 FROM public.meter_tests t
+         WHERE t.meter_id = NEW.meter_id AND t.tenant_id = NEW.tenant_id
+           AND t.test_date > NEW.test_date
+           AND NOT EXISTS (SELECT 1 FROM public.meter_tests s WHERE s.supersedes_test_id = t.id));
+
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.enforce_meter_test_record() IS
+    'v5.4.2-12. BEFORE INSERT on meter_tests: refuses caller-supplied derived columns; stamps recorded_at / recorded_by / entered_out_of_order; holds migrated rows to the cutover date (tenant row FOR SHARE); locks the meter row FOR UPDATE (serialising the meter''s history); refuses future dates, a location the meter was never at, a service order for another meter or of another type, and a supersession of another meter''s test or of a row already superseded; derives the outcome from the readings against the threshold in force on the test date. Invoker rights.';
+
+-- 8d. The AFTER INSERT half: the load rows, then the pointer.
+CREATE OR REPLACE FUNCTION public.meter_test_after_record() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    IF NEW.load_results IS NOT NULL THEN
+        INSERT INTO public.meter_test_load_results
+            (tenant_id, meter_test_id, load_point, standard_volume, meter_volume, notes)
+        SELECT NEW.tenant_id, NEW.id, e ->> 'load_point',
+               (e ->> 'standard_volume')::numeric, (e ->> 'meter_volume')::numeric,
+               e ->> 'notes'
+          FROM jsonb_array_elements(NEW.load_results) AS a(e);
+    END IF;
+    PERFORM public.meter_test_refresh_pointer(NEW.meter_id, NEW.tenant_id);
     RETURN NULL;
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_backbilling_gate_setup() IS
-    'A-2 (v5.4.2-12), gate (ii) — R-22 / R-27. AFTER INSERT OR UPDATE OF backbill_cause, anchor_date on correction_run_targets. Refuses a target whose entire original period sits before the billable window, and raises the under-reach warning where a meter_error correction begins after the (7)(B)(v)(I) window opened — a SINGLE-CAUSE guard, because (v)(I) is the only mandatory bound: (v)(II) is permissive on its face and the other three causes are billable-uncapped. Direction is unknown at setup, so the window is computed on the favourable branch, which yields the LONGEST window the cap can produce — a refusal against it is a refusal against every shorter one. AFTER rather than BEFORE because it appends to correction_run_target_events, whose foreign key needs the target to exist. A target with no cause returns immediately; it is bounded at gate (iii), where it may only reduce what is owed.';
-
-DROP TRIGGER IF EXISTS z_enforce_backbilling_gate_setup ON public.correction_run_targets;
-CREATE TRIGGER z_enforce_backbilling_gate_setup
-    AFTER INSERT OR UPDATE OF backbill_cause, anchor_date ON public.correction_run_targets
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_gate_setup();
+COMMENT ON FUNCTION public.meter_test_after_record() IS
+    'v5.4.2-12. AFTER INSERT on meter_tests: writes the typed load rows from load_results (the only path into meter_test_load_results), then refreshes the meter''s test pointer.';
 
 
 -- ----------------------------------------------------------------------------
--- 12. The per-period evaluation (R-25, R-23, R-29, R-30)
+-- 9. The pointer on meters (brief §3.5)
 -- ----------------------------------------------------------------------------
--- What the billing engine calls, once per (target, original period), before
--- the correction invoice may be issued. It writes the evidence row gate (iii)
--- then checks.
---
--- THE STRADDLE, AND WHAT IS NOT RULED. R-25 makes the ORIGINAL BILLING PERIOD
--- the unit of evaluation, and R-23 says the rebill proceeds for the permitted
--- window with the out-of-bounds remainder forfeited. Between them they settle
--- the two clean cases — a period wholly at or after window_start is billable
--- in full, a period wholly before it is forfeited in full — and leave the
--- STRADDLING period unaddressed, because a period that begins before the
--- window opens and ends after it is partly billable and partly not.
---
--- This patch prorates the adverse delta by DAYS: the forfeited share is the
--- days before window_start over the days in the period. That assumes uniform
--- consumption across the period, which for gas is false — a January period
--- straddling a window is not consumed evenly across its days. It is the only
--- method available without per-day reads, it errs in no consistent direction,
--- and it is therefore RECORDED AS AN OPEN QUESTION for Kyle and tariff
--- counsel rather than presented as settled. The alternatives are to forfeit
--- the whole straddling period (protective, over-forfeits) or to bill it whole
--- (over-collects, and over-collection is the direction §7.45 exists to stop).
--- The evidence row carries the window and the trimmed amount either way, so
--- changing this rule later is a re-evaluation, not archaeology.
 
-CREATE OR REPLACE FUNCTION public.backbilling_evaluate_period(
-        p_target_id             uuid,
-        p_correction_invoice_id uuid)
-    RETURNS uuid
+ALTER TABLE public.meters ADD COLUMN IF NOT EXISTS test_history_absence text;
+ALTER TABLE public.meters DROP CONSTRAINT IF EXISTS meters_test_history_absence_check;
+ALTER TABLE public.meters ADD CONSTRAINT meters_test_history_absence_check
+    CHECK (((test_history_absence IS NULL) OR (test_history_absence = ANY (ARRAY['attested_none'::text, 'unknown'::text]))));
+
+CREATE OR REPLACE FUNCTION public.meter_test_refresh_pointer(p_meter_id uuid, p_tenant_id uuid)
+    RETURNS void
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_t             record;
-    v_orig          record;
-    v_corr          record;
-    v_meter         record;
-    v_class         text;
-    v_jurisdiction  uuid;
-    v_rule          public.backbilling_cap_rules;
-    v_window        date;
-    v_delta         numeric(12,2);
-    v_direction     text;
-    v_read          record;
-    v_classification text;
-    v_trimmed       boolean := false;
-    v_trim_amount   numeric(12,2) := 0.00;
-    v_days_total    integer;
-    v_days_out      integer;
-    v_id            uuid;
+    v_date    date;
+    v_outcome text;
+    v_result  text;
 BEGIN
-    SELECT t.* INTO v_t FROM public.correction_run_targets t WHERE t.id = p_target_id;
-    IF v_t IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling evaluation: correction target %s is not visible in this session', p_target_id),
-            ERRCODE = 'no_data_found';
-    END IF;
-    IF v_t.backbill_cause IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling evaluation: correction target %s has no backbill_cause — there is no statutory window to evaluate against', p_target_id),
-            ERRCODE = 'invalid_parameter_value',
-            HINT = 'Set backbill_cause and anchor_date on the target first. A correction with no cause may only REDUCE what the customer owes, and needs no evaluation.';
-    END IF;
-
-    SELECT i.period_start, i.period_end, i.amount_due, i.invoice_number INTO v_orig
-      FROM public.invoices i WHERE i.id = v_t.voided_invoice_id AND i.tenant_id = v_t.tenant_id;
-    SELECT i.amount_due, i.replaces_invoice_id, i.billing_run_id INTO v_corr
-      FROM public.invoices i WHERE i.id = p_correction_invoice_id AND i.tenant_id = v_t.tenant_id;
-    IF v_orig IS NULL OR v_corr IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = 'backbilling evaluation: the original or the correction invoice is not visible in this session',
-            ERRCODE = 'no_data_found';
-    END IF;
-    -- The correction must be the one this target names, or the evidence row
-    -- would describe a window some other bill claims.
-    IF v_corr.replaces_invoice_id IS DISTINCT FROM v_t.voided_invoice_id
-       OR v_corr.billing_run_id   IS DISTINCT FROM v_t.billing_run_id THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling evaluation: invoice %s does not replace this target''s voided invoice on this target''s run', p_correction_invoice_id),
-            ERRCODE = 'invalid_parameter_value';
-    END IF;
-
-    SELECT m.service_type, m.last_test_date INTO v_meter
-      FROM public.meters m WHERE m.id = v_t.meter_id AND m.tenant_id = v_t.tenant_id;
-    v_class := public.backbilling_customer_class(v_t.customer_id);
-    SELECT sl.jurisdiction_id INTO v_jurisdiction
-      FROM public.service_locations sl WHERE sl.id = v_t.location_id AND sl.tenant_id = v_t.tenant_id;
-
-    v_rule := public.backbilling_resolve_cap(
-        v_t.tenant_id, v_jurisdiction, v_meter.service_type, v_class, v_t.backbill_cause);
-
-    -- R-25's direction test, from the DATABASE's arithmetic rather than an
-    -- operator's declaration: a computed fact dressed as a judgment call was
-    -- one of the rejected alternatives.
-    v_delta := coalesce(v_corr.amount_due, 0) - coalesce(v_orig.amount_due, 0);
-    v_direction := CASE WHEN v_delta > 0 THEN 'customer_owes'
-                        WHEN v_delta < 0 THEN 'customer_owed'
-                        ELSE 'neutral' END;
-
-    v_window := public.backbilling_window_start(
-        v_rule.billable_scope, v_rule.billable_months, v_t.anchor_date,
-        v_meter.last_test_date, v_direction);
-
-    -- R-30: the contemporaneous read for this period, and its classification.
-    -- Most recent read within the original period; NULL where there is none,
-    -- which classifies as determination_required.
-    SELECT mr.id, mr.access_status, mr.estimation_reason INTO v_read
-      FROM public.meter_readings mr
-     WHERE mr.tenant_id = v_t.tenant_id
-       AND mr.meter_id  = v_t.meter_id
-       AND mr.reading_date BETWEEN v_orig.period_start AND v_orig.period_end
-     ORDER BY mr.reading_date DESC
+    -- Latest TEST DATE among non-superseded rows — not the last row inserted,
+    -- so a late entry with an earlier date never moves the pointer back.
+    SELECT t.test_date, t.outcome INTO v_date, v_outcome
+      FROM public.meter_tests t
+     WHERE t.meter_id = p_meter_id AND t.tenant_id = p_tenant_id
+       AND NOT EXISTS (SELECT 1 FROM public.meter_tests s WHERE s.supersedes_test_id = t.id)
+     ORDER BY t.test_date DESC, t.recorded_seq DESC
      LIMIT 1;
-    v_classification := public.backbilling_read_classification(v_read.access_status, v_read.estimation_reason);
-
-    -- R-25: a period where the customer is OWED money always passes, uncapped.
-    -- A limit on refunding a customer is not what §7.45 is for.
-    IF v_direction = 'customer_owes' AND v_window IS NOT NULL THEN
-        IF v_orig.period_end < v_window THEN
-            -- Wholly outside: the entire adverse delta is forfeited.
-            v_trimmed := true;
-            v_trim_amount := v_delta;
-        ELSIF v_orig.period_start < v_window THEN
-            -- Straddling. See the note above: day-proration, stated as an
-            -- approximation and carried to Kyle as an open question.
-            v_days_total := (v_orig.period_end - v_orig.period_start) + 1;
-            v_days_out   := (v_window - v_orig.period_start);
-            IF v_days_total > 0 AND v_days_out > 0 THEN
-                v_trimmed := true;
-                v_trim_amount := round(v_delta * v_days_out::numeric / v_days_total::numeric, 2);
-            END IF;
-        END IF;
-    END IF;
-
-    INSERT INTO public.backbilling_period_evaluations
-        (tenant_id, target_id, period_start, period_end, direction, delta_amount,
-         cap_rule_id, jurisdiction_level, cause, anchor_date, anchor_basis,
-         billable_scope, window_start, enforceable_scope, enforceable_months,
-         read_classification, read_id, trimmed, trimmed_amount,
-         underreach_warning, underreach_override_reason)
-    VALUES
-        (v_t.tenant_id, v_t.id, v_orig.period_start, v_orig.period_end, v_direction, v_delta,
-         v_rule.id,
-         CASE WHEN v_rule.jurisdiction_id IS NULL THEN 'state_default' ELSE 'municipal' END,
-         v_t.backbill_cause, v_t.anchor_date,
-         'test_date',                       -- R-29: hard-coded in v1
-         v_rule.billable_scope, v_window, v_rule.enforceable_scope, v_rule.enforceable_months,
-         v_classification, v_read.id, v_trimmed, v_trim_amount,
-         (v_t.backbill_cause = 'meter_error' AND v_window IS NOT NULL AND v_orig.period_start > v_window),
-         v_t.underreach_override_reason)
-    RETURNING id INTO v_id;
-
-    IF v_trimmed THEN
-        INSERT INTO public.invoice_events (tenant_id, invoice_id, event_type, metadata)
-        VALUES (v_t.tenant_id, p_correction_invoice_id, 'backbill_cap_trimmed',
-                jsonb_build_object('window_start', v_window,
-                                   'period_start', v_orig.period_start,
-                                   'period_end', v_orig.period_end,
-                                   'delta_amount', v_delta,
-                                   'trimmed_amount', v_trim_amount,
-                                   'cause', v_t.backbill_cause,
-                                   'evaluation_id', v_id,
-                                   'source_note', v_rule.source_note));
-        -- R-23: there is NO statutory duty to disclose the forfeited portion
-        -- — (v)(II) is permissive, so billing less than the ceiling is
-        -- expressly contemplated. The event exists for the operator and the
-        -- regulator, not for the customer's bill.
-        RAISE NOTICE 'backbilling cap: % of the % adverse delta on invoice % is outside the window opening % and is forfeited (%)', v_trim_amount, v_delta, v_orig.invoice_number, v_window, v_rule.source_note;
-    END IF;
-
-    RETURN v_id;
+    v_result := CASE v_outcome
+                    WHEN 'accurate'        THEN 'passed'
+                    WHEN 'fast'            THEN 'failed'
+                    WHEN 'slow'            THEN 'failed'
+                    WHEN 'non_registering' THEN 'failed'
+                    WHEN 'inconclusive'    THEN 'conditional'
+                    ELSE NULL
+                END;
+    UPDATE public.meters m
+       SET last_test_date = v_date, last_test_result = v_result
+     WHERE m.id = p_meter_id AND m.tenant_id = p_tenant_id
+       AND (m.last_test_date IS DISTINCT FROM v_date OR m.last_test_result IS DISTINCT FROM v_result);
 END;
 $$;
 
-COMMENT ON FUNCTION public.backbilling_evaluate_period(uuid, uuid) IS
-    'A-2 (v5.4.2-12), R-25 / R-23 / R-29 / R-30. Evaluates one (target, original billing period) pair and appends its evidence row, which gate (iii) then requires before the correction may be issued. Direction is computed from the database''s own arithmetic (correction amount_due minus original amount_due), never declared by an operator. A period where the customer is OWED money passes uncapped. An adverse period wholly before window_start forfeits its whole delta; a STRADDLING period is prorated by days — an approximation that assumes uniform consumption, recorded as an open question for Kyle and tariff counsel rather than presented as settled, because R-23 does not address the straddle. anchor_basis is hard-coded test_date (R-29, v1). No statutory duty attaches to disclosing the forfeited portion on the customer''s bill: (v)(II) is permissive, so billing less than the ceiling is expressly contemplated.';
+COMMENT ON FUNCTION public.meter_test_refresh_pointer(uuid, uuid) IS
+    'v5.4.2-12. Sets meters.last_test_date / last_test_result from the latest non-superseded test by test_date (ties by recorded_seq). Result mapping: accurate → passed; fast / slow / non_registering → failed; inconclusive → conditional; a date-only row with no result → NULL. Called only from the meter_tests trigger; the meters guard refuses the same write from anywhere else.';
 
-
--- ----------------------------------------------------------------------------
--- 13. Gate (iii) — correction-invoice issuance (R-22, R-23, R-25, R-27)
--- ----------------------------------------------------------------------------
--- NOT inside void_invoice() (R-22). The regulated act is the CHARGE, not the
--- void: a void with rebill_expected = false charges nothing, and gating the
--- void would refuse an act §7.45 does not reach while missing the one it
--- does. This answers the decision table's Open question 4, which had argued
--- for the void as the single funnel.
---
--- The gate is on ISSUANCE, which is the moment the customer is charged.
-
-CREATE OR REPLACE FUNCTION public.enforce_backbilling_gate_issue() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.enforce_meter_test_pointer() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
-DECLARE
-    v_t     record;
-    v_orig  record;
-    v_eval  record;
 BEGIN
-    -- Only the transition INTO an issued status, and only for a correction.
-    IF public.is_invoice_issued(OLD.status) OR NOT public.is_invoice_issued(NEW.status)
-       OR NEW.status = 'void'
-       OR NEW.invoice_type <> 'correction'
-       OR NEW.replaces_invoice_id IS NULL THEN
+    IF pg_trigger_depth() >= 2 THEN
         RETURN NEW;
     END IF;
-
-    SELECT t.* INTO v_t
-      FROM public.correction_run_targets t
-     WHERE t.tenant_id         = NEW.tenant_id
-       AND t.billing_run_id    = NEW.billing_run_id
-       AND t.voided_invoice_id = NEW.replaces_invoice_id;
-    -- No target: the v5.4.2-10 coordinate binding already refuses a
-    -- snapshotted correction without one. Nothing here to add.
-    IF v_t IS NULL THEN
-        RETURN NEW;
-    END IF;
-
-    SELECT i.period_start, i.period_end, i.amount_due, i.invoice_number INTO v_orig
-      FROM public.invoices i
-     WHERE i.id = v_t.voided_invoice_id AND i.tenant_id = v_t.tenant_id;
-
-    -- A correction with no statutory cause is a clerical re-issue, and may
-    -- only REDUCE what the customer owes. Billing MORE is the regulated act,
-    -- and it needs a cause on the record to be evaluated against.
-    IF v_t.backbill_cause IS NULL THEN
-        IF coalesce(NEW.amount_due, 0) > coalesce(v_orig.amount_due, 0) THEN
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.last_test_date IS NOT NULL OR NEW.last_test_result IS NOT NULL
+           OR NEW.test_history_absence IS NOT NULL THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('backbilling cap: invoice %s increases what the customer owes (%s -> %s) but its correction target records no backbill_cause — an additional charge cannot be evaluated against a §7.45 window that has not been established', NEW.invoice_number, v_orig.amount_due, NEW.amount_due),
-                ERRCODE = 'restrict_violation',
-                HINT = 'Set backbill_cause and anchor_date on the correction target (the cause is a FINDING from evidence — a test result, a tamper investigation, a rate audit), then call public.backbilling_evaluate_period(target_id, correction_invoice_id).';
+                MESSAGE = format('meter %s: last_test_date, last_test_result and test_history_absence are maintained from the test history — a new meter starts with none', NEW.meter_number),
+                ERRCODE = 'check_violation',
+                HINT = 'Record the test in meter_tests (or declare absence in meter_test_absence_declarations) after inserting the meter.';
         END IF;
-        RETURN NEW;
-    END IF;
-
-    -- The evidence record must exist, and describe THIS cause. Same shape as
-    -- AC-31's snapshot requirement: the gate judges on a record written
-    -- before it, not on arithmetic it redoes at issuance.
-    SELECT e.* INTO v_eval
-      FROM public.backbilling_period_evaluations e
-     WHERE e.target_id    = v_t.id
-       AND e.period_start = v_orig.period_start
-       AND e.period_end   = v_orig.period_end
-     ORDER BY e.evaluation_seq DESC
-     LIMIT 1;
-
-    IF v_eval IS NULL THEN
+    ELSIF NEW.last_test_date IS DISTINCT FROM OLD.last_test_date
+       OR NEW.last_test_result IS DISTINCT FROM OLD.last_test_result
+       OR NEW.test_history_absence IS DISTINCT FROM OLD.test_history_absence THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('backbilling cap: invoice %s has no per-period evaluation for the original period %s..%s — CI-008 requires the uniform evaluation to be on the record before the charge is made', NEW.invoice_number, v_orig.period_start, v_orig.period_end),
-            ERRCODE = 'restrict_violation',
-            HINT = 'SELECT public.backbilling_evaluate_period(<target_id>, <correction_invoice_id>);';
+            MESSAGE = format('meter %s: last_test_date, last_test_result and test_history_absence are maintained from the test history (v5.4.2-12) — record a test in meter_tests, or declare absence in meter_test_absence_declarations', OLD.meter_number),
+            ERRCODE = 'check_violation';
     END IF;
-
-    IF v_eval.cause IS DISTINCT FROM v_t.backbill_cause THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling cap: invoice %s was evaluated under cause %s but its target now records %s — the evidence describes a window this correction no longer claims; re-evaluate', NEW.invoice_number, v_eval.cause, v_t.backbill_cause),
-            ERRCODE = 'restrict_violation';
-    END IF;
-
-    -- AND THE EVIDENCE MUST STILL DESCRIBE THIS BILL. The evaluation is
-    -- written against a DRAFT, and a draft's amount_due is not frozen by the
-    -- -10 snapshot guard (which freezes invoice_type, replaces_invoice_id,
-    -- billing_run_id, the period and created_at — not the money). Without
-    -- this conjunct the sequence
-    --     evaluate a $5 correction -> inflate the draft to $5,000 -> issue
-    -- passes every other check in this gate: the cause matches, the evidence
-    -- row exists, the window was computed, nothing was trimmed. Reproduced
-    -- end to end before it was closed (battery E7).
-    --
-    -- The delta is re-derived here rather than the amount being frozen: a
-    -- draft legitimately moves while it is being worked, and freezing it
-    -- would fight the -04 delete-and-re-snapshot model. What may not happen
-    -- is issuing on evidence that describes a different bill.
-    IF (coalesce(NEW.amount_due, 0) - coalesce(v_orig.amount_due, 0))
-       IS DISTINCT FROM v_eval.delta_amount THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling cap: invoice %s was evaluated at a delta of %s but now stands at %s — the evidence on the record describes a different bill; re-evaluate before issuing', NEW.invoice_number, v_eval.delta_amount, coalesce(NEW.amount_due, 0) - coalesce(v_orig.amount_due, 0)),
-            ERRCODE = 'restrict_violation',
-            HINT = 'SELECT public.backbilling_evaluate_period(<target_id>, <correction_invoice_id>); — the evaluation is append-only, so re-evaluating adds the current answer rather than editing the old one.';
-    END IF;
-
-    -- R-27. The under-reach warning stands until an evidentiary-impossibility
-    -- override is recorded ON THE TARGET, where the database stamped it.
-    -- Deliberately NOT read from invoice_events: tally_app can write that log,
-    -- so an override recorded there would let the software clear its own
-    -- warning (F-3).
-    IF v_eval.underreach_warning AND v_t.underreach_override_reason IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling under-reach: invoice %s corrects a meter_error from %s, but the (7)(B)(v)(I) window opens %s — where a meter over-registered the correction is MANDATORY back to the window, and reaching less far needs a recorded evidentiary-impossibility ground', NEW.invoice_number, v_eval.period_start, v_eval.window_start),
-            ERRCODE = 'restrict_violation',
-            HINT = 'Either extend the correction back to the window, or record the ground on the target: UPDATE public.correction_run_targets SET underreach_override_reason = ''no_read_history'' | ''meter_replaced'' | ''records_predate_acquisition'' WHERE id = ...; the clock and the actor are the database''s.';
-    END IF;
-
-    -- A trim that removed the entire adverse delta leaves nothing billable.
-    IF v_eval.direction = 'customer_owes' AND v_eval.trimmed
-       AND v_eval.trimmed_amount >= v_eval.delta_amount THEN
-        INSERT INTO public.invoice_events (tenant_id, invoice_id, event_type, metadata)
-        VALUES (NEW.tenant_id, NEW.id, 'backbill_cap_refused',
-                jsonb_build_object('window_start', v_eval.window_start,
-                                   'period_start', v_eval.period_start,
-                                   'period_end', v_eval.period_end,
-                                   'delta_amount', v_eval.delta_amount,
-                                   'evaluation_id', v_eval.id));
-        RAISE EXCEPTION USING
-            MESSAGE = format('backbilling cap: the whole adverse delta on invoice %s (%s) falls outside the window opening %s — there is nothing within the billable bound to charge', NEW.invoice_number, v_eval.delta_amount, v_eval.window_start),
-            ERRCODE = 'restrict_violation';
-    END IF;
-
     RETURN NEW;
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_backbilling_gate_issue() IS
-    'A-2 (v5.4.2-12), gate (iii) — R-22 / R-23 / R-25 / R-27. BEFORE UPDATE OF status on invoices, on the transition INTO an issued status for a correction: the moment the customer is charged. Deliberately NOT inside void_invoice() (R-22) — the regulated act is the charge, not the void, and a void with rebill_expected = false charges nothing. Refuses a cause-less correction that INCREASES what is owed (a clerical re-issue may only reduce); requires the R-25 per-period evidence row and that it describe the current cause; refuses while an under-reach warning stands without an override recorded on the TARGET (never read from invoice_events, which tally_app can write itself); and refuses a correction whose entire adverse delta was trimmed away.';
+COMMENT ON FUNCTION public.enforce_meter_test_pointer() IS
+    'v5.4.2-12 (brief §3.5). Refuses a direct write to meters.last_test_date / last_test_result / test_history_absence (trigger depth < 2) — the same fence enforce_meter_estimate_counter uses. next_test_due_date and test_interval_months stay writable: scheduling, which R-31 excludes.';
 
-DROP TRIGGER IF EXISTS a_enforce_backbilling_gate_issue ON public.invoices;
-CREATE TRIGGER a_enforce_backbilling_gate_issue
-    BEFORE UPDATE OF status ON public.invoices
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_gate_issue();
+DROP TRIGGER IF EXISTS a_enforce_meter_test_pointer ON public.meters;
+CREATE TRIGGER a_enforce_meter_test_pointer
+    BEFORE INSERT OR UPDATE OF last_test_date, last_test_result, test_history_absence ON public.meters
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_meter_test_pointer();
+ALTER TABLE public.meters ENABLE ALWAYS TRIGGER a_enforce_meter_test_pointer;
+
+DROP TRIGGER IF EXISTS a_enforce_meter_test_record ON public.meter_tests;
+CREATE TRIGGER a_enforce_meter_test_record BEFORE INSERT ON public.meter_tests
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_meter_test_record();
+DROP TRIGGER IF EXISTS z_meter_test_after_record ON public.meter_tests;
+CREATE TRIGGER z_meter_test_after_record AFTER INSERT ON public.meter_tests
+    FOR EACH ROW EXECUTE FUNCTION public.meter_test_after_record();
+ALTER TABLE public.meter_tests ENABLE ALWAYS TRIGGER a_enforce_meter_test_record;
+ALTER TABLE public.meter_tests ENABLE ALWAYS TRIGGER z_meter_test_after_record;
+
+COMMENT ON COLUMN public.meters.last_test_date IS
+    'Since v5.4.2-12 a POINTER, maintained from meter_tests: the latest non-superseded test_date. Direct writes refused. Do not read it for a backbilling window — meter_governing_test() answers "the last test before this anchor", which this column cannot.';
+COMMENT ON COLUMN public.meters.last_test_result IS
+    'Since v5.4.2-12 a POINTER, maintained from meter_tests.outcome of the test last_test_date points at: accurate → passed; fast / slow / non_registering → failed; inconclusive → conditional. not_tested is no longer written — absence is meters.test_history_absence. Direct writes refused.';
+COMMENT ON COLUMN public.meters.test_history_absence IS
+    'v5.4.2-12 (R-35 refinement 2). What the tenant has declared about a meter with no test history: attested_none (states no prior test exists) or unknown (migration could not tell); NULL = nothing declared. The two compute identically — no last-test prong, the six-month cap alone — and differ only for the gap report and the R-36 gate. A POINTER to the latest meter_test_absence_declarations row; direct writes refused.';
 
 
 -- ----------------------------------------------------------------------------
--- 14. The freeze extension (F-4 — an amendment to R-19, stated)
+-- 10. Absence declarations (R-35 refinements 2 and 4)
 -- ----------------------------------------------------------------------------
--- The v5.4.2-10 target freeze is COLUMN-LISTED, so backbill_cause and
--- anchor_date were unfrozen by construction. R-19 says the cause "freezes
--- per-invoice at correction-invoice post" — but the calculation snapshot is
--- validated BEFORE issuance, and the R-25 evidence record is written against
--- the cause in force at gate (iii). A cause changed between snapshot and post
--- would leave the frozen evidence describing a window the target no longer
--- claims.
---
--- So the two columns join the freeze at SNAPSHOT EXISTENCE, not at post. That
--- FOLLOWS from AC-31 rather than contradicting R-19, but it narrows the
--- revisability R-19 deliberately granted — meter_error -> tampering_theft is
--- a real progression, and after a snapshot exists it now requires deleting
--- the draft snapshot first. That is the same cost every other election on
--- this row already pays. With Kyle.
---
--- The function is re-issued with the two columns added to its early-return,
--- and the trigger re-created with them in its column list. Both must change
--- together: the column list decides when the function runs, the early-return
--- decides what it ignores, and adding a column to only one of them produces a
--- guard that either never fires or fires on every unrelated update.
+-- Append-only: every change is a new row, so a move to a more permissive
+-- value always leaves the audit row refinement 4 asks for.
 
-CREATE OR REPLACE FUNCTION public.enforce_correction_target_frozen_under_snapshot() RETURNS trigger
+CREATE TABLE IF NOT EXISTS public.meter_test_absence_declarations (
+    id              uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    tenant_id       uuid NOT NULL,
+    meter_id        uuid NOT NULL,
+    absence         text NOT NULL,
+    basis_note      text NOT NULL,
+    declared_at     timestamp with time zone DEFAULT now() NOT NULL,
+    declared_by     uuid,
+    seq             bigint GENERATED ALWAYS AS IDENTITY,
+    CONSTRAINT meter_test_absence_declarations_pkey PRIMARY KEY (id),
+    CONSTRAINT meter_test_absence_declarations_tenant_id_fkey
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
+    CONSTRAINT meter_test_absence_declarations_meter_fkey
+        FOREIGN KEY (meter_id, tenant_id) REFERENCES public.meters(id, tenant_id),
+    CONSTRAINT meter_test_absence_declarations_absence_check
+        CHECK ((absence = ANY (ARRAY['attested_none'::text, 'unknown'::text]))),
+    CONSTRAINT meter_test_absence_declarations_basis_check
+        CHECK ((basis_note ~ '[[:alnum:]]'::text))
+);
+
+CREATE INDEX IF NOT EXISTS idx_meter_test_absence_tenant ON public.meter_test_absence_declarations USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_meter_test_absence_meter ON public.meter_test_absence_declarations USING btree (meter_id, seq DESC);
+
+ALTER TABLE public.meter_test_absence_declarations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meter_test_absence_declarations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.meter_test_absence_declarations;
+CREATE POLICY tenant_isolation ON public.meter_test_absence_declarations USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+
+REVOKE UPDATE, DELETE, TRUNCATE ON public.meter_test_absence_declarations FROM tally_app;
+
+CREATE OR REPLACE FUNCTION public.enforce_meter_test_absence_declaration() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_meter uuid;
+BEGIN
+    SELECT m.id INTO v_meter
+      FROM public.meters m
+     WHERE m.id = NEW.meter_id AND m.tenant_id = NEW.tenant_id
+       FOR UPDATE;
+    IF v_meter IS NULL THEN
+        RAISE EXCEPTION 'absence declaration: meter % is not a meter of tenant %', NEW.meter_id, NEW.tenant_id
+            USING ERRCODE = 'foreign_key_violation';
+    END IF;
+    NEW.declared_at := now();
+    NEW.declared_by := NULLIF(current_setting('app.user_id', true), '')::uuid;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.meter_test_absence_after_declare() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
 BEGIN
-    IF TG_OP = 'UPDATE'
-       AND NEW.billing_run_id     IS NOT DISTINCT FROM OLD.billing_run_id
-       AND NEW.voided_invoice_id  IS NOT DISTINCT FROM OLD.voided_invoice_id
-       AND NEW.rate_date_mode     IS NOT DISTINCT FROM OLD.rate_date_mode
-       AND NEW.rate_date_override IS NOT DISTINCT FROM OLD.rate_date_override
-       AND NEW.backbill_cause     IS NOT DISTINCT FROM OLD.backbill_cause
-       AND NEW.anchor_date        IS NOT DISTINCT FROM OLD.anchor_date THEN
-        RETURN NEW;                            -- nothing the binding reads is changing
-    END IF;
-    -- This statement already holds the row lock (UPDATE / DELETE), so it has
-    -- waited behind any snapshot writer's mutex UPDATE on the same row and,
-    -- under READ COMMITTED, now sees that writer's snapshot.
-    IF EXISTS (
-        SELECT 1
-          FROM public.invoice_calculation_snapshots s
-          JOIN public.invoices i ON i.id = s.invoice_id
-         WHERE i.billing_run_id      = OLD.billing_run_id
-           AND i.replaces_invoice_id = OLD.voided_invoice_id
-           AND i.invoice_type        = 'correction') THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('correction target %s (run %s, voided invoice %s): a calculation snapshot was checked against this election; the target cannot change or be removed while that snapshot exists (v5.4.2-10; extended to backbill_cause and anchor_date by v5.4.2-12) — delete the draft snapshot first', OLD.id, OLD.billing_run_id, OLD.voided_invoice_id),
-            ERRCODE = 'restrict_violation';
-    END IF;
-    -- No isolation pin: the validator's mutex is a real UPDATE of this row,
-    -- so a REPEATABLE READ editor racing a writer fails on the row version
-    -- natively (Fable round-2 LOW-4, Codex round 2 — independently).
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
-    END IF;
-    RETURN NEW;
+    UPDATE public.meters m
+       SET test_history_absence = NEW.absence
+     WHERE m.id = NEW.meter_id AND m.tenant_id = NEW.tenant_id
+       AND m.test_history_absence IS DISTINCT FROM NEW.absence;
+    RETURN NULL;
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_correction_target_frozen_under_snapshot() IS
-    'v5.4.2-10 (A-3 follow-up), extended by v5.4.2-12 (A-2, F-4). BEFORE UPDATE OF billing_run_id, voided_invoice_id, rate_date_mode, rate_date_override, backbill_cause, anchor_date OR DELETE on correction_run_targets: refused while an invoice_calculation_snapshots row exists for the correction invoice (same run, replaces_invoice_id = voided_invoice_id) — its valid_at was checked against this election, and since v5.4.2-12 the R-25 evidence record is written against this cause. R-19 placed the cause''s freeze at correction-invoice POST; this moves it to snapshot existence, because the snapshot is validated before issuance and a cause that moved afterwards would leave frozen evidence describing a window the target no longer claims. The snapshot validator takes the target row''s lock via an UPDATE of updated_at, so this guard waits behind in-flight writers and a REPEATABLE READ racer fails natively — no isolation pin needed.';
+COMMENT ON FUNCTION public.enforce_meter_test_absence_declaration() IS
+    'v5.4.2-12. BEFORE INSERT on meter_test_absence_declarations: the meter must be the tenant''s (locked FOR UPDATE, same order as a test); declared_at / declared_by stamped by the database.';
+COMMENT ON FUNCTION public.meter_test_absence_after_declare() IS
+    'v5.4.2-12. AFTER INSERT: points meters.test_history_absence at the declaration just made (the latest, since the meter row is locked for the duration).';
 
-DROP TRIGGER IF EXISTS a_enforce_correction_target_frozen_under_snapshot ON public.correction_run_targets;
-CREATE TRIGGER a_enforce_correction_target_frozen_under_snapshot
-    BEFORE UPDATE OF billing_run_id, voided_invoice_id, rate_date_mode, rate_date_override, backbill_cause, anchor_date OR DELETE ON public.correction_run_targets
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_correction_target_frozen_under_snapshot();
+DROP TRIGGER IF EXISTS a_enforce_meter_test_absence_declaration ON public.meter_test_absence_declarations;
+CREATE TRIGGER a_enforce_meter_test_absence_declaration BEFORE INSERT ON public.meter_test_absence_declarations
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_meter_test_absence_declaration();
+DROP TRIGGER IF EXISTS z_meter_test_absence_after_declare ON public.meter_test_absence_declarations;
+CREATE TRIGGER z_meter_test_absence_after_declare AFTER INSERT ON public.meter_test_absence_declarations
+    FOR EACH ROW EXECUTE FUNCTION public.meter_test_absence_after_declare();
+DROP TRIGGER IF EXISTS append_only ON public.meter_test_absence_declarations;
+CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.meter_test_absence_declarations
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_append_only();
+DROP TRIGGER IF EXISTS no_truncate ON public.meter_test_absence_declarations;
+CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.meter_test_absence_declarations
+    FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+ALTER TABLE public.meter_test_absence_declarations ENABLE ALWAYS TRIGGER a_enforce_meter_test_absence_declaration;
+ALTER TABLE public.meter_test_absence_declarations ENABLE ALWAYS TRIGGER z_meter_test_absence_after_declare;
+ALTER TABLE public.meter_test_absence_declarations ENABLE ALWAYS TRIGGER append_only;
+ALTER TABLE public.meter_test_absence_declarations ENABLE ALWAYS TRIGGER no_truncate;
+
+COMMENT ON TABLE public.meter_test_absence_declarations IS
+    'v5.4.2-12 (R-35 refinements 2 and 4). What a tenant declares about a meter''s missing test history — attested_none or unknown — with the basis. Append-only; the latest row per meter is meters.test_history_absence. Absence never bars an adverse correction (R-35 refinement 5): the six-month cap governs alone, behind the R-36 gate during the transitional period.';
 
 
 -- ----------------------------------------------------------------------------
--- 15. Residuals, stated (R1–R8)
+-- 11. The governing test (R-34), and the R-36 gate as a computed fact
 -- ----------------------------------------------------------------------------
--- R1. THE STRADDLING PERIOD IS PRORATED BY DAYS, and that assumes uniform
---     consumption, which for gas is false. R-23 does not address the straddle;
---     the two alternatives are forfeiting the whole period (over-forfeits) and
---     billing it whole (over-collects, the direction §7.45 exists to stop).
---     OPEN QUESTION for Kyle and tariff counsel. The evidence row carries the
---     window and the trimmed amount, so a different rule is a re-evaluation.
+-- The most recent completed test on THE SAME METER dated STRICTLY BEFORE the
+-- anchor (the discovering test's date), WHATEVER ITS OUTCOME, any test_kind,
+-- superseded rows excluded. Kyle took the text over the brief's "last test
+-- that found it accurate": any completed test is at or after the last
+-- accurate one, so the window is shorter or equal — the reading that matches
+-- the words also errs toward the customer.
 --
--- R2. THE UNKNOWN-PRIOR-TEST PATH REFUSES rather than asking. Refinement 5
---     rules that an operator confirms before an adverse charge lands; there is
---     no confirmation surface, so backbilling_window_start() refuses an
---     adverse period on a meter with no recorded test date. That is the
---     conservative direction and it is loud, but it is narrower than the
---     ruling: an operator who KNOWS there was no prior test cannot say so.
---     The CI-091 test-history patch is the natural home for the fix.
+-- It reads meter_tests, meters.test_history_absence and tenants.cutover_date
+-- — and NOTHING ELSE on meters. Never install_date, test_interval_months,
+-- next_test_due_date or last_test_date: a test date is never derived
+-- (R-31, R-35 refinement 3). The battery sets those columns to values that
+-- would change the answer if they were read.
 --
--- R3. A TENANT CREATED AFTER THIS PATCH HAS NO CAP RULES, and its first
---     correction fails closed with a HINT naming seed_backbilling_cap_defaults().
---     No trigger seeds on tenant creation: platform-fixed statutory data
---     written by a trigger on a tenant-scoped table is a surface this schema
---     does not otherwise have, and the failure is loud rather than silent.
---     Onboarding must call the function.
+-- One row, always. Where no test qualifies, the test columns are NULL and
+-- `absence` says what the tenant declared (or 'undeclared'); A-2 then applies
+-- the six-month cap alone (R-35 refinement 5) — it never refuses for lack of
+-- a test, and this function never guesses one.
 --
--- R4. ONLY TEXAS GAS IS SEEDED. Water, sewer and electric resolve to no rule
---     and therefore refuse. Correct for the Texas-only launch scope, wrong the
---     moment a second service goes live.
---
--- R5. THE R-30 BUCKET ASSIGNMENTS for meter_buried, meter_obstructed,
---     key_required and seasonal_closure are an engineering proposal riding
---     with the R-28/R-29 counsel referral, not Kyle's ruling. They sit in the
---     safe third bucket meanwhile. historical_average and
---     same_period_prior_year are there for a different reason — they describe
---     method, not cause — which is R-30's separately recorded schema defect,
---     NOT fixed here.
---
--- R6. THE READ CHOSEN FOR CLASSIFICATION is the most recent one inside the
---     original period. A period with several reads of differing access status
---     is classified on the last of them, not the worst. R-30's "more
---     conservative wins" governs the two COLUMNS of one read, not two reads.
---
--- R7. anchor_basis IS HARD-CODED test_date (R-29, v1). A (v)(II) discovery
---     anchor is recorded on the target as a date but the evidence row still
---     says test_date, which for that cause is wrong on its face. Widening it
---     is a later patch; the domain is already declared so that patch widens
---     no CHECK.
---
--- R7b. THE EVIDENCE ROW IS RE-CHECKED AGAINST THE BILL AT ISSUANCE, because a
---     draft's amount_due is not frozen by the -10 snapshot guard. Found by
---     the author before review: evaluate cheap, inflate the draft, issue.
---     Gate (iii) now re-derives the delta and refuses a mismatch. The
---     evaluation stays append-only, so re-evaluating adds the current answer.
---
--- R8. THE ENFORCEABLE BOUND IS RECORDED, NOT WIRED. R-20 hands it to Family 9
---     as a value; nothing in this patch stops collections pursuing a debt
---     whose enforceable_scope is 'never'. The evidence row carries it.
---
--- ----------------------------------------------------------------------------
--- 16. The AC-32 tail
--- ----------------------------------------------------------------------------
--- Every patch from v5.4.2-11 on ends by calling this, because the tenant
--- isolation invariants are true when a patch applies and drift at the next
--- CREATE: tu.sql:11388's ALTER DEFAULT PRIVILEGES ... ON TABLES TO tally_app
--- reaches views and matviews too, so a new table is born with NO RLS at all.
--- This patch created three tables, which is exactly the case that gate is for.
+-- supervisor_gate (R-36): the basis is weak — a date-only migrated test, or
+-- no test at all — AND the anchor falls before cutover + 6 months (or the
+-- tenant has not cut over). An undeclared absence gates like unknown: the
+-- gate is for evidence nobody vouched for.
 
-DO $$
+CREATE OR REPLACE FUNCTION public.meter_governing_test(
+        p_meter_id     uuid,
+        p_anchor_date  date)
+    RETURNS TABLE (
+        meter_test_id         uuid,
+        test_date             date,
+        test_kind             text,
+        outcome               text,
+        record_basis          text,
+        entered_out_of_order  boolean,
+        prior_test_failed     boolean,
+        absence               text,
+        weak_provenance       boolean,
+        supervisor_gate       boolean)
+    LANGUAGE plpgsql
+    STABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_meter   record;
+    v_test    record;
+    v_cutover date;
+    v_weak    boolean;
 BEGIN
-    PERFORM public.assert_tenant_isolation_invariants();
-    RAISE NOTICE 'v5.4.2-12: tenant isolation invariants hold — backbilling_cap_rules, correction_run_target_events and backbilling_period_evaluations each carry RLS, FORCE and the canonical tenant_isolation policy; no view, matview or definer regressed (AC-32).';
+    IF p_meter_id IS NULL OR p_anchor_date IS NULL THEN
+        RAISE EXCEPTION 'meter_governing_test: a meter and an anchor date are both required (got %, %) — there is no default anchor', p_meter_id, p_anchor_date
+            USING ERRCODE = 'null_value_not_allowed';
+    END IF;
+
+    SELECT m.id, m.tenant_id, m.test_history_absence INTO v_meter
+      FROM public.meters m WHERE m.id = p_meter_id;
+    IF v_meter.id IS NULL THEN
+        RAISE EXCEPTION 'meter_governing_test: meter % is not visible to this session', p_meter_id
+            USING ERRCODE = 'no_data_found';
+    END IF;
+
+    SELECT t.id, t.test_date, t.test_kind, t.outcome, t.record_basis, t.entered_out_of_order INTO v_test
+      FROM public.meter_tests t
+     WHERE t.meter_id = p_meter_id AND t.tenant_id = v_meter.tenant_id
+       AND t.test_date < p_anchor_date
+       AND NOT EXISTS (SELECT 1 FROM public.meter_tests s WHERE s.supersedes_test_id = t.id)
+     ORDER BY t.test_date DESC, t.recorded_seq DESC
+     LIMIT 1;
+
+    SELECT tn.cutover_date INTO v_cutover FROM public.tenants tn WHERE tn.id = v_meter.tenant_id;
+
+    v_weak := v_test.id IS NULL OR v_test.record_basis = 'migrated_date_only';
+
+    meter_test_id        := v_test.id;
+    test_date            := v_test.test_date;
+    test_kind            := v_test.test_kind;
+    outcome              := v_test.outcome;
+    record_basis         := v_test.record_basis;
+    entered_out_of_order := v_test.entered_out_of_order;
+    prior_test_failed    := coalesce(v_test.outcome IN ('fast', 'slow', 'non_registering'), false);
+    absence              := CASE WHEN v_test.id IS NULL
+                                 THEN coalesce(v_meter.test_history_absence, 'undeclared') END;
+    weak_provenance      := v_weak;
+    supervisor_gate      := v_weak AND (v_cutover IS NULL
+                                        OR p_anchor_date < (v_cutover + interval '6 months')::date);
+    RETURN NEXT;
 END;
 $$;
+
+COMMENT ON FUNCTION public.meter_governing_test(uuid, date) IS
+    'v5.4.2-12 (R-34, R-35, R-36). "The last test of the meter" for §7.45(7)(B)(v)(I): the most recent non-superseded test on the same meter dated strictly before p_anchor_date, whatever its outcome or kind. Always one row; where none qualifies the test columns are NULL and absence reports the tenant''s declaration (or undeclared) — never an inferred date (R-31; install_date, test_interval_months and next_test_due_date are not read). prior_test_failed = the governing test itself found the meter defective, a data-integrity flag for the operator (R-34) and not a reason to skip it. supervisor_gate = R-36''s transitional approval requirement: weak provenance (date-only or none) and an anchor before cutover + 6 months. A-2 (v5.4.2-13) computes window_start = max(anchor − 6 months, test_date) and enforces the gate. Invoker rights: an invisible meter raises.';
+
+
+-- ----------------------------------------------------------------------------
+-- 12. The gap report (R-35 refinement 1)
+-- ----------------------------------------------------------------------------
+-- A standing surface, not a migration artefact: it persists past cutover and
+-- is what the operator screens read. Invoker rights, so it shows each tenant
+-- only its own meters; read-only for tally_app.
+
+CREATE OR REPLACE VIEW public.meter_test_history_gaps
+    WITH (security_invoker = true) AS
+ SELECT m.tenant_id,
+    m.id AS meter_id,
+    m.meter_number,
+    m.service_type,
+    m.status,
+    COALESCE(m.test_history_absence, 'undeclared'::text) AS absence,
+    ( SELECT d.basis_note
+           FROM public.meter_test_absence_declarations d
+          WHERE d.meter_id = m.id
+          ORDER BY d.seq DESC
+         LIMIT 1) AS absence_basis_note,
+    ( SELECT d.declared_at
+           FROM public.meter_test_absence_declarations d
+          WHERE d.meter_id = m.id
+          ORDER BY d.seq DESC
+         LIMIT 1) AS absence_declared_at
+   FROM public.meters m
+  WHERE NOT EXISTS ( SELECT 1
+           FROM public.meter_tests t
+          WHERE t.meter_id = m.id);
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.meter_test_history_gaps FROM tally_app;
+GRANT SELECT ON public.meter_test_history_gaps TO tally_app;
+
+COMMENT ON VIEW public.meter_test_history_gaps IS
+    'v5.4.2-12 (R-35 refinement 1). Every meter with no test history, with what its tenant has declared (attested_none / unknown / undeclared). A standing operator surface that persists past cutover — detection that expired at migration would discard the point of detecting. Invoker rights; read-only.';
+
+
+-- ----------------------------------------------------------------------------
+-- 13. Residuals, stated (R1–R12)
+-- ----------------------------------------------------------------------------
+-- R1. THE FEE RULE IS NOT ENFORCED. §7.45(7)(B)(iv): a customer-requested
+--     test is free if none was made for that customer at that location in the
+--     previous four years, the fee is capped, and it is refunded when the
+--     meter is more than 2.0% off. The history makes each answerable; charging
+--     and refunding is adhoc-charge work (charge_type meter_test_fee exists).
+--
+-- R2. customer_id IS BOUND ONLY TO THE TENANT. The fee rule's look-back is
+--     per customer at a location; nothing here checks that the named
+--     customer was the one served at that location on the test date. The fee
+--     patch must bind it before resting a charge on it.
+--
+-- R3. location_id IS NOT BOUND TO THE TEST DATE. It must be the meter's
+--     current location or one in its deployment history — not necessarily the
+--     deployment covering test_date. meter_deployments is trigger-maintained
+--     and not bi-temporal, so a date-exact binding would rest on a table that
+--     can itself be wrong.
+--
+-- R4. THE METER CONSTANTS ARE CALLER-SUPPLIED. They are what the tester
+--     recorded; stamping them from the mutable meter row would give a late
+--     or migrated test today's values. They are evidence, not a guard: no
+--     outcome or window reads them.
+--
+-- R5. THE THRESHOLD KEY IS service_locations.state, UPPER-CASED AND TRIMMED.
+--     A location whose state is not a two-letter code ("Texas") finds no
+--     threshold and its recorded tests REFUSE — loudly, with a HINT. State
+--     normalisation is onboarding data quality, not repaired here. The state
+--     is always the meter's CURRENT location's; a test whose named location
+--     lies in another state refuses, so a meter moved across a state line
+--     cannot have an old test recorded until that is ruled.
+--
+-- R6. ONLY TEXAS GAS IS SEEDED, effective 2004-07-12. A full-record test on
+--     any other service, or a migrated_full test before that date, refuses;
+--     the latter can load as migrated_date_only. Texas-only launch scope.
+--
+-- R7. THE A-2 COUPLINGS ARE FACTS HERE, GUARDS IN -13. entered_out_of_order
+--     (D-5), supervisor_gate (R-36) and "a test an evidence row cites cannot
+--     be superseded silently" (brief §3.6) all need A-2's evidence rows to
+--     act on. This patch records; v5.4.2-13 must enforce, and its battery
+--     must prove each one acts.
+--
+-- R8. test_date <= CURRENT_DATE USES THE SESSION'S DAY BOUNDARY, as every
+--     other date-vs-today check in this schema does.
+--
+-- R9. recorded_by / declared_by CARRY NO FOREIGN KEY. They are stamped from
+--     app.user_id, which may name a platform administrator of another tenant;
+--     a composite key would refuse that and a plain one would be a new
+--     tenant-blind link. They are database-stamped, so not caller-chosen.
+--
+-- R10. THE LOAD-ROW FENCE AND THE POINTER FENCE ARE TRIGGER DEPTH. Sound
+--     while tally_app can define no code (TEMP, CREATE and TRIGGER all
+--     absent). The batteries run on clones that still HOLD TEMP (CREATE
+--     DATABASE … TEMPLATE does not copy datacl), so they do not test that
+--     premise; the deployed database does not grant it.
+--
+-- R11. EQUAL AND OPPOSITE DEVIATIONS BEYOND THE THRESHOLD ARE inconclusive.
+--     Defective, but with no direction for a correction to run in. Rare
+--     enough to record rather than rule on.
+--
+-- R12. non_registering MEANS EVERY LOAD REGISTERED NOTHING. A meter dead at
+--     one load and registering at another is slow (−100% at that load),
+--     which selects (v)(I). Kyle R-39: zero registration only.
+--
+-- ----------------------------------------------------------------------------
+
+
+-- ----------------------------------------------------------------------------
+-- 14. The AC-32 tail
+-- ----------------------------------------------------------------------------
+-- Three new tenant tables and one new view, each born leaky by the default
+-- grants: RLS enabled, forced and single-policy on all three, security_invoker
+-- on the view. The assertion raises if any of that did not take.
+
+SELECT public.assert_tenant_isolation_invariants();
 
 -- ============================================================================
 -- END PATCH v5.4.2-12
