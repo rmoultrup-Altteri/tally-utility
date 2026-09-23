@@ -19,9 +19,7 @@ ROLLBACK;
 BEGIN ISOLATION LEVEL SERIALIZABLE;
 DO $$ BEGIN
   INSERT INTO public.tenants (id, name, slug, cutover_date) VALUES ('00000000-0000-4000-8000-0000000012f1', 'ISO2', 'iso12b', DATE '2026-01-01');
-  RAISE EXCEPTION 'ISO2 FAILED';
-EXCEPTION WHEN invalid_transaction_state THEN
-  RAISE NOTICE 'PASS ISO2: creating a tenant with a cutover under SERIALIZABLE is refused too';
+  RAISE NOTICE 'PASS ISO2: creating a tenant WITH its cutover under SERIALIZABLE is accepted — no test can reference an uncommitted tenant (round 3)';
 END $$;
 ROLLBACK;
 
