@@ -1,40 +1,27 @@
-# Handoff: docs in parity with the schema; Kyle ruled everything open — the meter test history is next as -12, A-2 re-drafts as -13
+# Handoff: the meter test history is LANDED (v5.4.2-12); A-2 re-drafts next as -13
 
-**Generated**: 2026-09-23 (documentation-parity session — no schema change landed)
-**Branch**: tally-utility `main` · gas-billing-memory `main` (commits for this session follow this file)
-**Status**: tu.sql **21,916 lines, through v5.4.2-11** (21 landed patches). The A-2 draft (committed as `sql/v5.4.2-12-backbilling-caps.sql`, reviewed once, NOT landed) is now **superseded in design** by Kyle's R-32…R-39 and will be re-drafted as **v5.4.2-13**. **The meter test history (CI-091) takes the -12 slot and is cleared to build.**
+**Generated**: 2026-09-23 (end of session)
+**Branch**: tally-utility `main` · gas-billing-memory `main` (both pushed at wrap)
+**Status**: tu.sql **23,452 lines, through v5.4.2-12** (22 landed patches), md5 `2aa59147bfde61d86991f7f0a5c5d22a`; `tally-pg` rebuilt fresh from it and hash-verified. The A-2 draft is `sql/v5.4.2-13-backbilling-caps.sql` — renumbered, still saying -12 inside, still predating Kyle's R-32…R-39. **Next is its re-draft.**
 
 ## THE ONE THING TO CARRY FORWARD
 
-**Kyle answered everything while the docs were being fixed** (found at push time, 2026-09-23), so nothing blocks the critical path except Ryan's `test_kind` list: `gas-billing-memory/application/kyle-decisions-2026-09-22-a2-straddle-and-meter-test-anchor.md` (R-32…R-36) and `gas-billing-memory/application/kyle-decisions-2026-09-23-a2-override-and-cause-freeze.md` (R-37…R-39).
-1. **Build the meter test history as v5.4.2-12 now.** "The last test" = the most recent completed test before the discovery test, whatever its outcome (R-34) — so no accuracy filter. Kyle endorsed Ryan's D-1, D-3, D-4, D-5, D-6; **D-2 (the test-kind list) is still Ryan's call.** Fold R1 §8's change list into the CI-091 brief's shape before drafting.
-2. **Then re-draft A-2 as v5.4.2-13:** remove the trim (an adverse straddling period is forfeited whole, R-32, with an append-only forfeiture row); meter-error corrections become **adjustments on a later bill, not void-and-rebill** (R-33) and are non-disconnectable except tampering; no under-reach override in the customer-favourable direction (R-37); cause and anchor freeze at evidence-freeze (R-38); eight-value cause domain (R-39). **Its adjustment-path DDL waits on Kyle's OQ-1** (does R-33 also cover non-registering and tampering causes?). The existing -12 draft is the starting point, not the answer.
+**Re-draft A-2 as v5.4.2-13 on top of the landed meter test history, to Kyle's R-32…R-39** (GBM `application/kyle-decisions-2026-09-22-a2-straddle-and-meter-test-anchor.md` §8 and `kyle-decisions-2026-09-23-a2-override-and-cause-freeze.md` "What changes in the A-2 patch"). The landed -12 hands A-2 its facts: call **`meter_governing_test(meter, anchor)`** for "the last test" (never `meters.last_test_date`), cite **`meter_test_id`** on the evidence row, **enforce** the returned `supervisor_gate` (R-36) — -12 computes it but nothing acts on it yet — and flag evidence when a test arrives `entered_out_of_order` (D-5). The window is `max(anchor − 6 months, governing test_date)`; with no qualifying test, the six-month cap alone (R-35 ref. 5 — the old draft's refusal is wrong).
 
-**Every patch still ends by calling `public.assert_tenant_isolation_invariants()`** (AC-32), shown to RAISE on planted drift.
-
-**Speak to Ryan in plain language** — item codes (F-5), ruling codes (R-19), contract codes (AC-32) and register entries (CI-046) mean nothing on sight; build the meaning into the question (memory `explain-jargon-in-the-question`). He prefers tradeoffs walked in prose over option menus.
+**Every patch ends by calling `public.assert_tenant_isolation_invariants()`** (AC-32), shown to RAISE on planted drift. **Speak to Ryan in plain language** (memory `explain-jargon-in-the-question`); he prefers tradeoffs in prose over option menus.
 
 ## Done this session (2026-09-23)
 
-A full project assessment (four parallel read-only reviews), then a documentation-parity pass. **No ruling, decision or SQL logic changed.**
-- **`sql/v5.4.2-12-backbilling-caps.sql` — comments only.** The comments said a straddling period was "prorated by days" (the code measures the share and the gate REFUSES it), that the gate measured "from the LINE ITEMS" (it takes the greater of lines and `amount_due`), that R9 "requires them to AGREE" (it does not), and the residuals heading said R1–R8. Fixed; one real question surfaced (see Workstream C). Strict apply ×2 clean, battery 66 PASS.
-- **tally-utility:** `CONTEXT.md` rewritten (was May: v5.2.1, Supabase, 60 tables); `sql/DEPLOY-VERIFICATION.md` "Current" line now -11; `postgres/Dockerfile` run notes (no `-p 5432`, `docker exec`, strict-apply loop); `tests/README.md` (-12 entry; -11's rounds 4–5 have no committed brief); `ui-concepts/README.md` (T8-2 is built); historical banners on `INVESTIGATION-BRIEF.md` and the stale paragraph of `TECH-STACK-DISCUSSION.md`.
-- **gas-billing-memory:** `schema-parity-plan.md` status table (and Kyle's coda backlog A1–A19, none built, now tracked); `CONTEXT.md` rewritten; stale OPEN statuses on answered Kyle documents annotated; the 09-22 "A-2 first" call recorded in the FK inventory and A-2 brief; `canonical-invariants.md` staleness note (~87 of 135 still graded against v5.2.1) and Appendix A headings; `feature-list.md` May-baseline banner and Texas backbilling row fixed; `knowledge/INDEX.md` marks file 23 missing. Ingestion **Section BJ**.
+1. **Full project assessment** (four parallel read-only reviews) and a **documentation-parity pass** in both repos (CONTEXT ×2, the parity plan's status table, answered-but-OPEN Kyle documents, staleness banners on the invariant register and feature list, -12's comments corrected to its code).
+2. **Kyle's R-32…R-39 found at push time** (he had answered everything) and folded into every status line.
+3. **v5.4.2-12, the meter test history — drafted, five review rounds, LANDED.** `meter_tests` (append-only; outcome and `found_defective` derived by the database from submitted raw readings against the platform-fixed `meter_accuracy_thresholds`), `meter_test_load_results`, the meters test columns as a refused-to-write pointer, `meter_test_absence_declarations`, `meter_governing_test()` (R-34, with R-36's gate flag), `meter_test_history_gaps`, **`tenants.cutover_date`** (platform-set; migrated ≤ cutover ≤ recorded; logged), and a guard that only a platform admin makes a platform admin. Ryan chose the `test_kind` list (D-2). Battery **116**, isolation 3, race script PASS, regressions 28/58/41, **21 planted mutations each caught**; catalog parity on a fresh build. Records: DEPLOY-VERIFICATION, DECISION-LOG D-2026-09-23-01…-10, **AC-33**, GBM CI-091 re-graded / CI-092 noted, parity plan, ingestion **Section BL**, both CHANGELOGs.
+4. The A-2 draft renamed to `v5.4.2-13-backbilling-caps.sql`; its tests to `tests/v5.4.2-13/`.
 
-## Not Yet Done — found by the assessment, not housekeeping
+## Workstream C — A-2 re-draft as v5.4.2-13 (the live workstream)
 
-- **Scenarios: zero written.** WU5 has axes only; WU7–WU12 not started. They gate application code (and the testing-approach decision). Fixture catalog (WU4) awaits Kyle's sign-off since July.
-- **Re-grade the invariant register** (~87 entries still v5.2.1 grades) and **the feature list's schema-status column** (a May baseline: 283 "gap" rows, some since built). Both are real work, not edits — worth an agent-assisted pass.
-- **Wiki ingestion:** 61 sections (A–BJ) queued, none ingested; the wiki copy is frozen at 2026-06-07 (`wiki-vault/wiki/projects/tally-utility`, detached HEAD).
-- **Knowledge file 23** (competitor site claims) was never committed — re-research or drop.
-- **Open calls for Ryan:** the UI prototype's direction; whether Kyle's D-2 satisfies the finance gate; the meter-test-history `test_kind` list (D-2); which of `meters.num_dials` / `dial_count` is authoritative (Kyle's side finding, 09-23).
-- **Duplicates:** `application/draft-candidates.md` and `application/session-1-recon.md` are byte-identical copies of GBM `application/invariants/` files, referenced by nothing — candidates for deletion (Ryan's call).
-- Unconsolidated Kyle brief candidates (PSF cap $1.00 vs $0.50, deposit-cap ceiling, legacy deposit refunds, and others — list in the schema background below).
+**What Kyle's R-32…R-39 change in the old draft:** the trim mechanism is deleted — an adverse period straddling the window is **forfeited whole** (R-32) with an append-only forfeiture row; `meter_error` corrections are **adjustments on a subsequent bill**, not void-and-rebill (R-33) — which likely moves the gate off `correction_run_targets` (its `voided_invoice_id` is NOT NULL) toward `adhoc_charges`, **but Kyle's OQ-1 (does R-33 also cover non-registering and tampering causes?) must be ruled before the adjustment-path DDL**; meter-error corrections are non-disconnectable except tampering (F-1); no qualifying prior test → six-month cap, not refusal (R-35 ref. 5); the under-reach override is withdrawn in the favourable direction for a computed bound, meter-scoped targeting and a two-code hold (R-37); cause and anchor freeze at evidence-freeze with supersession and a tamper gate (R-38); an eight-value cause domain, `tampering_theft` renamed `tampering_bypass` (R-39). New schema homes still undesigned: a per-service-location predecessor acquisition date (R-37). (-12 supplied the per-tenant cutover date.)
 
-## Workstream C — A-2 and the meter test history (the live workstream)
-
-**What is built** (`sql/v5.4.2-12-backbilling-caps.sql`, committed unlanded at `ef27cb1`; comment-only parity edit 2026-09-23 → 2,002 lines, md5 `98e09d7901319ef7036c9e160c0ddc64`, battery 66 PASS re-verified): `backbilling_cap_rules` with both bounds and explicit non-null scope enums on each side, Texas gas seeds for both classes (unprotected rows written explicitly `uncapped`, so an absent rule is an error not a permission); `backbill_cause` + `anchor_date` on the target with the under-reach override in database-stamped write-once columns; `correction_run_target_events` and `backbilling_period_evaluations`, both append-only; the R-30 read classification as a platform-fixed function; gates (ii) and (iii); the -10 target freeze extended to the two new columns; `tenants.regulatory_class_mode` (CCK-14 default, volumetric mode declared but REFUSING); `UNIQUE (id, tenant_id)` on `jurisdictions` and `correction_run_targets` plus the `service_locations.jurisdiction_id` repair; the AC-32 tail.
-
+**Still true of the old draft, and worth keeping:**
 **Round 1 (Codex + Fable, both on the frozen hash) found four critical/high defects. All fixed, all pinned by battery group J:**
 
 1. **The trim was recorded and never applied** — the evidence row said "forfeited" and the bill issued at the full delta, because the gate only refused a TOTAL trim. Now refused outright pending Q-C.
@@ -46,13 +33,17 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 
 **Also recorded for the register, pre-existing and not A-2's:** `tally_app` can post a charge directly into `account_ledger` outside any invoice gate — the ledger and the bill are both application-asserted.
 
-**Not done:** everything after the draft — and the draft itself now needs re-drafting to R-32…R-39 as -13 (see THE ONE THING). The `patch-12-frozen-r2.sql` copy is superseded; review round 2 runs on the -13 re-draft.
-
-**Then, behind A-2 (or possibly ahead of it — see Q-D):** CI-091's append-only meter test history (R-31), required before the first gas tenant goes live.
-
 **Open for review round 2 (found 2026-09-23, comment vs code, logic NOT changed):** gate (iii) measures the previously-billed charge as the MAX over prior voided bills of `backbilling_invoice_charge()` — the GREATER of lines and `amount_due`. An earlier comment claimed the prior side used the LESSER, so an already-divergent legacy bill could not raise the bar. The comment now describes the code and flags the question; the reviewers should decide which measure the prior side needs.
 
-**Meter test history (CI-091) — next, as v5.4.2-12.** Specced in GBM `application/ci091-meter-test-history-implementation-brief-2026-09-22.md` (status now "cleared to build"); Kyle's R-34…R-36 settle its three questions and §8 of his 09-22 record lists the changes to fold (no accuracy filter on the governing test; every `test_kind` anchors; per-meter absence flag `attested_none`/`unknown`, append-only; no back-fill from `install_date` or the test interval; a supervisor gate on weak-provenance adverse corrections that lapses at cutover + 6 months; the threshold seed keyed by service type). Ryan's D-2 (test-kind list) is the only open design call. Needs a per-tenant **cutover date** home (also wanted by R-37).
+## Not Yet Done — from the assessment
+
+- **Scenarios: zero written.** WU5 has axes only; WU7–WU12 not started; they gate application code. The fixture catalog (WU4) awaits Kyle's sign-off.
+- **Re-grade the invariant register** (~87 entries still v5.2.1 grades) and **the feature list** (a May baseline).
+- **Wiki ingestion:** Sections A–BL queued, none ingested; the wiki copy is frozen at 2026-06-07.
+- **Knowledge file 23** (competitor claims) was never committed.
+- **Open calls for Ryan:** the UI prototype's direction; whether Kyle's D-2 satisfies the finance gate; which of `meters.num_dials` / `dial_count` is authoritative (Kyle's side finding); whether to delete `application/draft-candidates.md` and `session-1-recon.md` (unreferenced duplicates of GBM files).
+- **Open with Kyle:** OQ-1 (above); **whether a meter test recorded against the wrong date may be corrected, and under what gate** (new, -12 residual R13); the counsel bundle; the customer-type default widening; the A-8 brief.
+- **Codex as a reviewer:** it is installed only under Node v24.15.0 (`~/.nvm/versions/node/v24.15.0/bin/codex`); this shell uses v24.19.0, so the plugin cannot find it, and a direct run stalled with no output (likely an unanswered sandbox approval for `docker exec`). Fable + Opus reviewed -12. Ryan to decide how Codex should run before relying on it again.
 
 ## Workstream A — `ui-concepts/` (parked, awaiting Ryan's direction call; unchanged since 2026-09-18)
 
@@ -70,16 +61,25 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 
 ---
 
-## Workstream B — schema background: the queue behind A-2 / CI-091
+## Workstream B — schema background: the queue behind A-2
 
 1. The **229-link tenant-blind FK remediation** (~226 remaining; GBM `tenant-blind-foreign-keys-2026-09-22.md`).
 2. **A-8** tax jurisdictions (needs a Kyle brief; the shared-place question rides in it), **A-10** revenue distribution (maybe finance-gated), **Wave 4** A-13…A-19, the **customer-class resolver** patch, the **`applies_to_customer_types` defaults** that omit small/large commercial, and **Kyle's coda backlog A1–A19** — all now tracked in the parity plan's status table.
-3. **Residuals still open:** -11 R1–R7 (`void_invoice` keeps `public, pg_temp`; ~190 trigger functions not re-pinned; non-definer functions unaudited for PUBLIC EXECUTE; `anomalies.entity_id` has no FK; the matviews have no read path and **`refresh_statistics_views()` has never worked**; a permissive policy with neither clause passes the assertion; the checks name only `tally_app`/PUBLIC). -10: AC-15 "one pair per run" unenforced; `duplicate` unbound; `data_cutoff_at` not a coordinate; `first_issued_at` backfill approximate; `CURRENT_DATE` day boundary. -09: placeholder text like "N/A" passes the evidence test; one tenant's bad notice-days blocks the global queue; legacy `customers.is_tax_exempt` unguarded. Carried: `meter_id` swap on a capped line moves the attribution; -07 LOW residuals. Pre-existing and register-worthy: `tally_app` can post straight into `account_ledger`; `amount_due` is tied to nothing.
+3. **Residuals still open:** -12 R1–R19 (stated in its tail: the fee rule unenforced; customer not bound to the location on the test date; the threshold keyed by the meter's current location, which tally_app can move; the A-2 couplings recorded but not enforced; the platform guards name `tally_app`; section 1b is not a role model; same-day readings rows ranked by entry order).  -11 R1–R7 (`void_invoice` keeps `public, pg_temp`; ~190 trigger functions not re-pinned; non-definer functions unaudited for PUBLIC EXECUTE; `anomalies.entity_id` has no FK; the matviews have no read path and **`refresh_statistics_views()` has never worked**; a permissive policy with neither clause passes the assertion; the checks name only `tally_app`/PUBLIC). -10: AC-15 "one pair per run" unenforced; `duplicate` unbound; `data_cutoff_at` not a coordinate; `first_issued_at` backfill approximate; `CURRENT_DATE` day boundary. -09: placeholder text like "N/A" passes the evidence test; one tenant's bad notice-days blocks the global queue; legacy `customers.is_tax_exempt` unguarded. Carried: `meter_id` swap on a capped line moves the attribution; -07 LOW residuals. Pre-existing and register-worthy: `tally_app` can post straight into `account_ledger`; `amount_due` is tied to nothing.
 4. **Kyle brief candidates, never consolidated:** the PSF cap figure ($1.00 CI-038 vs $0.50 D4-1); whether `is_state_agency` needs a verifying document; meter change-out mid-cycle vs the per-meter cap; K1 (`is_taxable_default`'s silent false) and K4 (`applies_to` vs `is_taxable`); `customers.status` matrix; legacy-deposit refund policy; credit vs disbursement; residential non-cash instruments; instrument-expiry alerting; D14-1b; the Texas deposit-cap ceiling.
 
 ## Failed Approaches (Don't Repeat These)
 
-**New in -12 (all four found by review round 1, or by the author fixing it):**
+**New in -12, the meter test history (each found by review, each pinned by a battery check and a planted mutation):**
+- **Fixing a rule for the linked path and leaving the parallel path open.** Correction rules on `supersedes_test_id` were walked around three rounds running by a second same-date row that superseded nothing. A rule about what may replace a fact has to bind every row that can displace it — here, the readers' ranking.
+- **A "platform-only" control resting on a column nothing guards.** The cutover rested on `is_platform_admin()`; `users.role` was writable by the tenant, then `users.id` (the lookup key) was. Check what the predicate reads, not just what it names.
+- **Stating a gate in the inverse arithmetic of the bound it guards.** `anchor < cutover + 6 months` is not `anchor − 6 months < cutover` at month ends; 48 cutover dates in 2024–2030 lapsed the gate early.
+- **A caller-chosen input choosing the rule** (the threshold's state from a caller-named location) — the HANDOFF already listed this shape; the first draft still had it.
+- **Locks stronger than the conflict needs.** `FOR SHARE` on the tenant deadlocked; `FOR UPDATE` on the meter blocked every FK insert. `KEY SHARE` / `NO KEY UPDATE` sufficed.
+- **A pointer written only when it changes.** A snapshot-isolation insert then refreshed it from a stale view; writing unconditionally makes the row version the mutex.
+- **A planted mutation that "fails" for the wrong reason.** Two mutations first failed on a PK error or a broken `sed`, not on the guard — read the failing check's name before counting it caught.
+
+**From the A-2 draft (now -13), found by its review round 1:**
 - **A guard that RECORDS its own enforcement instead of performing it.** The trim wrote "9.00 forfeited" to the permanent evidence row, raised a NOTICE saying so, and then let the bill issue at the full 31.00 — the gate refused only a TOTAL trim. A log asserting a control that did not run is worse than no control, because the log is what a regulator reads.
 - **A proportional trim of a figure derived from the thing being trimmed.** It has no fixed point: re-drafting at the trimmed amount re-prorates the already-trimmed number, forever. If a rule reduces X and X is computed from the draft, the draft cannot also be the answer.
 - **Fixing "the gate reads the wrong number" by reading the OTHER wrong number.** Told `amount_due` was caller-set, the first fix read only the line items — but `void_invoice()` reverses exactly `-(amount_due)`, so that column reaches the ledger regardless. One direction closed, its mirror opened, reproduced. When two fields are both "the money", the fix is a measure over both, not a swap.
@@ -115,19 +115,20 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 | -08: the operand-order false positive is ACCEPTED | Fails closed and loudly; one canonical spelling is worth the friction |
 | -09: the broken `refresh_statistics_views()` is recorded, not fixed | Unrelated pre-existing defect; the dashboard work fixes read path and refresh path together |
 | A-2 first, the 229-link tenant-blind FK remediation after (Ryan, 2026-09-22) | A-2 repairs the three links it resolves through; the rest are their own patch |
+| D-2026-09-23-01…-10 (v5.4.2-12): Ryan's `test_kind` list; results derived from raw readings; cutover platform-set with migrated ≤ cutover ≤ recorded; the R-36 gate in A-2's arithmetic; corrections keep date/basis/readings; same-date ranking readings → failure → result → basis → entry; only an admin makes an admin, ids immutable; pointer written every insert; KEY SHARE / NO KEY UPDATE locks; A-2 renumbered -13 | See DECISION-LOG 2026-09-23 |
 
 ## Current State
 
-**Working**: tu.sql 21,916 lines (through -11), md5 `6edac2aad61505edd5654f214d62b351`. `tally-pg` = fresh build of that file, hash-verified. Only database `tally` exists — clone with `CREATE DATABASE x TEMPLATE tally`.
+**Working**: tu.sql 23,452 lines (through -12), md5 `2aa59147bfde61d86991f7f0a5c5d22a`. `tally-pg` = fresh build of that file (image rebuilt, fresh volume), hash-verified, zero init errors. Only database `tally` exists — clone with `CREATE DATABASE x TEMPLATE tally`.
 **Broken (pre-existing, recorded not fixed)**: `refresh_statistics_views()` raises `column reference "view_name" is ambiguous` for every caller.
 **Uncommitted**: nothing once this session's commits are pushed.
 
 ## Resume Instructions
 
-1. **Kyle's R-32…R-39 are in** (see THE ONE THING). Read both records before drafting anything.
-2. **Get Ryan's D-2 (the `test_kind` list)**, then draft the meter test history as **v5.4.2-12**, folding Kyle's 09-22 record §8. It must also carry `meter_test_id` for A-2's evidence row to cite.
-3. **Then re-draft A-2 as v5.4.2-13** to R-32…R-39 (renaming the file), re-freeze, and run review round 2 — include the prior-side charge-measure question. Hold the adjustment-path DDL until Kyle rules OQ-1.
-4. Same loop as -10/-11/-12: fresh clone (`docker exec` only) → strict apply ×2 (`search_path=''`, `check_function_bodies=on`) → battery in one transaction as `tally_app` → brief with `wc -l` + `md5 -q` → **freeze, launch both reviewers** → fold into ONE revision per round → mirror after the LAST banner → fresh rebuild + catalog parity → batteries green on the build → DEPLOY-VERIFICATION → CI re-grade → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → **battery + repros into `tests/v5.4.2-NN/`** → commit + push both repos.
+1. `git fetch` BOTH repos first — Kyle pushes to GBM `main` directly (memory `fetch-gbm-before-orienting`).
+2. Read Kyle's two records' "what changes" sections and the -12 header (it is the contract A-2 builds on: AC-33).
+3. Re-draft `sql/v5.4.2-13-backbilling-caps.sql` (rename its internal -12 references; rename `tests/v5.4.2-13/battery-12.sql`). Build everything except the adjustment path; ask Kyle for OQ-1 in a short plain-language brief if it is still open.
+4. The loop, as for -12: fresh clone → strict apply ×2 → battery as `tally_app` → **mutation-test every guard** → freeze → two independent reviewers → one revision per round → mirror after the last "sound enough to mirror" → rebuild → catalog parity → batteries on the build → DEPLOY-VERIFICATION → CI re-grades → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → commit + push both repos.
 
 ## Warnings
 
@@ -137,5 +138,8 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 - Wait for `PostgreSQL init process complete`; run `tally-pg` without `-p`; connect as `-U tally` (there is no `postgres` role).
 - Never `git add -A` in GBM. Record every GBM canonical-data change in `application/wiki-ingestion-pending.md`.
 - Fixtures for later patches: customers need `status_reason` on any status change; deposits are events-only; issued invoices reject content edits; reads born `pending_review` → approve → `released_to_billing` → `locked` (needs `billing_period_locked` AND `locked_by_billing_run_id`); a surcharge line needs `meter_id` when capped and must be written before its bases; issuance needs snapshot + bases; a billing run needs `started_at` before any snapshot; rule corrections/retractions run only under READ COMMITTED (AC-29); an asserted exemption needs alphanumeric certificate evidence (AC-30); a snapshot's `valid_at` = `period_end`, `recorded_at` ≥ the run's `started_at` (AC-31); `pg_temp` helper functions now need explicit `GRANT EXECUTE … TO tally_app` (the PUBLIC default is revoked).
-- Do not land A-2 before the meter test history, and do not draft its adjustment path before Kyle rules OQ-1. A-8 needs its Kyle brief first. The finance gate holds A-15's finance parts and the A-6 remainder and may hold A-10 — whether Kyle's D-2 (receivables subledger that exports) already satisfies it is an open question for Ryan. Texas-only launch scope.
+- Do not draft A-2's adjustment path before Kyle rules OQ-1. A-8 needs its Kyle brief first. The finance gate holds A-15's finance parts and the A-6 remainder and may hold A-10 — whether Kyle's D-2 (receivables subledger that exports) already satisfies it is an open question for Ryan. Texas-only launch scope.
 - `sql/tu.sql`'s header comment is stale (says "v5.2.1 + v5.4.0-00", "roles and GRANTs not yet defined", "regenerated — never hand-edit"). Left untouched on purpose: the file is append-only and the container is hash-verified against it. Fix it, if at all, with the next mirror.
+
+- **Fixtures that touch meter tests (from -12 on):** set `tenants.cutover_date` as the owner (or a platform admin) before any test; recorded tests must be dated on or after it, migrated ones on or before; a recorded full test needs `performed_by_name`, `test_equipment`, `meter_serial_at_test`, `multiplier_at_test` and readings (or an `inconclusive_reason`); the premise's `state` must be `TX` for a gas threshold to resolve; `meters.last_test_*` cannot be set by any fixture.
+- **Mutation-test every guard before freezing** (-12 did 21): break it with `sed`, confirm the NAMED check fails for the RIGHT reason, restore. A check no mutation can fail is not evidence.

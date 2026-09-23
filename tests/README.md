@@ -14,15 +14,16 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
-  v5.4.2-12/                # DRAFT — A-2 backbilling caps, NOT landed; to be re-drafted as -13 per Kyle R-32…R-39
-                            #   (the meter test history takes the -12 slot — rename this directory with the patch)
-    battery-12.sql          # 66 checks, green on a clone with the draft applied
-    review/
-      review-brief-12.md          # round 1 brief (Codex + Fable); findings folded, pinned by group J
-      patch-12-frozen-r1.sql      # the round-1 hash both reviewers tested
-      battery-12-frozen-r1.sql
-      patch-12-frozen-r2.sql      # frozen for round 2, which has NOT been run. Superseded by a
-      battery-12-frozen-r2.sql    #   comment-only edit on 2026-09-23 — re-freeze before launching
+  v5.4.2-12/                # the meter test history (CI-091), LANDED 2026-09-23
+    battery-12.sql          # 116 checks, groups A-K; every guard has a planted mutation that fails it
+    isolation-check-12.sql  # 3 checks: a cutover change is refused outside READ COMMITTED
+                            #   (cannot live in the battery, which is one READ COMMITTED transaction)
+    races/pointer-mutex-12.sh   # two sessions: the pointer's row-version mutex (R1)
+    review/                 # five rounds: review-brief-12{,-round2..5}.md and the frozen patch
+                            #   and battery for each round (patch-12-frozen-r1..r5.sql)
+  v5.4.2-13/                # DRAFT — A-2 backbilling caps, NOT landed; re-draft to Kyle R-32…R-39 pending.
+                            #   Files still carry their -12 names (renumbered 2026-09-23). The r2 frozen
+                            #   copy was never reviewed; the round-1 brief and findings stand.
   v5.4.2-11/
     battery-11.sql          # 41 checks; TWO tenants throughout (every headline check is cross-tenant).
                             #   Group G is unusual and deliberate: it proves the tenant-isolation

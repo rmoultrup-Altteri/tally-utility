@@ -22,20 +22,21 @@ The target buyers are Utility Directors, CFOs, IT Directors, Billing Analysts, a
 
 Domain research, feature extraction and application planning are done. The project is **hardening the database schema before any application code is written.** The schema is the only enforcement artifact; there is no billing engine, API or production UI yet.
 
-**The schema.** `sql/tu.sql` is the single canonical schema: the v5.2.1 baseline plus **21 landed patches** (v5.4.0-00 → v5.4.2-11), 21,916 lines, 82 tables, plain PostgreSQL 16 (Supabase removed 2026-08-18). It is **append-only**: every change is a `sql/v5.4.x-NN-*.sql` patch, reviewed, then its body mirrored onto the end of tu.sql. What the patches delivered, in outline:
+**The schema.** `sql/tu.sql` is the single canonical schema: the v5.2.1 baseline plus **22 landed patches** (v5.4.0-00 → v5.4.2-12), 23,452 lines, 86 tables, plain PostgreSQL 16 (Supabase removed 2026-08-18). It is **append-only**: every change is a `sql/v5.4.x-NN-*.sql` patch, reviewed, then its body mirrored onto the end of tu.sql. What the patches delivered, in outline:
 - a restricted app role (`tally_app`) with forced row-level security per tenant;
 - bills that cannot be edited once issued, an append-only ledger, no hard deletes;
 - two dates on every rate and rule (when it applies, when it was recorded) and a per-invoice record of the exact inputs it was calculated from, so a rebill reproduces the original;
 - read and bill exception queues, account lifecycle and deposits, the Texas Pipeline Safety Fee, tax-exemption certificates;
-- `public.assert_tenant_isolation_invariants()`, which every patch must now call at its end (contract AC-32).
+- `public.assert_tenant_isolation_invariants()`, which every patch must now call at its end (contract AC-32);
+- an append-only meter test history with database-derived results, the "last test" function backbilling will use, and a platform-set go-live `cutover_date` per tenant (v5.4.2-12, contract AC-33).
 
-**In flight:** Kyle ruled every open question on 2026-09-22/23 (R-32…R-39). **Next is the meter test history (CI-091) as v5.4.2-12**, then **A-2 (the 16 TAC §7.45 limits on backbilling) re-drafted as v5.4.2-13** — its first draft, `sql/v5.4.2-12-backbilling-caps.sql`, was reviewed once and is not landed. See `HANDOFF.md` for the live queue.
+**In flight:** A-2 — the 16 TAC §7.45 limits on backbilling — is re-drafted next as `sql/v5.4.2-13-backbilling-caps.sql` to Kyle's rulings R-32…R-39 (its first draft was reviewed once as -12). See `HANDOFF.md` for the live queue.
 
 **What exists in this repo:**
 - `sql/tu.sql` + the patch files — the schema; `sql/DEPLOY-VERIFICATION.md` — per-patch verification record and object counts
 - `postgres/` — Docker build of tu.sql (container `tally-pg`, no host port; connect with `docker exec tally-pg psql -U tally -d tally`)
 - `tests/` — per-patch test batteries and review artefacts (from -09 on; earlier batteries were lost), and the verification loop
-- `application/APPLICATION-CONTRACTS.md` — 32 obligations the schema places on future application code (AC-1 … AC-32)
+- `application/APPLICATION-CONTRACTS.md` — 33 obligations the schema places on future application code (AC-1 … AC-33)
 - `application/DECISION-LOG.md` — permanent ledger of schema decisions with rationale and failed approaches
 - `application/database/schema.sql` — a **Claude-authored** reconstruction of the May 2026 tables (60 of them), not a real dump; column reference only, and stale
 - `ui-concepts/` — a Next.js UI prototype, 15 screens on invented fixture data, nothing writes; parked pending Ryan's direction call

@@ -945,7 +945,7 @@ DO $$ BEGIN
   VALUES ('00000000-0000-4000-8000-0000000012a1', '00000000-0000-4000-8000-0000000012e4', DATE '2026-01-15', 'periodic', 'migrated_date_only', 'accurate');
   RAISE EXCEPTION 'K6b FAILED';
 EXCEPTION WHEN check_violation THEN
-  IF SQLERRM NOT LIKE '%would contradict it%' THEN RAISE; END IF;
+  IF SQLERRM NOT LIKE '%no further row without readings%' THEN RAISE; END IF;
   RAISE NOTICE 'PASS K6b: an asserted failure with no readings is not left to share its date with a contradicting assertion (rounds 3-4)';
 END $$;
 DO $$ BEGIN

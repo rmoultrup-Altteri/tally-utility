@@ -296,3 +296,30 @@ What the database will refuse to certify:
 | A default privilege granting PUBLIC EXECUTE | Global **or** per-schema — either reopens it for every new function |
 
 `RESTRICTIVE` policies are exempt from the canonical-predicate test (they are AND-ed and can only narrow), but a table must still carry at least one permissive policy. A table whose predicate must legitimately differ is an explicit edit of the assertion, not a reason to weaken it. The key is the column name `tenant_id`: a tenant table whose discriminator is called something else is outside the check by construction.
+
+---
+
+## Meter test history
+
+### AC-33 — Record meter tests as raw readings in `meter_tests`; never write the meter's test columns; the cutover date is the platform's — REJECTS
+*Introduced by v5.4.2-12 (CI-091; Kyle R-31, R-34…R-36).*
+
+**Recording a test.** INSERT one `meter_tests` row per test with `record_basis`:
+- `recorded` — a test performed on or after `tenants.cutover_date`. Needs `performed_by_name`, `test_equipment`, `meter_serial_at_test`, `multiplier_at_test` > 0, and EITHER `load_results` (a JSON array of `{load_point, standard_volume, meter_volume[, notes]}`, volumes with at most four decimals, standard > 0, meter ≥ 0) OR an `inconclusive_reason` when the test produced no valid measurement.
+- `migrated_full` — a pre-go-live test with the full field list AND readings, dated on or before cutover.
+- `migrated_date_only` — a pre-go-live test known only by its date (optionally the result the legacy records show), dated on or before cutover.
+
+**Never supply** `outcome` (except on a date-only row), `max_abs_error_pct`, `found_defective` or any `threshold_*` column: they are derived, and supplying one is refused. A `customer_requested` test needs `customer_id` and `location_id`. `location_id`, if given, must be the meter's location or one it was deployed at, in the same state. A `service_order_id` must be a `meter_test` / `meter_test_failed_replace` order for the same meter. `test_date` may not be in the future.
+
+**Never write** `meters.last_test_date`, `last_test_result` or `test_history_absence` (refused, even for the owner), and never insert into `meter_test_load_results` directly. `next_test_due_date` and `test_interval_months` stay writable.
+
+**Correcting a test.** Insert a new row with `supersedes_test_id` and a non-blank `supersede_reason`, on the SAME `test_date`, with a `record_basis` at least as strong, and with readings if the original had readings or found the meter defective. A row can be superseded once. A test entered against the wrong date cannot be corrected (R13 — a question for Kyle).
+
+**No history.** Declare what is known in `meter_test_absence_declarations` (`attested_none` or `unknown`, with a `basis_note`). `meter_test_history_gaps` is the standing operator report of meters with no history.
+
+**Cutover.** `tenants.cutover_date` is set by the platform (a platform administrator via `tally_app`, or the owner at onboarding) **before** any test is recorded or migrated history loaded. A change must run under READ COMMITTED (a tenant INSERT carrying its cutover is exempt) and should be the first row lock in its transaction; on a deadlock, retry. It may not fall before a migrated test or after a recorded one.
+
+**Reading "the last test".** Call `meter_governing_test(meter_id, anchor_date)` — never `meters.last_test_date`. It returns exactly one row: the most recent non-superseded test strictly before the anchor, whatever its outcome, with `prior_test_failed`, `weak_provenance` and `supervisor_gate` (R-36); or, where none qualifies, NULL test columns and the declared `absence`. It never infers a date.
+
+**Platform administrators.** A `tally_app` session may grant `platform_admin` only if it already is one, and may not change `users.id`.
+

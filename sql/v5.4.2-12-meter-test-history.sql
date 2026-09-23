@@ -1199,9 +1199,10 @@ BEGIN
     -- sources for one day; a same-day attempt that produced no measurement;
     -- a recorded test on a cutover day that already has a migrated record)
     -- and was narrowed in round 4. What remains refused: a row without
-    -- readings, correcting nothing, on a date whose only evidence is an
-    -- ASSERTED failure — there the failure has no readings to stand on, so
-    -- it is not left to share the date with assertions that contradict it.
+    -- readings, correcting nothing, on a date whose live evidence includes an
+    -- ASSERTED failure (one with no readings behind it) — so an assertion is
+    -- never added beside it; even an agreeing duplicate is refused, and a
+    -- loader deduplicates. (Round 5 wording.)
     IF NEW.supersedes_test_id IS NULL AND NEW.load_results IS NULL
        AND EXISTS (SELECT 1 FROM public.meter_tests t
                     WHERE t.meter_id = NEW.meter_id AND t.tenant_id = NEW.tenant_id
@@ -1209,7 +1210,7 @@ BEGIN
                       AND t.found_defective AND t.load_results IS NULL
                       AND NOT EXISTS (SELECT 1 FROM public.meter_tests s WHERE s.supersedes_test_id = t.id)) THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('meter test on meter %s: %s already has an asserted failure with no readings behind it — a second row without readings on the same date would contradict it; correct that test (supersedes_test_id, with readings) or record a retest with readings', NEW.meter_id, NEW.test_date),
+            MESSAGE = format('meter test on meter %s: %s already has an asserted failure with no readings behind it — no further row without readings may be added on that date (a duplicate of it included); correct that test (supersedes_test_id, with readings) or record a retest with readings', NEW.meter_id, NEW.test_date),
             ERRCODE = 'check_violation';
     END IF;
 
@@ -1359,7 +1360,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.meter_test_refresh_pointer(uuid, uuid) IS
-    'v5.4.2-12. Sets meters.last_test_date / last_test_result from the latest non-superseded test by test_date (ties by recorded_seq). Result mapping: found_defective → failed (which covers fast, slow, non_registering, and an inconclusive test that was more than the threshold off both ways); otherwise accurate → passed, inconclusive → conditional; a date-only row with no result → NULL. Called only from the meter_tests trigger; the meters guard refuses the same write from anywhere else.';
+    'v5.4.2-12. Sets meters.last_test_date / last_test_result from the latest non-superseded test by test_date; same-date ties rank readings, then an asserted failure, then a row with a result, then record_basis strength, then recorded_seq — the order meter_governing_test() uses. Writes the meter row on every call (a row-version mutex against snapshot-isolation inserts). Result mapping: found_defective → failed (which covers fast, slow, non_registering, and an inconclusive test that was more than the threshold off both ways); otherwise accurate → passed, inconclusive → conditional; a date-only row with no result → NULL. Called only from the meter_tests trigger; the meters guard refuses the same write from anywhere else.';
 
 CREATE OR REPLACE FUNCTION public.enforce_meter_test_pointer() RETURNS trigger
     LANGUAGE plpgsql

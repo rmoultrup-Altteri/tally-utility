@@ -6,6 +6,48 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-09-23 (CI-091) — v5.4.2-12: the meter test history, landed ahead of A-2
+
+The append-only record of every meter test that Kyle's R-31 requires before the first gas tenant, and from which A-2 (renumbered v5.4.2-13) will read "the last test" (R-34). Authority: R-31, R-34…R-36, findings F-2…F-5 and erratum E-1 (`gas-billing-memory/application/kyle-decisions-2026-09-22-a2-straddle-and-meter-test-anchor.md`); drafting spec `ci091-meter-test-history-implementation-brief-2026-09-22.md`. Five hash-frozen review rounds (`75e33211` → `fd2418e2` → `ce8fcbe3` → `437ffb6b` → `3f74a76c`), Fable and Opus as independent reviewers (Codex stalled at round 1 — installed only under Node v24.15.0 — and was cancelled with Ryan's agreement). Rounds 4 and 5: both "sound enough to mirror". Landed file md5 `a13e04334f2cfb9dcbfecad892ac8114`, 1,790 lines; the final delta after round 5 was one refusal message and one function comment.
+
+### Decisions
+
+**D-2026-09-23-01 · The `test_kind` domain is the brief's list: periodic, customer_requested, complaint, post_repair, acceptance, other (Ryan, D-2).**
+Narrow first: widening a CHECK is one line, narrowing means judging every row written under the loose rule. Kyle endorsed D-1, D-3–D-6 in his record; D-2 was the one call left to Ryan.
+
+**D-2026-09-23-02 · The caller submits raw readings; the database derives every result.**
+`load_results` carries the standard volume and the meter volume per load point; `meter_test_error_pct()` is the one formula behind both the stored load errors and the outcome, and the outcome is judged against `meter_accuracy_thresholds` (platform-fixed, date-effective, keyed by state and service type — F-3). A caller-supplied outcome, error or threshold is refused, not overwritten. *Why:* a stored result that can disagree with its own readings is the `amount_due`-vs-line-items defect again, exactly where A-2 will rest a statutory window. `found_defective` is separate from `outcome` because a meter off beyond the threshold in both directions failed but has no direction to correct in (round 1).
+
+**D-2026-09-23-03 · `tenants.cutover_date` is the go-live boundary and is platform-set: every migrated test ≤ cutover ≤ every recorded test.**
+R-36's supervisor gate lapses six months after cutover only because every migrated date sits at or before it; the recorded side closes the mirror (a "recorded" row back-dated before go-live escaped the gate — round 1). A tenant able to move its own cutover ends its own gate, so only a platform administrator or the owner may set it, changes are logged in `tenant_configuration_history`, and a change is refused outside READ COMMITTED (under a snapshot level the bounds check cannot see a test committed after the snapshot — round 2). A tenant INSERT carrying its cutover is exempt (round 3). *Rejected:* write-once — go-lives slip, and the invariant holds for any value within the bounds.
+
+**D-2026-09-23-04 · The R-36 gate is stated in A-2's own arithmetic: `(anchor − 6 months) < cutover`, not `anchor < cutover + 6 months`.**
+At month ends the two are not inverses (cutover 08-31 + 6 months = 02-28, but 02-28 − 6 months = 08-28): the forward form lapsed the gate while a migrated date still set the window, for 48 cutover dates in 2024–2030 (round 1, both reviewers). This patch computes the gate as a fact; A-2 enforces it.
+
+**D-2026-09-23-05 · A correction (`supersedes_test_id`) may not move the test's date, may not weaken its `record_basis`, and a test that carried readings or found the meter defective may be corrected only by one with readings.**
+Moving a date either way can lengthen a backbilling window (earlier pulls window_start back; later can drop the test past the anchor). Whether a date may ever be corrected is a question for Kyle (R13). *Why the readings rule:* otherwise a derived failure is replaced by an asserted pass or a bare inconclusive_reason.
+
+**D-2026-09-23-06 · Same-date rows rank: readings → asserted failure → has a result → stronger `record_basis` → later entry — in both the pointer and `meter_governing_test()`.**
+Rounds 2–4 each found a parallel (non-superseding) row doing what a correction may not. The ranking, not the insert guard, is what keeps a failure from being displaced; the guard was narrowed in round 4 to refuse only an assertion beside an asserted failure, because the wider round-3 guard refused legitimate data (two legacy sources for a day; a same-day attempt with no measurement). Same-day readings rows rank by entry order (R19).
+
+**D-2026-09-23-07 · For `tally_app`, a users row may become `platform_admin` only if the session already is one, and `users.id` is immutable.**
+The platform-only cutover rests on `is_platform_admin()`, and `users.role` was unguarded (round 2) — then re-keying a row by id transferred the role without touching it (round 3). This is the one role invariant this patch needs, not the role model Kyle's coda item A2 asks for (R16). It rests, as all RLS does, on `app.user_id` being set by trusted code.
+
+**D-2026-09-23-08 · The meters pointer is written on every test insert (a row-version mutex).**
+Otherwise an insert running under REPEATABLE READ refreshed the pointer from a snapshot that could not see a concurrent committed test (round 4, both). Cost: `meters.updated_at` bumps on every test insert, and any snapshot-isolation transaction that updates the same meter gets a retriable serialisation error.
+
+**D-2026-09-23-09 · Locks: tenant row FOR KEY SHARE, then meter row FOR NO KEY UPDATE; a cutover change upgrades its tenant row to FOR UPDATE and should be the first row lock in its transaction.**
+FOR SHARE on the tenant deadlocked against a session that touched a meter then its tenant; FOR UPDATE on the meter blocked every insert that merely references it (round 1).
+
+**D-2026-09-23-10 · A-2's draft renumbers to v5.4.2-13 and is re-drafted to R-32…R-39; the meter test history takes -12.**
+R-34: A-2 cannot ship with a six-month-only bound, because the missing last-test prong is the protective one.
+
+### Failed approaches (all found by review, each pinned by a battery check)
+
+- A pointer ordered by insertion instead of by test date; a threshold resolved from a caller-chosen location; a caller able to set its own cutover; supersession with no constraint on what may supersede what; a gate stated in the inverse arithmetic of the bound it guards; a "migrated_full" record with no readings; `FOR SHARE` / `FOR UPDATE` where `KEY SHARE` / `NO KEY UPDATE` sufficed; a guard on `UPDATE OF role` when the role is looked up by `id`; a tie-break by basis alone, then by basis before readings — each fix closed the reported shape and review found the sibling next to it.
+
+---
+
 ## 2026-09-09 (definer hygiene) — v5.4.2-11: the surfaces that ran with `tally`'s rights, and a re-runnable tenant-isolation gate
 
 `tally` is a superuser with `rolbypassrls`, so anything executing with its rights reads every tenant. Five hash-frozen review rounds (`133546f8` → `5b27cc38` → `1a0f6c84` → `c35698ac` → `a275c67d`; Fable `general-purpose`, Codex `codex:codex-rescue`). Round 1 found a CRITICAL neither the patch nor its self-check could see; rounds 4 and 5 each found a defect in code written *during* the review. Both reviewers converged independently three times — on the matviews, on the tables, and on the `WITH CHECK` hole.

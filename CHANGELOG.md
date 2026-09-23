@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-09-23 (later) — v5.4.2-12, the meter test history: drafted, five review rounds, LANDED
+
+**What was done:** Kyle's R-34 put CI-091's append-only meter test history ahead of A-2, so it became v5.4.2-12 and A-2's draft was renumbered to -13 (file and tests moved; its text still says -12). Ryan chose the `test_kind` list (periodic, customer_requested, complaint, post_repair, acceptance, other). Drafted, reviewed through five hash-frozen rounds, mirrored into `tu.sql` (21,916 → 23,452, pure append), the container rebuilt fresh and hash-verified.
+
+**What it builds.** `meter_tests` — append-only, one row per test; the caller submits raw readings (standard and tested-meter volume per load point) and the database derives each error, the outcome and `found_defective` against `meter_accuracy_thresholds` (platform-fixed, date-effective, TX gas 2.0%); a supplied result is refused. `meter_test_load_results`, written only by the test row's trigger. `meters.last_test_date` / `last_test_result` become a pointer maintained from the history, direct writes refused even for the owner. `meter_test_absence_declarations` and the standing `meter_test_history_gaps` report (R-35). `meter_governing_test()` — R-34's "last test", strictly before the anchor, any outcome, never an inferred date — with R-36's supervisor-gate flag. `tenants.cutover_date`, the go-live boundary: every migrated test on or before it, every recorded test on or after, set only by the platform, logged in `tenant_configuration_history`.
+
+**The review, in one line per round.** (Codex stalled — installed only under a different Node version — so Fable and Opus reviewed independently throughout.) Round 1: the tenant could move its own cutover; corrections could re-date or weaken a test; the gate lapsed early at month-end cutovers (48 dates in 2024–2030); a "recorded" test could be back-dated past go-live; lock strength and a deadlock. Round 2: a tenant could make itself platform admin; a migrated "full" record without readings switched the gate off; a parallel same-date row displaced a failure; cutover changes under snapshot isolation crossed the boundary. Round 3: the same displacement within one record type; re-keying `users.id` transferred the admin role. Round 4 (both "sound enough to mirror"): the pointer could be refreshed from a stale snapshot; the round-3 guard refused legitimate data and was narrowed, the readers' ranking carrying the protection. Round 5 (both "sound enough to mirror"): wording only. **The pattern of the whole review: each fix closed the reported shape and the next round found its sibling next to it** — recorded as failed approaches.
+
+**Verified:** strict apply ×2 clean and idempotent; battery-12 **116 PASS**; isolation check 3; race script (the pointer's row-version mutex) PASS; regressions **28 / 58 / 41**; **21 planted mutations, one per guard, each caught by its named check**; catalog parity between the patched clone and the fresh build (86 tables, 6 views, 407 functions, 269 triggers, 84 policies, 369 FKs); every battery green on the build; the patch re-applied over the build cleanly.
+
+**Records:** DEPLOY-VERIFICATION (-12 section), DECISION-LOG D-2026-09-23-01…-10, **AC-33**, tests/README; GBM CI-091 re-graded to partially-structurally-enforced, CI-092 noted, parity plan / CI-091 brief / CONTEXT / Kyle queue updated, ingestion Section BL.
+
+**Not done / next:** re-draft A-2 as -13 to R-32…R-39 on top of this (its adjustment path waits on Kyle's OQ-1). New question for Kyle: may a test recorded against the wrong date be corrected (R13)?
+
+---
+
 ## 2026-09-23 — Full project assessment, then the docs brought back into parity with the schema
 
 **What was done:** a full assessment of both repos by four parallel read-only reviews (schema patches; roadmap and Kyle's rulings; application planning; UI prototype and knowledge base), then a documentation-only parity pass. **No ruling, decision or SQL logic changed; nothing landed.** tu.sql is unchanged at 21,916 lines through v5.4.2-11.
