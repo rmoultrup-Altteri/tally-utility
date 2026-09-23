@@ -7,17 +7,23 @@
 #
 # BUILD & RUN (from the project root — tally-utility/)
 #   docker build -t tally-postgres -f postgres/Dockerfile .
-#   docker run --rm -p 5432:5432 --name tally-pg \
-#     -e POSTGRES_PASSWORD=tally \
-#     tally-postgres
+#   docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres
 #
-# CONNECT
-#   psql postgresql://tally:tally@localhost:5432/tally
+#   Do NOT publish a host port (-p 5432:5432): host 5432 belongs to another
+#   project. Wait for "PostgreSQL init process complete" in `docker logs
+#   tally-pg` before connecting — a probe earlier hits the temporary init
+#   server.
+#
+# CONNECT (inside the container; there is no `postgres` role — use tally)
+#   docker exec -it tally-pg psql -U tally -d tally
 #
 # ITERATE ON SCHEMA
-#   1. Edit sql/tu.sql (or add a new patch file alongside it)
-#   2. Rebuild the image:  docker build -t tally-postgres -f postgres/Dockerfile .
-#   3. Re-run the container — the schema is applied fresh on every start
+#   tu.sql is APPEND-ONLY. A change is a new sql/v5.4.x-NN-*.sql patch, applied
+#   first to a clone (CREATE DATABASE x TEMPLATE tally) with search_path=''
+#   and check_function_bodies=on — this image's preamble turns body checking
+#   OFF, so a Docker build alone cannot catch unqualified function bodies.
+#   Only after review is the patch body mirrored into tu.sql and the image
+#   rebuilt. Full loop: tests/README.md.
 #
 # PSQL ONE-LINER (run a query without an interactive session)
 #   docker exec tally-pg psql -U tally -d tally -c "\dt"

@@ -14,6 +14,14 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
+  v5.4.2-12/                # DRAFT — A-2 backbilling caps, NOT landed (held on Kyle Q-C / Q-D)
+    battery-12.sql          # 66 checks, green on a clone with the draft applied
+    review/
+      review-brief-12.md          # round 1 brief (Codex + Fable); findings folded, pinned by group J
+      patch-12-frozen-r1.sql      # the round-1 hash both reviewers tested
+      battery-12-frozen-r1.sql
+      patch-12-frozen-r2.sql      # frozen for round 2, which has NOT been run. Superseded by a
+      battery-12-frozen-r2.sql    #   comment-only edit on 2026-09-23 — re-freeze before launching
   v5.4.2-11/
     battery-11.sql          # 41 checks; TWO tenants throughout (every headline check is cross-tenant).
                             #   Group G is unusual and deliberate: it proves the tenant-isolation
@@ -26,6 +34,8 @@ tests/
       review-brief-11.md          # round 1 (hash frozen)
       review-brief-11-round2.md   # round 2 — every round-1 finding and its disposition
       review-brief-11-round3.md   # round 3 — confirmation, scoped to section 7 and R5
+                                  # (the patch went five rounds; rounds 4 and 5 have no committed
+                                  #  brief — their hashes and outcomes are in sql/DEPLOY-VERIFICATION.md)
   v5.4.2-10/
     battery-10.sql          # 58 checks; review/ holds five frozen revisions, five briefs, per-round reviewer repros, races/ (two-session scripts + outputs)
   v5.4.2-09/

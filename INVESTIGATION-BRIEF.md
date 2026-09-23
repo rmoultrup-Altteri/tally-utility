@@ -1,5 +1,7 @@
 # TallyUtility — Investigation Brief
 
+> **HISTORICAL — superseded (note added 2026-09-23).** This is the 2026-08-13 state and is kept as the record of that investigation. Much of it no longer holds: there are now 21 landed patches (tu.sql 21,916 lines, 82 tables), a `tally_app` role with GRANTs, a git remote, and PostgreSQL-on-AWS rather than Supabase. Its warning about `application/database/schema.sql` (a Claude-authored reconstruction, not a real dump) still stands. For current state read `CONTEXT.md` and `HANDOFF.md`.
+
 **Written:** 2026-08-13
 **Written by:** the Claude Code session that produced most of the work described here.
 **Status of the author:** not trusted. This document exists because the user withdrew confidence in my output after I made a series of errors, culminating in my not knowing that the database schema was still in flux and that two schema files exist.

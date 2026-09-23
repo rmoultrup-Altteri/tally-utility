@@ -116,7 +116,7 @@ domain expert and live in `gas-billing-memory/application/`:
 | **T8-8** rate card reads **as-billed** from `invoice_line_items.rate`, drift marker only where it differs | `/dashboard` rate card |
 
 `T8-2` (favorites: reports, record lists and saved searches only — nothing
-record-level, no recents) is **not built yet**.
+record-level, no recents) is built — see the next section.
 
 ## Favorites and saved views (T8-2)
 

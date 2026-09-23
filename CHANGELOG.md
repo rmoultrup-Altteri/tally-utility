@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-09-23 — Full project assessment, then the docs brought back into parity with the schema
+
+**What was done:** a full assessment of both repos by four parallel read-only reviews (schema patches; roadmap and Kyle's rulings; application planning; UI prototype and knowledge base), then a documentation-only parity pass. **No ruling, decision or SQL logic changed; nothing landed.** tu.sql is unchanged at 21,916 lines through v5.4.2-11.
+
+**The assessment, in one paragraph.** 21 patches are landed and verified; A-2 (-12) is drafted, reviewed once, held on Kyle's Q-C / Q-D, and the Kyle brief is written but not recorded as sent. The meter test history (CI-091) is specced and needed before launch either way. No application code exists; the tech stack is decided (PostgreSQL 16, C#/.NET modular monolith, React/TS), but identity, hosting, the permission model and the testing approach are not. **No test scenario has been written** — WU5 has axes only and WU7–WU12 have not started — and scenarios gate application code. The invariant register (~87 of 135 still graded against v5.2.1) and the feature list (a May baseline) need re-grading. 61 sections await wiki ingestion; the wiki copy is frozen at 2026-06-07. Knowledge file 23 (competitor claims) was never committed.
+
+**tally-utility changes.** `sql/v5.4.2-12-backbilling-caps.sql`: **comments only**, which said a straddling period is "prorated by days" (the code records the day share and gate (iii) refuses it), that the gate measures "from the LINE ITEMS" (it measures the greater of lines and `amount_due`), that R9 requires the two to "AGREE" (it does not), and headed the residuals "R1–R8" (they run to R9 with R7b). **One comment described logic the code does not have:** it said the previously-billed side is measured at the LESSER, so a divergent legacy bill cannot raise the bar; the code takes the max of the greater. The comment now describes the code and flags the question for review round 2 — the logic is untouched. Verified: strict apply ×2 clean, **battery-12 66 PASS**; new md5 `98e09d7901319ef7036c9e160c0ddc64` (2,002 lines), so the frozen round-2 copy is superseded. Also: `CONTEXT.md` rewritten from its May state; `DEPLOY-VERIFICATION.md` "Current" now -11; `postgres/Dockerfile` run notes (no host port, `docker exec`, the strict-apply loop); `tests/README.md` (-12; -11's missing round-4/5 briefs); `ui-concepts/README.md` T8-2 line; historical banners on `INVESTIGATION-BRIEF.md` and `TECH-STACK-DISCUSSION.md`'s stale paragraph; HANDOFF rewritten (its A-2 "wait for Part 4" and "get Ryan's open call" instructions were a week stale and contradicted its own Workstream C).
+
+**gas-billing-memory changes:** see its CHANGELOG 2026-09-23 and ingestion Section BJ — the parity plan's status table (with Kyle's coda backlog A1–A19, none built, now tracked), `CONTEXT.md`, answered-but-OPEN Kyle documents annotated, the invariant and feature-list staleness banners, the Texas backbilling row corrected.
+
+**Deliberately not changed:** `sql/tu.sql`'s stale header comment (append-only, hash-verified container — fix with the next mirror); `application/draft-candidates.md` / `session-1-recon.md` (unreferenced duplicates of GBM files — deletion is Ryan's call).
+
+**Next:** whether the Kyle brief went out; Ryan's six meter-test-history calls; then draft CI-091.
+
+---
+
 ## 2026-09-22 (later) — A-2 drafted, reviewed, and held: the trim was theatre, the gate asked the wrong question, and two rulings are missing
 
 **What was done:** `sql/v5.4.2-12-backbilling-caps.sql` drafted (1,993 lines), run past two independent adversarial reviewers, revised once, and **committed unlanded** (`ef27cb1`). Not mirrored into `tu.sql`. Two questions block it with Kyle.
