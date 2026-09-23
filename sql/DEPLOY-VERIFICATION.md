@@ -2,7 +2,7 @@
 
 **Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-11, verified 2026-09-09.** After v5.4.2-11: **82 tables** / **5 views (all `security_invoker`)** / **4 matviews (owner-only)** / **81 policies** / **80 FORCE-RLS** / **357 FKs** / **255 triggers** / **393 functions** (+1: `assert_tenant_isolation_invariants()`) / **3 SECURITY DEFINER, 0 PUBLIC-executable**. tu.sql **21,916 lines**, md5 `6edac2aad61505edd5654f214d62b351` (the container init file matches by hash). The -11 detail is at the end of this file ([v5.4.2-11 verification](#v5425-11-verification-2026-09-09--definer-hygiene-and-the-tenant-isolation-gate)), after the older sections.
 
-**Not deployed: v5.4.2-12 (A-2 backbilling caps)** — drafted and through one review round, held on two questions to Kyle; not mirrored into tu.sql (status 2026-09-23).
+**Not deployed: `sql/v5.4.2-12-backbilling-caps.sql` (A-2 backbilling caps)** — drafted and through one review round, not mirrored into tu.sql. Kyle's R-32…R-39 (2026-09-22/23) move it to v5.4.2-13, to be re-drafted behind the meter test history, which takes -12 (status 2026-09-23).
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 

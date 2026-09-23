@@ -29,7 +29,7 @@ Domain research, feature extraction and application planning are done. The proje
 - read and bill exception queues, account lifecycle and deposits, the Texas Pipeline Safety Fee, tax-exemption certificates;
 - `public.assert_tenant_isolation_invariants()`, which every patch must now call at its end (contract AC-32).
 
-**In flight:** `sql/v5.4.2-12-backbilling-caps.sql` (A-2, the 16 TAC §7.45 limits on backbilling) is drafted and through one review round but **not landed** — two questions with Kyle block it. The meter test history (CI-091) is specced and may land ahead of it. See `HANDOFF.md` for the live queue.
+**In flight:** Kyle ruled every open question on 2026-09-22/23 (R-32…R-39). **Next is the meter test history (CI-091) as v5.4.2-12**, then **A-2 (the 16 TAC §7.45 limits on backbilling) re-drafted as v5.4.2-13** — its first draft, `sql/v5.4.2-12-backbilling-caps.sql`, was reviewed once and is not landed. See `HANDOFF.md` for the live queue.
 
 **What exists in this repo:**
 - `sql/tu.sql` + the patch files — the schema; `sql/DEPLOY-VERIFICATION.md` — per-patch verification record and object counts

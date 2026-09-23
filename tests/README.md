@@ -14,7 +14,8 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
-  v5.4.2-12/                # DRAFT — A-2 backbilling caps, NOT landed (held on Kyle Q-C / Q-D)
+  v5.4.2-12/                # DRAFT — A-2 backbilling caps, NOT landed; to be re-drafted as -13 per Kyle R-32…R-39
+                            #   (the meter test history takes the -12 slot — rename this directory with the patch)
     battery-12.sql          # 66 checks, green on a clone with the draft applied
     review/
       review-brief-12.md          # round 1 brief (Codex + Fable); findings folded, pinned by group J

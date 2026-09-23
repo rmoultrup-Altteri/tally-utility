@@ -1,14 +1,14 @@
-# Handoff: docs back in parity with the schema; A-2 still held on Kyle; the meter test history is the next build
+# Handoff: docs in parity with the schema; Kyle ruled everything open — the meter test history is next as -12, A-2 re-drafts as -13
 
 **Generated**: 2026-09-23 (documentation-parity session — no schema change landed)
 **Branch**: tally-utility `main` · gas-billing-memory `main` (commits for this session follow this file)
-**Status**: tu.sql **21,916 lines, through v5.4.2-11** (21 landed patches). **v5.4.2-12 (A-2 backbilling caps) is DRAFTED, reviewed once, NOT landed** — held on two Kyle questions. The planning docs in both repos were brought into parity with the schema this session.
+**Status**: tu.sql **21,916 lines, through v5.4.2-11** (21 landed patches). The A-2 draft (committed as `sql/v5.4.2-12-backbilling-caps.sql`, reviewed once, NOT landed) is now **superseded in design** by Kyle's R-32…R-39 and will be re-drafted as **v5.4.2-13**. **The meter test history (CI-091) takes the -12 slot and is cleared to build.**
 
 ## THE ONE THING TO CARRY FORWARD
 
-**Two things block the critical path, and both are Ryan's to move:**
-1. **Has the Kyle brief gone out?** `gas-billing-memory/application/kyle-brief-2026-09-22-a2-two-rulings.md` is "ready to send"; nothing records that it was sent or answered. Q-C (a billing period that straddles the window opening — bill it whole, forfeit it, or split it?) and Q-D ("the last test" — the one that found the error, or the last one that found the meter accurate?) both change the code. Q-D may put the meter test history AHEAD of A-2 (it would become -12 and A-2 -13).
-2. **Ryan's six design calls on the meter test history** (brief §8). It is required before launch either way, so it can be drafted now.
+**Kyle answered everything while the docs were being fixed** (found at push time, 2026-09-23), so nothing blocks the critical path except Ryan's `test_kind` list: `gas-billing-memory/application/kyle-decisions-2026-09-22-a2-straddle-and-meter-test-anchor.md` (R-32…R-36) and `gas-billing-memory/application/kyle-decisions-2026-09-23-a2-override-and-cause-freeze.md` (R-37…R-39).
+1. **Build the meter test history as v5.4.2-12 now.** "The last test" = the most recent completed test before the discovery test, whatever its outcome (R-34) — so no accuracy filter. Kyle endorsed Ryan's D-1, D-3, D-4, D-5, D-6; **D-2 (the test-kind list) is still Ryan's call.** Fold R1 §8's change list into the CI-091 brief's shape before drafting.
+2. **Then re-draft A-2 as v5.4.2-13:** remove the trim (an adverse straddling period is forfeited whole, R-32, with an append-only forfeiture row); meter-error corrections become **adjustments on a later bill, not void-and-rebill** (R-33) and are non-disconnectable except tampering; no under-reach override in the customer-favourable direction (R-37); cause and anchor freeze at evidence-freeze (R-38); eight-value cause domain (R-39). **Its adjustment-path DDL waits on Kyle's OQ-1** (does R-33 also cover non-registering and tampering causes?). The existing -12 draft is the starting point, not the answer.
 
 **Every patch still ends by calling `public.assert_tenant_isolation_invariants()`** (AC-32), shown to RAISE on planted drift.
 
@@ -27,7 +27,7 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 - **Re-grade the invariant register** (~87 entries still v5.2.1 grades) and **the feature list's schema-status column** (a May baseline: 283 "gap" rows, some since built). Both are real work, not edits — worth an agent-assisted pass.
 - **Wiki ingestion:** 61 sections (A–BJ) queued, none ingested; the wiki copy is frozen at 2026-06-07 (`wiki-vault/wiki/projects/tally-utility`, detached HEAD).
 - **Knowledge file 23** (competitor site claims) was never committed — re-research or drop.
-- **Open calls for Ryan:** the UI prototype's direction; whether Kyle's D-2 satisfies the finance gate; the meter-test-history D-1…D-6.
+- **Open calls for Ryan:** the UI prototype's direction; whether Kyle's D-2 satisfies the finance gate; the meter-test-history `test_kind` list (D-2); which of `meters.num_dials` / `dial_count` is authoritative (Kyle's side finding, 09-23).
 - **Duplicates:** `application/draft-candidates.md` and `application/session-1-recon.md` are byte-identical copies of GBM `application/invariants/` files, referenced by nothing — candidates for deletion (Ryan's call).
 - Unconsolidated Kyle brief candidates (PSF cap $1.00 vs $0.50, deposit-cap ceiling, legacy deposit refunds, and others — list in the schema background below).
 
@@ -46,13 +46,13 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 
 **Also recorded for the register, pre-existing and not A-2's:** `tally_app` can post a charge directly into `account_ledger` outside any invoice gate — the ledger and the bill are both application-asserted.
 
-**Not done, all waiting on Kyle:** round 2 reviews (the `patch-12-frozen-r2.sql` copy is superseded by the 09-23 comment edit — **re-freeze before launching**, and add the open item below to the brief); the mirror into `tu.sql`; DEPLOY-VERIFICATION; CI re-grades (CI-008, CI-092, CI-091); the Appendix and DECISION-LOG entries.
+**Not done:** everything after the draft — and the draft itself now needs re-drafting to R-32…R-39 as -13 (see THE ONE THING). The `patch-12-frozen-r2.sql` copy is superseded; review round 2 runs on the -13 re-draft.
 
 **Then, behind A-2 (or possibly ahead of it — see Q-D):** CI-091's append-only meter test history (R-31), required before the first gas tenant goes live.
 
 **Open for review round 2 (found 2026-09-23, comment vs code, logic NOT changed):** gate (iii) measures the previously-billed charge as the MAX over prior voided bills of `backbilling_invoice_charge()` — the GREATER of lines and `amount_due`. An earlier comment claimed the prior side used the LESSER, so an already-divergent legacy bill could not raise the bar. The comment now describes the code and flags the question; the reviewers should decide which measure the prior side needs.
 
-**Meter test history (CI-091)** — specced in GBM `application/ci091-meter-test-history-implementation-brief-2026-09-22.md`, no DDL. Six calls for Ryan (§8 D-1…D-6: two tables vs jsonb; the `test_kind` list; outcome computed by the DB; when customer/location are required; what a late-entered test does to existing evidence; adding `UNIQUE (id, tenant_id)` to `users`). Three for Kyle (§9 K-1…K-3). Needed before launch whichever way Q-D goes; only the ordering depends on Kyle.
+**Meter test history (CI-091) — next, as v5.4.2-12.** Specced in GBM `application/ci091-meter-test-history-implementation-brief-2026-09-22.md` (status now "cleared to build"); Kyle's R-34…R-36 settle its three questions and §8 of his 09-22 record lists the changes to fold (no accuracy filter on the governing test; every `test_kind` anchors; per-meter absence flag `attested_none`/`unknown`, append-only; no back-fill from `install_date` or the test interval; a supervisor gate on weak-provenance adverse corrections that lapses at cutover + 6 months; the threshold seed keyed by service type). Ryan's D-2 (test-kind list) is the only open design call. Needs a per-tenant **cutover date** home (also wanted by R-37).
 
 ## Workstream A — `ui-concepts/` (parked, awaiting Ryan's direction call; unchanged since 2026-09-18)
 
@@ -124,9 +124,9 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 
 ## Resume Instructions
 
-1. **Ask Ryan whether the Kyle brief went out and whether anything came back.** Fold any answer first — it decides the patch order.
-2. **Get Ryan's D-1…D-6 on the meter test history**, then draft it (numbered -12 if Kyle confirms the prior-accurate reading and A-2 becomes -13; otherwise -13 behind A-2). Confirm the §7.45(7)(B) field list against the rule text before freezing — the brief did not re-fetch it.
-3. **When Kyle answers:** fold Q-C / Q-D into -12, re-freeze, launch review round 2 with the prior-side measure question in the brief.
+1. **Kyle's R-32…R-39 are in** (see THE ONE THING). Read both records before drafting anything.
+2. **Get Ryan's D-2 (the `test_kind` list)**, then draft the meter test history as **v5.4.2-12**, folding Kyle's 09-22 record §8. It must also carry `meter_test_id` for A-2's evidence row to cite.
+3. **Then re-draft A-2 as v5.4.2-13** to R-32…R-39 (renaming the file), re-freeze, and run review round 2 — include the prior-side charge-measure question. Hold the adjustment-path DDL until Kyle rules OQ-1.
 4. Same loop as -10/-11/-12: fresh clone (`docker exec` only) → strict apply ×2 (`search_path=''`, `check_function_bodies=on`) → battery in one transaction as `tally_app` → brief with `wc -l` + `md5 -q` → **freeze, launch both reviewers** → fold into ONE revision per round → mirror after the LAST banner → fresh rebuild + catalog parity → batteries green on the build → DEPLOY-VERIFICATION → CI re-grade → Appendix → DECISION-LOG / APPLICATION-CONTRACTS → ingestion section → both CHANGELOGs → **battery + repros into `tests/v5.4.2-NN/`** → commit + push both repos.
 
 ## Warnings
@@ -137,5 +137,5 @@ A full project assessment (four parallel read-only reviews), then a documentatio
 - Wait for `PostgreSQL init process complete`; run `tally-pg` without `-p`; connect as `-U tally` (there is no `postgres` role).
 - Never `git add -A` in GBM. Record every GBM canonical-data change in `application/wiki-ingestion-pending.md`.
 - Fixtures for later patches: customers need `status_reason` on any status change; deposits are events-only; issued invoices reject content edits; reads born `pending_review` → approve → `released_to_billing` → `locked` (needs `billing_period_locked` AND `locked_by_billing_run_id`); a surcharge line needs `meter_id` when capped and must be written before its bases; issuance needs snapshot + bases; a billing run needs `started_at` before any snapshot; rule corrections/retractions run only under READ COMMITTED (AC-29); an asserted exemption needs alphanumeric certificate evidence (AC-30); a snapshot's `valid_at` = `period_end`, `recorded_at` ≥ the run's `started_at` (AC-31); `pg_temp` helper functions now need explicit `GRANT EXECUTE … TO tally_app` (the PUBLIC default is revoked).
-- Do not land A-2 until Kyle answers Q-C / Q-D. A-8 needs its Kyle brief first. The finance gate holds A-15's finance parts and the A-6 remainder and may hold A-10 — whether Kyle's D-2 (receivables subledger that exports) already satisfies it is an open question for Ryan. Texas-only launch scope.
+- Do not land A-2 before the meter test history, and do not draft its adjustment path before Kyle rules OQ-1. A-8 needs its Kyle brief first. The finance gate holds A-15's finance parts and the A-6 remainder and may hold A-10 — whether Kyle's D-2 (receivables subledger that exports) already satisfies it is an open question for Ryan. Texas-only launch scope.
 - `sql/tu.sql`'s header comment is stale (says "v5.2.1 + v5.4.0-00", "roles and GRANTs not yet defined", "regenerated — never hand-edit"). Left untouched on purpose: the file is append-only and the container is hash-verified against it. Fix it, if at all, with the next mirror.

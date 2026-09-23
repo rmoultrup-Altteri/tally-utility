@@ -16,7 +16,9 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 **Deliberately not changed:** `sql/tu.sql`'s stale header comment (append-only, hash-verified container — fix with the next mirror); `application/draft-candidates.md` / `session-1-recon.md` (unreferenced duplicates of GBM files — deletion is Ryan's call).
 
-**Next:** whether the Kyle brief went out; Ryan's six meter-test-history calls; then draft CI-091.
+**Addendum, same session — Kyle had already answered.** At push time gas-billing-memory held two new Kyle records (09-22 15:36 and 09-23 07:41): **R-32…R-36** (an adverse straddling period is forfeited whole and the trim is removed; meter-error corrections are adjustments on a later bill, not void-and-rebill; "the last test" is the most recent completed test before discovery, whatever its outcome; migration never blocks onboarding; date-only migrated tests anchor behind a lapsing gate) and **R-37…R-39** (no favourable-direction under-reach override; cause and anchor freeze at evidence-freeze; an eight-value cause domain), plus **OQ-1**, still open. The docs written earlier this session were updated again to match: HANDOFF, CONTEXT, DEPLOY-VERIFICATION, tests/README. **The meter test history is now next as v5.4.2-12; A-2 is re-drafted as -13.** Also in gas-billing-memory: a commit here truncated `wiki-ingestion-pending.md` (the file was opened for writing before it was read); it was restored in the next commit, `6c0c390`, with nothing lost.
+
+**Next:** Ryan's `test_kind` list (D-2); draft the meter test history as -12; then re-draft A-2 as -13.
 
 ---
 
