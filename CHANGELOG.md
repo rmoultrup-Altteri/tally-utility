@@ -4,6 +4,48 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-09-23 (evening) — A-2 re-drafted as v5.4.2-13: the meter correction case; four review rounds folded, round 5 frozen, NOT landed
+
+**What was done:** the A-2 draft was rewritten from scratch to Kyle's rulings R-32 to R-39, on top of the meter test history (-12).
+
+**Ryan's design call:** metering corrections get their own record, `meter_correction_cases`, one per finding about one meter. Kyle's R-33 takes meter errors off void-and-reissue, and R-37(b) makes the correction follow the meter across every address and occupant. **Posting a case to a bill is deferred to -14**, pending Kyle's OQ-1. Kyle's plain-language OQ-1 brief is written (GBM, not yet sent).
+
+**What the patch builds** (`sql/v5.4.2-13-backbilling-caps.sql`, 3,619 lines):
+- **Tenant settings.** The protection mode is platform-set. The tenant's own adverse limit only shortens charges.
+- **Supervisors.** Only a supervisor can make a supervisor.
+- **The cap table** (8 causes) is read-only for tenants. The round-1 draft let a tenant uncap its own six-month row.
+- **Void-and-reissue** admits only `rate_misapplication`, and only at the voided bill's own usage.
+- **The case.** The database derives the cause's eligibility, the anchor and the direction from the discovering test. A move into tampering needs a supervisor and evidence.
+- **Evaluations.** Each billed period of the meter is judged on its own. An adverse period straddling the window is forfeited whole (R-32), and each forfeiture is recorded with its days and dollars. The whole input set is fingerprinted.
+- **Also:** the R-36 supervisor approval, two-code holds, the freeze, and four standing views.
+
+**Found while building, before any review:**
+- **Every fast-meter refund would have ended at go-live.** Tally auto-creates each meter's first deployment on the day the meter is entered, so R-37(a) read literally stops the refund at onboarding. A service start now shortens a refund only when corroborated by a predecessor meter at the premise. This reading has been put to Kyle.
+- **The tenant settings history refused every tenant insert.** Its known-key CHECK didn't list the two new keys.
+
+**The review, one line per round** (Fable and Opus, hash-frozen throughout):
+- **Round 1** (both "not yet"):
+  - a direction flip through the freeze branches (both reviewers);
+  - freezing on a corrected test (both);
+  - $0 refunds (both);
+  - forgeable deployment evidence (both);
+  - the reissue gate's exact-period match (both);
+  - plus withdrawal, completed holds, same-day opposite findings, ancient predecessors and duplicate live cases.
+- **Round 2** (both "not yet"): backdated removals written after the test, through `meters.status`, erased the refund stretch (both); the gate compared bills of different scope (both); the round-1 lock deadlocked (both).
+- **Round 3** (both "not yet"): at the same premise, the extra money rode on another meter's line or a line with no meter; and "more than EVERY" let a higher voided bill excuse a rebill (both reviewers found both).
+- **Round 4** (both "not yet, narrowly"): siblings in the whole-versus-meter split. The header premise is caller-chosen; a second meter at the voided premise, or another tenant's meter, carried the extra; and the units test read only the replaced bill.
+
+**Every finding was measured before it was folded in.** Where both reviewers proposed fixes, the stronger one was chosen: "more than ANY" over the covering-bill rule. Per-day proration was declined, because it lets a cheap new month dilute an overcharge.
+
+**Verified on r5:** strict apply ×2 clean; **battery-13 137 PASS** (groups A–P); **73 planted mutations, each caught at its named check**; `fence-and-race-13.sh` **A–E PASS**, each failing under its planted mutation; regressions **28 / 58 / 41 / 116**; every repro from both reviewers refused.
+
+**Not done / next:**
+- Send r5 (`tests/v5.4.2-13/review/review-brief-13-round5.md`) as a confirmation round. Both reviewers expect it to be mirrorable. Then land: mirror, rebuild, parity, records.
+- Ryan to decide whether to send Kyle the OQ-1 brief. It also carries the R-37(a) corroboration reading and the R-36 scope.
+- `tu.sql` untouched (23,452 lines, through -12).
+
+---
+
 ## 2026-09-23 (later) — v5.4.2-12, the meter test history: drafted, five review rounds, LANDED
 
 **What was done:** Kyle's R-34 put CI-091's append-only meter test history ahead of A-2, so it became v5.4.2-12 and A-2's draft was renumbered to -13 (file and tests moved; its text still says -12). Ryan chose the `test_kind` list (periodic, customer_requested, complaint, post_repair, acceptance, other). Drafted, reviewed through five hash-frozen rounds, mirrored into `tu.sql` (21,916 → 23,452, pure append), the container rebuilt fresh and hash-verified.
