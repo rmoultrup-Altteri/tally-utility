@@ -22,7 +22,7 @@ M=[
  ('M06 removal write-once', "       OR (OLD.removal_reason IS NOT NULL AND NEW.removal_reason IS DISTINCT FROM OLD.removal_reason) THEN", " THEN", 'B3'),
  ('M07 cap table revoke', "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_cap_rules FROM tally_app;", "", 'C1'),
  ('M08 target cause domain', "(backbill_cause = 'rate_misapplication'::text)))", "(backbill_cause = ANY (ARRAY['rate_misapplication'::text, 'meter_error'::text]))))", 'D1'),
- ('M09 increase test', "        IF v_new_part <= v_old_part THEN\n            v_increase := false;", "        IF false THEN\n            v_increase := false;", 'D6'),
+ ('M09 increase test', "        IF v_new_part > v_old_part THEN\n            v_increase := true;", "        IF false THEN\n            v_increase := true;", 'D2'),
  ('M10 units check', "IF NOT public.backbilling_units_match(NEW.replaces_invoice_id, NEW.id) THEN", "IF false THEN", 'D4'),
  ('M11 no-cause increase', "    IF v_t.backbill_cause IS NULL THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('backbilling: invoice %s increases the charge", "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('backbilling: invoice %s increases the charge", 'D3'),
  ('M12 target freeze column', "       AND NEW.backbill_cause     IS NOT DISTINCT FROM OLD.backbill_cause THEN", "       THEN", 'D7'),
@@ -80,9 +80,13 @@ M=[
  # ---- review round 2 guards (battery group N; D/E are fence-and-race-13.sh)
  ('M64 removal stamped', "    IF OLD.removal_date IS NULL AND NEW.removal_date IS NOT NULL THEN\n        NEW.removal_recorded_at := now();", "    IF false THEN\n        NEW.removal_recorded_at := now();", 'N1'),
  ('M65 removal stamp immutable', "       OR NEW.removal_recorded_at IS DISTINCT FROM OLD.removal_recorded_at\n", "\n", 'N1'),
- ('M66 gate scope by meter', "        IF r.id IS DISTINCT FROM NEW.replaces_invoice_id AND r.shares_meter THEN", "        IF false THEN", 'N2'),
+ ('M66 gate scope by meter', "        IF r.id IS DISTINCT FROM NEW.replaces_invoice_id AND r.shares_meter\n           AND (NEW.location_id IS NULL OR r.location_id IS DISTINCT FROM NEW.location_id) THEN", "        IF false THEN", 'N2'),
  ('M67 gate customer leg', "                      OR (NEW.location_id IS NULL AND i.customer_id = NEW.customer_id)\n", "\n", 'N3'),
  ('M68 unknown usage is usage', "                 WHERE x ->> 'invoice_id' = v_key) IS DISTINCT FROM 0 THEN", "                 WHERE x ->> 'invoice_id' = v_key) <> 0 THEN", 'N4'),
+ # ---- review round 3 guards (battery group O)
+ ('M69 same premise compares whole', "        IF r.id IS DISTINCT FROM NEW.replaces_invoice_id AND r.shares_meter\n           AND (NEW.location_id IS NULL OR r.location_id IS DISTINCT FROM NEW.location_id) THEN", "        IF r.id IS DISTINCT FROM NEW.replaces_invoice_id AND r.shares_meter THEN", 'O1'),
+ ('M70 more than ANY is an increase', "        IF v_new_part > v_old_part THEN\n            v_increase := true;", "        IF v_new_part <= v_old_part THEN\n            v_matched := false;\n        ELSIF v_new_part > v_old_part THEN\n            v_increase := true;", 'O2'),
+ ('M71 app removal strictly before', '                                OR d.removal_recorded_at >= v_rec\n                                OR (d.removal_recorded_at IS NULL AND d.created_at > v_rec)))\n        AND EXISTS (SELECT 1 FROM public.meter_deployments d\n                     WHERE d.meter_id = e.meter_id AND d.tenant_id = e.tenant_id\n                       AND d.created_at <= v_rec\n                       AND d.removal_date IS NOT NULL\n                       AND d.removal_date <= g.day::date\n                       AND CASE WHEN d.removal_recorded_at IS NULL THEN d.created_at <= v_rec\n                                ELSE d.removal_recorded_at < v_rec END));', '                                OR coalesce(d.removal_recorded_at, d.created_at) > v_rec))\n        AND EXISTS (SELECT 1 FROM public.meter_deployments d\n                     WHERE d.meter_id = e.meter_id AND d.tenant_id = e.tenant_id\n                       AND d.created_at <= v_rec\n                       AND d.removal_date IS NOT NULL\n                       AND d.removal_date <= g.day::date\n                       AND coalesce(d.removal_recorded_at, d.created_at) <= v_rec));', 'O3'),
 ]
 def run(i, m):
     name, old, new, exp = m
