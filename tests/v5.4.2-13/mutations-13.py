@@ -22,7 +22,7 @@ M=[
  ('M06 removal write-once', "       OR (OLD.removal_reason IS NOT NULL AND NEW.removal_reason IS DISTINCT FROM OLD.removal_reason) THEN", " THEN", 'B3'),
  ('M07 cap table revoke', "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_cap_rules FROM tally_app;", "", 'C1'),
  ('M08 target cause domain', "(backbill_cause = 'rate_misapplication'::text)))", "(backbill_cause = ANY (ARRAY['rate_misapplication'::text, 'meter_error'::text]))))", 'D1'),
- ('M09 increase test', "IF v_prior_charge IS NULL OR v_new_charge <= v_prior_charge THEN", "IF v_prior_charge IS NULL THEN", 'D6'),
+ ('M09 increase test', "        IF v_new_part <= v_old_part THEN\n            v_increase := false;", "        IF false THEN\n            v_increase := false;", 'D6'),
  ('M10 units check', "IF NOT public.backbilling_units_match(NEW.replaces_invoice_id, NEW.id) THEN", "IF false THEN", 'D4'),
  ('M11 no-cause increase', "    IF v_t.backbill_cause IS NULL THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('backbilling: invoice %s increases the charge", "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('backbilling: invoice %s increases the charge", 'D3'),
  ('M12 target freeze column', "       AND NEW.backbill_cause     IS NOT DISTINCT FROM OLD.backbill_cause THEN", "       THEN", 'D7'),
@@ -77,6 +77,12 @@ M=[
  ('M61 zero refused', "        IF c.direction IS NOT NULL AND v_amount = 0", "        IF false AND v_amount = 0", 'M10'),
  ('M62 one live case', "CREATE UNIQUE INDEX IF NOT EXISTS uq_meter_correction_cases_live_test", "CREATE INDEX IF NOT EXISTS uq_meter_correction_cases_live_test", 'M11'),
  ('M63 fast-findings surface', " WHERE t.outcome = 'fast'\n   AND NOT EXISTS (SELECT 1 FROM public.meter_tests s WHERE s.supersedes_test_id = t.id)\n   AND NOT EXISTS (SELECT 1 FROM public.meter_correction_cases mc", " WHERE t.outcome = 'fast'\n   AND NOT EXISTS (SELECT 1 FROM public.meter_correction_cases mc", 'M12'),
+ # ---- review round 2 guards (battery group N; D/E are fence-and-race-13.sh)
+ ('M64 removal stamped', "    IF OLD.removal_date IS NULL AND NEW.removal_date IS NOT NULL THEN\n        NEW.removal_recorded_at := now();", "    IF false THEN\n        NEW.removal_recorded_at := now();", 'N1'),
+ ('M65 removal stamp immutable', "       OR NEW.removal_recorded_at IS DISTINCT FROM OLD.removal_recorded_at\n", "\n", 'N1'),
+ ('M66 gate scope by meter', "        IF r.id IS DISTINCT FROM NEW.replaces_invoice_id AND r.shares_meter THEN", "        IF false THEN", 'N2'),
+ ('M67 gate customer leg', "                      OR (NEW.location_id IS NULL AND i.customer_id = NEW.customer_id)\n", "\n", 'N3'),
+ ('M68 unknown usage is usage', "                 WHERE x ->> 'invoice_id' = v_key) IS DISTINCT FROM 0 THEN", "                 WHERE x ->> 'invoice_id' = v_key) <> 0 THEN", 'N4'),
 ]
 def run(i, m):
     name, old, new, exp = m
