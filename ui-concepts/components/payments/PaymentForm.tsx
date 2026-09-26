@@ -31,7 +31,8 @@ export type AccountNote = { tone: 'warning' | 'critical' | 'info'; text: string 
 
 const METHODS: PaymentMethod[] = ['cash', 'check', 'money_order', 'credit_card', 'debit_card', 'ach', 'wire', 'other']
 const CHANNELS: PaymentChannel[] = ['walk_in', 'agent_phone', 'mail']
-const MONEY = /^\d+(\.\d{1,2})?$/
+/** Dollars and cents. A trailing point ("30.") is accepted, so a total never jumps mid-keystroke. */
+const MONEY = /^\d+(\.\d{0,2})?$/
 
 const field = 'h-8 w-full rounded-xs border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted'
 const small = 'h-6 rounded-xs border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary placeholder:text-ink-muted'
@@ -43,10 +44,10 @@ const daysBetween = (a: string, b: string) =>
  * Taking a payment.
  *
  * Find the account first — by name, account number, street address or any of
- * its invoice numbers — and its open bills fill in underneath. The amount is
- * applied oldest-due first (the invoice that was searched for goes first), and
- * any line can be changed by hand. What is not applied is held on the account
- * as a credit rather than guessed at.
+ * its invoice numbers — and its open bills fill in underneath, oldest first. A
+ * total typed in the amount is applied to the oldest bill first and the rest
+ * carries down the list; changing a line instead makes the amount their total.
+ * What is not applied is held on the account as a credit rather than guessed at.
  *
  * No card or bank number is ever typed here. Cards are taken on the terminal
  * or the provider's hosted field and come back as an authorization code; ACH
@@ -101,6 +102,10 @@ export function PaymentForm({
   const [memo, setMemo] = useState('')
   const [split, setSplit] = useState<Record<string, string>>({})
   const [manual, setManual] = useState(false)
+  /** Lines just cut back to their bill's open balance, so the row can say so. */
+  const [capped, setCapped] = useState<string[]>([])
+  /** The unapplied cents the customer agreed to leave as a credit. If that amount changes, it must be agreed again. */
+  const [creditAgreed, setCreditAgreed] = useState<number | null>(null)
   const [receipt, setReceipt] = useState<Payment | null>(null)
 
   /* ---- Search ---------------------------------------------------------- */
@@ -139,8 +144,9 @@ export function PaymentForm({
         pending: [...(pending[i.id] ?? []), ...(pendingHere[i.id] ?? [])],
       }))
       .filter((i) => i.open > 0)
-      .sort((a, b) => (a.id === focusInvoice ? -1 : b.id === focusInvoice ? 1 : a.dueDate.localeCompare(b.dueDate)))
-  }, [customerId, openInvoices, pending, added, focusInvoice])
+      /* Oldest first — the order a payment is applied in, so the table reads top to bottom. */
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.invoiceDate.localeCompare(b.invoiceDate))
+  }, [customerId, openInvoices, pending, added])
 
   const owed = invoices.reduce((a, i) => a + i.open, 0)
 
@@ -174,12 +180,40 @@ export function PaymentForm({
     setQuery('')
     setSplit({})
     setManual(false)
+    setCapped([])
+    setCreditAgreed(null)
     setAmount('')
   }
 
+  /**
+   * Typing a total re-spreads it: the oldest bill is paid first and whatever is
+   * left moves on to the next, replacing any lines keyed by hand. Whichever of
+   * the two was edited last — the total or a line — is the one that holds.
+   */
   const onAmount = (v: string) => {
     setAmount(v)
-    if (!manual) setSplit(MONEY.test(v.trim()) ? allocate(cents(v)) : {})
+    setManual(false)
+    setCapped([])
+    setSplit(MONEY.test(v.trim()) ? allocate(cents(v)) : {})
+  }
+
+  /**
+   * Editing a bill's line makes the lines the source of truth: the payment
+   * amount becomes their total, so what is keyed on the bills is what is taken.
+   * A line never takes more than its bill still owes — anything typed above
+   * that is cut back to the open balance. A line that is not yet a valid amount
+   * counts as nothing until it is.
+   */
+  const onLine = (invoiceId: string, typed: string) => {
+    const open = invoices.find((i) => i.id === invoiceId)?.open ?? 0
+    const over = MONEY.test(typed.trim()) && cents(typed) > open
+    const v = over ? fromCents(open) : typed
+    setCapped((c) => [...c.filter((x) => x !== invoiceId), ...(over ? [invoiceId] : [])])
+    const next = { ...split, [invoiceId]: v }
+    const total = Object.values(next).reduce((a, x) => a + (MONEY.test(x.trim()) ? cents(x) : 0), 0)
+    setManual(true)
+    setSplit(next)
+    setAmount(total > 0 ? fromCents(total) : '')
   }
 
   /* ---- Validation ------------------------------------------------------ */
@@ -187,6 +221,12 @@ export function PaymentForm({
   const amountCents = MONEY.test(amount.trim()) ? cents(amount) : null
   const applied = invoices.reduce((a, i) => a + (MONEY.test((split[i.id] ?? '').trim()) ? cents(split[i.id]) : 0), 0)
   const unapplied = amountCents === null ? 0 : amountCents - applied
+  /*
+   * Money left over is only ever more than the open bills can take: a typed
+   * total fills every bill before any is left, and editing a line makes the
+   * total their sum. So the only questions are "take less" or "hold a credit".
+   */
+  const creditOk = unapplied <= 0 || creditAgreed === unapplied
   const customerNotes = customerId ? (notes[customerId] ?? []) : []
   const noChecks = customerNotes.some((n) => n.text.startsWith('Returned check'))
 
@@ -207,9 +247,9 @@ export function PaymentForm({
     const v = (split[i.id] ?? '').trim()
     if (!v) continue
     if (!MONEY.test(v)) problems.push(`${i.number}: enter the amount to apply in dollars and cents.`)
-    else if (cents(v) > i.open) problems.push(`${i.number}: more than the ${money(fromCents(i.open))} it owes.`)
   }
   if (amountCents !== null && applied > amountCents) problems.push('More is applied to bills than was paid.')
+  if (!creditOk) problems.push(`Decide what to do with the ${money(fromCents(unapplied))} not applied to a bill.`)
 
   const status = method === 'ach' ? 'pending' : 'posted'
 
@@ -266,6 +306,8 @@ export function PaymentForm({
     setMemo('')
     setSplit({})
     setManual(false)
+    setCapped([])
+    setCreditAgreed(null)
   }
 
   const customer = customerId ? customers[customerId] : null
@@ -414,7 +456,7 @@ export function PaymentForm({
           <Panel>
             <PanelHeader
               title="2 · Open invoices"
-              meta={invoices.length ? 'Applied oldest due first — change any line' : undefined}
+              meta={invoices.length ? 'The amount pays the oldest bill first, then the next — or change any line and the amount follows' : undefined}
               actions={
                 manual ? (
                   <button
@@ -481,25 +523,24 @@ export function PaymentForm({
                                 id={`apply-${i.id}`}
                                 inputMode="decimal"
                                 value={split[i.id] ?? ''}
-                                onChange={(e) => {
-                                  setManual(true)
-                                  setSplit((s) => ({ ...s, [i.id]: e.target.value }))
-                                }}
+                                onChange={(e) => onLine(i.id, e.target.value)}
                                 placeholder="0.00"
                                 className={`${small} figures w-24 text-right`}
                               />
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setManual(true)
-                                  setSplit((s) => ({ ...s, [i.id]: fromCents(i.open) }))
-                                }}
+                                onClick={() => onLine(i.id, fromCents(i.open))}
                                 title="Apply the full open balance"
                                 className="text-micro text-accent-text hover:underline"
                               >
                                 Full
                               </button>
                             </span>
+                            {capped.includes(i.id) ? (
+                              <span className="block text-micro text-exception-warning-text">
+                                Capped at the {money(fromCents(i.open))} it owes
+                              </span>
+                            ) : null}
                           </td>
                         </tr>
                       )
@@ -641,10 +682,38 @@ export function PaymentForm({
               <dd className="figures">{money(fromCents(applied))}</dd>
             </div>
             <div className="flex justify-between py-1.5">
-              <dt className="text-ink-secondary">Held on account</dt>
-              <dd className={`figures ${unapplied < 0 ? 'text-exception-critical-text' : ''}`}>{money(fromCents(unapplied))}</dd>
+              <dt className="text-ink-secondary">{unapplied > 0 && creditOk ? 'Credit on account' : 'Not applied to a bill'}</dt>
+              <dd className={`figures ${unapplied < 0 ? 'text-exception-critical-text' : unapplied > 0 && !creditOk ? 'text-exception-warning-text' : ''}`}>
+                {money(fromCents(unapplied))}
+              </dd>
             </div>
           </dl>
+
+          {/* Money that is not on a bill is never parked silently: the customer chooses. */}
+          {unapplied > 0 ? (
+            <StateBlock tone={creditOk ? 'info' : 'warning'}>
+              <p className="text-data text-ink-primary">
+                {money(fromCents(unapplied))}{' '}
+                {invoices.length ? 'is more than every open bill.' : 'has no open bill to go to.'}
+              </p>
+              {applied > 0 ? (
+                <div className="mt-1.5">
+                  <Button onClick={() => setAmount(fromCents(applied))}>Take only {money(fromCents(applied))}</Button>
+                </div>
+              ) : null}
+              <label className="mt-1.5 flex items-start gap-1.5 text-micro text-ink-primary">
+                <input
+                  type="checkbox"
+                  checked={creditAgreed === unapplied}
+                  onChange={(e) => setCreditAgreed(e.target.checked ? unapplied : null)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Hold {money(fromCents(unapplied))} as a credit on the account — the customer wants it applied to future bills
+                </span>
+              </label>
+            </StateBlock>
+          ) : null}
 
           {problems.length > 0 && (customerId || amount) ? (
             <ul className="space-y-0.5">
