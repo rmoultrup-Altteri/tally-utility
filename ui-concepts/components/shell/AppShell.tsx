@@ -8,9 +8,14 @@ import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
 import { ThemeControl } from '@/components/shell/ThemeControl'
 import { Favorites } from '@/components/shell/Favorites'
+import { TenantLogo } from '@/components/shell/TenantLogo'
 
 /**
  * The application frame.
+ *
+ * The frame is exactly one viewport tall and never scrolls: the as-of band,
+ * the page header and the sidebar stay put, and only the page body beneath the
+ * header scrolls. Navigation and favorites are always where the hand expects.
  *
  * Two pieces of persistent chrome matter more than the navigation itself:
  * the as-of coordinate, which must be impossible to mistake for live when it
@@ -22,14 +27,14 @@ type NavItem = { href: Route; label: string; badge?: 'open' }
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/', label: 'Exceptions', badge: 'open' },
-  { href: '/reads', label: 'Read validation' },
-  { href: '/runs/run-2026-02-04' as Route, label: 'Billing run' },
-  { href: '/invoices/inv-0001' as Route, label: 'Bills' },
   { href: '/collections', label: 'Collections' },
+  { href: '/customers' as Route, label: 'Accounts' },
+  { href: '/invoices' as Route, label: 'Bills' },
+  { href: '/runs/run-2026-02-04' as Route, label: 'Billing run' },
   { href: '/rates', label: 'Rates & tariffs' },
+  { href: '/reads', label: 'Read validation' },
   { href: '/rates/pga', label: 'PGA console' },
   { href: '/rates/sandbox', label: 'Tariff sandbox' },
-  { href: '/customers/cus-0001' as Route, label: 'Accounts' },
 ]
 
 export function AppShell({
@@ -40,11 +45,11 @@ export function AppShell({
   current: string
 }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="relative h-dvh flex flex-col overflow-clip">
       <AsOfBand />
       <div className="flex flex-1 min-h-0">
         <Sidebar current={current} />
-        <div className="flex-1 min-w-0 flex flex-col">{children}</div>
+        <div className="relative flex-1 min-w-0 min-h-0 flex flex-col">{children}</div>
       </div>
     </div>
   )
@@ -60,9 +65,13 @@ function AsOfBand() {
   if (asOf.isToday) {
     return (
       <div className="flex items-center justify-between gap-4 border-b border-rule-solid bg-surface-ink px-4 py-1.5 text-ink-inverse">
-        <div className="flex items-baseline gap-3">
-          <span className="text-h3 tracking-tight">{tenant.name}</span>
-          <span className="text-micro opacity-70">{tenant.jurisdiction}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-h3 font-semibold tracking-tight">Tally Utility</span>
+          <span aria-hidden className="h-4 w-px bg-current opacity-30" />
+          <span className="flex items-center gap-2">
+            <TenantLogo name={tenant.name} />
+            <span className="text-h3 tracking-tight">{tenant.name}</span>
+          </span>
         </div>
         <div className="flex items-center gap-4 text-micro">
           <span className="opacity-70 hidden lg:inline">
@@ -102,7 +111,7 @@ function Sidebar({ current }: { current: string }) {
         </p>
       </div>
 
-      <ul className="py-2 flex-1">
+      <ul className="py-2 flex-1 min-h-0 overflow-y-auto">
         {NAV.map((item) => {
           const active = item.label === current
           return (

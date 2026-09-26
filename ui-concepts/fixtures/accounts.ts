@@ -29,6 +29,7 @@ export const customers: Customer[] = [
     move_in_date: '2019-08-02',
     deposit_amount: '0.00',
     balance: '318.44',
+    created_at: '2019-07-29T15:12:40Z',
   },
   {
     id: 'cus-0002',
@@ -49,6 +50,7 @@ export const customers: Customer[] = [
     move_in_date: '2023-03-17',
     deposit_amount: '150.00',
     balance: '96.10',
+    created_at: '2023-03-14T14:03:11Z',
   },
   {
     id: 'cus-0003',
@@ -69,6 +71,7 @@ export const customers: Customer[] = [
     move_in_date: '2011-05-01',
     deposit_amount: '4200.00',
     balance: '11842.67',
+    created_at: '2011-04-18T16:45:02Z',
   },
   {
     id: 'cus-0004',
@@ -89,6 +92,7 @@ export const customers: Customer[] = [
     move_in_date: '2008-09-15',
     deposit_amount: '0.00',
     balance: '0.00',
+    created_at: '2008-09-02T13:20:57Z',
   },
   {
     id: 'cus-0005',
@@ -109,6 +113,7 @@ export const customers: Customer[] = [
     move_in_date: '2021-11-08',
     deposit_amount: '0.00',
     balance: '42.88',
+    created_at: '2021-11-03T19:08:33Z',
   },
   {
     id: 'cus-0006',
@@ -129,6 +134,7 @@ export const customers: Customer[] = [
     move_in_date: '2016-02-20',
     deposit_amount: '0.00',
     balance: '604.19',
+    created_at: '2016-02-16T15:51:26Z',
   },
   {
     id: 'cus-0007',
@@ -149,6 +155,7 @@ export const customers: Customer[] = [
     move_in_date: '2022-06-11',
     deposit_amount: '600.00',
     balance: '489.31',
+    created_at: '2022-06-06T17:34:09Z',
   },
   {
     id: 'cus-0008',
@@ -169,6 +176,7 @@ export const customers: Customer[] = [
     move_in_date: '2025-12-19',
     deposit_amount: '150.00',
     balance: '0.00',
+    created_at: '2025-12-15T20:27:48Z',
   },
 ]
 
@@ -272,6 +280,7 @@ export const meters: Meter[] = [
     model: 'AC-250',
     size: '3/4_inch',
     read_type: 'amr',
+    ami_endpoint_id: '38104182',
     multiplier: '1.0000',
     gas_btu_factor: '1.0320',
     rollover_point: '100000',
@@ -288,6 +297,7 @@ export const meters: Meter[] = [
     model: 'AC-250',
     size: '3/4_inch',
     read_type: 'amr',
+    ami_endpoint_id: '38107733',
     multiplier: '1.0000',
     gas_btu_factor: '1.0320',
     rollover_point: '100000',
@@ -304,6 +314,7 @@ export const meters: Meter[] = [
     model: 'B3-HP',
     size: '3_inch',
     read_type: 'ami',
+    ami_endpoint_id: 'FN-7719004',
     multiplier: '10.0000',
     gas_btu_factor: '1.0295',
     rollover_point: '1000000',
@@ -320,6 +331,7 @@ export const meters: Meter[] = [
     model: 'R-275',
     size: '2_inch',
     read_type: 'ami',
+    ami_endpoint_id: 'FN-7688210',
     multiplier: '5.0000',
     gas_btu_factor: '1.0295',
     rollover_point: '1000000',
@@ -336,6 +348,7 @@ export const meters: Meter[] = [
     model: 'AC-250',
     size: '3/4_inch',
     read_type: 'manual',
+    ami_endpoint_id: null,
     multiplier: '1.0000',
     gas_btu_factor: '1.0320',
     rollover_point: '100000',
@@ -352,6 +365,7 @@ export const meters: Meter[] = [
     model: 'AC-250',
     size: '3/4_inch',
     read_type: 'amr',
+    ami_endpoint_id: '38105520',
     multiplier: '1.0000',
     gas_btu_factor: '1.0320',
     rollover_point: '100000',
@@ -368,6 +382,7 @@ export const meters: Meter[] = [
     model: 'R-630',
     size: '1.5_inch',
     read_type: 'amr',
+    ami_endpoint_id: '38162118',
     multiplier: '2.0000',
     gas_btu_factor: '1.0320',
     rollover_point: '100000',
@@ -384,6 +399,7 @@ export const meters: Meter[] = [
     model: 'AC-250',
     size: '3/4_inch',
     read_type: 'amr',
+    ami_endpoint_id: '38104188',
     multiplier: '1.0000',
     gas_btu_factor: '1.0295',
     rollover_point: '100000',

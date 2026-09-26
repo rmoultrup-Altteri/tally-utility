@@ -14,7 +14,7 @@ import { readings } from '../fixtures/reads.ts'
 import { invoices, lines, runs, linesByInvoiceId, arAging, portlets, rateCard } from '../fixtures/billing.ts'
 import { exceptions } from '../fixtures/exceptions.ts'
 import { worklist, BYPASSES, reconnectQueue, stayedAccounts, evaluate } from '../fixtures/collections.ts'
-import { pgaVersions, r1Items, g1Items, rateSchedules, versionAsOf } from '../fixtures/rates.ts'
+import { pgaVersions, r1Items, g1Items, priorVersions, rateSchedules, versionAsOf } from '../fixtures/rates.ts'
 import { backfillExposure } from '../fixtures/pga.ts'
 import { seedFavorites } from '../fixtures/favorites.ts'
 import { LISTS, applyFilters, isFiltered } from '../lib/views.ts'
@@ -156,7 +156,7 @@ for (const r of runs) {
 }
 
 /* ---- Rate version chains ----------------------------------------------- */
-const allVersions = [...pgaVersions, ...r1Items, ...g1Items]
+const allVersions = [...pgaVersions, ...r1Items, ...g1Items, ...priorVersions]
 const byId = new Map(allVersions.map((v) => [v.id, v]))
 for (const v of allVersions) {
   if (v.effective_to && v.effective_from > v.effective_to) fail('rates', v.id, 'effective_from is after effective_to')

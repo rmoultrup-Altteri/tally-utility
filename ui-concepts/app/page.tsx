@@ -65,8 +65,8 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
         </StateBlock>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem]">
-        <section className="min-w-0 border-r border-rule-solid flex flex-col">
+      <div className="flex-1 min-h-0 overflow-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_26rem] lg:grid-rows-[minmax(0,1fr)]">
+        <section className="min-w-0 min-h-0 border-r border-rule-solid flex flex-col">
           <QueueFilterBar filters={filters} shown={rows.length} total={all.length} />
 
           <div className="flex items-center justify-between gap-4 px-cell-x py-2 border-b border-rule-hair bg-surface">

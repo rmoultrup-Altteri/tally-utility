@@ -5,6 +5,7 @@ const pages = [
   ['reads', '/reads'],
   ['run', '/runs/run-2026-02-04'],
   ['dryrun', '/runs/run-2026-02-sbx'],
+  ['bills', '/invoices'],
   ['bill', '/invoices/inv-0001'],
   ['held', '/invoices/inv-0002'],
   ['void', '/invoices/inv-0003'],
@@ -14,6 +15,7 @@ const pages = [
   ['rates', '/rates'],
   ['pga', '/rates/pga'],
   ['sandbox', '/rates/sandbox'],
+  ['accounts', '/customers'],
   ['customer', '/customers/cus-0001'],
 ]
 const BASE = process.env.BASE_URL ?? 'http://localhost:4182'

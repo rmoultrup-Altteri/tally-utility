@@ -326,6 +326,24 @@ export const r1Items: RateItemVersion[] = [
     regulatory_reference: 'City of Bryan Ord. 2022-114',
     changed_by: 'K. Shaffer',
   },
+  {
+    id: 'fran-cs-v1',
+    item_code: 'FRAN-CSTAT',
+    item_name: 'City of College Station franchise fee',
+    display_group: 'taxes_fees',
+    calculation_type: 'percentage_of_charges',
+    rate: '0.040000',
+    rate_unit: 'percent',
+    effective_from: '2024-01-01',
+    effective_to: '2028-12-31',
+    recorded_from: '2023-12-12T10:20:00-06:00',
+    recorded_until: null,
+    supersedes_id: null,
+    change_type: 'initial',
+    change_reason: 'Five-year franchise agreement with City of College Station',
+    regulatory_reference: 'City of College Station Ord. 2023-4471',
+    changed_by: 'K. Shaffer',
+  },
 ]
 
 /**
@@ -429,6 +447,88 @@ export const g1Items: RateItemVersion[] = [
     change_reason: 'State sales tax on non-residential gas service',
     regulatory_reference: 'TX Tax Code §151.317',
     changed_by: 'K. Shaffer',
+  },
+]
+
+/**
+ * Superseded versions of items whose standing row is in `r1Items` / `g1Items`.
+ *
+ * The WNA is recomputed every heating month, so its chain is the one that
+ * matters month to month. The season opened 1 November; the January values
+ * are the ones the January bills actually carry.
+ */
+export const priorVersions: RateItemVersion[] = [
+  {
+    id: 'wna-v1',
+    item_code: 'WNA-RES',
+    item_name: 'Weather normalization adjustment',
+    display_group: 'adjustments',
+    calculation_type: 'usage_modifier',
+    rate: '-0.014200',
+    rate_unit: 'per_therm',
+    effective_from: '2025-11-01',
+    effective_to: '2025-12-31',
+    recorded_from: '2025-10-29T09:00:00-05:00',
+    recorded_until: null,
+    supersedes_id: null,
+    change_type: 'initial',
+    change_reason: 'WNA season opens — zone BV-N, Form 2, Nov–Dec factor',
+    regulatory_reference: 'RRC GUD-10928 · WNA Schedule',
+    changed_by: 'system',
+  },
+  {
+    id: 'wna-v2',
+    item_code: 'WNA-RES',
+    item_name: 'Weather normalization adjustment',
+    display_group: 'adjustments',
+    calculation_type: 'usage_modifier',
+    rate: '-0.018700',
+    rate_unit: 'per_therm',
+    effective_from: '2026-01-01',
+    effective_to: '2026-01-31',
+    recorded_from: '2026-01-05T08:15:00-06:00',
+    recorded_until: null,
+    supersedes_id: 'wna-v1',
+    change_type: 'succession',
+    change_reason: 'January 2026 WNA — zone BV-N, Form 2, 529 HDD vs 488 normal',
+    regulatory_reference: 'RRC GUD-10928 · WNA Schedule',
+    changed_by: 'system',
+  },
+  {
+    id: 'wnags-v1',
+    item_code: 'WNA-GS',
+    item_name: 'Weather normalization adjustment',
+    display_group: 'adjustments',
+    calculation_type: 'usage_modifier',
+    rate: '-0.012400',
+    rate_unit: 'per_therm',
+    effective_from: '2025-11-01',
+    effective_to: '2025-12-31',
+    recorded_from: '2025-10-29T09:00:00-05:00',
+    recorded_until: null,
+    supersedes_id: null,
+    change_type: 'initial',
+    change_reason: 'WNA season opens — zone BV-N, Form 2, Nov–Dec factor',
+    regulatory_reference: 'RRC GUD-10928 · WNA Schedule',
+    changed_by: 'system',
+  },
+  {
+    id: 'wnags-v2',
+    item_code: 'WNA-GS',
+    item_name: 'Weather normalization adjustment',
+    display_group: 'adjustments',
+    calculation_type: 'usage_modifier',
+    rate: '-0.016100',
+    rate_unit: 'per_therm',
+    effective_from: '2026-01-01',
+    effective_to: '2026-01-31',
+    recorded_from: '2026-01-05T08:15:00-06:00',
+    recorded_until: null,
+    supersedes_id: 'wnags-v1',
+    change_type: 'succession',
+    change_reason: 'January 2026 WNA — zone BV-N, Form 2, 529 HDD vs 488 normal',
+    regulatory_reference: 'RRC GUD-10928 · WNA Schedule',
+    changed_by: 'system',
   },
 ]
 

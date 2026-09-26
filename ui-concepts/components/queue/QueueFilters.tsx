@@ -14,6 +14,7 @@ import {
   type Status,
 } from '@/lib/views'
 import { humanize } from '@/components/ui/State'
+import { Chip, Group } from '@/components/ui/Chip'
 
 /**
  * Column filters for the exception queue.
@@ -113,31 +114,5 @@ export function QueueFilterBar({
         ) : null}
       </div>
     </div>
-  )
-}
-
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="label-caps">{label}</span>
-      {children}
-    </div>
-  )
-}
-
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={`h-5 rounded-xs border px-1.5 text-micro transition-colors duration-fast ${
-        on
-          ? 'border-accent bg-accent-wash text-ink-primary font-medium'
-          : 'border-rule-solid bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink-primary'
-      }`}
-    >
-      {children}
-    </button>
   )
 }

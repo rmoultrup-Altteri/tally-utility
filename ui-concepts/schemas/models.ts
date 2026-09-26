@@ -72,6 +72,8 @@ export const Customer = z.object({
   move_in_date: isoDate.nullable(),
   deposit_amount: decimal,
   balance: decimal,
+  /** When the account was opened in the CIS — the "customer since" date. Not the move-in date. */
+  created_at: instant,
 })
 export type Customer = z.infer<typeof Customer>
 
@@ -107,6 +109,8 @@ export const Meter = z.object({
   model: z.string().nullable(),
   size: z.string().nullable(),
   read_type: z.string(),
+  /** The radio module's ID (ERT / AMI endpoint). Null on a manually read meter. */
+  ami_endpoint_id: z.string().nullable(),
   /** Dial-to-volume multiplier. Honour the value effective on the READ date. */
   multiplier: decimal,
   gas_btu_factor: decimal.nullable(),

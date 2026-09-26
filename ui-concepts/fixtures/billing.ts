@@ -1,4 +1,5 @@
 import type { BillingRun, Invoice, InvoiceLine } from '@/schemas/models'
+import { historyInvoices, historyLines, historyRuns } from '@/fixtures/bill-history'
 
 /**
  * The Cycle 04 billing run and the bills it produced.
@@ -115,7 +116,7 @@ export const correctionRun: BillingRun = {
   recorded_at: '2026-02-16T10:04:00-06:00',
 }
 
-export const runs = [currentRun, correctionRun, sandboxRun, januaryRun]
+export const runs = [currentRun, correctionRun, sandboxRun, januaryRun, ...historyRuns]
 
 export const invoices: Invoice[] = [
   /* The signature bill: high usage, all-actual reads, priced in-period. */
@@ -278,6 +279,8 @@ export const invoices: Invoice[] = [
     first_issued_at: '2026-02-16T10:14:00-06:00',
     status: 'sent',
   },
+  /* The year behind this cycle — see `bill-history.ts`. */
+  ...historyInvoices,
 ]
 
 export const invoiceById = new Map(invoices.map((i) => [i.id, i]))
@@ -783,6 +786,7 @@ export const lines: InvoiceLine[] = [
     gas_btu_factor: null,
     amount: '27.74',
   },
+  ...historyLines,
 ]
 
 export const linesByInvoiceId = (invoiceId: string) =>

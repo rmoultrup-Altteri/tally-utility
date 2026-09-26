@@ -4,11 +4,13 @@ import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Pa
 import { StateBlock, StateFlag, humanize } from '@/components/ui/State'
 import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
 import { Rail } from '@/components/ui/State'
-import { pgaVersions, r1Items, rateSchedules, versionAsOf } from '@/fixtures/rates'
-import { asOf } from '@/fixtures/tenant'
+import { RateItemsEditor } from '@/components/rates/RateItemsEditor'
+import { g1Items, pgaVersions, priorVersions, r1Items, rateSchedules, versionAsOf } from '@/fixtures/rates'
+import { invoices, linesByInvoiceId } from '@/fixtures/billing'
+import { asOf, currentUser } from '@/fixtures/tenant'
 import type { RateItemVersion } from '@/schemas/models'
-import { date, money, rate as fmtRate, rateInUnit, stamp } from '@/lib/format'
-import { rateUnitLabel } from '@/lib/vocabulary'
+import type { BilledRates, CatalogItem } from '@/lib/rate-changes'
+import { date, money, rate as fmtRate, stamp } from '@/lib/format'
 
 /**
  * Rates and tariffs.
@@ -22,6 +24,57 @@ import { rateUnitLabel } from '@/lib/vocabulary'
  * rate, and conflating the two is how next month's PGA gets billed today.
  */
 
+/**
+ * Items every class pays on the same row. The franchise fees follow the
+ * premise's city, not the schedule, so they apply wherever the premise is in town.
+ */
+const CLASS_INDEPENDENT = ['PGA-GAS', 'PSF-TX', 'GRIP-2025', 'FRAN-BRYAN', 'FRAN-CSTAT']
+
+/** One row per item code, carrying its whole version chain and the schedules that bill it. */
+function catalog(): CatalogItem[] {
+  const all = [...pgaVersions, ...r1Items, ...g1Items, ...priorVersions]
+  const byCode = new Map<string, RateItemVersion[]>()
+  for (const v of all) {
+    const chain = byCode.get(v.item_code) ?? []
+    if (!chain.some((x) => x.id === v.id)) chain.push(v)
+    byCode.set(v.item_code, chain)
+  }
+  return [...byCode.entries()].map(([code, versions]) => {
+    const latest = versions.reduce((a, v) => (v.effective_from > a.effective_from ? v : a))
+    const on = new Set<string>()
+    if (r1Items.some((v) => v.item_code === code)) on.add('R-1')
+    if (g1Items.some((v) => v.item_code === code)) on.add('G-1')
+    if (CLASS_INDEPENDENT.includes(code)) ['R-1', 'G-1'].forEach((s) => on.add(s))
+    return {
+      key: code,
+      code,
+      name: latest.item_name,
+      group: latest.display_group,
+      calculation: latest.calculation_type,
+      unit: latest.rate_unit,
+      schedules: rateSchedules.map((s) => s.code).filter((s) => on.has(s)),
+      versions,
+    }
+  })
+}
+
+/** Every rate a non-void bill carried, by item and the month its service period ends. */
+function billedRates(): BilledRates {
+  const out: BilledRates = {}
+  for (const inv of invoices) {
+    if (inv.status === 'void') continue
+    const month = inv.period_end.slice(0, 7)
+    for (const l of linesByInvoiceId(inv.id)) {
+      if (!l.rate_item_code || l.rate === null) continue
+      const cell = ((out[l.rate_item_code] ??= {})[month] ??= [])
+      const hit = cell.find((c) => c.rate === l.rate)
+      if (hit) hit.bills += 1
+      else cell.push({ rate: l.rate, bills: 1 })
+    }
+  }
+  return out
+}
+
 export default function RatesPage() {
   const standing = versionAsOf(pgaVersions, asOf.validAt, asOf.recordedAt)
 
@@ -29,19 +82,27 @@ export default function RatesPage() {
     <AppShell current="Rates & tariffs">
       <PageHeader
         title="Rates &amp; tariffs"
-        meta="Residential Firm Gas Service · R-1 · RRC tariff GUD-10928"
+        meta={`${rateSchedules.map((s) => s.code).join(' · ')} · RRC tariff GUD-10928`}
         actions={
           <>
             <Link href="/rates/sandbox">
               <Button>Rehearse against last cycle</Button>
             </Link>
-            <Button variant="primary">New rate version</Button>
           </>
         }
       />
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
+          {/* ==== Where rates are changed ==== */}
+          <RateItemsEditor
+            catalog={catalog()}
+            schedules={rateSchedules.map((s) => s.code)}
+            billed={billedRates()}
+            at={{ validAt: asOf.validAt, recordedAt: asOf.recordedAt }}
+            by={currentUser.name}
+          />
+
           {/* The bi-temporal lesson, told with a real row. */}
           <StateBlock tone="info">
             <p className="text-data text-ink-primary">
@@ -151,68 +212,6 @@ export default function RatesPage() {
                     </Row>
                   )
                 })}
-              </tbody>
-            </Table>
-          </Panel>
-
-          <Panel>
-            <PanelHeader title="R-1 rate items" meta="Standing versions at the current coordinate" />
-            <Table caption="Rate items on the residential schedule">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th>Item</Th>
-                  <Th>Group</Th>
-                  <Th>Calculation</Th>
-                  <Th align="right">Rate</Th>
-                  <Th>Unit</Th>
-                  <Th>Effective</Th>
-                  <Th>Citation</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {r1Items.map((item) => (
-                  <Row key={item.id}>
-                    <RailCell>
-                      <Rail tone="approved" />
-                    </RailCell>
-                    <Td>
-                      <p className="text-data text-ink-primary">{item.item_name}</p>
-                      <p className="ident text-ink-tertiary">{item.item_code}</p>
-                    </Td>
-                    <Td>
-                      <span className="text-micro text-ink-secondary">
-                        {humanize(item.display_group)}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="text-micro text-ink-secondary">
-                        {humanize(item.calculation_type)}
-                      </span>
-                    </Td>
-                    <Td align="right">
-                      <span className="figures">
-                        {rateInUnit(item.rate, item.rate_unit)}
-                        <span className="text-ink-tertiary text-[0.85em]">
-                          {rateUnitLabel(item.rate_unit)}
-                        </span>
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="text-micro text-ink-tertiary">
-                        {humanize(item.rate_unit)}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="text-micro">{date(item.effective_from)}</span>
-                    </Td>
-                    <Td>
-                      <span className="ident text-ink-secondary">
-                        {item.regulatory_reference ?? '—'}
-                      </span>
-                    </Td>
-                  </Row>
-                ))}
               </tbody>
             </Table>
           </Panel>

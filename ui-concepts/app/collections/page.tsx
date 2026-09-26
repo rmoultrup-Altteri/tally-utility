@@ -2,10 +2,16 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { ListStar } from '@/components/shell/Favorites'
-import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
+import { Button } from '@/components/ui/Panel'
+import { Collapsible } from '@/components/ui/Collapsible'
 import { Rail, StateBlock, StateFlag, humanize, type Tone } from '@/components/ui/State'
 import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
 import { Money } from '@/components/ui/Money'
+import { AgingReport, type CustomerClass, type OpenBill } from '@/components/collections/AgingReport'
+import { invoices } from '@/fixtures/billing'
+import { customerById, locationById } from '@/fixtures/accounts'
+import { customerName, isIssued } from '@/schemas/models'
+import type { CustomerType } from '@/schemas/enums'
 import {
   BYPASSES,
   auditTrail,
@@ -78,9 +84,50 @@ const CATEGORY_TONE: Record<BypassCategory | 'eligible', Tone> = {
   absolute: 'critical',
 }
 
+const CLASS_OF: Record<CustomerType, CustomerClass> = {
+  residential: 'Residential',
+  commercial: 'Commercial',
+  small_commercial: 'Commercial',
+  large_commercial: 'Commercial',
+  industrial: 'Commercial',
+  wholesale: 'Commercial',
+  government: 'Government',
+}
+
+const daysBetween = (a: string, b: string) =>
+  Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
+
+/**
+ * What is actually receivable: issued, not void, money still owing. A draft or
+ * held bill has not been sent, so nobody owes it yet.
+ */
+function openBills(): OpenBill[] {
+  return invoices
+    .filter((i) => isIssued(i) && i.status !== 'void' && i.status !== 'write_off' && Number(i.balance) > 0)
+    .map((i) => {
+      const customer = customerById.get(i.customer_id)
+      return {
+        id: i.id,
+        invoiceNumber: i.invoice_number,
+        customerId: i.customer_id,
+        customerName: customer ? customerName(customer) : '—',
+        customerClass: customer ? CLASS_OF[customer.customer_type] : 'Residential',
+        streetAddress: locationById.get(i.location_id)?.address ?? null,
+        invoiceDate: i.invoice_date,
+        dueDate: i.due_date,
+        daysPastDue: daysBetween(i.due_date, asOf.validAt),
+        balance: i.balance,
+      }
+    })
+}
+
 export default function CollectionsPage() {
   const rows = worklist.map((row) => ({ row, verdict: evaluate(row) }))
   const eligible = rows.filter((r) => r.verdict.eligible)
+  const inGroup = (key: Group['key']) => rows.filter((r) => r.verdict.category === key).length
+  const inForce = conditionsToday.filter((c) => c.state === 'in_force').length
+  const breached = reconnectQueue.filter((r) => Date.parse(r.slaDueAt) <= Date.parse(asOf.recordedAt)).length
+  const nextAssurance = Math.min(...stayedAccounts.map((s) => days(asOf.validAt, s.assuranceDeadline)))
 
   return (
     <AppShell current="Collections">
@@ -100,171 +147,62 @@ export default function CollectionsPage() {
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
-          {/* ==== What the engine decided before it looked at anyone ==== */}
-          <Panel>
-            <PanelHeader
-              title="Conditions in force today"
-              meta="Jurisdiction rules evaluated once, then applied to every account"
-              actions={
-                <span className="text-micro text-ink-tertiary">
-                  Forecast clears {date(holdClearsOn)}
-                </span>
-              }
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-hair">
-              {conditionsToday.map((c) => (
-                <div key={c.code} className="bg-surface-raised px-4 py-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-data text-ink-primary">{c.label}</p>
-                    <StateFlag
-                      tone={
-                        c.state === 'in_force' ? 'critical' : c.state === 'clear' ? 'approved' : 'snoozed'
-                      }
-                    >
-                      {c.state === 'not_adopted' ? 'N/A' : humanize(c.state)}
-                    </StateFlag>
-                  </div>
-                  <p className="text-micro text-ink-secondary mt-1">{c.detail}</p>
-                  <p className="text-micro text-ink-tertiary mt-1">
-                    {c.scope} · <span className="ident">{c.citation}</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Panel>
+          {/* ==== What is owed, and how old it is ==== */}
+          <AgingReport bills={openBills()} asOf={asOf.validAt} />
 
-          <StateBlock tone="critical">
-            <p className="text-data text-ink-primary">
-              <strong className="font-semibold">
-                The temperature hold covers residential service only.
-              </strong>{' '}
-              Texas has no calendar winter moratorium — 16 TAC §7.460 turns on a National Weather
-              Service forecast, and it protects homes, not businesses. That single clause is why{' '}
-              {count(eligible.length)} accounts remain actionable this morning while every
-              residential account on the list is held. Getting that scope wrong in either direction
-              is a wrongful disconnect or an uncollected month.
-            </p>
-          </StateBlock>
-
-          {/* ==== The worklist ==== */}
-          <Panel>
-            <PanelHeader
-              title="Disconnect worklist"
-              meta={`${count(pipeline.modelled)} of ${count(pipeline.total)} accounts modelled · ${count(pipeline.eligibleWhenHoldLifts)} become eligible when the hold lifts`}
-            />
-            <Table caption="Accounts in the dunning pipeline with every bypass condition evaluated">
+          {/* ==== Subpoena-ready means the rationale is on the record ==== */}
+          <Collapsible
+            title="Decision log"
+            n={auditTrail.length}
+            summary="Every action with its rule, its input value, and whether a person or the engine made it"
+          >
+            <Table caption="Collections decision audit trail">
               <thead>
                 <HeadRow>
                   <Th width="3px"> </Th>
-                  <Th width="16%">Account</Th>
-                  <Th width="14%">Service address</Th>
-                  <Th align="right" width="9%">
-                    Balance
-                  </Th>
-                  <Th align="right" width="5%">
-                    Past due
-                  </Th>
-                  <Th width="10%">Stage</Th>
-                  <Th width="13%">Last notice</Th>
-                  <Th width="16%">Conditions evaluated</Th>
-                  <Th width="12%">Disconnect eligible</Th>
-                  <Th align="right" width="5%">
-                    Deposit
-                  </Th>
+                  <Th width="14%">When</Th>
+                  <Th width="12%">Account</Th>
+                  <Th width="20%">Action</Th>
+                  <Th>Rationale</Th>
+                  <Th width="12%">Source</Th>
                 </HeadRow>
               </thead>
               <tbody>
-                {GROUPS.map((group) => {
-                  const inGroup = rows.filter((r) => r.verdict.category === group.key)
-                  if (inGroup.length === 0 && group.key !== 'eligible') return null
-                  return (
-                    <SectionGroup key={group.key} group={group} n={inGroup.length}>
-                      {inGroup.map(({ row, verdict }) => (
-                        <WorklistLine key={row.id} row={row} category={verdict.category} />
-                      ))}
-                    </SectionGroup>
-                  )
-                })}
+                {auditTrail.map((e) => (
+                  <Row key={e.id}>
+                    <RailCell>
+                      <Rail tone={e.source === 'operator' ? 'pending' : 'snoozed'} />
+                    </RailCell>
+                    <Td>
+                      <span className="text-micro text-ink-secondary">{stamp(e.at)}</span>
+                    </Td>
+                    <Td>
+                      <span className="ident text-ink-secondary">{e.account}</span>
+                    </Td>
+                    <Td>{e.action}</Td>
+                    <Td>
+                      <span className="text-micro text-ink-secondary">{e.rationale}</span>
+                    </Td>
+                    <Td>
+                      <StateFlag tone={e.source === 'operator' ? 'pending' : 'snoozed'}>
+                        {humanize(e.source)}
+                      </StateFlag>
+                      <p className="text-micro text-ink-tertiary mt-0.5">{e.actor}</p>
+                    </Td>
+                  </Row>
+                ))}
               </tbody>
             </Table>
-            <TableFooter shown={pipeline.modelled} total={pipeline.total} noun="accounts past due" />
-          </Panel>
-
-          {/* ==== Not "blocked" — removed from collections entirely ==== */}
-          <Panel>
-            <PanelHeader
-              title="Excluded from all collections activity"
-              meta="Automatic stay — not a bypass condition"
-            />
-            <div className="px-4 py-3 border-b border-rule-hair">
-              <p className="text-data text-ink-primary">
-                A bankruptcy stay is not a reason a disconnect is held today. It bars every
-                collections action — notices, calls, field work — from the petition date, and the
-                ledger splits there. These accounts are kept off the worklist rather than shown on
-                it with a flag, because a flag is something an operator can talk themselves past.
-              </p>
-            </div>
-            <Table caption="Accounts under an automatic stay">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th>Account</Th>
-                  <Th>Case</Th>
-                  <Th>Petition date</Th>
-                  <Th align="right">Pre-petition</Th>
-                  <Th align="right">Post-petition</Th>
-                  <Th>Adequate assurance</Th>
-                  <Th>Stopped at</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {stayedAccounts.map((s) => {
-                  const remaining = days(asOf.validAt, s.assuranceDeadline)
-                  return (
-                    <Row key={s.id}>
-                      <RailCell>
-                        <Rail tone="critical" />
-                      </RailCell>
-                      <Td>
-                        <p className="text-data text-ink-primary">{s.name}</p>
-                        <p className="ident text-ink-tertiary">{s.accountNumber}</p>
-                      </Td>
-                      <Td>
-                        <p className="text-data">{s.chapter}</p>
-                        <p className="ident text-ink-tertiary">{s.caseNumber}</p>
-                      </Td>
-                      <Td>{date(s.petitionDate)}</Td>
-                      <Td align="right">
-                        <Money value={s.prePetitionBalance} />
-                      </Td>
-                      <Td align="right">
-                        <Money value={s.postPetitionBalance} />
-                      </Td>
-                      <Td>
-                        <span className="text-data text-exception-warning-text">
-                          {date(s.assuranceDeadline)} · {remaining} days left
-                        </span>
-                        <p className="text-micro text-ink-tertiary">
-                          11 USC §366(b) — request within 20 days or lose the right
-                        </p>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-secondary">{stamp(s.noticedAt)}</span>
-                      </Td>
-                    </Row>
-                  )
-                })}
-              </tbody>
-            </Table>
-          </Panel>
+          </Collapsible>
 
           {/* ==== The other half of the truck roll ==== */}
-          <Panel>
-            <PanelHeader
-              title="Reconnect &amp; relight queue"
-              meta="Every reconnect is a scheduled visit — the meter is not simply re-energised"
-              actions={<Button>Build tomorrow&rsquo;s route</Button>}
-            />
+          <Collapsible
+            title="Reconnect &amp; relight queue"
+            n={reconnectQueue.length}
+            tone={breached > 0 ? 'alert' : 'neutral'}
+            summary={`${breached} past SLA · every reconnect is a scheduled visit — the meter is not simply re-energised`}
+            actions={<Button>Build tomorrow&rsquo;s route</Button>}
+          >
             <Table caption="Accounts awaiting reconnection">
               <thead>
                 <HeadRow>
@@ -334,52 +272,159 @@ export default function CollectionsPage() {
                 })}
               </tbody>
             </Table>
-          </Panel>
+          </Collapsible>
 
-          {/* ==== Subpoena-ready means the rationale is on the record ==== */}
-          <Panel>
-            <PanelHeader
-              title="Decision log"
-              meta="Every action with its rule, its input value, and whether a person or the engine made it"
-            />
-            <Table caption="Collections decision audit trail">
+          {/* ==== The worklist ==== */}
+          <Collapsible
+            title="Disconnect worklist"
+            n={rows.length}
+            summary={`${count(eligible.length)} eligible today · ${count(inGroup('process'))} our work outstanding · ${count(inGroup('weather'))} temperature hold · ${count(inGroup('protection'))} protected · ${count(pipeline.eligibleWhenHoldLifts)} become eligible when the hold lifts`}
+          >
+            <Table caption="Accounts in the dunning pipeline with every bypass condition evaluated">
               <thead>
                 <HeadRow>
                   <Th width="3px"> </Th>
-                  <Th width="14%">When</Th>
-                  <Th width="12%">Account</Th>
-                  <Th width="20%">Action</Th>
-                  <Th>Rationale</Th>
-                  <Th width="12%">Source</Th>
+                  <Th width="16%">Account</Th>
+                  <Th width="14%">Service address</Th>
+                  <Th align="right" width="9%">
+                    Balance
+                  </Th>
+                  <Th align="right" width="5%">
+                    Past due
+                  </Th>
+                  <Th width="10%">Stage</Th>
+                  <Th width="13%">Last notice</Th>
+                  <Th width="16%">Conditions evaluated</Th>
+                  <Th width="12%">Disconnect eligible</Th>
+                  <Th align="right" width="5%">
+                    Deposit
+                  </Th>
                 </HeadRow>
               </thead>
               <tbody>
-                {auditTrail.map((e) => (
-                  <Row key={e.id}>
-                    <RailCell>
-                      <Rail tone={e.source === 'operator' ? 'pending' : 'snoozed'} />
-                    </RailCell>
-                    <Td>
-                      <span className="text-micro text-ink-secondary">{stamp(e.at)}</span>
-                    </Td>
-                    <Td>
-                      <span className="ident text-ink-secondary">{e.account}</span>
-                    </Td>
-                    <Td>{e.action}</Td>
-                    <Td>
-                      <span className="text-micro text-ink-secondary">{e.rationale}</span>
-                    </Td>
-                    <Td>
-                      <StateFlag tone={e.source === 'operator' ? 'pending' : 'snoozed'}>
-                        {humanize(e.source)}
-                      </StateFlag>
-                      <p className="text-micro text-ink-tertiary mt-0.5">{e.actor}</p>
-                    </Td>
-                  </Row>
-                ))}
+                {GROUPS.map((group) => {
+                  const inGroup = rows.filter((r) => r.verdict.category === group.key)
+                  if (inGroup.length === 0 && group.key !== 'eligible') return null
+                  return (
+                    <SectionGroup key={group.key} group={group} n={inGroup.length}>
+                      {inGroup.map(({ row, verdict }) => (
+                        <WorklistLine key={row.id} row={row} category={verdict.category} />
+                      ))}
+                    </SectionGroup>
+                  )
+                })}
               </tbody>
             </Table>
-          </Panel>
+            <TableFooter shown={pipeline.modelled} total={pipeline.total} noun="accounts past due" />
+          </Collapsible>
+
+          {/* ==== Not "blocked" — removed from collections entirely ==== */}
+          <Collapsible
+            title="Excluded from all collections activity"
+            n={stayedAccounts.length}
+            summary={`Automatic stay — not a bypass condition · next adequate-assurance deadline in ${nextAssurance} days`}
+          >
+            <div className="px-4 py-3 border-b border-rule-hair">
+              <p className="text-data text-ink-primary">
+                A bankruptcy stay is not a reason a disconnect is held today. It bars every
+                collections action — notices, calls, field work — from the petition date, and the
+                ledger splits there. These accounts are kept off the worklist rather than shown on
+                it with a flag, because a flag is something an operator can talk themselves past.
+              </p>
+            </div>
+            <Table caption="Accounts under an automatic stay">
+              <thead>
+                <HeadRow>
+                  <Th width="3px"> </Th>
+                  <Th>Account</Th>
+                  <Th>Case</Th>
+                  <Th>Petition date</Th>
+                  <Th align="right">Pre-petition</Th>
+                  <Th align="right">Post-petition</Th>
+                  <Th>Adequate assurance</Th>
+                  <Th>Stopped at</Th>
+                </HeadRow>
+              </thead>
+              <tbody>
+                {stayedAccounts.map((s) => {
+                  const remaining = days(asOf.validAt, s.assuranceDeadline)
+                  return (
+                    <Row key={s.id}>
+                      <RailCell>
+                        <Rail tone="critical" />
+                      </RailCell>
+                      <Td>
+                        <p className="text-data text-ink-primary">{s.name}</p>
+                        <p className="ident text-ink-tertiary">{s.accountNumber}</p>
+                      </Td>
+                      <Td>
+                        <p className="text-data">{s.chapter}</p>
+                        <p className="ident text-ink-tertiary">{s.caseNumber}</p>
+                      </Td>
+                      <Td>{date(s.petitionDate)}</Td>
+                      <Td align="right">
+                        <Money value={s.prePetitionBalance} />
+                      </Td>
+                      <Td align="right">
+                        <Money value={s.postPetitionBalance} />
+                      </Td>
+                      <Td>
+                        <span className="text-data text-exception-warning-text">
+                          {date(s.assuranceDeadline)} · {remaining} days left
+                        </span>
+                        <p className="text-micro text-ink-tertiary">
+                          11 USC §366(b) — request within 20 days or lose the right
+                        </p>
+                      </Td>
+                      <Td>
+                        <span className="text-micro text-ink-secondary">{stamp(s.noticedAt)}</span>
+                      </Td>
+                    </Row>
+                  )
+                })}
+              </tbody>
+            </Table>
+          </Collapsible>
+
+          {/* ==== What the engine decided before it looked at anyone ==== */}
+          <Collapsible
+            title="Conditions in force today"
+            n={inForce}
+            summary={`Jurisdiction rules evaluated once, then applied to every account · forecast clears ${date(holdClearsOn)}`}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-hair">
+              {conditionsToday.map((c) => (
+                <div key={c.code} className="bg-surface-raised px-4 py-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-data text-ink-primary">{c.label}</p>
+                    <StateFlag
+                      tone={
+                        c.state === 'in_force' ? 'critical' : c.state === 'clear' ? 'approved' : 'snoozed'
+                      }
+                    >
+                      {c.state === 'not_adopted' ? 'N/A' : humanize(c.state)}
+                    </StateFlag>
+                  </div>
+                  <p className="text-micro text-ink-secondary mt-1">{c.detail}</p>
+                  <p className="text-micro text-ink-tertiary mt-1">
+                    {c.scope} · <span className="ident">{c.citation}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <StateBlock tone="critical" className="border-t border-rule-hair">
+              <p className="text-data text-ink-primary">
+                <strong className="font-semibold">
+                  The temperature hold covers residential service only.
+                </strong>{' '}
+                Texas has no calendar winter moratorium — 16 TAC §7.460 turns on a National Weather
+                Service forecast, and it protects homes, not businesses. That single clause is why{' '}
+                {count(eligible.length)} accounts remain actionable this morning while every
+                residential account on the list is held. Getting that scope wrong in either direction
+                is a wrongful disconnect or an uncollected month.
+              </p>
+            </StateBlock>
+          </Collapsible>
         </div>
       </div>
     </AppShell>
