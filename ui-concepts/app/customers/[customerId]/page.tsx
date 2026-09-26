@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Route } from 'next'
 import { notFound } from 'next/navigation'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
@@ -81,13 +82,15 @@ export default async function CustomerPage({
         meta={
           <>
             <span className="ident">{customer.customer_number}</span> ·{' '}
-            {humanize(customer.customer_type)} · customer since {date(customer.move_in_date)}
+            {humanize(customer.customer_type)} · customer since {date(customer.created_at)}
           </>
         }
         actions={
           <>
             <Button>Log interaction</Button>
-            <Button>Take payment</Button>
+            <Link href={`/payments/new?customer=${customer.id}` as Route}>
+              <Button>Take payment</Button>
+            </Link>
             <Button variant="primary">New service order</Button>
           </>
         }

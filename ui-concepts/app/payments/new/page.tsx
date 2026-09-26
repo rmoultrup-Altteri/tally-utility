@@ -53,10 +53,13 @@ function accountNotes(): Record<string, AccountNote[]> {
 }
 
 export default async function NewPaymentPage({ searchParams }: PageProps<'/payments/new'>) {
-  /* Pay bill on a bill page links here with ?invoice=<id>; anything else is ignored. */
-  const requested = (await searchParams).invoice
+  /* Pay bill on a bill links here with ?invoice=<id>, Take payment on an account
+     with ?customer=<id>. Unknown ids are ignored and the page opens empty. */
+  const params = await searchParams
   const refs = invoiceRefs()
-  const initialInvoice = typeof requested === 'string' && refs[requested] ? requested : null
+  const people = customerRefs()
+  const initialInvoice = typeof params.invoice === 'string' && refs[params.invoice] ? params.invoice : null
+  const initialCustomer = typeof params.customer === 'string' && people[params.customer] ? params.customer : null
 
   return (
     <AppShell current="Payments">
@@ -74,7 +77,7 @@ export default async function NewPaymentPage({ searchParams }: PageProps<'/payme
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5">
           <PaymentForm
-            customers={customerRefs()}
+            customers={people}
             invoiceIndex={Object.values(refs)}
             openInvoices={openInvoices()}
             pending={pendingByInvoice()}
@@ -84,6 +87,7 @@ export default async function NewPaymentPage({ searchParams }: PageProps<'/payme
             by={currentUser.name}
             nextSeq={1040 + payments.length}
             initialInvoice={initialInvoice}
+            initialCustomer={initialCustomer}
           />
         </div>
       </div>

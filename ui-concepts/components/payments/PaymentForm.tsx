@@ -63,6 +63,7 @@ export function PaymentForm({
   by,
   nextSeq,
   initialInvoice = null,
+  initialCustomer = null,
 }: {
   customers: Record<string, CustomerRef>
   invoiceIndex: InvoiceRef[]
@@ -76,12 +77,14 @@ export function PaymentForm({
   nextSeq: number
   /** Arriving from a bill's Pay bill button: open on that bill's account, that bill first. */
   initialInvoice?: string | null
+  /** Arriving from an account's Take payment button: open on that account, amount left to the cashier. */
+  initialCustomer?: string | null
 }) {
   const added = useAddedPayments()
 
   const [query, setQuery] = useState('')
   const [customerId, setCustomerId] = useState<string | null>(
-    () => invoiceIndex.find((i) => i.id === initialInvoice)?.customerId ?? null,
+    () => invoiceIndex.find((i) => i.id === initialInvoice)?.customerId ?? initialCustomer,
   )
   const [focusInvoice, setFocusInvoice] = useState<string | null>(initialInvoice)
 
@@ -340,7 +343,7 @@ export function PaymentForm({
             <input
               id="payment-find"
               type="search"
-              autoFocus={!initialInvoice}
+              autoFocus={!initialInvoice && !initialCustomer}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -517,7 +520,7 @@ export function PaymentForm({
               <span className="label-caps">Amount *</span>
               <span className="mt-0.5 flex items-center gap-1">
                 <span className="text-ink-tertiary">$</span>
-                <input inputMode="decimal" autoFocus={Boolean(initialInvoice)} value={amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" className={`${field} figures text-right`} />
+                <input inputMode="decimal" autoFocus={Boolean(initialInvoice || initialCustomer)} value={amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" className={`${field} figures text-right`} />
               </span>
               {owed > 0 ? (
                 <button type="button" onClick={() => onAmount(fromCents(owed))} className="mt-0.5 text-micro text-accent-text hover:underline">
