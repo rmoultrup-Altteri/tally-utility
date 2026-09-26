@@ -19,6 +19,8 @@ import { backfillExposure } from '../fixtures/pga.ts'
 import { seedFavorites } from '../fixtures/favorites.ts'
 import { LISTS, applyFilters, isFiltered } from '../lib/views.ts'
 import { baseline as sandboxBaseline, billFor, currentCard } from '../fixtures/tariff.ts'
+import { payments } from '../fixtures/payments.ts'
+import { asOf } from '../fixtures/tenant.ts'
 
 const findings = []
 const fail = (area, id, msg) => findings.push({ area, id, msg })
@@ -129,6 +131,37 @@ for (const inv of invoices) {
       fail('lines', inv.id, `tier quantities sum to ${sum.toFixed(2)} th but the commodity line priced ${commodity.usage_quantity} th`)
   }
 }
+
+/* ---- Payments --------------------------------------------------------- */
+/* Only posted money reduces a bill, so a bill's amount_paid must be exactly
+   what its posted payments applied to it — no more, no less. */
+for (const inv of invoices) {
+  const posted = payments
+    .filter((p) => p.status === 'posted')
+    .flatMap((p) => p.applications.filter((a) => a.invoice_id === inv.id))
+    .reduce((a, x) => a + n(x.amount), 0)
+  if (!exact(posted, n(inv.amount_paid)))
+    fail('payments', inv.id, `posted payments apply ${posted.toFixed(2)} but amount_paid says ${inv.amount_paid}`)
+}
+for (const p of payments) {
+  if (!exact(n(p.applied_amount) + n(p.unapplied_amount), n(p.amount)))
+    fail('payments', p.id, `applied ${p.applied_amount} + unapplied ${p.unapplied_amount} does not equal amount ${p.amount}`)
+  const applied = p.applications.reduce((a, x) => a + n(x.amount), 0)
+  if (!exact(applied, n(p.applied_amount)))
+    fail('payments', p.id, `applications total ${applied.toFixed(2)} but applied_amount says ${p.applied_amount}`)
+  for (const a of p.applications) {
+    const inv = invoices.find((i) => i.id === a.invoice_id)
+    if (!inv) fail('payments', p.id, `applied to missing invoice ${a.invoice_id}`)
+    else if (inv.customer_id !== p.customer_id) fail('payments', p.id, `applied to ${inv.invoice_number}, which belongs to another customer`)
+  }
+  if (!customerById.get(p.customer_id)) fail('payments', p.id, 'points at a missing customer')
+  if (p.payment_date > asOf.validAt) fail('payments', p.id, 'dated after the as-of date')
+  if (p.status === 'nsf' && (!p.nsf_date || !p.nsf_reason)) fail('payments', p.id, 'NSF payment missing nsf_date or nsf_reason')
+  if (p.status === 'reversed' && (!p.reversed_at || !p.reversed_reason)) fail('payments', p.id, 'reversed payment missing reversed_at or reversed_reason')
+  if (p.status === 'refunded' && !p.refund_reason) fail('payments', p.id, 'refunded payment has no refund_reason')
+  if (p.payment_method === 'check' && !p.check_number) fail('payments', p.id, 'check payment has no check number')
+}
+if (new Set(payments.map((p) => p.payment_number)).size !== payments.length) fail('payments', '—', 'payment numbers are not unique')
 
 /* ---- Lifecycle rules --------------------------------------------------- */
 for (const inv of invoices) {

@@ -35,6 +35,7 @@ const NAV: NavItem[] = [
   { href: '/reads', label: 'Read validation' },
   { href: '/rates/pga', label: 'PGA console' },
   { href: '/rates/sandbox', label: 'Tariff sandbox' },
+  { href: '/payments' as Route, label: 'Payments' },
 ]
 
 export function AppShell({

@@ -418,3 +418,39 @@ export type ServiceOrderStatus = z.infer<typeof ServiceOrderStatus>
 
 export const ServiceOrderPriority = z.enum(['low', 'normal', 'high', 'emergency'])
 export type ServiceOrderPriority = z.infer<typeof ServiceOrderPriority>
+
+/* ---- Payments (payments_*_check in the DDL) --------------------------- */
+
+export const PaymentStatus = z.enum(['pending', 'posted', 'nsf', 'reversed', 'refunded', 'voided'])
+export type PaymentStatus = z.infer<typeof PaymentStatus>
+
+export const PaymentMethod = z.enum([
+  'cash',
+  'check',
+  'ach',
+  'credit_card',
+  'debit_card',
+  'money_order',
+  'online',
+  'auto_pay',
+  'write_off',
+  'refund',
+  'wire',
+  'other',
+])
+export type PaymentMethod = z.infer<typeof PaymentMethod>
+
+/** How the payment was captured — distinct from what it was paid with. */
+export const PaymentChannel = z.enum([
+  'portal',
+  'mobile_app',
+  'agent_phone',
+  'ivr',
+  'walk_in',
+  'mail',
+  'auto_pay',
+  'batch_file',
+  'api',
+  'lockbox',
+])
+export type PaymentChannel = z.infer<typeof PaymentChannel>

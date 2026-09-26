@@ -28,6 +28,9 @@ import {
   EstimationReason,
   InvoiceStatus,
   InvoiceType,
+  PaymentChannel,
+  PaymentMethod,
+  PaymentStatus,
   PartialPeriodPolicy,
   QualityFlag,
   RateDateMode,
@@ -354,6 +357,55 @@ export const RateItemVersion = z.object({
   changed_by: z.string(),
 })
 export type RateItemVersion = z.infer<typeof RateItemVersion>
+
+/* ---- Payment --------------------------------------------------------- */
+
+/**
+ * Which invoice a payment paid, and how much of it.
+ *
+ * Not in the DDL: `payments` carries only `applied_amount` / `unapplied_amount`
+ * totals, with nothing recording which bills those dollars went to. The UI
+ * needs that link to show a receipt and to keep an invoice's `amount_paid`
+ * explainable, so the prototype models it here. The schema needs a
+ * `payment_applications` table (payment_id, invoice_id, amount) to match.
+ */
+export const PaymentApplication = z.object({
+  invoice_id: uuid,
+  amount: decimal,
+})
+export type PaymentApplication = z.infer<typeof PaymentApplication>
+
+export const Payment = z.object({
+  id: uuid,
+  payment_number: z.string(),
+  customer_id: uuid,
+  payment_date: isoDate,
+  amount: decimal,
+  payment_method: PaymentMethod,
+  channel: PaymentChannel,
+  reference_number: z.string().nullable(),
+  /** From the card terminal or hosted field. The card itself never touches this system. */
+  provider_authorization_code: z.string().nullable(),
+  check_number: z.string().nullable(),
+  check_date: isoDate.nullable(),
+  check_bank_name: z.string().nullable(),
+  /** Pending until it settles (ACH) or is confirmed; only posted money reduces an invoice. */
+  status: PaymentStatus,
+  applied_amount: decimal,
+  unapplied_amount: decimal,
+  is_deposit: z.boolean(),
+  deposit_status: z.enum(['held', 'partial_applied', 'applied', 'refunded']).nullable(),
+  nsf_date: isoDate.nullable(),
+  nsf_reason: z.string().nullable(),
+  refund_reason: z.string().nullable(),
+  reversed_at: instant.nullable(),
+  reversed_reason: z.string().nullable(),
+  notes: z.string().nullable(),
+  received_by: z.string(),
+  created_at: instant,
+  applications: z.array(PaymentApplication),
+})
+export type Payment = z.infer<typeof Payment>
 
 /* ---- Ledger ---------------------------------------------------------- */
 

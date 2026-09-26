@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
+import type { Route } from 'next'
 import { notFound } from 'next/navigation'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
@@ -65,6 +66,7 @@ export default async function InvoicePage({
         actions={
           <>
             <StateFlag tone={tone}>{humanize(invoice.status)}</StateFlag>
+            <PayBill invoice={invoice} replacedById={replacedBy?.id ?? null} />
             <Button>Print</Button>
             {invoice.status === 'void' ? null : isIssued(invoice) ? (
               <Link href={`/invoices/${invoice.id}/rebill`}>
@@ -355,6 +357,33 @@ function TotalRow({
       <td className="py-1 opacity-80">{label}</td>
       <td className="py-1 text-right tabular-nums">{money(value)}</td>
     </tr>
+  )
+}
+
+/** Why this bill cannot take a payment, or null when it can. */
+function unpayableBecause(invoice: Invoice, replacedById: string | null): string | null {
+  if (invoice.status === 'void') return replacedById ? 'Void — pay the bill that replaced it' : 'Void — nothing is owed on it'
+  if (invoice.status === 'write_off') return 'Written off'
+  if (invoice.status === 'held') return 'Held — it must be released and sent before it can be paid'
+  if (!isIssued(invoice)) return 'Not issued yet — nothing is owed until the bill is sent'
+  if (Number(invoice.balance) <= 0) return 'Paid in full'
+  return null
+}
+
+/**
+ * Take a payment against this bill. Opens the add-payment page with the
+ * account found and this bill first in line. Only an issued, live bill with
+ * money owing can be paid; otherwise the button stays and says why not.
+ */
+function PayBill({ invoice, replacedById }: { invoice: Invoice; replacedById: string | null }) {
+  const why = unpayableBecause(invoice, replacedById)
+  if (why) return <Button disabled title={why}>Pay bill</Button>
+  return (
+    <Link href={`/payments/new?invoice=${invoice.id}` as Route}>
+      <Button variant="primary" title={`Take a payment — ${money(invoice.balance)} open`}>
+        Pay bill · {money(invoice.balance)}
+      </Button>
+    </Link>
   )
 }
 
