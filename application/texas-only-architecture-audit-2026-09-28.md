@@ -21,6 +21,31 @@ I spot-checked the strongest claims against the source and the live catalog, and
 
 ---
 
+> **Correction, 2026-09-28 (Ryan, after reading this audit).** The drift is wider than Texas. The work has been writing the *application* in the database.
+>
+> **The locked stack decision** (`TECH-STACK-DISCUSSION.md`, 2026-06-07):
+> - Data-driven configuration plus a typed calculation core.
+> - C#/.NET backend; the billing core is a pure library.
+> - TypeScript/React frontend.
+>
+> **The current phase is schema parity:** the schema can *represent* every invariant and every configurable aspect of the app, then the scenarios are written. Rule *evaluation* belongs to the C# core, which isn't being written yet.
+>
+> **How this changes the rest of the document:**
+> - The **Mechanism** layer in §2 is future C# code, not triggers.
+> - The rule "code decides by what a rule says, never by its name" is a requirement for that C# core.
+> - The fictional-state ("ZZ") check becomes a scenario and test requirement for the core, plus a schema check that ZZ's rules *can be stored*.
+> - The schema keeps the **places**, **law rules** and **utility choices** layers.
+> - The schema also keeps record integrity, which must hold whoever writes:
+>   - tenant isolation;
+>   - issued bills can't change;
+>   - the ledger is append-only;
+>   - timestamps the database stamps itself;
+>   - foreign keys and uniqueness;
+>   - recording which rule row a decision used.
+> - Trigger logic that *applies* law (the deposit accrual refusals, A-2's evaluator, the surcharge shape checks, and so on) is a finding in its own right: application logic in the wrong layer.
+>
+> See §6.
+
 ## 1. The short version
 
 1. **The system has no idea which state a customer is in.**
@@ -448,3 +473,36 @@ These need a dated correction note, not rewriting history:
 - [07](texas-only-audit-2026-09-28/07-tu-docs.md) — this repo's docs
 - [08](texas-only-audit-2026-09-28/08-gbm-docs.md) — GBM rulings and rules model, including a table of ~95 ruling codes and where each should live
 - [09](texas-only-audit-2026-09-28/09-ui-concepts.md) — UI prototype
+
+---
+
+## 6. The second drift: application logic in the schema (added 2026-09-28)
+
+**What happened.**
+- The invariant register grades each rule on one scale: `structurally-enforced` (the schema makes a violation impossible) sits at the top, and `requires-application-discipline` sits below it, as if it were a partial failure.
+- With no application code being written, every patch aimed to raise grades, so rules became triggers.
+- Review rounds then treated the app role as an attacker, which pushed more logic into the database. A-2 is the clearest case: 3,757 lines of PL/pgSQL, and six review rounds on one function.
+- Trigger bodies are also the easiest place to type a Texas literal. So this drift and the Texas drift reinforced each other.
+
+**What the schema is for in this phase.** An invariant is at parity when the schema can:
+1. **store** everything the rule needs and everything it produces: the inputs, the configurable parameters (per state for law, per utility for tariff and policy), the decision, and which rule row produced it;
+2. **protect** record integrity that must hold whoever writes: tenant isolation, issued bills that can't change, the append-only ledger, timestamps the database stamps itself, keys and uniqueness;
+3. **leave evaluation to the C# core.** "Evaluation" means computing windows, caps, interest, eligibility and which rule applies. The scenarios describe it, and the C# tests prove it.
+
+**What follows (proposals, for Ryan to confirm).**
+- **A-2 is re-scoped to parity:**
+  - per-state rule tables;
+  - the case, evidence and event tables;
+  - the freeze and approval *records*;
+  - integrity constraints.
+
+  The evaluation triggers and gates drop out, and their logic becomes scenario material for the C# core. What the r7 battery taught us carries over as scenarios.
+- **Landed patches:** trigger logic that applies law is replaced over time by follow-up patches, since `tu.sql` is append-only. The worst cases:
+  - `enforce_deposit_event`'s accrual and refund refusals, and `deposit_refund_trigger_state`;
+  - `enforce_deposit`'s cap branch;
+  - the surcharge shape and cap checks;
+  - `tax_exemption_certificate_required`;
+  - the `service_type = 'gas'` correction rules.
+
+  What those triggers encode is recorded as scenarios before they go.
+- **The register's grading needs a re-cut** (GBM, with Kyle). For rules that are evaluations, "the schema represents it, the core evaluates it" should be the *target* grade, not a gap.
