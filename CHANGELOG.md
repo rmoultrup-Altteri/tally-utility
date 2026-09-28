@@ -4,6 +4,54 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-09-28 — A-2 review rounds 5 and 6 folded; patch PAUSED: a Texas-only launch is not a Texas-only architecture
+
+**What was done:**
+- Pulled Kyle's four `ui-concepts/` commits (payments, record lists, AR aging, a rate editor).
+- Restarted `tally-pg`.
+- Ran two more review rounds on the reissue gate of `sql/v5.4.2-13-backbilling-caps.sql`.
+
+**Round 5** (r5 `d0873150`; fresh Fable and Opus; both "not yet, narrowly"). The gate's meter-scope checks read facts that tally_app writes:
+- the meter's premise label;
+- a deployment only when it overlapped the new period.
+
+So a backdated removal, a relabel, a new meter or an inactive meter let a no-premise bill charge $400 for days billed at $100. Both reviewers found the same false refusal: a misread corrected down and then repriced.
+
+**r6** (`03c5ffa6`, commit `36d2115`):
+- Both legs now read deployments, bounded by the voided bill's DB-stamped `first_issued_at`.
+- Against a voided bill the correction doesn't replace, usage may not rise.
+- Battery group Q (Q1–Q6), mutations M73–M83, fence-and-race F1/F2.
+
+**Round 6** (a targeted look at the gate):
+- **Fable:** "sound enough to mirror".
+- **Opus:** "not yet, narrowly". A no-premise voided bill's premises read an unfenced removal date (S4), and `sum()` skipped lines of unknown usage (U).
+
+**Both folded into an r7 working copy** (commit `570d437`, not frozen, not sent): Q7, Q8, M84–M86.
+
+**Decisions:**
+- **Ryan: "A Texas only launch does not mean a Texas only architecture."** Launching in Texas first limits which utilities we sign first, never the design. Kyle's rulings stand, but they must live as per-jurisdiction, date-effective, platform-held data. Today they are CHECK lists and trigger logic.
+- -13 hardcodes Texas §7.45's structure: the eight-cause list, the rule that only a price error may be reissued, the fast-meter refund duty, the R-36 transitional gate, and window formulas shaped on the Texas clauses. So it is **paused and will not be merged** before a full audit.
+- **Measured and declined:**
+  - Fable's `voided_at` bound: the caller times the void, so it fails fence-and-race F1.
+  - Fable's lineage skip: it re-admits Opus's laundering chain (Q5, M81).
+  - Opus's `meters.location_id` legs: redundant, and their mutation went uncaught.
+- Ryan asked who could realistically exploit the gate. The answer: only the utility's own app or staff, and mostly by mistake. My recommendation on Fable's **U4** (a rewritable premise owner) moved from "fence it" to "state it as a known limitation". I also proposed a stopping rule for hardening: the database blocks easy single-step mistakes, and deliberate multi-step manipulation is written down. Ryan has not confirmed it.
+
+**Failed approaches:**
+- Treating the launch scope as architecture scope.
+- Open-ended adversarial review: six rounds on one function, with diminishing returns.
+- Fixture timestamps tying within one battery transaction masked a mutation (M72) until e1's deployment was backdated.
+
+**Verified on the r7 working copy:** strict apply ×2 clean; **battery-13 146 PASS**; **84 planted mutations, each caught at its named check**; **fence-and-race A–F PASS**, with F1/F2 each failing under its mutation; regressions **28 / 58 / 41 / 116**.
+
+**Not done / next:**
+- **A full, thorough audit of the whole system for Texas-only architecture**: `tu.sql`, every patch, the docs, `ui-concepts`. Classify each finding as per-jurisdiction data, Texas-shaped data, or hardcoded, with the fix each needs. Then redesign A-2 on a per-jurisdiction rule model, with Texas behaviour identical.
+- Put U4 (Ryan's call) and U5 into R21.
+- Confirm the hardening stopping rule.
+- `tu.sql` is untouched (23,452 lines, through -12).
+
+---
+
 ## 2026-09-23 (evening) — A-2 re-drafted as v5.4.2-13: the meter correction case; four review rounds folded, round 5 frozen, NOT landed
 
 **What was done:** the A-2 draft was rewritten from scratch to Kyle's rulings R-32 to R-39, on top of the meter test history (-12).
