@@ -192,4 +192,74 @@ else
   echo "PASS E: a transaction that locks a case and then records a test on its meter, racing a correction of that meter's test, commits — no deadlock (cases are locked before the meter on every path)"
 fi
 
+# ======================================================================== F
+# The reissue gate's meter scope, in real time (round 5). V: a May bill at L6
+# on MG, $100, issued and later voided. Rebills carry MG at the same $100 plus
+# $300 on a second meter, with no premise on the header.
+#   F1: MH's deployment at the customer's L7 is written AFTER V went out but
+#       BEFORE V is voided — it must not excuse the $300 (the bound is V's
+#       first_issued_at, not voided_at, whose moment tally_app picks).
+#   F2: MK served L6 beside MG and was moved to L7 on 05-01, the move on
+#       record BEFORE V went out — a real move: the rebill issues.
+L6='00000000-0000-4000-8000-0000000019d6'; L7='00000000-0000-4000-8000-0000000019d7'
+MG='00000000-0000-4000-8000-0000000019a6'
+MH='00000000-0000-4000-8000-0000000019a7'; MK='00000000-0000-4000-8000-0000000019a8'
+draft() {  # draft <id> <number> <location|NULL> <amount> <meter:amount:units>...
+  ID=$1; NUM=$2; LOC=$3; AMT=$4; shift 4
+  LINES=""
+  for l in "$@"; do
+    m=${l%%:*}; r=${l#*:}; a=${r%%:*}; u=${r#*:}
+    LINES="$LINES ('$T', '$ID', 'gas', 'usage_charge', 'Gas', $a, '$m', $u),"
+  done
+  X <<SQL >/dev/null
+INSERT INTO public.invoices (id, tenant_id, invoice_number, billing_run_id, customer_id, location_id, is_consolidated, invoice_type, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
+VALUES ('$ID', '$T', '$NUM', '00000000-0000-4000-8000-0000000019ff', '00000000-0000-4000-8000-0000000019c1', $LOC, $LOC IS NULL, 'regular', DATE '2026-06-01', '2026-05', DATE '2026-05-01', DATE '2026-05-31', DATE '2026-06-21', $AMT);
+INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, meter_id, usage_quantity) VALUES ${LINES%,};
+INSERT INTO public.invoice_calculation_snapshots
+  (tenant_id, invoice_id, billing_run_id, valid_at, recorded_at, snapshot_schema_version, formula_version,
+   rate_inputs, gas_factors, wna_inputs, tax_inputs, read_inputs, customer_inputs, period_inputs, line_items)
+SELECT '$T', '$ID', '00000000-0000-4000-8000-0000000019ff', DATE '2026-05-31', now(), 'v1', 'fr13',
+   '{"rate_schedule_id":null,"rate_schedule_version_id":null,"rate_schedule_code":null,"customer_type":null,"partial_period_policy":null,"items":[]}',
+   '{"pga_factor":null,"btu_factor":null,"pressure_factor":null,"temperature_factor":null,"meter_multiplier":null,"factor_stack_intermediates":{}}',
+   '{"applied":false}', '{"jurisdictions":[],"exemptions":[],"franchise_fees":[]}', '{"reads":[]}',
+   jsonb_build_object('customer_id', '00000000-0000-4000-8000-0000000019c1', 'customer_class', null, 'location_id', $LOC::uuid, 'premise_zones', '{}'::jsonb),
+   jsonb_build_object('period_start', DATE '2026-05-01', 'period_end', DATE '2026-05-31', 'days_in_period', 31, 'proration_policy', null),
+   (SELECT jsonb_agg(jsonb_build_object('invoice_line_item_id', l.id, 'charge_type', l.charge_type, 'amount', l.amount)) FROM public.invoice_line_items l WHERE l.invoice_id = '$ID');
+SQL
+}
+X <<SQL >/dev/null
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  ('$L6', '$T', '00000000-0000-4000-8000-0000000019c1', 'FR-L6', '6 Elm', 'Austin', 'TX', '78706'),
+  ('$L7', '$T', '00000000-0000-4000-8000-0000000019c1', 'FR-L7', '7 Elm', 'Austin', 'TX', '78707');
+INSERT INTO public.meters (id, tenant_id, meter_number, location_id, service_type, start_date, status) VALUES
+  ('$MG', '$T', 'MG', '$L6', 'gas', DATE '2024-01-01', 'active'),
+  ('$MK', '$T', 'MK', '$L6', 'gas', DATE '2024-01-01', 'active'),
+  ('$MH', '$T', 'MH', '$L7', 'gas', DATE '2024-01-01', 'inactive');
+SQL
+sleep 1
+# MK's move to L7, recorded now — before V goes out
+X -c "$S UPDATE public.meter_deployments SET removal_date = DATE '2026-04-30', removal_reason = 'other' WHERE meter_id = '$MK' AND removal_date IS NULL" >/dev/null
+X -c "$S INSERT INTO public.meter_deployments (tenant_id, meter_id, deployment_number, location_id, install_date) VALUES ('$T', '$MK', 2, '$L7', DATE '2026-05-01')" >/dev/null
+sleep 1
+draft 00000000-0000-4000-8000-0000000019a9 FR-V "'$L6'" 100 "$MG:100:50"
+X -c "$S UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000019a9'" >/dev/null
+sleep 1
+# after V went out, before it is voided: MH is given a deployment at L7 from 2024
+X -c "$S INSERT INTO public.meter_deployments (tenant_id, meter_id, deployment_number, location_id, install_date) VALUES ('$T', '$MH', 1, '$L7', DATE '2024-01-01')" >/dev/null
+sleep 1
+X -c "$S SELECT public.void_invoice('00000000-0000-4000-8000-0000000019a9', '$U', 'wrong_rate', 'fr F', true)" >/dev/null
+draft 00000000-0000-4000-8000-0000000019aa FR-N-MH NULL 400 "$MG:100:50" "$MH:300:150"
+draft 00000000-0000-4000-8000-0000000019ab FR-N-MK NULL 400 "$MG:100:50" "$MK:300:150"
+ERR=$(X -c "$S UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000019aa'" 2>&1)
+case "$ERR" in
+  *"days already billed"*) echo "PASS F1: a deployment written after the voided bill went out, though before its void, does not make a meter the customer's — the \$400 rebill of \$100 days is refused" ;;
+  *) echo "FAIL F1: '$ERR'" ;;
+esac
+ERR=$(X -c "$S UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000019ab'" 2>&1)
+if [ -z "$ERR" ]; then
+  echo "PASS F2: a meter moved off the voided premise to the customer's other premise, the move on record before the voided bill went out, is that premise's usage — the rebill issues"
+else
+  echo "FAIL F2: '$ERR'"
+fi
+
 docker exec tally-pg psql -U tally -d tally -qtA -c "DROP DATABASE $DB"

@@ -1,4 +1,4 @@
-# Review brief — v5.4.2-13, round 5 (frozen) — confirmation round, NOT YET SENT
+# Review brief — v5.4.2-13, round 5 (frozen) — confirmation round (sent 2026-09-28; both "not yet, narrowly")
 
 | Artefact | Lines | md5 |
 |---|---|---|
