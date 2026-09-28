@@ -1599,13 +1599,24 @@ INSERT INTO public.billing_runs (id, tenant_id, run_number, billing_period, peri
 SELECT ('00000000-0000-4000-8000-00000000130' || x)::uuid, '00000000-0000-4000-8000-0000000013a1', 'RC-Q' || x, '2026-06', '2026-06-01', '2026-06-30',
        'correction', 'in_progress', 'historical', now()
   FROM unnest(ARRAY['8', '9', 'a', 'b', 'c', 'd']) x;
-CREATE FUNCTION pg_temp.qchain(p_ps date, p_pe date, p_ids uuid[], p_runs uuid[], p_amt numeric[], p_units numeric[], p_void_reason text)
+CREATE FUNCTION pg_temp.qunknown(p_inv uuid, p_amount numeric) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_amount IS NULL THEN RETURN; END IF;
+  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, meter_id, usage_quantity)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', p_inv, 'gas', 'usage_charge', 'Gas (usage unknown)', p_amount, '00000000-0000-4000-8000-0000000013ed', NULL);
+  UPDATE public.invoices SET amount_due = amount_due + p_amount WHERE id = p_inv;
+END $$;
+CREATE FUNCTION pg_temp.qchain(p_ps date, p_pe date, p_ids uuid[], p_runs uuid[], p_amt numeric[], p_units numeric[], p_void_reason text,
+                                p_unknown numeric[] DEFAULT ARRAY[NULL, NULL, NULL]::numeric[])
 RETURNS void LANGUAGE plpgsql AS $$
 -- Issues bill 1 (regular) and bill 2 (a correction replacing it, no cause —
 -- downward), voiding each, and drafts bill 3 replacing bill 2 on a
 -- rate_misapplication target. Owner; the issuances run the real triggers.
+-- p_unknown[i], when given, adds a line of that amount on ed with usage
+-- unknown (NULL) to bill i (round 6, Q8).
 BEGIN
   PERFORM pg_temp.inv(p_ids[1], 'Q-' || right(p_ids[1]::text, 4), '00000000-0000-4000-8000-000000001306', 'regular', NULL, p_ps, p_pe, p_amt[1], p_units[1]);
+  PERFORM pg_temp.qunknown(p_ids[1], p_unknown[1]);
   PERFORM pg_temp.snap(p_ids[1], p_pe, now());
   UPDATE public.invoices SET status = 'pending' WHERE id = p_ids[1];
   PERFORM public.void_invoice(p_ids[1], '00000000-0000-4000-8000-0000000013b1', p_void_reason, 'battery Q', true);
@@ -1613,6 +1624,7 @@ BEGIN
   VALUES ('00000000-0000-4000-8000-0000000013a1', p_runs[1], p_ids[1], '00000000-0000-4000-8000-0000000013ed',
           '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d3', 'historical');
   PERFORM pg_temp.inv(p_ids[2], 'Q-' || right(p_ids[2]::text, 4), p_runs[1], 'correction', p_ids[1], p_ps, p_pe, p_amt[2], p_units[2]);
+  PERFORM pg_temp.qunknown(p_ids[2], p_unknown[2]);
   PERFORM pg_temp.snap(p_ids[2], p_pe, now());
   UPDATE public.invoices SET status = 'pending' WHERE id = p_ids[2];
   PERFORM public.void_invoice(p_ids[2], '00000000-0000-4000-8000-0000000013b1', 'wrong_rate', 'battery Q', true);
@@ -1620,6 +1632,7 @@ BEGIN
   VALUES ('00000000-0000-4000-8000-0000000013a1', p_runs[2], p_ids[2], '00000000-0000-4000-8000-0000000013ed',
           '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d3', 'historical', 'rate_misapplication');
   PERFORM pg_temp.inv(p_ids[3], 'Q-' || right(p_ids[3]::text, 4), p_runs[2], 'correction', p_ids[2], p_ps, p_pe, p_amt[3], p_units[3]);
+  PERFORM pg_temp.qunknown(p_ids[3], p_unknown[3]);
   PERFORM pg_temp.snap(p_ids[3], p_pe, now());
 END $$;
 -- Q4 (Fable U2 / Opus E): June read 60u $120 (too high) → corrected to 50u
@@ -1659,6 +1672,57 @@ DO $$ DECLARE st text; BEGIN
   IF st <> 'pending' THEN RAISE EXCEPTION 'Q6 FAILED: %', st; END IF;
   RAISE NOTICE 'PASS Q6: equal usage is not a rise — 50u $150 against a first voided bill of 50u $100 issues';
 EXCEPTION WHEN restrict_violation THEN RAISE EXCEPTION 'Q6 FAILED: %', SQLERRM; END $$;
+-- ======================================================================== Q (round 6)
+-- Review round 6 (Fable + Opus, frozen 03c5ffa6).
+-- Q7 (Opus S4): Q-NAUG again, after tally_app backdates the removal of the
+-- SHARED meter ed's deployment to before August — Q-VAUG (no premise) would
+-- have no premises left if a removal written after it went out were read.
+SAVEPOINT q7;
+UPDATE public.meter_deployments SET removal_date = DATE '2026-07-31', removal_reason = 'other'
+ WHERE meter_id = '00000000-0000-4000-8000-0000000013ed' AND removal_date IS NULL;
+DO $$ BEGIN
+  UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-000000001381';
+  RAISE EXCEPTION 'Q7 FAILED: a backdated removal of the shared meter emptied the no-premise voided bill''s premises';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS Q7: a removal of the shared meter written after the voided bill went out does not shrink that bill''s premises — $400 against $100 still refused (round 6, Opus S4)'; END $$;
+ROLLBACK TO SAVEPOINT q7;
+-- Q8 (Opus U): a line of UNKNOWN usage on the replaced bill's own meter is not
+-- "the same units". Q8a: October 50u $500 → 50u $90 → 50u $100 plus $300 of
+-- unknown usage — exceeds only the replaced bill (match). Q8b: November 50u
+-- $100 → 50u $60 + $10 unknown → 50u $100 + $300 unknown — matches the
+-- replaced bill, exceeds the first (may not rise).
+RESET ROLE;
+INSERT INTO public.billing_runs (id, tenant_id, run_number, billing_period, period_start, period_end, run_type, status, correction_rate_mode, started_at)
+SELECT x::uuid, '00000000-0000-4000-8000-0000000013a1', 'RC-Q8-' || right(x, 4), '2026-06', '2026-06-01', '2026-06-30',
+       'correction', 'in_progress', 'historical', now()
+  FROM unnest(ARRAY['00000000-0000-4000-8000-0000000013f3', '00000000-0000-4000-8000-0000000013f4',
+                    '00000000-0000-4000-8000-00000000139e', '00000000-0000-4000-8000-00000000139f']) x;
+SELECT pg_temp.qchain('2026-10-01', '2026-10-31',
+  ARRAY['00000000-0000-4000-8000-00000000138d', '00000000-0000-4000-8000-00000000138e', '00000000-0000-4000-8000-00000000138f']::uuid[],
+  ARRAY['00000000-0000-4000-8000-0000000013f3', '00000000-0000-4000-8000-0000000013f4']::uuid[],
+  ARRAY[500, 90, 100]::numeric[], ARRAY[50, 50, 50]::numeric[], 'wrong_rate', ARRAY[NULL, NULL, 300]::numeric[]);
+SELECT pg_temp.qchain('2026-11-01', '2026-11-30',
+  ARRAY['00000000-0000-4000-8000-00000000139a', '00000000-0000-4000-8000-00000000139b', '00000000-0000-4000-8000-00000000139c']::uuid[],
+  ARRAY['00000000-0000-4000-8000-00000000139e', '00000000-0000-4000-8000-00000000139f']::uuid[],
+  ARRAY[100, 60, 100]::numeric[], ARRAY[50, 50, 50]::numeric[], 'wrong_rate', ARRAY[NULL, 10, 300]::numeric[]);
+SET ROLE tally_app;
+DO $$ DECLARE n int := 0; BEGIN
+  BEGIN
+    UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000138f';
+    RAISE EXCEPTION 'Q8a FAILED: $300 of unknown usage passed as the replaced bill''s units';
+  EXCEPTION WHEN restrict_violation THEN
+    IF SQLERRM NOT LIKE '%recorded as a rate_misapplication%' THEN RAISE EXCEPTION 'Q8a FAILED for the wrong reason: %', SQLERRM; END IF;
+    n := n + 1;
+  END;
+  BEGIN
+    UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000139c';
+    RAISE EXCEPTION 'Q8b FAILED: more lines of unknown usage than the first voided bill passed as no rise';
+  EXCEPTION WHEN restrict_violation THEN
+    IF SQLERRM NOT LIKE '%bills more usage than it%' THEN RAISE EXCEPTION 'Q8b FAILED for the wrong reason: %', SQLERRM; END IF;
+    n := n + 1;
+  END;
+  RAISE NOTICE 'PASS Q8: a line of unknown usage on the replaced meter is not the same units — against the replaced bill (match) and against an earlier voided bill (may not rise) (% of 2; round 6, Opus U)', n;
+END $$;
 
 -- ======================================================================== K
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000013b2', true);

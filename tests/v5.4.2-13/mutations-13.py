@@ -1,6 +1,6 @@
 import subprocess, sys, re, concurrent.futures as cf, os, threading
 LOCK=threading.Lock()
-# The planted-mutation harness for v5.4.2-13 (81 mutations). Each breaks one
+# The planted-mutation harness for v5.4.2-13 (84 mutations). Each breaks one
 # guard in a copy of the patch, applies it strictly to a fresh clone of
 # `tally`, runs battery-13, and prints the last PASS before the first error.
 # A mutation is caught when the first failure is the check written for it.
@@ -100,6 +100,10 @@ M=[
  ('M81 lineage skip (declined fix)', "        IF NOT public.backbilling_units_not_above(v_other, NEW.id) THEN", "        IF v_other IS DISTINCT FROM (SELECT x.replaces_invoice_id FROM public.invoices x WHERE x.id = NEW.replaces_invoice_id)\n           AND NOT public.backbilling_units_not_above(v_other, NEW.id) THEN", 'Q5'),
  ('M82 equal usage is no rise', "            OR (a.q IS NULL) <> (b.q IS NULL) OR b.q > a.q", "            OR (a.q IS NULL) <> (b.q IS NULL) OR b.q >= a.q", 'Q6'),
  ('M83 units may fall vs others', "        IF NOT public.backbilling_units_not_above(v_other, NEW.id) THEN", "        IF NOT public.backbilling_units_match(v_other, NEW.id) THEN", 'Q4'),
+ # ---- review round 6 guards (battery Q7, Q8)
+ ('M84 voided premises read removals on record', "                                             CASE WHEN coalesce(d.removal_recorded_at, d.created_at) < r.first_issued_at\n                                                  THEN d.removal_date END, '[)')", "                                             d.removal_date, '[)')", 'Q7'),
+ ('M85 match counts unknown usage', "            OR a.t IS DISTINCT FROM b.t\n            OR a.n IS DISTINCT FROM b.n);", "            OR a.t IS DISTINCT FROM b.t);", 'Q8'),
+ ('M86 no-rise counts unknown usage', "            OR (a.t IS NULL) <> (b.t IS NULL) OR b.t > a.t\n            OR b.n > a.n);", "            OR (a.t IS NULL) <> (b.t IS NULL) OR b.t > a.t);", 'Q8'),
 ]
 def run(i, m):
     name, old, new, exp = m

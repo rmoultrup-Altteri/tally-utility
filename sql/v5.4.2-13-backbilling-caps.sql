@@ -206,6 +206,23 @@
 --   * Fable: R6 now names the meters-only route to a pre-finding fabricated
 --     history; R15, R16 and R21 reworded to what is true.
 --
+-- Review round 6 (Fable + Opus, frozen 03c5ffa6, a targeted confirmation of
+-- the gate): every round-5 repro behaves as disposed; both agreed with the
+-- declined proposals (voided_at, the lineage skip). Fable: "sound enough to
+-- mirror"; Opus: "not yet, narrowly".
+--   * Opus: a no-premise voided bill's premises were read from its meters'
+--     deployments with a raw removal date — one backdated removal of the
+--     shared meter emptied them and re-opened Q2. The removal now counts
+--     only if on record before the voided bill went out (Q7, M84).
+--   * Opus: both units tests summed usage per meter, and sum() skips NULL —
+--     a $300 line of unknown usage on the replaced bill's own meter passed.
+--     They now also compare the count of unknown-usage lines (Q8, M85).
+--   * Fable: the customer leg reads premise ownership as of now, which
+--     tally_app may rewrite (U4); a migrated corpus bounds both legs by
+--     legacy issue dates (U5). NOT YET WRITTEN INTO R21 — U4 awaits Ryan's
+--     call (state it, or fence ownership with a DB-stamped column), and the
+--     patch is paused for the jurisdiction audit (2026-09-28).
+--
 -- Review round 5 (Fable + Opus, frozen d0873150): the four round-4 folds
 -- held for their own shapes; both found the meter-scope legs still read
 -- labels tally_app writes, and both found the same false refusal:
@@ -973,8 +990,10 @@ COMMENT ON FUNCTION public.backbilling_invoice_charge(uuid) IS
 
 -- R-39's "correct units": per meter (a line with no meter is its own
 -- group), the summed usage_quantity, gas_ccf_used and gas_therms_billed of
--- the two bills are identical. Therms are included because a wrong BTU
--- factor is a billing_constant_error, not a price error.
+-- the two bills are identical, and so is the number of lines whose usage
+-- is unknown (round 6, Opus: sum() skips a NULL, so a $300 line of unknown
+-- usage on the replaced bill's own meter matched). Therms are included
+-- because a wrong BTU factor is a billing_constant_error, not a price error.
 CREATE OR REPLACE FUNCTION public.backbilling_units_match(p_original uuid, p_correction uuid)
     RETURNS boolean
     LANGUAGE sql
@@ -983,29 +1002,32 @@ CREATE OR REPLACE FUNCTION public.backbilling_units_match(p_original uuid, p_cor
     AS $$
     WITH a AS (
         SELECT coalesce(l.meter_id::text, '-') AS k,
-               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t
+               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t,
+               count(*) FILTER (WHERE l.usage_quantity IS NULL) AS n
           FROM public.invoice_line_items l WHERE l.invoice_id = p_original GROUP BY 1),
          b AS (
         SELECT coalesce(l.meter_id::text, '-') AS k,
-               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t
+               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t,
+               count(*) FILTER (WHERE l.usage_quantity IS NULL) AS n
           FROM public.invoice_line_items l WHERE l.invoice_id = p_correction GROUP BY 1)
     SELECT NOT EXISTS (
         SELECT 1 FROM a FULL JOIN b ON a.k = b.k
          WHERE a.k IS NULL OR b.k IS NULL
             OR a.q IS DISTINCT FROM b.q
             OR a.c IS DISTINCT FROM b.c
-            OR a.t IS DISTINCT FROM b.t);
+            OR a.t IS DISTINCT FROM b.t
+            OR a.n IS DISTINCT FROM b.n);
 $$;
 
 COMMENT ON FUNCTION public.backbilling_units_match(uuid, uuid) IS
-    'A-2 (v5.4.2-13), R-39. True when two bills bill the same usage, meter by meter: summed usage_quantity, gas_ccf_used and gas_therms_billed identical per meter_id (a meter present on one bill only is a mismatch). The mechanical form of rate_misapplication''s definition — correct units, wrong price.';
+    'A-2 (v5.4.2-13), R-39. True when two bills bill the same usage, meter by meter: summed usage_quantity, gas_ccf_used and gas_therms_billed identical per meter_id, and the count of lines with unknown usage_quantity (a meter present on one bill only is a mismatch). The mechanical form of rate_misapplication''s definition — correct units, wrong price.';
 
 -- Against a voided bill the correction does NOT replace, R-39 needs only that
 -- no usage ROSE (round 5, both reviewers): equality refused an ordinary
 -- misread-down-then-reprice lifecycle, because the first voided bill carried
 -- the wrong read. With no meter's usage higher, any extra money is price.
 -- A meter the other bill lacks is a rise; a quantity known on one side only
--- is a mismatch.
+-- is a mismatch; more lines of unknown usage on a meter is a rise (round 6).
 CREATE OR REPLACE FUNCTION public.backbilling_units_not_above(p_other uuid, p_correction uuid)
     RETURNS boolean
     LANGUAGE sql
@@ -1014,22 +1036,25 @@ CREATE OR REPLACE FUNCTION public.backbilling_units_not_above(p_other uuid, p_co
     AS $$
     WITH a AS (
         SELECT coalesce(l.meter_id::text, '-') AS k,
-               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t
+               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t,
+               count(*) FILTER (WHERE l.usage_quantity IS NULL) AS n
           FROM public.invoice_line_items l WHERE l.invoice_id = p_other GROUP BY 1),
          b AS (
         SELECT coalesce(l.meter_id::text, '-') AS k,
-               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t
+               sum(l.usage_quantity) AS q, sum(l.gas_ccf_used) AS c, sum(l.gas_therms_billed) AS t,
+               count(*) FILTER (WHERE l.usage_quantity IS NULL) AS n
           FROM public.invoice_line_items l WHERE l.invoice_id = p_correction GROUP BY 1)
     SELECT NOT EXISTS (
         SELECT 1 FROM b LEFT JOIN a ON a.k = b.k
          WHERE a.k IS NULL
             OR (a.q IS NULL) <> (b.q IS NULL) OR b.q > a.q
             OR (a.c IS NULL) <> (b.c IS NULL) OR b.c > a.c
-            OR (a.t IS NULL) <> (b.t IS NULL) OR b.t > a.t);
+            OR (a.t IS NULL) <> (b.t IS NULL) OR b.t > a.t
+            OR b.n > a.n);
 $$;
 
 COMMENT ON FUNCTION public.backbilling_units_not_above(uuid, uuid) IS
-    'A-2 (v5.4.2-13), R-39, round 5. True when the correction bills, meter by meter, no more usage_quantity, gas_ccf_used or gas_therms_billed than the other bill (a meter absent from the other bill, or a quantity known on one side only, is not). Read against every voided bill a rate_misapplication correction exceeds but does not replace; the replaced bill itself still needs backbilling_units_match().';
+    'A-2 (v5.4.2-13), R-39, round 5. True when the correction bills, meter by meter, no more usage_quantity, gas_ccf_used or gas_therms_billed than the other bill (a meter absent from the other bill, a quantity known on one side only, or more lines of unknown usage_quantity on a meter, is not). Read against every voided bill a rate_misapplication correction exceeds but does not replace; the replaced bill itself still needs backbilling_units_match().';
 
 CREATE OR REPLACE FUNCTION public.enforce_backbilling_gate_issue() RETURNS trigger
     LANGUAGE plpgsql
@@ -1124,7 +1149,10 @@ BEGIN
             -- (i) any meter AT one of the voided bill's premises — its
             --     header, and wherever its own meters stood during its
             --     period (round 5, Opus: a no-premise voided bill had no
-            --     premise to look at). A meter is there if it was ever
+            --     premise to look at; round 6, Opus: those deployments'
+            --     removals are read only if on record before the voided
+            --     bill went out, or a backdated removal of the shared meter
+            --     emptied the set). A meter is there if it was ever
             --     deployed there, unless a removal before the new period was
             --     ON RECORD before the voided bill first went out (round 5,
             --     Opus: tally_app backdates a removal, or inserts a meter
@@ -1154,7 +1182,9 @@ BEGIN
                             SELECT d.location_id FROM public.meter_deployments d
                              WHERE d.tenant_id = NEW.tenant_id
                                AND d.meter_id IN (SELECT a.meter_id FROM public.invoice_line_items a WHERE a.invoice_id = r.id)
-                               AND daterange(d.install_date, d.removal_date, '[)')
+                               AND daterange(d.install_date,
+                                             CASE WHEN coalesce(d.removal_recorded_at, d.created_at) < r.first_issued_at
+                                                  THEN d.removal_date END, '[)')
                                    && daterange(r.period_start, r.period_end, '[]'))
                         SELECT d.meter_id FROM public.meter_deployments d
                          WHERE d.tenant_id = NEW.tenant_id
