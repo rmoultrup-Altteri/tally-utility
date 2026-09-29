@@ -4,6 +4,54 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-09-28 — Texas-only architecture audit; A-2 rebuilt to parity: law as platform rows, records with integrity only
+
+**What was done:**
+- **Audit:** `application/texas-only-architecture-audit-2026-09-28.md`, merged from 9 slice reports in `application/texas-only-audit-2026-09-28/`. It lists every place one state's law is built into structure, across `tu.sql`, the patches, the docs and `ui-concepts`. It recommends four layers:
+  - places (platform);
+  - law rules (platform rows, keyed by state and service type, dated, cited);
+  - utility choices (stricter than the law, never looser);
+  - mechanism (the C# core).
+- **Ryan's correction**, recorded as audit §6: the stack is locked (React/TypeScript, C#). This phase is schema parity with the invariants and the configurable parts of the app, then scenarios. The schema represents rules; the core evaluates them.
+- **A-2 re-scoped to parity:** `application/a2-parity-rescope-2026-09-28.md`, the keep/drop/change map and the design.
+- **`sql/v5.4.2-13-backbilling-caps.sql` rebuilt**, from 3,757 lines to 2,167.
+  - New platform law tables: `backbilling_causes`, `backbilling_customer_classes`, `backbilling_rules` and `backbilling_rule_window_terms`.
+    - A rule row cannot overlap another for the same key, and needs a citation.
+    - The app cannot write to these tables. A law row is closed and replaced, never edited, even by the owner.
+  - Texas gas is seeded once (16 rows).
+  - About a dozen law-evaluating functions dropped, including the 300-line case trigger and the reissue gate.
+  - What stays is integrity:
+    - stamps;
+    - append-only evaluations, evidence, approvals and events;
+    - frozen means frozen;
+    - evidence only in its evaluation's transaction;
+    - same-tenant keys;
+    - holds that don't overlap.
+- **`application/a2-rules-for-the-core.md`:** every dropped behaviour, as rules for the core, with its ruling and the r7 cases that pinned it.
+- **New tests:** `battery-13.sql` (79 checks, including group Z, a fictional state "ZZ" stored with no schema change), `evidence-txn-13.sh` (X1) and `mutations-13.py` (25). The r7 tests moved to `tests/v5.4.2-13/r7/`.
+
+**Decisions (Ryan):**
+- The schema represents and the core evaluates.
+- A-2 re-scoped to parity.
+- Approval checks move to the core; the database only stamps who and when.
+- City-level rules (R-26) wait for the places table.
+- The `regulatory_class_mode` names stay Texas-shaped until the class resolver patch.
+
+**Found and fixed while building:**
+- A NULL-leg hole in the evidence and hold-artifact CHECKs: a missing reference passed.
+- The law-history trigger read a column that the terms table lacks.
+
+**Verified on a clone of the -12 build:** strict apply ×2 clean and idempotent; **79/79 PASS**; **X1 PASS**; **25/25 mutations caught**; regressions **28 / 58 / 41 / 116**.
+
+**Not done / next:**
+- Ryan's call on -13: one focused review round, or mirror it into `tu.sql`.
+- Strip the law-applying triggers already in `tu.sql` (deposits, surcharges, -12's six-month gate), now or later.
+- Questions for Kyle: which date picks the rule row; whether the unprotected class carries the refund duty and tamper sign-off (R9); D1, D3, D5 and D6; and the six stale doc values in audit §3.13.
+- Re-cut the register's grading scale.
+- Sequence the places table.
+
+---
+
 ## 2026-09-28 — A-2 review rounds 5 and 6 folded; patch PAUSED: a Texas-only launch is not a Texas-only architecture
 
 **What was done:**
