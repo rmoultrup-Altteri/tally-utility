@@ -119,3 +119,41 @@ It no longer decides whether a correction is lawful. The core does, and the eval
    - No Texas city override is seeded today, so nothing is lost meanwhile.
 2. **Rule date:** which date picks the rule row — each period's start, the anchor, or the correction date? That's for Kyle. The schema can store the answer either way, because evidence records the rule row per period.
 3. **Delivery (OQ-1)** stays open. `delivery_path = unruled` represents it honestly.
+
+---
+
+## 6. As built (2026-09-28)
+
+`sql/v5.4.2-13-backbilling-caps.sql` has been rebuilt to this design: 2,150 lines, down from r7's 3,757. The r7 draft is commit `570d437`.
+
+**Changes from the design above:**
+- **`qualifying_test_outcomes`** is on `backbilling_rules`. A test-anchored rule names the test outcomes that make a finding its cause (R-39); a discovery rule names none. Found by the rules-for-the-core write-up (its D2).
+- **Two small consistency checks:**
+  - an evaluation's rule row must be a rule for the evaluated cause;
+  - an evidence row's rule must be for that period's class and the evaluation's cause.
+- **Evidence only in its evaluation's transaction:** `evaluations.recorded_txid` is stamped, and evidence inserts compare it to the current transaction.
+- **`partly_forfeited`** is a disposition, so a state that prorates fits. Its dollars must be strictly between none and all.
+
+**Verified on a clone of the -12 build:**
+- Strict apply (`search_path = ''`, `check_function_bodies = on`) runs clean twice. The second run inserts nothing.
+- `tests/v5.4.2-13/battery-13.sql`: 79 checks, all PASS. That includes group Z, the fictional state ZZ stored with no DDL.
+- `evidence-txn-13.sh`: X1 PASS.
+- `mutations-13.py`: 25 of 25 mutations caught.
+  - One is caught when the patch's own tenant-isolation assertion refuses to apply.
+  - One surfaces at H7 rather than H5, because other guards also refuse the edit it targets.
+  - Two real defects were found and fixed while building: a NULL-leg hole in the evidence and hold-artifact CHECKs, and the law-history trigger reading `effective_to` on the terms table.
+- Earlier batteries are unchanged: -09 28, -10 58, -11 41, -12 116.
+
+**Not done:**
+- Not mirrored into `tu.sql`.
+- Not sent for review.
+- Both wait on Ryan. The Kyle questions below may change seed rows but not the schema.
+
+**For Kyle:**
+- **Which date picks the rule row** (§5.2).
+- **The unprotected class** (patch residual R9): r7 applied the fast-meter refund duty and the tamper gate to every class; the rows now follow R-20 (unprotected = outside §7.45).
+- **The rules-for-the-core disagreements D1, D3, D5 and D6:**
+  - D1: the non-registering anchor (discovery vs test date);
+  - D3: the scope of R-36's gate;
+  - D5: whether an adverse zero amount may be refused;
+  - D6: recording the (v)(II) estimation basis.

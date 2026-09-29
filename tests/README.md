@@ -21,9 +21,15 @@ tests/
     races/pointer-mutex-12.sh   # two sessions: the pointer's row-version mutex (R1)
     review/                 # five rounds: review-brief-12{,-round2..5}.md and the frozen patch
                             #   and battery for each round (patch-12-frozen-r1..r5.sql)
-  v5.4.2-13/                # DRAFT — A-2 backbilling caps, NOT landed; re-draft to Kyle R-32…R-39 pending.
-                            #   Files still carry their -12 names (renumbered 2026-09-23). The r2 frozen
-                            #   copy was never reviewed; the round-1 brief and findings stand.
+  v5.4.2-13/                # A-2 at PARITY (re-scoped 2026-09-28), NOT landed. The schema stores per-state
+                            #   backbilling law and the correction records; the C# core evaluates the law.
+    battery-13.sql          # 79 checks, groups A-K + Z (a fictional state ZZ stored with no DDL)
+    evidence-txn-13.sh      # X1: evidence only in its evaluation's transaction (two committed transactions)
+    mutations-13.py         # 25 mutations, each must be caught at its named check
+    r7/                     # the r7 draft's battery (146), mutations (84) and fence-and-race script —
+                            #   they tested law in triggers; now scenario material for the core
+                            #   (application/a2-rules-for-the-core.md). Run only against the r7 patch (570d437).
+    review/                 # r7's review rounds 1-6 (frozen patches and batteries)
   v5.4.2-11/
     battery-11.sql          # 41 checks; TWO tenants throughout (every headline check is cross-tenant).
                             #   Group G is unusual and deliberate: it proves the tenant-isolation
