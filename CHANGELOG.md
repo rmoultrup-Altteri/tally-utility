@@ -4,6 +4,66 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-09-30 — -13 reviewed, folded and LANDED; -14 lands (R-36's gate leaves the database); deposits design started
+
+**What was done:**
+- **-13 review round P1.**
+  - Frozen on `07ced77c`; Fable and Opus both said "not yet".
+  - Every finding was reproduced on the frozen build before folding.
+  - **What was folded:**
+    - the freeze compares every fact the evaluation copied (and evaluations record the discovering test);
+    - frozen or withdrawn cases take no new evaluation, approval or hold;
+    - a withdrawal changes only status, reason and notes;
+    - window terms are written only in their rule's transaction;
+    - rule closes are stamped, refused on or before a citation, and refused to a role that RLS narrows;
+    - classes, causes and three new vocabulary tables (anchor bases, term kinds, enforcement conditions) are immutable;
+    - same-meter and same-state/service checks;
+    - `updated_at` is stamped.
+  - **Ryan's calls:**
+    - A: a known onset on any case, plus term fallback chains;
+    - B: lookup tables and term units, with interest and payment plans going to the delivery patch (residual R10);
+    - C: the core version is recorded on evaluations only (residual R11).
+  - Patch `6a773f19`, 2,567 lines.
+- **-13 mirrored:** tu.sql 23,452 → 25,930 lines.
+- **-14** (`sql/v5.4.2-14-governing-test-gate-to-core.sql`, 177 lines):
+  - `meter_governing_test()` is re-created without `supervisor_gate`, Texas's `anchor − 6 months < cutover` (-13 residual R8);
+  - four comments are re-issued;
+  - battery-12 is restated to assert `weak_provenance` instead;
+  - AC-33 is updated;
+  - mirrored: tu.sql 25,930 → 26,049.
+- **The deposits design:** `application/deposits-parity-rescope-2026-09-30.md`, with the keep/drop/change map for -06's deposit half, `deposit_rules` per (state, service, class, basis), the vocabularies and Kyle questions K1–K5.
+
+**Decisions:**
+- -14 is mirrored without a review (Ryan): mechanical, with mutation-proven tests.
+- **R-D1 (Ryan):** the utility keeps the interest rate it applies. The platform keeps each state's published legal rate as a reference only, with a discrepancy report. Why:
+  - the utility is the regulated party;
+  - a single platform rate would put the update burden on Tally and let one error reach every utility in the state.
+- **Not X:**
+  - no option framed as a stopgap: nothing is live, and the design is permanent;
+  - no row per refund check: record only when the refund becomes due.
+
+**Failed approaches:**
+- Re-applying the -12 patch over the current build fails with `cannot change return type of existing function`. The race script now skips -12 when `meter_tests` already exists.
+- A mutation that deletes the explicit GRANT is not caught, because -11's default privileges re-grant EXECUTE. It now uses REVOKE.
+- -13's M16 was first pointed at the wrong comparison, and was re-pointed.
+
+**Verified (on the fresh build of tu.sql `9139367a`):**
+- init clean, and the init file matches tu.sql by hash;
+- catalog identity, including every comment (9,532 lines), identical on the patched clone and the build;
+- batteries 28 / 58 / 41 / 116 / 99 / 6;
+- isolation-12 3; X1 PASS; race-12 PASS; AC-32 clean.
+- Mutations (on the clones): -13 **45/45**; -14 **4/4**.
+
+**Not done / next:**
+- **R-D2**, the refund-due record: Ryan is deciding. Recommended: one append-only row when a refund becomes due, plus a view of due rows with no refund started.
+- R-D3, numbering.
+- `deposits-rules-for-the-core.md`: -06's battery was lost, so no deposit tests exist.
+- Build the deposits patch.
+- Kyle K1–K5.
+- Then the rest of the landed-law strip.
+
+---
+
 ## 2026-09-28 — Texas-only architecture audit; A-2 rebuilt to parity: law as platform rows, records with integrity only
 
 **What was done:**

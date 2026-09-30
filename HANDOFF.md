@@ -1,127 +1,133 @@
-# Handoff: A-2 rebuilt to parity; next, decide review/mirror and strip the landed Texas-law triggers
+# Handoff: deposits (-06) to parity: decide R-D2 (the refund-due record), then build
 
-**Generated**: 2026-09-28 (end of session)
-**Branch**: tally-utility `main` (`d96a8d6` plus this wrap-up) · gas-billing-memory `main` (`091c990`, unchanged this session; no new Kyle commits at wrap-up)
-**Status**: -13 is rebuilt and verified. It is **not** mirrored into `tu.sql` and **not** sent for review. Both wait on Ryan.
+**Generated**: 2026-09-30 (end of session)
+**Branch**: tally-utility `main` (`27f2e68` plus this wrap-up) · gas-billing-memory `main` (`091c990`, no new Kyle commits at wrap-up)
+**Status**: Blocked on Ryan's decision R-D2. No deposit schema has been changed yet.
 
-## THE TWO THINGS TO CARRY FORWARD
+## Goal
 
-1. **"A Texas only launch does not mean a Texas only architecture"** (Ryan). Statutory and tariff rules are platform-held rows, keyed by state and service type and dated by when they take effect. Texas is only the first set of rows. Memory: `launch-scope-is-not-architecture-scope`.
-2. **The schema represents; the C# core evaluates** (Ryan). The stack is locked: React/TypeScript frontend, C# backend. No application code is written yet. **The current phase:** bring the schema to parity with the invariants and the configurable parts of the app, then keep writing scenarios. Triggers protect record integrity: stamps, immutability, same-tenant, frozen means frozen. Triggers never compute law, such as windows, forfeitures, who must approve, or which causes may be reissued. Memory: `schema-represents-core-evaluates`.
+Move the Texas law built into -06's deposit guards out of the database:
+- the law becomes per-state, dated, cited platform rows;
+- the records keep integrity only;
+- the C# core evaluates.
+
+This is the same pattern -13 used. The ground rules are unchanged:
+- **The schema represents; the core evaluates** (memory `schema-represents-core-evaluates`).
+- **A Texas-only launch is not a Texas-only architecture** (memory `launch-scope-is-not-architecture-scope`).
 
 ## Completed (this session)
 
-- [x] **Texas-only architecture audit.** `application/texas-only-architecture-audit-2026-09-28.md`, drawn from 9 slice reports in `application/texas-only-audit-2026-09-28/`.
-  - §2 recommends four layers: places (platform), law rules (platform), utility choices (per utility, stricter than the law but never looser), and mechanism (the future C# core).
-  - §6 covers the second drift: application logic built into the schema.
-- [x] **A-2 re-scoped to parity** (Ryan approved). `application/a2-parity-rescope-2026-09-28.md` holds the keep/drop/change map, the rule-table design, and §6 "As built".
-- [x] **Ryan's three calls:**
-  1. Approval checks (supervisor, and not the opener) move to the core; the database only stamps who and when.
-  2. City-level rules (R-26) wait for the places table; rules are state-level only for now.
-  3. The `regulatory_class_mode` names stay Texas-shaped until the class resolver patch (CCK-4…13). This is residual R4.
-- [x] **`sql/v5.4.2-13-backbilling-caps.sql` rebuilt**: 2,167 lines, down from r7's 3,757 (r7 = `570d437`).
-  - **New platform law tables:**
-    - `backbilling_causes`;
-    - `backbilling_customer_classes` (per state);
-    - `backbilling_rules`: dated, no overlap per key, citation required;
-    - `backbilling_rule_window_terms`.
-    - The app cannot write to any of them. A law row is never edited, only closed and replaced.
-  - **Texas gas seeded once** (16 rows, effective 2004-07-12).
-  - **Correction records keep integrity only:** cases, evaluations (written by the core, citing the rule row and the core version), per-period evidence (only in its evaluation's transaction), approvals, holds and the event log.
-- [x] **Every dropped behaviour written up for the core**: `application/a2-rules-for-the-core.md`. Each behaviour has its ruling, the r7 line range, and the battery, mutation and race cases that pinned it.
-- [x] **Tests** (the r7 set moved to `tests/v5.4.2-13/r7/`):
-  - `battery-13.sql`: 79 checks. Group Z stores a fictional state "ZZ" with no schema change: other classes, a new cause, a 12-month window, a 36-month refund reach, proration and conditional enforcement.
-  - `evidence-txn-13.sh`: X1, run across two committed transactions.
-  - `mutations-13.py`: 25 mutations.
-- [x] **Verified on a clone of the -12 build:**
-  - strict apply ×2 is clean and idempotent;
-  - **79/79 PASS**;
-  - **X1 PASS**;
-  - **25/25 mutations caught**;
-  - regressions unchanged at **28 / 58 / 41 / 116**.
-- [x] **Two real defects found and fixed while building:**
-  - a NULL-leg hole in the evidence and hold-artifact CHECKs (fixed with `coalesce`);
-  - the law-history trigger read `effective_to` on the terms table, which has no such column.
-- [x] Memory: `schema-represents-core-evaluates` (new).
+- [x] **-13 review round P1.**
+  - Frozen on `07ced77c`; two reviewers (Fable, Opus) both said "not yet".
+  - Every finding was reproduced, then folded (`a796658`).
+  - Ryan's calls:
+    - A: a known onset on any case, plus fallback chains;
+    - B: lookup tables and term units, with interest and payment plans going to the delivery patch;
+    - C: the core version is recorded on evaluations only.
+  - Record: `tests/v5.4.2-13/review/review-findings-13-parity-p1.md`.
+- [x] **-13 mirrored and LANDED** (`197aa9e`).
+  - tu.sql went 23,452 → 25,930 lines. The rebuild is clean, and full catalog identity (6,182 lines) matches.
+  - Battery 99/99, X1, mutations 45/45 (those on the clone).
+- [x] **-14 drafted, mirrored and LANDED** (`fb184f4`, `47d5f2a`).
+  - `meter_governing_test()` is re-created without `supervisor_gate`: R-36's Texas six months leaves the database (-13 residual R8).
+  - tu.sql went 25,930 → **26,049**, md5 `9139367ab7da6ada63d4193ba189e17f`.
+  - Identity including comments (9,532 lines) matches.
+  - Batteries on the build: 28/58/41/116/99/6; mutations-14 4/4.
+- [x] **The deposits design:** `application/deposits-parity-rescope-2026-09-30.md` (commits `b29e20e`, `19c9132`, `27f2e68`).
+  - §1 keep, §2 drop, §3 platform rule tables, §4 Ryan's decisions, §5 Kyle questions, §6 prerequisites.
+  - **R-D1 DECIDED** (Ryan):
+    - the utility keeps the interest rate it applies (`deposit_interest_rates`, per tenant; each accrual cites its row);
+    - the platform keeps each state's published legal rate as a reference only (`deposit_interest_rate_law`);
+    - a discrepancy report compares them.
 
 ## Not Yet Done (in order)
 
-1. [ ] **Ryan decides on -13.** Either run one focused review round (does it store everything, and are the records protected?), or mirror it into `tu.sql` as it stands. My recommendation: one focused round, frozen by hash, with no open-ended adversarial hunting.
-2. [ ] **Strip the law-applying triggers already in `tu.sql`** (audit §3/§6). Ryan decides now or later. Examples:
-   - deposit rules (-06);
-   - surcharge and rider logic (-07/-08);
-   - gas-keyed correction rules;
-   - -12's `meter_governing_test().supervisor_gate`, which has Texas's six months written in (-12:1615; residual R8).
-   - Each moves its law to rows and its evaluation to the core, the same way -13 did.
-3. [ ] **Questions for Kyle.** The answers change seed rows, not the schema.
-   - Which date picks the rule row: each period's start, the anchor, or the correction date?
-   - **R9:** does the unprotected class carry the fast-meter refund duty and the tamper sign-off? r7 applied both to every class; the new rows follow R-20.
-   - Disagreements in the rules-for-the-core doc:
-     - D1: for a non-registering meter, does the window count from the test date or from discovery?
-     - D3: the scope of R-36's sign-off;
-     - D5: may a zero amount be entered on a period where the customer owes?
-     - D6: recording how an unmetered amount was estimated.
-   - The six stale or contradictory doc values in audit §3.13.
-4. [ ] Re-cut the invariant register's grading scale with Kyle, since "enforced by a DB trigger" is no longer the goal for law.
-5. [ ] Sequence the shared places table. It unblocks city-level rules (R2) and `place_id` on law rows.
+1. [ ] **R-D2: Ryan decides the refund-due record.** He is thinking it over. The design doc §4 records where the discussion got to.
+   - **The current recommendation:** ONE append-only row when a deposit's refund becomes due (the deposit, the date, the rule row, the reason, the counts, the core version), plus a view of due rows with no refund started.
+   - The core checks on events (payment, bill past due, status change), not in a daily sweep.
+   - There is no "not checked recently" column.
+   - **Option B** is to store nothing: the core computes on demand, with no record.
+   - Explain it in plain language, one decision at a time (memories `prefers-discussion-over-canned-options`, `explain-jargon-in-the-question`).
+2. [ ] **R-D3: numbering.** The recommendation is to call the delivery patch "the delivery patch", not "-15". This deposits patch would take v5.4.2-15.
+3. [ ] **Before stripping anything**, write `application/deposits-rules-for-the-core.md`.
+   - It covers every behaviour in the design's §2, with its source and the -06 line range.
+   - Boundary cases: the 30/31-day cliff, a rate change mid-hold, exhaustion by applications, the zero refund, and the legacy exception.
+   - **-06's battery (141 checks) was lost**, so no deposit tests exist in the repo.
+4. [ ] **Build the patch** to the design, with:
+   - a new battery, including the fictional state ZZ;
+   - mutations on a -14 base;
+   - strict apply ×2;
+   - regressions 28/58/41/116/99/6;
+   - then Ryan's call on review or mirror.
+5. [ ] Send Kyle questions K1–K5 (design §5). The answers change seed rows only.
 6. [ ] **Still open from before:**
-   - OQ-1 (delivery path), and Kyle's OQ-1 brief is still unsent;
-   - -14 waits on it;
-   - U4 and U5 are now core concerns;
-   - Workstreams A and B: the UI direction, the 229 tenant-blind FKs, A-8, A-10, Wave 4, re-grades, scenarios, wiki ingestion A–BM.
+   - Kyle's A-2 questions: which date picks the rule row, R9, D1/D3/D5/D6, and the audit §3.13 doc values;
+   - the register re-grade;
+   - the places table;
+   - OQ-1 and the delivery patch;
+   - the rest of the landed-law strip, in audit §4 order: surcharges (-07/-08), tax (-03/-09), programs (-04), the PGA pool, escheat, the estimate cap, `America/Chicago`.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Hardcoding Texas law in CHECK lists and triggers because the launch is Texas-only.** Use per-state, dated, platform rows instead.
-- **Building the app in the database.** The r7 -13 evaluated law in about 3,700 lines of triggers and took six review rounds against a contrived attacker. Law evaluation belongs to the C# core.
-- **Open-ended adversarial review.** Each round finds a narrower path; set a stopping rule first.
-- **Assuming the right mutation target.** M07 surfaced at H7, not H5, because overlapping guards also refuse the edit it targets. Retarget to where the mutation actually surfaces, and say why in the script.
-- **DROP and CREATE DATABASE in one `psql -c`.** It fails with "cannot run inside a transaction block"; run them as two commands.
+- **Framing options as "until the core exists".** Ryan: nothing is live. There is no code and no data, so the only question is the PERMANENT schema. Never offer an option as a stopgap.
+- **A record per check.** Proposing an append-only row every time the core checks a deposit meant a daily sweep writing mostly useless rows (Ryan). Record only when the answer changes: the trigger firing.
+- **One platform interest rate that the core uses** (first R-D1 recommendation). It moves the regulatory update onus to Tally, takes control from the utility (the regulated party that the commission holds responsible), and makes one bad entry mis-rate every utility in the state. Use the utility's rate as the one applied, and the platform rate as a reference with a discrepancy report.
+- **Re-applying the -12 patch over a current build.**
+  - It fails with `ERROR:  cannot change return type of existing function` (-12's `CREATE OR REPLACE meter_governing_test`).
+  - `races/pointer-mutex-12.sh` now applies -12 only when `meter_tests` is absent.
+- **Assuming a deleted GRANT removes access.** -11's default privileges give `tally_app` EXECUTE on every new public function. To test the loss of access, REVOKE it.
+- **Rewriting a mutation's anchor without re-checking its target.** -13's M16 was first pointed at the cause comparison while F6 tests the class comparison, so it was missed. Re-run every mutation after edits.
+- **The -13 mutation script on the current `tally`.** `CREATE TABLE IF NOT EXISTS` keeps the real tables, so table-definition mutations don't take. It needs a -12 base (tu.sql `2aa59147…`); -14's needs a -13 base (`ab3ce7ae…`).
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| The schema represents rules; the C# core evaluates them (Ryan) | Stack locked; the phase is schema parity, then scenarios |
-| Law lives in platform rows keyed by (state, service, class, cause) and dated | A second state is new rows, not a redesign; ZZ proves it |
-| Law rows are closed and replaced, never edited, even by the owner | Evaluations and evidence cite them |
-| Approval rules move to the core; the database stamps who and when (Ryan) | Who must approve is law |
-| State-level rules only until the places table lands (Ryan) | A platform table can't point at the per-utility `jurisdictions` |
-| Class-mode names stay Texas-shaped for now (Ryan) | They are fixed in the CCK resolver patch; residual R4 |
-| `partly_forfeited` disposition, `qualifying_test_outcomes` on rules | Proration states fit; a test-anchored rule says which outcomes make the cause |
+| -13 fixes all folded; the core version is recorded on evaluations only (C) | Holds, approvals and freezes are a person's acts, stamped with who and when |
+| Interest and payment plans go to the delivery patch (residual R10) | They attach to money that posts; nothing posts before delivery |
+| -14 removes `supervisor_gate` rather than feeding it from rule rows | The gate is law; the core has every input (weak_provenance, cutover, the rule's before_anchor) |
+| -14 not reviewed (Ryan) | 177 mechanical lines, with mutation-proven tests |
+| R-D1: the utility's rate is the one applied; the platform legal rate is a reference plus a discrepancy report | The utility is the regulated party; avoids one mistake reaching every customer at once |
+| Deposit law as `deposit_rules(state, service, class, basis)` plus vocabularies (bases, triggers, classes, waiver classes) | The -13 pattern; ZZ proves a second state is rows only |
 
 ## Current State
 
-- `sql/v5.4.2-13-backbilling-caps.sql`: 2,167 lines, md5 `07ced77c92311ae73ffd3f19623ca4f9`.
-- `tests/v5.4.2-13/battery-13.sql`: 853 lines, md5 `80a98fcbd3ac09ad37d20cb9812b512a`.
-- `tests/v5.4.2-13/mutations-13.py`: md5 `fe19110a0b56aacddde32a70b4168649`.
-- `tests/v5.4.2-13/evidence-txn-13.sh`: md5 `587a2b4ae524295820a36986fa63f3f5`.
-- **Deployed:** `tally-pg` is running, and only the databases `tally` (the -12 build) and `postgres` exist.
-- **Uncommitted changes:** none after this wrap-up commit.
+**Working:**
+- `tally-pg` runs the fresh build of tu.sql, 26,049 lines (`9139367a…`); only the `tally` database exists.
+- Every battery is green on it.
+
+**Broken:** nothing.
+
+**Uncommitted changes:** none after this wrap-up.
+
+## Code Context
+
+- **Deposit guards to strip** (tu.sql 17,706–18,822 = `sql/v5.4.2-06-account-lifecycle-and-deposits.sql`):
+  - `enforce_deposit()` 840–905: the waiver and TX cap branches go; the identity freeze stays;
+  - `enforce_deposit_event()` 910–1063: the interest and refund law goes; the arithmetic stays;
+  - `deposit_accrual_amount()` 549;
+  - `deposit_refund_trigger_state()` 790;
+  - `deposits_refund_due` 821;
+  - the CHECK lists at 575, 621–624.
+- **The parity catalog check:** `tests/v5.4.2-14/parity/catalog-identity.sql`. Run it on the patched clone and on the fresh build, then `diff`.
+- **The mirror procedure:**
+  1. Append the body from the first `-- ---` divider before `-- 1.` onward.
+  2. Put a 4-line banner before it, following the -13 and -14 mirrors (`tu.sql` 25,931 and 26,050).
+  3. Check with `cmp` that the prefix and the appended body are unchanged.
+  4. `docker build -q -t tally-postgres -f postgres/Dockerfile . && docker rm -f -v tally-pg && docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres`.
 
 ## Resume Instructions
 
-1. Fetch both repos, and check GBM for Kyle's commits (memory `fetch-gbm-before-orienting`).
-   ```sh
-   cd ~/code/tally-utility && git pull --ff-only
-   cd ~/code/gas-billing-memory && git fetch && git log --oneline HEAD..origin/main
-   ```
-2. Start `tally-pg` if it has stopped: `docker start tally-pg`, then wait for "PostgreSQL init process complete" (memory `tally-pg-readiness-wait`).
-3. Re-verify -13 on a clone:
-   ```sh
-   docker exec tally-pg psql -U tally -d postgres -c "CREATE DATABASE a2p TEMPLATE tally"
-   (echo "SET search_path = ''; SET check_function_bodies = on;"; cat sql/v5.4.2-13-backbilling-caps.sql) | docker exec -i tally-pg psql -U tally -d a2p -v ON_ERROR_STOP=1 -q -f -
-   docker exec -i tally-pg psql -U tally -d a2p -v ON_ERROR_STOP=1 -q -f - < tests/v5.4.2-13/battery-13.sql | grep -c PASS   # 79
-   tests/v5.4.2-13/evidence-txn-13.sh a2p
-   python3 tests/v5.4.2-13/mutations-13.py      # 25/25, uses its own DB a2pm
-   ```
-4. Ask Ryan item 1 (review or mirror) and item 2 (strip the landed triggers now or later), then proceed.
+1. Fetch both repos: `cd ~/code/tally-utility && git pull --ff-only; cd ~/code/gas-billing-memory && git fetch && git log --oneline HEAD..origin/main`.
+   - Expected: nothing new, or Kyle's rulings (read them before orienting).
+2. `docker ps --filter name=tally-pg`. If it has stopped, `docker start tally-pg` and wait for "PostgreSQL init process complete" (memory `tally-pg-readiness-wait`).
+3. Open `application/deposits-parity-rescope-2026-09-30.md` §4 **R-D2** and resume the discussion with Ryan there.
+4. Then do R-D3, then write `deposits-rules-for-the-core.md`, then build.
 
 ## Warnings
 
-- **`tu.sql` is APPEND-ONLY.** Mirror a patch BODY only, then `diff` it.
+- **`tu.sql` is APPEND-ONLY.** Mirror a patch body only, then check it with `cmp`.
 - **Freeze the hash before any review round** (memory `freeze-hash-before-reviews`).
-- `evidence-txn-13.sh` commits rows that the append-only tables won't let you remove. Run it only on a throwaway clone.
-- `mutations-13.py` uses a fixed DB name (`a2pm`), so only one run at a time.
-- Never `git add -A` in GBM. Log GBM canonical changes in GBM `application/wiki-ingestion-pending.md`.
-- Explain jargon in plain language for Ryan (memory `explain-jargon-in-the-question`).
+- **Reviewer subagents may be refused a report file.** Opus sent its report in 3 SendMessages; Fable wrote its report to a file.
+- **Don't strip a deposit guard before its behaviour is written up for the core.** No battery covers -06 today.
+- **Never `git add -A` in GBM.** Log GBM canonical changes in `application/wiki-ingestion-pending.md`.
