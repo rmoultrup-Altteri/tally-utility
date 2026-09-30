@@ -100,12 +100,20 @@ These follow the -13 conventions:
 - For adequate_assurance_366: not waivable, no cap, not refund-mandatory.
 - Rows for `legacy_unknown` are deliberately absent: the core refuses to decide one.
 
-### 3.3 Interest rates
+### 3.3 Interest rates (Ryan, R-D1, 2026-09-30)
 
-- **`deposit_interest_rate_law`** (`state_code`, `service_type`, `effective_from/to`, `annual_rate`, `source_note`):
-  - platform-held, no overlap, closed and never edited;
-  - the close floor is -13's: never on or before a date an accrual cites it for.
-- **Texas.** The PUCT sets one statewide rate a year (Utilities Code §183.003). **Decision R-D1** below says whether the existing per-utility table stays.
+- **The rate applied stays the utility's.**
+  - `deposit_interest_rates` (per tenant, effective-dated, append-only, no fallback) remains the rate each utility applies.
+  - Each accrual cites the row it used (`rate_id`).
+  - Its backdating guard stays: a rate can't be moved under a settled accrual.
+- **The platform keeps a reference.**
+  - `deposit_interest_rate_law` (`state_code`, `service_type`, `effective_from/to`, `annual_rate`, `source_note`) holds each state's published legal rate.
+  - It's platform-held, with no overlap, closed and never edited.
+  - It is a **reference**, not the source: nothing reads it to decide an accrual.
+- **The check.**
+  - A report, `deposit_interest_rate_discrepancies`, lists each utility rate row whose rate differs from the published legal rate for the same state, service and dates. It also lists the dates on which a legal rate is published and the utility has no row.
+  - It's a read over two records, not a refusal. Whether a difference is lawful (a tariff paying more) is the core's and the utility's call.
+- **Texas.** The PUCT sets one statewide rate a year (Utilities Code §183.003).
 
 ### 3.4 What the records gain
 
@@ -125,13 +133,15 @@ These follow the -13 conventions:
 
 ## 4. Decisions for Ryan
 
-**R-D1. The per-utility interest-rate table.**
-- `deposit_interest_rates` is keyed per tenant today. In Texas the rate is statewide law, so every utility would re-enter the same PUCT number.
-- **Recommend:**
-  - the statutory rate moves to the platform table (§3.3);
-  - the per-utility table stays as an **optional utility rate**, for a tariff that pays more than the law;
-  - the core uses the higher of the two, and each accrual cites the row it used.
-- The alternative is to retire the per-utility table; a utility paying more then needs a later patch.
+**R-D1. Interest rates. DECIDED (Ryan, 2026-09-30):** the utility keeps the rate it applies, and the platform keeps the published legal rate as a reference, with a discrepancy report (§3.3).
+
+Why:
+- **The utility is the regulated company.** The commission holds it, not Tally, responsible for paying the right interest, so it owns, checks and can correct the number it applies.
+- **A single platform rate would concentrate the risk.** A missed or wrong entry would stop or mis-rate every utility in the state at once.
+- **The rate matters for audits and refunds.** Every accrual cites its rate row, and a wrong rate is fixed by correcting entries, never by editing. So a platform-wide error would mean corrections across every utility.
+- **Duplicate data entry is solved in the app.** It pre-fills a new published rate for each utility to confirm.
+
+This supersedes the first recommendation (a platform rate the core uses, with a per-utility override for a higher rate).
 
 **R-D2. The refund-due surface.**
 - `deposits_refund_due` shows deposits whose refund is owed and not started. That is the standing obligation Kyle's #54 wants visible. But deciding "owed" is law (12 bills and the rest).
