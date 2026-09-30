@@ -143,13 +143,21 @@ Why:
 
 This supersedes the first recommendation (a platform rate the core uses, with a per-utility override for a higher rate).
 
-**R-D2. The refund-due surface.**
-- `deposits_refund_due` shows deposits whose refund is owed and not started. That is the standing obligation Kyle's #54 wants visible. But deciding "owed" is law (12 bills and the rest).
-- **Recommend:** store the core's decision.
-  - A `deposit_refund_evaluations` table, append-only: deposit, evaluated on, rule row, trigger met yes/no, which trigger, counts, core version.
-  - A view listing deposits whose latest evaluation says due, with no refund started.
-  - This is -13's evaluation pattern: the database keeps the record, the core decides.
-- The alternative is to drop the surface until the core exists; nothing then shows an unfired refund.
+**R-D2. The refund-due surface. OPEN: Ryan is thinking it over (2026-09-30). The next session starts here.**
+
+- **The obligation.** A §7.45 deposit must be refunded without the customer asking once its trigger fires (12 clean bills, ≤ 2 late, none overdue; or the account closes). Kyle's #54 wants an owed-but-unstarted refund visible.
+- **Today.** -06's `deposit_refund_trigger_state()` and the `deposits_refund_due` view decide that in the database, which is Texas law in DDL.
+- **Where the discussion got to:**
+  1. **Nothing is temporary.** No code or data exists, so the question is only the permanent schema. My first framing ("until the core exists") was wrong.
+  2. **Option A:** the schema stores the core's decision.
+  3. **Option B:** it stores nothing; the core computes on demand, with no record.
+  4. **A row per check was rejected (Ryan).** A daily sweep of every deposit would write mostly useless rows.
+- **The current recommendation (A, revised):**
+  - **One row, written when a deposit's refund becomes due:** the deposit, the date, the rule row, the reason (clean bills or account closed), the counts behind it, and the core version. Append-only. Most deposits get one row in their life, or none.
+  - **A view of due rows with no refund started:** the operators' "refunds owed" list, reading recorded answers, not computing law.
+  - **No "not checked recently" column.** A missed trigger is a core bug, for the core's tests.
+  - **The core checks on events** (payment received, bill past due, account status change), not a daily sweep. That's the core's design.
+  - **Why store it at all:** it's the evidence of meeting a standing obligation ("she qualified in March, so why was she refunded in August?"), permanent and next to the money; it's the same split as -13's evaluations; and it's the list Kyle asked for.
 
 **R-D3. Numbering.**
 - This would be v5.4.2-15. The delivery patch has been renumbered once already, to -15 by -14's header.
