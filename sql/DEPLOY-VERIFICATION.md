@@ -1,14 +1,49 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-12, verified 2026-09-23.** After v5.4.2-12: **86 tables** / **6 views** / **84 policies** / **83 FORCE-RLS** / **369 FKs** / **381 CHECKs** / **11 EXCLUDE** / **269 triggers** / **407 functions** / **588 indexes** (counted by one query on both the patched clone and the fresh build — see the v5.4.2-12 section). tu.sql **23,452 lines**, md5 `2aa59147bfde61d86991f7f0a5c5d22a` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-13, verified 2026-09-30.** After v5.4.2-13: **100 tables** / **9 views** / **4 matviews** / **91 policies** / **90 FORCE-RLS** / **409 FKs** / **434 CHECKs** / **13 EXCLUDE** / **308 triggers** / **427 functions** / **629 indexes** (counted by `tests/v5.4.2-13/parity/catalog-counts.sql` on both the patched clone and the fresh build; that query reads 379 CHECKs on the -12 build where the -12 section says 381, so compare counts only within one query). tu.sql **25,930 lines**, md5 `ab3ce7ae9e59a45a90d8d36fa70c8fa3` (the container init file matches by hash).
 
-**Not deployed: `sql/v5.4.2-13-backbilling-caps.sql` (A-2 backbilling caps)** — the A-2 draft, reviewed once as -12 and renumbered; to be re-drafted to Kyle's R-32…R-39 (status 2026-09-23).
+**Previous: through v5.4.2-12, verified 2026-09-23.** After v5.4.2-12: **86 tables** / **6 views** / **84 policies** / **83 FORCE-RLS** / **369 FKs** / **381 CHECKs** / **11 EXCLUDE** / **269 triggers** / **407 functions** / **588 indexes** (see the v5.4.2-12 section). tu.sql **23,452 lines**, md5 `2aa59147bfde61d86991f7f0a5c5d22a`.
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-11, verified 2026-09-09.** After v5.4.2-11: **82 tables** / **5 views (all `security_invoker`)** / **4 matviews (owner-only)** / **81 policies** / **80 FORCE-RLS** / **357 FKs** / **255 triggers** / **393 functions** (+1: `assert_tenant_isolation_invariants()`) / **3 SECURITY DEFINER, 0 PUBLIC-executable**. tu.sql **21,916 lines**, md5 `6edac2aad61505edd5654f214d62b351` (the container init file matches by hash). The -11 detail is at the end of this file ([v5.4.2-11 verification](#v5425-11-verification-2026-09-09--definer-hygiene-and-the-tenant-isolation-gate)), after the older sections.
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 
 **Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+
+## v5.4.2-13 — backbilling at parity: per-state law as platform rows, correction records with integrity only (CI-008 / CI-092; Kyle R-19…R-39; Ryan 2026-09-28)
+`sql/v5.4.2-13-backbilling-caps.sql` (2,567 lines, md5 `6a773f19d1a69b7b58821a41c5f3f713`), mirrored into tu.sql (23,452 → **25,930**, pure append: a 6-line mirror banner and the 2,472-line patch body, header omitted; the first 23,452 lines byte-identical to the previous file and the appended body byte-identical to the patch body by `cmp`).
+
+**What lands:**
+- **Law, platform-held.** `backbilling_causes`, `backbilling_customer_classes` (per state and service), `backbilling_anchor_bases`, `backbilling_window_term_kinds`, `backbilling_enforce_conditions`, `backbilling_rules` (dated, no overlap per key, cited, closed never edited) and `backbilling_rule_window_terms` (quantity + unit, fallback priority). TX gas is seeded once: 16 rules, 8 window terms.
+- **The records of a correction.** `meter_correction_cases`, `meter_correction_case_events` (database-written), `meter_correction_evaluations` and `meter_correction_period_evidence` (written by the core, append-only), `meter_correction_approvals`, `meter_correction_holds`, `service_location_acquisitions`.
+- **Integrity guards and read surfaces.** Deployment history hardening; `tenants.regulatory_class_mode` (platform-set) and `backbilling_adverse_limit_months`; tenant_admin granted only by a supervisor; composite keys and the `jurisdiction_id` repair; `correction_run_targets.backbill_cause` as a foreign key; the frozen-case supersession guard on `meter_tests`; three invoker views; the AC-32 tail.
+- **What it leaves to the core.** It evaluates no law: the window, forfeitures, approvals required and reissue lawfulness are the C# core's (`application/a2-rules-for-the-core.md`).
+
+**Method.**
+1. Strict apply twice on a clone of the -12 build (`search_path=''`, `check_function_bodies=on`): clean and idempotent.
+2. **battery-13: 99 PASS.**
+3. `evidence-txn-13.sh`: **X1 PASS**.
+4. **Mutations: 45 of 45 caught** (`mutations-13.py`).
+5. Regressions on the clone: 28 / 58 / 41 / 116.
+6. Catalog captured from the patched clone.
+7. Mirror.
+8. Image rebuilt and `tally-pg` recreated with a fresh volume: `PostgreSQL init process complete`, **zero error/fatal lines**, init file hash = committed tu.sql.
+9. **Catalog parity, full identity:** `tests/v5.4.2-13/parity/catalog-identity.sql` covers every relation, column (type, nullability, default), constraint definition, trigger (definition and enabled state), function (signature, body md5, ACL), policy, index, table ACL and the seeded law-row counts. That is 6,182 lines, identical on the patched clone and the fresh build (md5 `2937f3b9b363624c37ee33c166660e58`).
+10. **On the build:**
+    - batteries 28 / 58 / 41 / 116 / **99**;
+    - `isolation-check-12` 3 PASS;
+    - `pointer-mutex-12` race PASS;
+    - X1 PASS;
+    - the patch re-applied over the build is clean (still 16 rules and 8 terms), and battery-13 still passes 99;
+    - `assert_tenant_isolation_invariants()` is clean.
+
+**Reviews.**
+- **r1–r7.** Six rounds on the r7 draft (`570d437`), which evaluated law in triggers. It was superseded by the parity re-scope (Ryan, 2026-09-28).
+- **Round P1** (Fable + Opus, frozen on `07ced77c`): both said "not yet". Every finding was reproduced, then folded or declined by Ryan.
+- **Record:** `tests/v5.4.2-13/review/review-findings-13-parity-p1.md`.
+- **Stopping rule:** no open-ended round after folding.
+
+**Note on the mutation script after the mirror.** `mutations-13.py` clones `tally` and applies a mutated patch. Now that the -13 tables exist in `tally`, `CREATE TABLE IF NOT EXISTS` keeps the real ones, so mutations to a table definition no longer take. Re-run it only against a -12 base: an image built from tu.sql at `2aa59147…`, 23,452 lines.
 
 ## v5.4.2-12 — the meter test history (CI-091 / CI-092; Kyle R-31, R-34…R-36)
 `sql/v5.4.2-12-meter-test-history.sql` (1,790 lines, md5 `a13e04334f2cfb9dcbfecad892ac8114`), mirrored into tu.sql (21,916 → **23,452**, pure append of 1,536 lines; mirror body byte-identical to the patch body by `diff`). **What lands:** `meter_tests` (append-only; outcome and `found_defective` derived from submitted raw readings against `meter_accuracy_thresholds`, never caller-set) and `meter_test_load_results` (written only by the test row's trigger); `meter_accuracy_thresholds` (platform-fixed, date-effective, TX gas 2.0% seeded); the meters test columns as a trigger-maintained pointer (direct writes refused) plus `test_history_absence`; `meter_test_absence_declarations`; `meter_governing_test()` (R-34) with the R-36 gate computed; `meter_test_history_gaps` (invoker view); `tenants.cutover_date` (platform-set; migrated ≤ cutover ≤ recorded; logged in `tenant_configuration_history`, whose known-key CHECK and recorder gain the one key; recorder ENABLE ALWAYS); `enforce_platform_admin_grant()` on users; `UNIQUE (id, tenant_id)` on `service_locations` and `users`; the AC-32 tail.

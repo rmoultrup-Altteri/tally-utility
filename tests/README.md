@@ -21,15 +21,20 @@ tests/
     races/pointer-mutex-12.sh   # two sessions: the pointer's row-version mutex (R1)
     review/                 # five rounds: review-brief-12{,-round2..5}.md and the frozen patch
                             #   and battery for each round (patch-12-frozen-r1..r5.sql)
-  v5.4.2-13/                # A-2 at PARITY (re-scoped 2026-09-28), NOT landed. The schema stores per-state
+  v5.4.2-13/                # A-2 at PARITY (re-scoped 2026-09-28), LANDED 2026-09-30. The schema stores per-state
                             #   backbilling law and the correction records; the C# core evaluates the law.
-    battery-13.sql          # 79 checks, groups A-K + Z (a fictional state ZZ stored with no DDL)
+    battery-13.sql          # 99 checks, groups A-K + Z (a fictional state ZZ stored with no DDL)
     evidence-txn-13.sh      # X1: evidence only in its evaluation's transaction (two committed transactions)
-    mutations-13.py         # 25 mutations, each must be caught at its named check
+    mutations-13.py         # 45 mutations, each must be caught at its named check. Needs a -12 BASE
+                            #   (tu.sql 2aa59147…, 23,452 lines): on the mirrored build CREATE TABLE IF NOT
+                            #   EXISTS keeps the real tables, so table-definition mutations do not take.
+    parity/                 # catalog-counts.sql and catalog-identity.sql: run on the patched clone and the
+                            #   fresh build and diff (the identity list must match line for line)
     r7/                     # the r7 draft's battery (146), mutations (84) and fence-and-race script —
                             #   they tested law in triggers; now scenario material for the core
                             #   (application/a2-rules-for-the-core.md). Run only against the r7 patch (570d437).
-    review/                 # r7's review rounds 1-6 (frozen patches and batteries)
+    review/                 # r7's review rounds 1-6 (frozen patches and batteries); parity round P1: brief,
+                            #   frozen patch and battery, findings and dispositions, both reviewers' probes
   v5.4.2-11/
     battery-11.sql          # 41 checks; TWO tenants throughout (every headline check is cross-tenant).
                             #   Group G is unusual and deliberate: it proves the tenant-isolation
