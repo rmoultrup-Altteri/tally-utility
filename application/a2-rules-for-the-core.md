@@ -521,7 +521,7 @@ Residual R12: the fingerprint is the canonical jsonb text. A server upgrade that
 - **Attribute form.** Condition 3's "6 months" is the resolved adverse rule's `before_anchor`. Condition 1 in r7 is also `cause = 'meter_error'`. The attribute form is "the resolved adverse window has a last-test term", because the gate protects a window whose start a weak prior test can move (residual R18).
 - **Month-end arithmetic.** Condition 3 is stated as *anchor − months*, the **same** arithmetic as the window. It isn't written as *cutover + months*: at month ends the two aren't inverses (cutover 2026-08-31 + 6 months = 2027-02-28, but 2027-02-28 − 6 months = 2026-08-28), and the forward form lapsed the gate while a migrated date still set the window (-12 review round 1).
 - **Source.** R-36 (the transitional gate), R-35 (refinements 2 and 5), 09-22 record §1.
-- **r7.** 2329; -12 `meter_governing_test` 1600–1615.
+- **r7.** 2329; -12 `meter_governing_test` 1600–1615. **Since v5.4.2-14 the database no longer computes this gate:** `meter_governing_test()` returns `weak_provenance`, the governing test and the declared absence, and the core applies conditions 1–3 with the resolved rule's `before_anchor` term and `tenants.cutover_date`. It records the answer on `meter_correction_evaluations.approval_required`.
 - **Pinned by.**
   - G1: adverse, no prior test, anchor 2026-06-15, cutover 2026-01-15; 06-15 − 6 = 2025-12-15 < cutover, so gated.
   - G8: anchor 2026-08-20, reach 2026-02-20 ≥ cutover, so lapsed.

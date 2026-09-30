@@ -17,12 +17,21 @@
 --   G  the gap report (R-35 refinement 1)
 --   H  the threshold table is platform-fixed (F-3)
 --   J  AC-32 raises on planted drift (§6.8)
+--
+-- SINCE v5.4.2-14 (2026-09-30) meter_governing_test() no longer returns
+-- supervisor_gate: R-36's approval gate is the calculation core's
+-- (application/a2-rules-for-the-core.md §9.1). F1, F3, F4, F5, F7 and F10
+-- assert the facts the core computes it from (weak_provenance, the governing
+-- test, the absence) instead of the gate. The gate's month-end arithmetic
+-- that F10 pinned is in the core document and in this file's git history
+-- (before 2026-09-30). It passes with or without -14, since it no longer
+-- reads the column -14 removes; battery-14 pins the removal itself.
 -- ============================================================================
 BEGIN;
 SET CONSTRAINTS ALL IMMEDIATE;
 
 -- ---------------------------------------------------------------- fixtures
--- T1 cut over 2026-01-15, so R-36's gate runs to 2026-07-15. T2 not cut over.
+-- T1 cut over 2026-01-15. T2 not cut over.
 INSERT INTO public.tenants (id, name, slug, cutover_date) VALUES
   ('00000000-0000-4000-8000-0000000012a1', 'T1 Gasco', 'bat12-t1', DATE '2026-01-15'),
   ('00000000-0000-4000-8000-0000000012a2', 'T2 Gasco', 'bat12-t2', NULL);
@@ -637,8 +646,8 @@ DO $$
 DECLARE g record;
 BEGIN
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e3', DATE '2026-05-01');
-  IF g.test_date <> DATE '2026-03-01' OR g.outcome <> 'inconclusive' OR g.weak_provenance OR g.supervisor_gate OR g.absence IS NOT NULL THEN
-    RAISE EXCEPTION 'F1 FAILED: % % weak=% gate=% absence=%', g.test_date, g.outcome, g.weak_provenance, g.supervisor_gate, g.absence; END IF;
+  IF g.test_date <> DATE '2026-03-01' OR g.outcome <> 'inconclusive' OR g.weak_provenance OR g.absence IS NOT NULL THEN
+    RAISE EXCEPTION 'F1 FAILED: % % weak=% absence=%', g.test_date, g.outcome, g.weak_provenance, g.absence; END IF;
   RAISE NOTICE 'PASS F1: anchored on the 05-01 discovery, the governing test is 03-01 — strictly before, and RETURNED although inconclusive (R-34: whatever its outcome); the sibling meter''s February tests are ignored (same meter only)';
 
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e3', DATE '2026-05-02');
@@ -647,27 +656,28 @@ BEGIN
   RAISE NOTICE 'PASS F2: a day later the fast 05-01 test governs, flagged prior_test_failed for the operator (R-34) — not skipped';
 
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e3', DATE '2026-03-01');
-  IF g.test_date <> DATE '2025-10-01' OR g.record_basis <> 'migrated_date_only' OR NOT g.weak_provenance OR NOT g.supervisor_gate THEN
-    RAISE EXCEPTION 'F3 FAILED: % % weak=% gate=%', g.test_date, g.record_basis, g.weak_provenance, g.supervisor_gate; END IF;
-  RAISE NOTICE 'PASS F3: a date-only migrated test anchors the window (R-36), marked weak, and gated inside cutover + 6 months';
+  IF g.test_date <> DATE '2025-10-01' OR g.record_basis <> 'migrated_date_only' OR NOT g.weak_provenance THEN
+    RAISE EXCEPTION 'F3 FAILED: % % weak=%', g.test_date, g.record_basis, g.weak_provenance; END IF;
+  RAISE NOTICE 'PASS F3: a date-only migrated test anchors the window (R-36), marked weak';
 
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e3', DATE '2025-10-01');
-  IF g.meter_test_id IS NOT NULL OR g.absence <> 'undeclared' OR NOT g.supervisor_gate THEN
-    RAISE EXCEPTION 'F4 FAILED: % absence=% gate=%', g.meter_test_id, g.absence, g.supervisor_gate; END IF;
-  RAISE NOTICE 'PASS F4: anchored ON the earliest test, nothing qualifies — no test returned, absence undeclared, gated';
+  IF g.meter_test_id IS NOT NULL OR g.absence <> 'undeclared' OR NOT g.weak_provenance THEN
+    RAISE EXCEPTION 'F4 FAILED: % absence=% weak=%', g.meter_test_id, g.absence, g.weak_provenance; END IF;
+  RAISE NOTICE 'PASS F4: anchored ON the earliest test, nothing qualifies — no test returned, absence undeclared, marked weak';
 END $$;
 
--- F5: the gate lapses at cutover + 6 months (2026-07-15), both sides.
+-- F5: across the date the Texas gate would lapse (2026-07-15), the facts the
+-- core reads do not change: the same date-only test governs, marked weak.
 INSERT INTO public.meter_tests (tenant_id, meter_id, test_date, test_kind, record_basis)
 VALUES ('00000000-0000-4000-8000-0000000012a1', '00000000-0000-4000-8000-0000000012e5', DATE '2025-12-01', 'periodic', 'migrated_date_only');
 DO $$
 DECLARE g record;
 BEGIN
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e5', DATE '2026-07-14');
-  IF NOT g.supervisor_gate THEN RAISE EXCEPTION 'F5 FAILED: 07-14 not gated'; END IF;
+  IF g.test_date <> DATE '2025-12-01' OR NOT g.weak_provenance THEN RAISE EXCEPTION 'F5 FAILED: 07-14 % weak=%', g.test_date, g.weak_provenance; END IF;
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e5', DATE '2026-07-15');
-  IF g.supervisor_gate OR NOT g.weak_provenance THEN RAISE EXCEPTION 'F5 FAILED: 07-15 gate=% weak=%', g.supervisor_gate, g.weak_provenance; END IF;
-  RAISE NOTICE 'PASS F5: the R-36 gate applies on 2026-07-14 and has lapsed on 2026-07-15 (cutover 01-15 + 6 months) — still marked weak';
+  IF g.test_date <> DATE '2025-12-01' OR NOT g.weak_provenance THEN RAISE EXCEPTION 'F5 FAILED: 07-15 % weak=%', g.test_date, g.weak_provenance; END IF;
+  RAISE NOTICE 'PASS F5: on 2026-07-14 and 2026-07-15 the same date-only test governs, marked weak — the gate over it is the core''s (v5.4.2-14)';
 END $$;
 
 -- F6: no history, and scheduling columns that WOULD produce a date if read.
@@ -696,9 +706,9 @@ BEGIN
   SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012e6', DATE '2026-06-01');
   SELECT count(*) INTO n FROM public.meter_test_absence_declarations WHERE meter_id = '00000000-0000-4000-8000-0000000012e6';
   SELECT test_history_absence INTO p FROM public.meters WHERE id = '00000000-0000-4000-8000-0000000012e6';
-  IF g.absence <> 'attested_none' OR NOT g.supervisor_gate OR n <> 2 OR p <> 'attested_none' THEN
-    RAISE EXCEPTION 'F7 FAILED: absence % gate % rows % pointer %', g.absence, g.supervisor_gate, n, p; END IF;
-  RAISE NOTICE 'PASS F7: unknown → attested_none leaves both declarations (R-35 ref. 4), the pointer follows the latest, and the gate still applies';
+  IF g.absence <> 'attested_none' OR NOT g.weak_provenance OR n <> 2 OR p <> 'attested_none' THEN
+    RAISE EXCEPTION 'F7 FAILED: absence % weak % rows % pointer %', g.absence, g.weak_provenance, n, p; END IF;
+  RAISE NOTICE 'PASS F7: unknown → attested_none leaves both declarations (R-35 ref. 4), the pointer follows the latest, and the meter is still marked weak';
 END $$;
 DO $$ BEGIN
   INSERT INTO public.meter_test_absence_declarations (tenant_id, meter_id, absence, basis_note)
@@ -727,9 +737,10 @@ DO $$ BEGIN
   RAISE EXCEPTION 'F9b FAILED';
 EXCEPTION WHEN no_data_found THEN RAISE NOTICE 'PASS F9b: another tenant''s meter raises rather than reporting "no history"'; END $$;
 
--- F10 (round 1, both reviewers): the gate at month-end cutovers, stated in
--- A-2's own arithmetic. T3 cut over 2026-03-31, T4 2026-08-31; each has a
--- migrated test dated on its cutover. Run as owner (other tenants).
+-- F10 (round 1, both reviewers; restated by v5.4.2-14): month-end cutovers.
+-- T3 cut over 2026-03-31, T4 2026-08-31; each has a migrated test dated on
+-- its cutover. For every anchor after it, that test governs and is marked
+-- weak — the facts the core's R-36 gate reads at month ends. Run as owner.
 RESET ROLE;
 INSERT INTO public.tenants (id, name, slug, cutover_date) VALUES
   ('00000000-0000-4000-8000-0000000012a3', 'T3 Gasco', 'bat12-t3', DATE '2026-03-31'),
@@ -749,22 +760,15 @@ INSERT INTO public.meter_tests (tenant_id, meter_id, test_date, test_kind, recor
 DO $$
 DECLARE g record; d date; c date; m uuid; bad int := 0;
 BEGIN
-  -- For every anchor from cutover to cutover + 7 months: whenever the
-  -- migrated date could still set the window (it is later than anchor − 6
-  -- months), the gate must be on.
   FOR m, c IN VALUES ('00000000-0000-4000-8000-0000000012e9'::uuid, DATE '2026-03-31'),
                      ('00000000-0000-4000-8000-0000000012ea'::uuid, DATE '2026-08-31') LOOP
     FOR d IN SELECT generate_series(c + 1, (c + interval '7 months')::date, interval '1 day')::date LOOP
       SELECT * INTO g FROM public.meter_governing_test(m, d);
-      IF g.test_date > (d - interval '6 months')::date AND NOT g.supervisor_gate THEN bad := bad + 1; END IF;
+      IF g.test_date IS DISTINCT FROM c OR g.record_basis <> 'migrated_date_only' OR NOT g.weak_provenance THEN bad := bad + 1; END IF;
     END LOOP;
   END LOOP;
-  IF bad > 0 THEN RAISE EXCEPTION 'F10 FAILED: % anchors with the gate off while a migrated date sets the window', bad; END IF;
-  SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012ea', DATE '2027-02-28');
-  IF NOT g.supervisor_gate THEN RAISE EXCEPTION 'F10 FAILED: 2027-02-28 not gated'; END IF;
-  SELECT * INTO g FROM public.meter_governing_test('00000000-0000-4000-8000-0000000012ea', DATE '2027-03-01');
-  IF g.supervisor_gate THEN RAISE EXCEPTION 'F10 FAILED: 2027-03-01 still gated'; END IF;
-  RAISE NOTICE 'PASS F10: at month-end cutovers (03-31, 08-31) the gate never lapses while a migrated date can set the window — 08-31 cutover is gated on 2027-02-28 and lapsed on 2027-03-01';
+  IF bad > 0 THEN RAISE EXCEPTION 'F10 FAILED: % anchors where the cutover-dated migrated test did not govern, marked weak', bad; END IF;
+  RAISE NOTICE 'PASS F10: at month-end cutovers (03-31, 08-31) the cutover-dated migrated test governs every later anchor for seven months, marked weak (the gate''s arithmetic is the core''s since v5.4.2-14)';
 END $$;
 SET ROLE tally_app;
 
