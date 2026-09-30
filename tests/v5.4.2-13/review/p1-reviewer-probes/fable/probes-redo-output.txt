@@ -1,0 +1,5 @@
+psql:<stdin>:137: NOTICE:  P7 (owner, no app.user_id) OBSERVED: approval accepted with approved_by = NULL
+psql:<stdin>:137: NOTICE:  P7 (owner) OBSERVED: refused 23001 meter_correction_approvals is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+psql:<stdin>:146: NOTICE:  P7 (tally_app, no app.user_id) OBSERVED: refused 22P02 invalid input syntax for type uuid: ""
+psql:<stdin>:155: NOTICE:  P22 OBSERVED: months=0 refused 23514 (new row for relation "backbilling_rule_window_terms" violates check constraint "backbilling_rule_window_terms_months_check")
+psql:<stdin>:158: NOTICE:  P22b OBSERVED: window_terms columns = id, rule_id, direction, term_kind, months, created_at

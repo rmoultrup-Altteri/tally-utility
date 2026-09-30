@@ -72,13 +72,20 @@
 --
 --   Rows across tenants; editing or deleting evaluations, evidence, approvals,
 --   events, acquisitions; evidence added to an evaluation after its own
---   transaction; changing a frozen or withdrawn case; a frozen case pinned to
---   an evaluation of another case or of a different cause or anchor; an
---   approval of another case's evaluation; superseding a test a frozen case
---   cites; overlapping open holds; changing a closed hold; a law row without
---   a citation, overlapping another for the same key, or edited other than
---   closed; any application write to the law tables; an unknown cause or
---   class; caller-supplied timestamps and actors (stamped).
+--   transaction; changing a frozen or withdrawn case, or a withdrawal that
+--   changes anything but its status and reason; a new evaluation, approval
+--   or hold on a case that is not open; a frozen case pinned to an
+--   evaluation of another case, or computed for a different cause, anchor,
+--   basis, direction, claimed start or discovering test; a case or
+--   evaluation naming another meter's test or deployment; evidence citing a
+--   rule of another class, cause, state or service; an approval of another
+--   case's evaluation; superseding a test a frozen case cites; overlapping
+--   open holds; changing a closed hold; a law row without a citation,
+--   overlapping another for the same key, edited other than closed, closed
+--   on or before a date it is cited for, or given window terms after its own
+--   transaction; editing a vocabulary row; any application write to the law
+--   tables; an unknown cause, class, anchor basis, term kind or enforcement
+--   condition; caller-supplied timestamps and actors (stamped).
 --
 --   It does NOT decide whether a correction is lawful. The core does, and
 --   the evaluation row records which rule row it used.
@@ -484,23 +491,32 @@ ALTER TABLE public.meter_deployments ENABLE ALWAYS TRIGGER a_enforce_meter_deplo
 -- no-overlap exclusion; every row cites its source; tally_app reads and
 -- cannot write. The state is resolved from the PREMISE, never the utility.
 --
--- Four tables:
+-- Seven tables:
 --   backbilling_causes             — names only (R-39's eight). What a cause
 --                                    DOES is on the rule row, per state.
 --   backbilling_customer_classes   — the classes a state's rule distinguishes.
+--   backbilling_anchor_bases,
+--   backbilling_window_term_kinds,
+--   backbilling_enforce_conditions — the vocabularies a rule is written in
+--                                    (review P1): rows, so a new state's
+--                                    shape is rows, not DDL.
 --   backbilling_rules              — one per (state, service, class, cause,
 --                                    effective range): the rule as attributes.
 --   backbilling_rule_window_terms  — how far back a correction reaches, per
 --                                    direction, as terms; the window starts at
---                                    the LATEST of its terms' dates; no terms
---                                    in a direction = uncapped that way.
+--                                    the LATEST of the applying terms' dates
+--                                    (unprioritised terms always apply; of the
+--                                    prioritised ones, the first known); no
+--                                    terms in a direction = uncapped that way.
 --
 -- CITY-LEVEL RULES (R-26's municipal level) wait for the shared places table
 -- (residual R2); no Texas city override is seeded today.
 --
--- A law row is never edited: it is closed (effective_to set once) and a new
--- row added, because evaluations cite rule rows and a cited row that could
--- change would change the record of what was decided.
+-- A law row is never edited: it is closed (effective_to set once, stamped,
+-- never on or before a date a citation used it) and a new row added, because
+-- evaluations cite rule rows and a cited row that could change would change
+-- the record of what was decided. A rule's window terms are written with it.
+-- Vocabulary rows are never edited either.
 
 CREATE TABLE IF NOT EXISTS public.backbilling_causes (
     cause_code      text NOT NULL,
@@ -569,6 +585,92 @@ SELECT v.state_code, v.service_type, v.class_code, v.description, v.source_note
                       AND c.class_code = v.class_code);
 
 
+-- Three more vocabularies (review round P1, both reviewers): what a
+-- correction counts back from, the kinds of window term, and the conditions
+-- an enforcement may turn on. As CHECK lists these made a new state's rule
+-- a DDL change; as rows, a state that needs a notice-date anchor, a window
+-- in days or a new enforcement condition adds rows (group Z proves it). A
+-- new vocabulary row is also a core change: the core must know how to
+-- evaluate it, and refuses a rule naming one it does not know.
+
+CREATE TABLE IF NOT EXISTS public.backbilling_anchor_bases (
+    basis_code      text NOT NULL,
+    rests_on_test   boolean NOT NULL,
+    description     text NOT NULL,
+    created_at      timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT backbilling_anchor_bases_pkey PRIMARY KEY (basis_code),
+    CONSTRAINT backbilling_anchor_bases_code_check CHECK ((basis_code ~ '^[a-z][a-z0-9_]*$'::text)),
+    CONSTRAINT backbilling_anchor_bases_description_check CHECK ((description ~ '[[:alnum:]]'::text))
+);
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_anchor_bases FROM tally_app;
+GRANT SELECT ON public.backbilling_anchor_bases TO tally_app;
+
+COMMENT ON TABLE public.backbilling_anchor_bases IS
+    'A-2 (v5.4.2-13, review P1). What a backbilling correction counts back from. rests_on_test: a case on this basis names the meter test that found the fault and counts back from its date; otherwise the case names no test and records how far back the fault is claimed to reach (claimed_from). Platform-held vocabulary; a new basis is a row plus a core change.';
+
+INSERT INTO public.backbilling_anchor_bases (basis_code, rests_on_test, description)
+SELECT v.code, v.on_test, v.description
+  FROM (VALUES
+    ('test_date',      true,  'The date of the meter test that found the fault.'),
+    ('discovery_date', false, 'The date the utility discovered the fault, with no test deciding it.')
+  ) AS v(code, on_test, description)
+ WHERE NOT EXISTS (SELECT 1 FROM public.backbilling_anchor_bases b WHERE b.basis_code = v.code);
+
+
+CREATE TABLE IF NOT EXISTS public.backbilling_window_term_kinds (
+    kind_code       text NOT NULL,
+    takes_quantity  boolean NOT NULL,
+    description     text NOT NULL,
+    created_at      timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT backbilling_window_term_kinds_pkey PRIMARY KEY (kind_code),
+    CONSTRAINT backbilling_window_term_kinds_code_check CHECK ((kind_code ~ '^[a-z][a-z0-9_]*$'::text)),
+    CONSTRAINT backbilling_window_term_kinds_description_check CHECK ((description ~ '[[:alnum:]]'::text))
+);
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_window_term_kinds FROM tally_app;
+GRANT SELECT ON public.backbilling_window_term_kinds TO tally_app;
+
+COMMENT ON TABLE public.backbilling_window_term_kinds IS
+    'A-2 (v5.4.2-13, review P1). The kinds of date a correction window''s start may be drawn from, evaluated by the calculation core. takes_quantity: a term of this kind carries a quantity and unit (before_anchor: N months, days or billing periods back from the anchor); the others carry neither. Platform-held vocabulary; a new kind is a row plus a core change.';
+
+INSERT INTO public.backbilling_window_term_kinds (kind_code, takes_quantity, description)
+SELECT v.code, v.qty, v.description
+  FROM (VALUES
+    ('before_anchor',         true,  'A quantity of months, days or billing periods back from the anchor.'),
+    ('last_test_any_outcome', false, 'The most recent completed test of the meter before the anchor, whatever it found (Texas R-34).'),
+    ('last_test_accurate',    false, 'The most recent test before the anchor that found the meter within tolerance.'),
+    ('half_since_last_test',  false, 'Half the time between the last test before the anchor and the anchor.'),
+    ('deployment_start',      false, 'When the meter went into service at the premise (R-37(a)).'),
+    ('service_start',         false, 'When the customer''s service at the premise began.'),
+    ('claimed_start',         false, 'When the fault is known to have begun, as the case records it (claimed_from). A term the core cannot resolve because the case records no such date is unknown, not zero.')
+  ) AS v(code, qty, description)
+ WHERE NOT EXISTS (SELECT 1 FROM public.backbilling_window_term_kinds k WHERE k.kind_code = v.code);
+
+
+CREATE TABLE IF NOT EXISTS public.backbilling_enforce_conditions (
+    condition_code  text NOT NULL,
+    description     text NOT NULL,
+    created_at      timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT backbilling_enforce_conditions_pkey PRIMARY KEY (condition_code),
+    CONSTRAINT backbilling_enforce_conditions_code_check CHECK ((condition_code ~ '^[a-z][a-z0-9_]*$'::text)),
+    CONSTRAINT backbilling_enforce_conditions_description_check CHECK ((description ~ '[[:alnum:]]'::text))
+);
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_enforce_conditions FROM tally_app;
+GRANT SELECT ON public.backbilling_enforce_conditions TO tally_app;
+
+COMMENT ON TABLE public.backbilling_enforce_conditions IS
+    'A-2 (v5.4.2-13, review P1). The conditions a conditional enforcement (backbilling_rules.enforce_scope = conditional) may turn on, evaluated by the calculation core. Platform-held vocabulary; a new condition is a row plus a core change.';
+
+INSERT INTO public.backbilling_enforce_conditions (condition_code, description)
+SELECT v.code, v.description
+  FROM (VALUES
+    ('read_beyond_utility_control', 'Whether the missed or estimated read was beyond the utility''s control (Texas R-30).')
+  ) AS v(code, description)
+ WHERE NOT EXISTS (SELECT 1 FROM public.backbilling_enforce_conditions e WHERE e.condition_code = v.code);
+
+
 CREATE TABLE IF NOT EXISTS public.backbilling_rules (
     id                          uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     state_code                  text NOT NULL,
@@ -590,22 +692,28 @@ CREATE TABLE IF NOT EXISTS public.backbilling_rules (
     effective_to                date,
     source_note                 text NOT NULL,
     created_at                  timestamp with time zone DEFAULT now() NOT NULL,
+    recorded_txid               bigint DEFAULT txid_current() NOT NULL,
+    closed_at                   timestamp with time zone,
+    closed_by                   text,
     CONSTRAINT backbilling_rules_pkey PRIMARY KEY (id),
     CONSTRAINT backbilling_rules_class_fkey
         FOREIGN KEY (state_code, service_type, customer_class)
         REFERENCES public.backbilling_customer_classes(state_code, service_type, class_code),
     CONSTRAINT backbilling_rules_cause_fkey
         FOREIGN KEY (cause) REFERENCES public.backbilling_causes(cause_code),
-    -- What the correction counts back from.
-    CONSTRAINT backbilling_rules_anchor_basis_check
-        CHECK ((anchor_basis = ANY (ARRAY['test_date'::text, 'discovery_date'::text]))),
-    -- A test-anchored rule names the test outcomes that make a finding this
-    -- cause (R-39: the outcome decides the cause); a discovery rule names none.
+    -- What the correction counts back from (a vocabulary row, review P1).
+    CONSTRAINT backbilling_rules_anchor_basis_fkey
+        FOREIGN KEY (anchor_basis) REFERENCES public.backbilling_anchor_bases(basis_code),
+    -- A rule on a test basis names the test outcomes that make a finding
+    -- this cause (R-39: the outcome decides the cause); a rule on any other
+    -- basis names none. The basis half is the record guard's (it reads
+    -- backbilling_anchor_bases.rests_on_test); the outcome values are here.
     CONSTRAINT backbilling_rules_qualifying_outcomes_check
-        CHECK ((((anchor_basis = 'test_date'::text) AND (qualifying_test_outcomes IS NOT NULL)
-                  AND (cardinality(qualifying_test_outcomes) > 0)
-                  AND (qualifying_test_outcomes <@ ARRAY['fast'::text, 'slow'::text, 'non_registering'::text]))
-             OR ((anchor_basis = 'discovery_date'::text) AND (qualifying_test_outcomes IS NULL)))),
+        CHECK (((qualifying_test_outcomes IS NULL)
+             OR ((cardinality(qualifying_test_outcomes) > 0)
+                 AND (qualifying_test_outcomes <@ ARRAY['fast'::text, 'slow'::text, 'non_registering'::text])))),
+    CONSTRAINT backbilling_rules_enforce_condition_fkey
+        FOREIGN KEY (enforce_condition) REFERENCES public.backbilling_enforce_conditions(condition_code),
     -- Must the utility correct in the customer's favour back to the window
     -- (a duty), or may it (a permission)?
     CONSTRAINT backbilling_rules_favourable_duty_check
@@ -627,8 +735,7 @@ CREATE TABLE IF NOT EXISTS public.backbilling_rules (
         CHECK ((((enforce_scope = 'months'::text) AND (enforce_months IS NOT NULL) AND (enforce_months > 0))
              OR ((enforce_scope <> 'months'::text) AND (enforce_months IS NULL)))),
     CONSTRAINT backbilling_rules_enforce_condition_check
-        CHECK ((((enforce_scope = 'conditional'::text) AND (enforce_condition = ANY (ARRAY['read_beyond_utility_control'::text])))
-             OR ((enforce_scope <> 'conditional'::text) AND (enforce_condition IS NULL)))),
+        CHECK (((enforce_scope = 'conditional'::text) = (enforce_condition IS NOT NULL))),
     CONSTRAINT backbilling_rules_range_check
         CHECK (((effective_to IS NULL) OR (effective_to > effective_from))),
     CONSTRAINT backbilling_rules_source_note_check
@@ -644,9 +751,9 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_rules FROM tally_a
 GRANT SELECT ON public.backbilling_rules TO tally_app;
 
 COMMENT ON TABLE public.backbilling_rules IS
-    'A-2 (v5.4.2-13, parity). What a state''s law requires of a backbilling correction, per (state, service type, customer class, cause, effective range) — as ATTRIBUTES the calculation core reads, never as behaviour keyed on a cause name: anchor_basis, qualifying_test_outcomes, favourable_duty, adverse/favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant, enforce_scope/months/condition. How far back is in backbilling_rule_window_terms. Platform-held (tally_app reads only), cited (source_note), no overlap per key. Never edited — closed (effective_to set once) and superseded by a new row, because evaluations cite rule rows. The state comes from the premise, never the utility. A key with no row in force means no rule is known: the core must refuse, never fall back. City-level rows (R-26) wait for the places table.';
+    'A-2 (v5.4.2-13, parity). What a state''s law requires of a backbilling correction, per (state, service type, customer class, cause, effective range) — as ATTRIBUTES the calculation core reads, never as behaviour keyed on a cause name: anchor_basis, qualifying_test_outcomes, favourable_duty, adverse/favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant, enforce_scope/months/condition. How far back is in backbilling_rule_window_terms. Platform-held (tally_app reads only), cited (source_note), no overlap per key. Never edited — closed (effective_to set once, stamped closed_at / closed_by, never on or before a date it is cited for) and superseded by a new row, because evaluations cite rule rows. Its window terms are written in its own transaction (recorded_txid). The state comes from the premise, never the utility. A key with no row in force means no rule is known: the core must refuse, never fall back. City-level rows (R-26) wait for the places table.';
 COMMENT ON COLUMN public.backbilling_rules.qualifying_test_outcomes IS
-    'For a test-anchored rule, the meter_tests outcomes that make a finding this cause (R-39: the outcome decides the cause, not the operator). Texas: meter_error {fast, slow}; non_registering_meter {non_registering}. NULL exactly for a discovery-anchored rule. The core checks a case''s discovering test against it; the direction a test implies (fast → the customer is owed) is what the measurement means, fixed in the core.';
+    'For a rule whose anchor basis rests on a test (backbilling_anchor_bases.rests_on_test), the meter_tests outcomes that make a finding this cause (R-39: the outcome decides the cause, not the operator). Texas: meter_error {fast, slow}; non_registering_meter {non_registering}. NULL exactly for a rule on any other basis. The core checks a case''s discovering test against it; the direction a test implies (fast → the customer is owed) is what the measurement means, fixed in the core.';
 COMMENT ON COLUMN public.backbilling_rules.favourable_duty IS
     'mandatory: the utility must correct in the customer''s favour back to the favourable window (Texas: a fast meter, §7.45(7)(B)(v)(I), R-37 — no override, the only exception is a hold). permitted: it may.';
 COMMENT ON COLUMN public.backbilling_rules.adverse_straddle IS
@@ -668,74 +775,202 @@ CREATE TABLE IF NOT EXISTS public.backbilling_rule_window_terms (
     rule_id         uuid NOT NULL,
     direction       text NOT NULL,
     term_kind       text NOT NULL,
-    months          integer,
+    quantity        integer,
+    unit            text,
+    priority        integer,
     created_at      timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT backbilling_rule_window_terms_pkey PRIMARY KEY (id),
     CONSTRAINT backbilling_rule_window_terms_key UNIQUE (rule_id, direction, term_kind),
+    CONSTRAINT backbilling_rule_window_terms_priority_key UNIQUE (rule_id, direction, priority),
     CONSTRAINT backbilling_rule_window_terms_rule_fkey
         FOREIGN KEY (rule_id) REFERENCES public.backbilling_rules(id),
+    CONSTRAINT backbilling_rule_window_terms_kind_fkey
+        FOREIGN KEY (term_kind) REFERENCES public.backbilling_window_term_kinds(kind_code),
     CONSTRAINT backbilling_rule_window_terms_direction_check
         CHECK ((direction = ANY (ARRAY['adverse'::text, 'favourable'::text]))),
-    -- A general vocabulary of date terms. The window starts at the LATEST of
-    -- a direction's terms, so "the shorter of six months or the last test" is
-    -- two terms, and "half the time since the last test, capped at N months"
-    -- is half_since_last_test plus months_before_anchor N.
-    CONSTRAINT backbilling_rule_window_terms_kind_check
-        CHECK ((term_kind = ANY (ARRAY['months_before_anchor'::text, 'last_test_any_outcome'::text,
-                                       'last_test_accurate'::text, 'half_since_last_test'::text,
-                                       'deployment_start'::text, 'service_start'::text]))),
-    CONSTRAINT backbilling_rule_window_terms_months_check
-        CHECK ((((term_kind = 'months_before_anchor'::text) AND (months IS NOT NULL) AND (months > 0))
-             OR ((term_kind <> 'months_before_anchor'::text) AND (months IS NULL))))
+    -- A quantity always has its unit, and is positive. Whether a kind takes
+    -- one is the kind's (takes_quantity), checked by the record guard.
+    CONSTRAINT backbilling_rule_window_terms_quantity_check
+        CHECK ((((quantity IS NULL) AND (unit IS NULL))
+             OR ((quantity IS NOT NULL) AND (quantity > 0)
+                 AND (unit = ANY (ARRAY['months'::text, 'days'::text, 'billing_periods'::text]))))),
+    CONSTRAINT backbilling_rule_window_terms_priority_check
+        CHECK (((priority IS NULL) OR (priority > 0)))
 );
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.backbilling_rule_window_terms FROM tally_app;
 GRANT SELECT ON public.backbilling_rule_window_terms TO tally_app;
 
 COMMENT ON TABLE public.backbilling_rule_window_terms IS
-    'A-2 (v5.4.2-13, parity). How far back a correction under a backbilling_rules row may reach, per direction (adverse: the customer owes; favourable: the customer is owed). The window starts at the LATEST date among the direction''s terms; a direction with no terms is uncapped. term_kind: months_before_anchor (months back from the anchor), last_test_any_outcome (the most recent test before the anchor, whatever it found — Texas R-34), last_test_accurate, half_since_last_test, deployment_start (when the meter went into service at the premise — R-37(a)), service_start. Immutable: a changed window is a new rule row.';
-COMMENT ON COLUMN public.backbilling_rule_window_terms.term_kind IS
-    'A general vocabulary of date terms, evaluated by the calculation core. Adding a kind is a CHECK change and a core change together; adding a state that uses existing kinds is rows only.';
+    'A-2 (v5.4.2-13, parity; review P1). How far back a correction under a backbilling_rules row may reach, per direction (adverse: the customer owes; favourable: the customer is owed). A direction with no terms is uncapped. HOW TERMS COMBINE: every term with no priority always applies; the terms WITH a priority form one fallback chain, of which only the first whose date is known (lowest priority number first) applies; the window starts at the LATEST of the applying dates. So "the shorter of six months or the last test" is two unprioritised terms, and "from when the error is known to have begun, otherwise half the time since the last test, never more than N months" is claimed_start priority 1, half_since_last_test priority 2 and before_anchor N months unprioritised. term_kind is a vocabulary row (backbilling_window_term_kinds); before_anchor carries a quantity and unit (months, days, billing_periods). Written only in its rule''s own transaction; never changed: a changed window is a new rule row.';
+COMMENT ON COLUMN public.backbilling_rule_window_terms.priority IS
+    'NULL: the term always applies. A number: the term is in the direction''s fallback chain, and applies only if every lower-numbered chain term''s date is unknown. Evaluated by the calculation core.';
 
--- Law rows are closed, never edited (they are cited by evaluations). Applies
--- to the owner too: a wrong row is closed and replaced, so the record of what
--- was in force stays true.
-CREATE OR REPLACE FUNCTION public.enforce_backbilling_law_history() RETURNS trigger
+
+-- Law rows are recorded whole, then closed, never edited: evaluations and
+-- evidence cite them. Each guard applies to the owner too; a row wrong from
+-- its first day is a reviewed platform repair (residual R7).
+
+-- A rule row's record: its basis decides whether it names test outcomes;
+-- its creation and transaction are stamped (its window terms must be written
+-- in that transaction); it is born unclosed-by-anyone.
+CREATE OR REPLACE FUNCTION public.enforce_backbilling_rule_record() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_on_test boolean;
+BEGIN
+    SELECT a.rests_on_test INTO v_on_test FROM public.backbilling_anchor_bases a WHERE a.basis_code = NEW.anchor_basis;
+    IF v_on_test IS NOT NULL AND v_on_test <> (NEW.qualifying_test_outcomes IS NOT NULL) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling rule (%s %s %s %s): a rule on a test basis names the test outcomes that make a finding its cause (R-39); a rule on any other basis names none (v5.4.2-13)', NEW.state_code, NEW.service_type, NEW.customer_class, NEW.cause),
+            ERRCODE = 'check_violation';
+    END IF;
+    NEW.created_at    := now();
+    NEW.recorded_txid := txid_current();
+    NEW.closed_at     := NULL;
+    NEW.closed_by     := NULL;
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.enforce_backbilling_rule_record() IS
+    'v5.4.2-13 (review P1). BEFORE INSERT on backbilling_rules, every role: a rule on a basis that rests on a test names qualifying outcomes, any other names none; created_at and recorded_txid are stamped (window terms may be added only in that transaction); closed_at / closed_by start empty.';
+
+DROP TRIGGER IF EXISTS a_enforce_backbilling_rule_record ON public.backbilling_rules;
+CREATE TRIGGER a_enforce_backbilling_rule_record BEFORE INSERT ON public.backbilling_rules
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_rule_record();
+ALTER TABLE public.backbilling_rules ENABLE ALWAYS TRIGGER a_enforce_backbilling_rule_record;
+
+-- A rule row's history: the only edit is a close, stamped, and never dated
+-- on or before a day a citation may have used it (review P1, both reviewers:
+-- a retroactive close put an in-force citation outside its rule's range).
+-- Which date picks the rule row is open (residual R3), so the floor covers
+-- every candidate: each citing evaluation's anchor and its own date, and
+-- each citing evidence row's period start.
+CREATE OR REPLACE FUNCTION public.enforce_backbilling_rule_history() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    c_close_cols CONSTANT text[] := ARRAY['effective_to', 'closed_at', 'closed_by'];
+    v_sees_all boolean;
+    v_latest date;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling rule %s: law rows are never deleted — close the row (effective_to) and add its successor (v5.4.2-13)', OLD.id),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    IF OLD.effective_to IS NOT NULL OR NEW.effective_to IS NULL
+       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling rule %s: law rows are never edited — evaluations cite them; close the row (effective_to, once, nothing else) and add its successor (v5.4.2-13)', OLD.id),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    -- The floor reads every tenant's citations. A role row-level security
+    -- would narrow would see only some of them and pass a close it should
+    -- refuse, so such a role may not close at all.
+    SELECT r.rolsuper OR r.rolbypassrls INTO v_sees_all FROM pg_catalog.pg_roles r WHERE r.rolname = current_user;
+    IF v_sees_all IS NOT TRUE THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling rule %s: closing a law row needs a role that sees every tenant''s citations of it (superuser or BYPASSRLS); %s does not (v5.4.2-13)', OLD.id, current_user),
+            ERRCODE = 'insufficient_privilege';
+    END IF;
+    SELECT max(d) INTO v_latest FROM (
+        SELECT greatest(v.anchor_date, v.evaluated_at::date) AS d
+          FROM public.meter_correction_evaluations v WHERE v.rule_id = OLD.id
+        UNION ALL
+        SELECT p.period_start FROM public.meter_correction_period_evidence p WHERE p.rule_id = OLD.id
+    ) c;
+    IF v_latest IS NOT NULL AND NEW.effective_to <= v_latest THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling rule %s: it is cited for %s; a close effective %s would put that citation outside the rule''s range (v5.4.2-13)', OLD.id, v_latest, NEW.effective_to),
+            ERRCODE = 'restrict_violation',
+            HINT = 'Close it after the latest date it is cited for. A row wrong from its first day is a reviewed platform repair (residual R7).';
+    END IF;
+    NEW.closed_at := now();
+    NEW.closed_by := session_user;
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.enforce_backbilling_rule_history() IS
+    'v5.4.2-13 (parity; review P1). BEFORE UPDATE OR DELETE on backbilling_rules, every role: never deleted; the only edit is a close (effective_to NULL → a date, nothing else), stamped with closed_at and the session role (closed_by); refused on or before the latest date any evaluation (anchor, evaluation date) or evidence row (period start) cites the row for; refused to a role row-level security narrows, since it could not see every citation.';
+
+DROP TRIGGER IF EXISTS a_enforce_backbilling_law_history ON public.backbilling_rules;
+DROP TRIGGER IF EXISTS a_enforce_backbilling_rule_history ON public.backbilling_rules;
+CREATE TRIGGER a_enforce_backbilling_rule_history BEFORE UPDATE OR DELETE ON public.backbilling_rules
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_rule_history();
+ALTER TABLE public.backbilling_rules ENABLE ALWAYS TRIGGER a_enforce_backbilling_rule_history;
+
+-- A window term's record: written in its rule's own transaction (review P1,
+-- both reviewers: a term added later changed a cited rule's window under
+-- the same id), with a quantity exactly when its kind takes one.
+CREATE OR REPLACE FUNCTION public.enforce_backbilling_window_term_record() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_txid bigint;
+    v_takes boolean;
+BEGIN
+    SELECT b.recorded_txid INTO v_txid FROM public.backbilling_rules b WHERE b.id = NEW.rule_id;
+    IF v_txid IS NOT NULL AND v_txid <> txid_current() THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling rule %s: its window terms were written with it — a term added later would change the window of every citation of the row (v5.4.2-13)', NEW.rule_id),
+            ERRCODE = 'restrict_violation',
+            HINT = 'Close the row and add a successor with the new terms, in one transaction.';
+    END IF;
+    SELECT k.takes_quantity INTO v_takes FROM public.backbilling_window_term_kinds k WHERE k.kind_code = NEW.term_kind;
+    IF v_takes IS NOT NULL AND v_takes <> (NEW.quantity IS NOT NULL) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('backbilling window term %s: a quantity and unit appear exactly on a kind that takes one (v5.4.2-13)', NEW.term_kind),
+            ERRCODE = 'check_violation';
+    END IF;
+    NEW.created_at := now();
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.enforce_backbilling_window_term_record() IS
+    'v5.4.2-13 (review P1). BEFORE INSERT on backbilling_rule_window_terms, every role: only in the transaction that recorded its rule row (backbilling_rules.recorded_txid); a quantity and unit exactly when the kind takes one; created_at stamped.';
+
+DROP TRIGGER IF EXISTS a_enforce_backbilling_window_term_record ON public.backbilling_rule_window_terms;
+CREATE TRIGGER a_enforce_backbilling_window_term_record BEFORE INSERT ON public.backbilling_rule_window_terms
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_window_term_record();
+ALTER TABLE public.backbilling_rule_window_terms ENABLE ALWAYS TRIGGER a_enforce_backbilling_window_term_record;
+
+-- Window terms and the five vocabularies never change and are never deleted
+-- (review P1: the classes' and causes' texts were rewritable). A class's
+-- source_note is the citation for which customers a state protects.
+CREATE OR REPLACE FUNCTION public.enforce_backbilling_law_immutable() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
 BEGIN
-    IF TG_OP = 'DELETE' THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('%s: law rows are never deleted — close the row (effective_to) and add its successor (v5.4.2-13)', TG_TABLE_NAME),
-            ERRCODE = 'restrict_violation';
-    END IF;
-    -- Closing an open rules row is the only edit. (Read through jsonb:
-    -- window terms have no effective_to, and a direct OLD.effective_to
-    -- reference fails on them even behind a table-name test.)
-    IF TG_TABLE_NAME = 'backbilling_rules'
-       AND (to_jsonb(OLD) ->> 'effective_to') IS NULL
-       AND (to_jsonb(NEW) ->> 'effective_to') IS NOT NULL
-       AND (to_jsonb(NEW) - 'effective_to') = (to_jsonb(OLD) - 'effective_to') THEN
-        RETURN NEW;
-    END IF;
     RAISE EXCEPTION USING
-        MESSAGE = format('%s %s: law rows are never edited — evaluations cite them; close the row (effective_to, once) and add its successor (v5.4.2-13)', TG_TABLE_NAME, OLD.id),
-        ERRCODE = 'restrict_violation';
+        MESSAGE = format('%s: law rows are never edited or deleted — rules and evaluations cite them (v5.4.2-13)', TG_TABLE_NAME),
+        ERRCODE = 'restrict_violation',
+        HINT = 'A changed window is a new rule row. A vocabulary row wrong from its first day is a reviewed platform repair (residual R7).';
 END;
 $$;
 
-COMMENT ON FUNCTION public.enforce_backbilling_law_history() IS
-    'v5.4.2-13 (parity). BEFORE UPDATE OR DELETE on backbilling_rules and backbilling_rule_window_terms, for every role: a rules row may only be closed (effective_to NULL → a date, nothing else changing); window terms never change; neither is deleted. Evaluations and evidence cite rule rows, so a cited row that could change would rewrite what was decided.';
+COMMENT ON FUNCTION public.enforce_backbilling_law_immutable() IS
+    'v5.4.2-13 (parity; review P1). BEFORE UPDATE OR DELETE, every role, on backbilling_rule_window_terms, backbilling_causes, backbilling_customer_classes, backbilling_anchor_bases, backbilling_window_term_kinds and backbilling_enforce_conditions: refused.';
 
-DROP TRIGGER IF EXISTS a_enforce_backbilling_law_history ON public.backbilling_rules;
-CREATE TRIGGER a_enforce_backbilling_law_history BEFORE UPDATE OR DELETE ON public.backbilling_rules
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_law_history();
-ALTER TABLE public.backbilling_rules ENABLE ALWAYS TRIGGER a_enforce_backbilling_law_history;
-DROP TRIGGER IF EXISTS a_enforce_backbilling_law_history ON public.backbilling_rule_window_terms;
-CREATE TRIGGER a_enforce_backbilling_law_history BEFORE UPDATE OR DELETE ON public.backbilling_rule_window_terms
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_law_history();
-ALTER TABLE public.backbilling_rule_window_terms ENABLE ALWAYS TRIGGER a_enforce_backbilling_law_history;
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['backbilling_rule_window_terms', 'backbilling_causes', 'backbilling_customer_classes',
+                             'backbilling_anchor_bases', 'backbilling_window_term_kinds', 'backbilling_enforce_conditions'] LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_backbilling_law_immutable ON public.%I', t);
+        EXECUTE format('CREATE TRIGGER a_enforce_backbilling_law_immutable BEFORE UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_backbilling_law_immutable()', t);
+        EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_enforce_backbilling_law_immutable', t);
+    END LOOP;
+END;
+$$;
 
 
 -- The Texas gas rows — R-20's table as amended by R-39 — seeded ONCE as
@@ -812,17 +1047,17 @@ BEGIN
         RETURNING id INTO v_rule;
 
         IF r.customer_class = 'protected' AND r.cause = 'meter_error' THEN
-            INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, months)
-            VALUES (v_rule, 'adverse',    'months_before_anchor',  6),
-                   (v_rule, 'adverse',    'last_test_any_outcome', NULL),
-                   (v_rule, 'adverse',    'deployment_start',      NULL),
-                   (v_rule, 'favourable', 'months_before_anchor',  6),
-                   (v_rule, 'favourable', 'last_test_any_outcome', NULL),
-                   (v_rule, 'favourable', 'deployment_start',      NULL);
+            INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit)
+            VALUES (v_rule, 'adverse',    'before_anchor',         6,    'months'),
+                   (v_rule, 'adverse',    'last_test_any_outcome', NULL, NULL),
+                   (v_rule, 'adverse',    'deployment_start',      NULL, NULL),
+                   (v_rule, 'favourable', 'before_anchor',         6,    'months'),
+                   (v_rule, 'favourable', 'last_test_any_outcome', NULL, NULL),
+                   (v_rule, 'favourable', 'deployment_start',      NULL, NULL);
         ELSIF r.customer_class = 'protected' AND r.cause = 'non_registering_meter' THEN
-            INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, months)
-            VALUES (v_rule, 'adverse', 'months_before_anchor', 3),
-                   (v_rule, 'adverse', 'deployment_start',     NULL);
+            INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit)
+            VALUES (v_rule, 'adverse', 'before_anchor',    3,    'months'),
+                   (v_rule, 'adverse', 'deployment_start', NULL, NULL);
         END IF;
     END LOOP;
 END;
@@ -999,11 +1234,18 @@ COMMENT ON TABLE public.service_location_acquisitions IS
 -- WHAT THE DATABASE REFUSES (record integrity):
 --   * a frozen case changes only by unfreezing — status back to open with
 --     its freeze cleared, in a statement that changes nothing else;
---   * a withdrawn case never changes;
---   * a frozen case pins an evaluation OF THIS CASE, computed for its
---     current cause and anchor (foreign key + trigger);
+--   * a withdrawal changes only the status, its reason and the notes, and a
+--     withdrawn case never changes again;
+--   * a frozen case pins an evaluation OF THIS CASE, computed for the case
+--     as it stands: cause, anchor and basis, direction, claimed start and
+--     discovering test (foreign key + trigger; review P1);
+--   * a frozen or withdrawn case takes no new evaluation, approval or hold
+--     (section 9-11; review P1);
+--   * the case's shape follows its anchor basis: a test, or a claimed start;
+--   * its discovering test and evidence deployment are of its own meter;
 --   * the meter, tenant and opening stamps never change;
---   * opened_at/by, frozen_at/by and evidence_recorded_at/by are stamped;
+--   * opened_at/by, created_at, updated_at on insert, frozen_at/by and
+--     evidence_recorded_at/by are stamped;
 --   * evidence is one kind with exactly its one reference;
 --   * one live case per discovering test (two would be posted twice).
 --
@@ -1020,6 +1262,7 @@ CREATE TABLE IF NOT EXISTS public.meter_correction_cases (
     anchor_basis            text NOT NULL,
     direction               text,
     claimed_from            date,
+    claimed_from_evidence   text,
     status                  text DEFAULT 'open'::text NOT NULL,
     cause_change_reason     text,
     withdrawn_reason        text,
@@ -1051,15 +1294,20 @@ CREATE TABLE IF NOT EXISTS public.meter_correction_cases (
         FOREIGN KEY (evidence_service_order_id, tenant_id) REFERENCES public.service_orders(id, tenant_id),
     CONSTRAINT meter_correction_cases_evidence_deployment_fkey
         FOREIGN KEY (evidence_deployment_id, tenant_id) REFERENCES public.meter_deployments(id, tenant_id),
-    CONSTRAINT meter_correction_cases_anchor_basis_check
-        CHECK ((anchor_basis = ANY (ARRAY['test_date'::text, 'discovery_date'::text]))),
-    -- A test-anchored case names its test; a discovery case names no test and
-    -- records how far back the fault is claimed to reach. This is what the
-    -- two anchor kinds MEAN, not which causes use them (that is law).
-    CONSTRAINT meter_correction_cases_anchor_shape_check
-        CHECK ((((anchor_basis = 'test_date'::text) AND (discovering_test_id IS NOT NULL) AND (claimed_from IS NULL))
-             OR ((anchor_basis = 'discovery_date'::text) AND (discovering_test_id IS NULL)
-                  AND (claimed_from IS NOT NULL) AND (claimed_from <= anchor_date)))),
+    CONSTRAINT meter_correction_cases_anchor_basis_fkey
+        FOREIGN KEY (anchor_basis) REFERENCES public.backbilling_anchor_bases(basis_code),
+    -- A case on a test basis names its test; a case on any other basis names
+    -- no test and records how far back the fault is claimed to reach. That
+    -- is what the bases MEAN (backbilling_anchor_bases.rests_on_test, read by
+    -- the record guard), not which causes use them (that is law). A case on
+    -- a test basis MAY also record when the error is known to have begun
+    -- (review P1: "the period the error is known to have existed, else half
+    -- the time since the last test" is a common rule), and what shows it.
+    CONSTRAINT meter_correction_cases_claimed_from_check
+        CHECK (((claimed_from IS NULL) OR (claimed_from <= anchor_date))),
+    CONSTRAINT meter_correction_cases_claimed_from_evidence_check
+        CHECK (((claimed_from_evidence IS NULL)
+             OR ((claimed_from IS NOT NULL) AND (claimed_from_evidence ~ '[[:alnum:]]'::text)))),
     CONSTRAINT meter_correction_cases_direction_check
         CHECK (((direction IS NULL) OR (direction = ANY (ARRAY['customer_owes'::text, 'customer_owed'::text])))),
     CONSTRAINT meter_correction_cases_status_check
@@ -1113,15 +1361,18 @@ CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.meter_correction_cases
 COMMENT ON TABLE public.meter_correction_cases IS
     'A-2 (v5.4.2-13, parity). The record of one finding about one meter — the object that carries a metering correction (R-33 takes meter errors off the void-and-reissue path). Follows the METER across every deployment and occupant (R-37(b)). Records the cause, the discovering test or the claimed start, the anchor, the direction where a test decides it, cause-change reasons, evidence for a gated cause, and status (open / frozen / withdrawn; -14 adds posted). Which causes, directions, changes and withdrawals are lawful is the calculation core''s (application/a2-rules-for-the-core.md). The database keeps the record whole: a frozen case changes only by unfreezing, a withdrawn one never; stamps are the database''s; every change is logged in meter_correction_case_events.';
 COMMENT ON COLUMN public.meter_correction_cases.anchor_basis IS
-    'test_date: the case rests on discovering_test_id and counts back from its date. discovery_date: no test; the operator records when the fault was discovered (anchor_date) and how far back it is claimed to reach (claimed_from). Which basis a cause uses in a state is backbilling_rules.anchor_basis; the core checks the case against it.';
+    'A backbilling_anchor_bases row. On a basis that rests on a test (test_date): the case names discovering_test_id and counts back from its date. On any other (discovery_date): no test; the operator records the anchor and how far back the fault is claimed to reach (claimed_from). Which basis a cause uses in a state is backbilling_rules.anchor_basis; the core checks the case against it.';
+COMMENT ON COLUMN public.meter_correction_cases.claimed_from IS
+    'When the fault began, as the case records it. Required on a basis that rests on no test (how far back the correction is claimed to reach); optional on a test basis (when the error is known to have begun, for a rule with a claimed_start window term). claimed_from_evidence says what shows it; whether it suffices is the core''s.';
 COMMENT ON COLUMN public.meter_correction_cases.direction IS
     'Set when a test decides it (Texas: fast → customer_owed, slow / non-registering → customer_owes — derived by the core, R-39). NULL where direction is judged per period from the sign of each amount (R-25).';
 COMMENT ON COLUMN public.meter_correction_cases.evidence_kind IS
     'Evidence recorded for a cause whose rule requires it (backbilling_rules.requires_supervisor_evidence; Texas: tampering_bypass, R-38 attachment 2): a service order, a deployment removal, or a field report reference. evidence_recorded_at / _by are stamped by the database from the session. Whether evidence was required, and whether the session was a supervisor, is the core''s check.';
 
 
--- The case record guard: stamps, and what frozen / withdrawn mean. It does
--- not judge causes, directions or transitions — that is the core's.
+-- The case record guard: stamps, the shape its basis requires, its own
+-- meter's references, and what frozen / withdrawn mean. It does not judge
+-- causes, directions or transitions — that is the core's.
 CREATE OR REPLACE FUNCTION public.enforce_meter_correction_case_record() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
@@ -1129,7 +1380,9 @@ CREATE OR REPLACE FUNCTION public.enforce_meter_correction_case_record() RETURNS
 DECLARE
     v_user uuid;
     v_eval record;
+    v_on_test boolean;
     c_freeze_cols CONSTANT text[] := ARRAY['status', 'frozen_evaluation_id', 'frozen_at', 'frozen_by', 'updated_at'];
+    c_withdraw_cols CONSTANT text[] := ARRAY['status', 'withdrawn_reason', 'notes', 'updated_at'];
 BEGIN
     BEGIN
         v_user := NULLIF(current_setting('app.user_id', true), '')::uuid;
@@ -1137,15 +1390,127 @@ BEGIN
         v_user := NULL;
     END;
 
-    IF TG_OP = 'INSERT' THEN
-        IF NEW.status <> 'open' THEN
+    IF TG_OP = 'UPDATE' THEN
+        -- Never changes, in any status.
+        IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+           OR NEW.meter_id IS DISTINCT FROM OLD.meter_id
+           OR NEW.opened_at IS DISTINCT FROM OLD.opened_at
+           OR NEW.opened_by IS DISTINCT FROM OLD.opened_by
+           OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('meter correction case: a case is opened open, not %s (v5.4.2-13)', NEW.status),
-                ERRCODE = 'check_violation';
+                MESSAGE = format('meter correction case %s: the meter, the tenant and the opening stamps never change (v5.4.2-13)', OLD.id),
+                ERRCODE = 'restrict_violation';
         END IF;
+
+        IF OLD.status = 'withdrawn' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('meter correction case %s is withdrawn; a withdrawn case never changes — open a new case (v5.4.2-13)', OLD.id),
+                ERRCODE = 'restrict_violation';
+        END IF;
+
+        IF OLD.status = 'frozen' THEN
+            -- Only an unfreeze: back to open, freeze cleared, nothing else.
+            IF NEW.status <> 'open' OR NEW.frozen_evaluation_id IS NOT NULL
+               OR (to_jsonb(NEW) - c_freeze_cols) <> (to_jsonb(OLD) - c_freeze_cols) THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('meter correction case %s is frozen; it changes only by unfreezing (status open, freeze cleared, nothing else in the same statement) — R-38 (v5.4.2-13)', OLD.id),
+                    ERRCODE = 'restrict_violation',
+                    HINT = 'UPDATE … SET status = ''open'', frozen_evaluation_id = NULL, frozen_at = NULL, frozen_by = NULL; then change the case.';
+            END IF;
+            NEW.frozen_at := NULL;
+            NEW.frozen_by := NULL;
+            RETURN NEW;
+        END IF;
+
+        -- OLD.status = 'open'.
+        IF NEW.status = 'withdrawn' THEN
+            -- A withdrawal carries its reason (and a note), nothing else: the
+            -- terminal record is the case as it stood (review P1, Fable).
+            IF (to_jsonb(NEW) - c_withdraw_cols) <> (to_jsonb(OLD) - c_withdraw_cols) THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('meter correction case %s: a withdrawal changes nothing but the status, its reason and the notes (v5.4.2-13)', OLD.id),
+                    ERRCODE = 'restrict_violation';
+            END IF;
+            RETURN NEW;
+        END IF;
+
+        IF NEW.status = 'frozen' THEN
+            -- A freeze pins an evaluation; it carries no other change, so the
+            -- pinned evaluation describes the case as it stands — every fact
+            -- of the case the evaluation copied (review P1, both reviewers:
+            -- the direction, the claimed start and the discovering test
+            -- could differ from the evaluation's).
+            IF (to_jsonb(NEW) - c_freeze_cols) <> (to_jsonb(OLD) - c_freeze_cols) THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('meter correction case %s: a freeze changes nothing but the freeze itself (v5.4.2-13)', OLD.id),
+                    ERRCODE = 'restrict_violation';
+            END IF;
+            SELECT v.case_id, v.cause, v.anchor_date, v.anchor_basis, v.direction, v.claimed_from, v.discovering_test_id
+              INTO v_eval
+              FROM public.meter_correction_evaluations v
+             WHERE v.id = NEW.frozen_evaluation_id;
+            IF v_eval.case_id IS DISTINCT FROM NEW.id
+               OR v_eval.cause IS DISTINCT FROM NEW.cause
+               OR v_eval.anchor_date IS DISTINCT FROM NEW.anchor_date
+               OR v_eval.anchor_basis IS DISTINCT FROM NEW.anchor_basis
+               OR v_eval.direction IS DISTINCT FROM NEW.direction
+               OR v_eval.claimed_from IS DISTINCT FROM NEW.claimed_from
+               OR v_eval.discovering_test_id IS DISTINCT FROM NEW.discovering_test_id THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('meter correction case %s: the frozen evaluation must be one of this case''s, computed for the case as it stands — its cause, anchor and basis, direction, claimed start and discovering test (v5.4.2-13)', OLD.id),
+                    ERRCODE = 'restrict_violation';
+            END IF;
+            NEW.frozen_at := now();
+            NEW.frozen_by := v_user;
+            RETURN NEW;
+        END IF;
+
+        IF NEW.frozen_at IS DISTINCT FROM OLD.frozen_at OR NEW.frozen_by IS DISTINCT FROM OLD.frozen_by THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('meter correction case %s: frozen_at / frozen_by are stamped by the database (v5.4.2-13)', OLD.id),
+                ERRCODE = 'restrict_violation';
+        END IF;
+    END IF;
+
+    -- INSERT, or an open case staying open: the record's own shape.
+    IF TG_OP = 'INSERT' AND NEW.status <> 'open' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction case: a case is opened open, not %s (v5.4.2-13)', NEW.status),
+            ERRCODE = 'check_violation';
+    END IF;
+    SELECT a.rests_on_test INTO v_on_test FROM public.backbilling_anchor_bases a WHERE a.basis_code = NEW.anchor_basis;
+    IF v_on_test IS NOT NULL
+       AND NOT ((v_on_test AND NEW.discovering_test_id IS NOT NULL)
+             OR (NOT v_on_test AND NEW.discovering_test_id IS NULL AND NEW.claimed_from IS NOT NULL)) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction case: on basis %s a case %s (v5.4.2-13)', NEW.anchor_basis,
+                             CASE WHEN v_on_test THEN 'names the test that found the fault'
+                                  ELSE 'names no test and records how far back the fault is claimed to reach (claimed_from)' END),
+            ERRCODE = 'check_violation';
+    END IF;
+    -- The case is about one meter; the test that found it and the removal
+    -- cited as evidence are that meter's (review P1, Fable; -12 holds the
+    -- same rule for supersession).
+    IF NEW.discovering_test_id IS NOT NULL
+       AND (TG_OP = 'INSERT' OR NEW.discovering_test_id IS DISTINCT FROM OLD.discovering_test_id)
+       AND NOT EXISTS (SELECT 1 FROM public.meter_tests t WHERE t.id = NEW.discovering_test_id AND t.meter_id = NEW.meter_id) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction case: discovering test %s is not a test of the case''s meter %s (v5.4.2-13)', NEW.discovering_test_id, NEW.meter_id),
+            ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.evidence_deployment_id IS NOT NULL
+       AND (TG_OP = 'INSERT' OR NEW.evidence_deployment_id IS DISTINCT FROM OLD.evidence_deployment_id)
+       AND NOT EXISTS (SELECT 1 FROM public.meter_deployments d WHERE d.id = NEW.evidence_deployment_id AND d.meter_id = NEW.meter_id) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction case: evidence deployment %s is not a deployment of the case''s meter %s (v5.4.2-13)', NEW.evidence_deployment_id, NEW.meter_id),
+            ERRCODE = 'check_violation';
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
         NEW.opened_at  := now();
         NEW.opened_by  := v_user;
         NEW.created_at := now();
+        NEW.updated_at := now();
         IF NEW.evidence_kind IS NOT NULL THEN
             NEW.evidence_recorded_at := now();
             NEW.evidence_recorded_by := v_user;
@@ -1154,67 +1519,6 @@ BEGIN
             NEW.evidence_recorded_by := NULL;
         END IF;
         RETURN NEW;
-    END IF;
-
-    -- Never changes, in any status.
-    IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
-       OR NEW.meter_id IS DISTINCT FROM OLD.meter_id
-       OR NEW.opened_at IS DISTINCT FROM OLD.opened_at
-       OR NEW.opened_by IS DISTINCT FROM OLD.opened_by
-       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('meter correction case %s: the meter, the tenant and the opening stamps never change (v5.4.2-13)', OLD.id),
-            ERRCODE = 'restrict_violation';
-    END IF;
-
-    IF OLD.status = 'withdrawn' THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('meter correction case %s is withdrawn; a withdrawn case never changes — open a new case (v5.4.2-13)', OLD.id),
-            ERRCODE = 'restrict_violation';
-    END IF;
-
-    IF OLD.status = 'frozen' THEN
-        -- Only an unfreeze: back to open, freeze cleared, nothing else.
-        IF NEW.status <> 'open' OR NEW.frozen_evaluation_id IS NOT NULL
-           OR (to_jsonb(NEW) - c_freeze_cols) <> (to_jsonb(OLD) - c_freeze_cols) THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('meter correction case %s is frozen; it changes only by unfreezing (status open, freeze cleared, nothing else in the same statement) — R-38 (v5.4.2-13)', OLD.id),
-                ERRCODE = 'restrict_violation',
-                HINT = 'UPDATE … SET status = ''open'', frozen_evaluation_id = NULL, frozen_at = NULL, frozen_by = NULL; then change the case.';
-        END IF;
-        NEW.frozen_at := NULL;
-        NEW.frozen_by := NULL;
-        RETURN NEW;
-    END IF;
-
-    -- OLD.status = 'open'.
-    IF NEW.status = 'frozen' THEN
-        -- A freeze pins an evaluation; it carries no other change, so the
-        -- pinned evaluation describes the case as it stands.
-        IF (to_jsonb(NEW) - c_freeze_cols) <> (to_jsonb(OLD) - c_freeze_cols) THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('meter correction case %s: a freeze changes nothing but the freeze itself (v5.4.2-13)', OLD.id),
-                ERRCODE = 'restrict_violation';
-        END IF;
-        SELECT v.case_id, v.cause, v.anchor_date INTO v_eval
-          FROM public.meter_correction_evaluations v
-         WHERE v.id = NEW.frozen_evaluation_id;
-        IF v_eval.case_id IS DISTINCT FROM NEW.id
-           OR v_eval.cause IS DISTINCT FROM NEW.cause
-           OR v_eval.anchor_date IS DISTINCT FROM NEW.anchor_date THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('meter correction case %s: the frozen evaluation must be one of this case''s, computed for its current cause and anchor (v5.4.2-13)', OLD.id),
-                ERRCODE = 'restrict_violation';
-        END IF;
-        NEW.frozen_at := now();
-        NEW.frozen_by := v_user;
-        RETURN NEW;
-    END IF;
-
-    IF NEW.frozen_at IS DISTINCT FROM OLD.frozen_at OR NEW.frozen_by IS DISTINCT FROM OLD.frozen_by THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('meter correction case %s: frozen_at / frozen_by are stamped by the database (v5.4.2-13)', OLD.id),
-            ERRCODE = 'restrict_violation';
     END IF;
 
     -- Evidence changed: stamp who recorded it and when.
@@ -1249,7 +1553,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_meter_correction_case_record() IS
-    'v5.4.2-13 (parity). BEFORE INSERT OR UPDATE on meter_correction_cases, every role: a case opens open; opened_at/by, frozen_at/by and evidence_recorded_at/by are stamped; meter, tenant and opening stamps never change; a withdrawn case never changes; a frozen case changes only by unfreezing, alone; a freeze changes nothing else and pins an evaluation of THIS case computed for its current cause and anchor; a cause change carries a new reason. It judges no law — which causes, directions, transitions and withdrawals are lawful is the calculation core''s.';
+    'v5.4.2-13 (parity; review P1). BEFORE INSERT OR UPDATE on meter_correction_cases, every role: a case opens open; opened_at/by, created_at, updated_at (on insert), frozen_at/by and evidence_recorded_at/by are stamped; the shape its anchor basis requires (a test, or a claimed start); its discovering test and evidence deployment are of its own meter; meter, tenant and opening stamps never change; a withdrawn case never changes; a withdrawal changes only status, reason and notes; a frozen case changes only by unfreezing, alone; a freeze changes nothing else and pins an evaluation of THIS case computed for its current cause, anchor and basis, direction, claimed start and discovering test; a cause change carries a new reason. It judges no law — which causes, directions, transitions and withdrawals are lawful is the calculation core''s.';
 
 DROP TRIGGER IF EXISTS a_enforce_meter_correction_case ON public.meter_correction_cases;
 DROP TRIGGER IF EXISTS a_enforce_meter_correction_case_record ON public.meter_correction_cases;
@@ -1350,6 +1654,7 @@ BEGIN
                 jsonb_build_object('meter_id', NEW.meter_id, 'discovering_test_id', NEW.discovering_test_id,
                                    'anchor_date', NEW.anchor_date, 'anchor_basis', NEW.anchor_basis,
                                    'direction', NEW.direction, 'claimed_from', NEW.claimed_from,
+                                   'claimed_from_evidence', NEW.claimed_from_evidence,
                                    'evidence_kind', NEW.evidence_kind));
         RETURN NULL;
     END IF;
@@ -1420,6 +1725,7 @@ CREATE TABLE IF NOT EXISTS public.meter_correction_evaluations (
     anchor_basis                    text NOT NULL,
     direction                       text,
     claimed_from                    date,
+    discovering_test_id             uuid,
     rule_id                         uuid NOT NULL,
     governing_test_id               uuid,
     governing_test_date             date,
@@ -1455,8 +1761,10 @@ CREATE TABLE IF NOT EXISTS public.meter_correction_evaluations (
         FOREIGN KEY (governing_test_id, tenant_id) REFERENCES public.meter_tests(id, tenant_id),
     CONSTRAINT meter_correction_evaluations_deployment_fkey
         FOREIGN KEY (deployment_id, tenant_id) REFERENCES public.meter_deployments(id, tenant_id),
-    CONSTRAINT meter_correction_evaluations_anchor_basis_check
-        CHECK ((anchor_basis = ANY (ARRAY['test_date'::text, 'discovery_date'::text]))),
+    CONSTRAINT meter_correction_evaluations_discovering_test_fkey
+        FOREIGN KEY (discovering_test_id, tenant_id) REFERENCES public.meter_tests(id, tenant_id),
+    CONSTRAINT meter_correction_evaluations_anchor_basis_fkey
+        FOREIGN KEY (anchor_basis) REFERENCES public.backbilling_anchor_bases(basis_code),
     CONSTRAINT meter_correction_evaluations_direction_check
         CHECK (((direction IS NULL) OR (direction = ANY (ARRAY['customer_owes'::text, 'customer_owed'::text])))),
     CONSTRAINT meter_correction_evaluations_tenant_limit_check
@@ -1479,7 +1787,7 @@ CREATE POLICY tenant_isolation ON public.meter_correction_evaluations USING ((pu
 REVOKE UPDATE, DELETE, TRUNCATE ON public.meter_correction_evaluations FROM tally_app;
 
 -- The case's frozen evaluation, now that the table exists. (The case guard
--- also proves it is this case's, for its current cause and anchor.)
+-- also proves it was computed for the case as it stands.)
 ALTER TABLE public.meter_correction_cases DROP CONSTRAINT IF EXISTS meter_correction_cases_frozen_evaluation_fkey;
 ALTER TABLE public.meter_correction_cases ADD CONSTRAINT meter_correction_cases_frozen_evaluation_fkey
     FOREIGN KEY (frozen_evaluation_id, id) REFERENCES public.meter_correction_evaluations(id, case_id);
@@ -1489,12 +1797,43 @@ CREATE OR REPLACE FUNCTION public.enforce_meter_correction_evaluation_record() R
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_rule_cause text;
+    v_rule record;
+    v_case record;
 BEGIN
-    SELECT b.cause INTO v_rule_cause FROM public.backbilling_rules b WHERE b.id = NEW.rule_id;
-    IF v_rule_cause IS DISTINCT FROM NEW.cause THEN
+    -- The case must be open, and stays so until this transaction ends: the
+    -- share lock waits behind a freeze or withdrawal in flight and then
+    -- reads its outcome (review P1, both reviewers: evaluations, approvals
+    -- and holds still landed on a frozen or withdrawn case). The same lock
+    -- the supersession guard takes (section 13): cases before the meter.
+    SELECT mc.status, mc.meter_id INTO v_case
+      FROM public.meter_correction_cases mc
+     WHERE mc.id = NEW.case_id AND mc.tenant_id = NEW.tenant_id
+       FOR SHARE;
+    IF v_case.status IS DISTINCT FROM 'open' THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('meter correction evaluation: rule %s is a rule for %s, not for the evaluated cause %s (v5.4.2-13)', NEW.rule_id, coalesce(v_rule_cause, '(none)'), NEW.cause),
+            MESSAGE = format('meter correction case %s is %s; only an open case is evaluated — unfreeze it first (v5.4.2-13)', NEW.case_id, coalesce(v_case.status, 'not visible')),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    SELECT b.cause, b.service_type INTO v_rule FROM public.backbilling_rules b WHERE b.id = NEW.rule_id;
+    IF v_rule.cause IS DISTINCT FROM NEW.cause THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction evaluation: rule %s is a rule for %s, not for the evaluated cause %s (v5.4.2-13)', NEW.rule_id, coalesce(v_rule.cause, '(none)'), NEW.cause),
+            ERRCODE = 'check_violation';
+    END IF;
+    IF v_rule.service_type IS DISTINCT FROM (SELECT m.service_type FROM public.meters m WHERE m.id = v_case.meter_id) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction evaluation: rule %s is a %s rule; the case''s meter is not %s service (v5.4.2-13)', NEW.rule_id, v_rule.service_type, v_rule.service_type),
+            ERRCODE = 'check_violation';
+    END IF;
+    -- The tests and deployment it names are the case's meter's (review P1).
+    IF (NEW.discovering_test_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM public.meter_tests t WHERE t.id = NEW.discovering_test_id AND t.meter_id = v_case.meter_id))
+       OR (NEW.governing_test_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM public.meter_tests t WHERE t.id = NEW.governing_test_id AND t.meter_id = v_case.meter_id))
+       OR (NEW.deployment_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM public.meter_deployments d WHERE d.id = NEW.deployment_id AND d.meter_id = v_case.meter_id)) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction evaluation of case %s: its discovering test, governing test and deployment must be of the case''s meter (v5.4.2-13)', NEW.case_id),
             ERRCODE = 'check_violation';
     END IF;
     NEW.evaluated_at  := now();
@@ -1510,7 +1849,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_meter_correction_evaluation_record() IS
-    'v5.4.2-13 (parity). BEFORE INSERT on meter_correction_evaluations: the cited rule row must be a rule for the evaluated cause; stamps evaluated_at, evaluated_by (session user), evaluation_seq and recorded_txid (the transaction its evidence must be written in). Judges nothing the core computed.';
+    'v5.4.2-13 (parity; review P1). BEFORE INSERT on meter_correction_evaluations: the case is open (read under a share lock); the cited rule row is a rule for the evaluated cause and the meter''s service type; the discovering test, governing test and deployment it names are of the case''s meter; stamps evaluated_at, evaluated_by (session user), evaluation_seq and recorded_txid (the transaction its evidence must be written in). Judges nothing the core computed.';
 
 CREATE OR REPLACE FUNCTION public.meter_correction_evaluation_after() RETURNS trigger
     LANGUAGE plpgsql
@@ -1552,6 +1891,8 @@ COMMENT ON COLUMN public.meter_correction_evaluations.rule_id IS
     'The backbilling_rules row the core resolved for the case (premise state, service type, class, cause, date). Each period''s own rule row is on its evidence row, since occupants and premises differ across a meter''s life (R-37(b)). Rule rows never change, so this citation stays true.';
 COMMENT ON COLUMN public.meter_correction_evaluations.approval_required IS
     'The core''s answer to whether a supervisor must approve THIS evaluation before the case may freeze (Texas: R-36''s transitional gate on an adverse correction resting on a date-only migrated test or none). Recorded so a freeze without one is visible (meter_correction_case_status.approval_pending).';
+COMMENT ON COLUMN public.meter_correction_evaluations.discovering_test_id IS
+    'The discovering test the case rested on when the core evaluated it (review P1). With cause, anchor, basis, direction and claimed_from, what a freeze compares against the case: a case re-pointed at another test cannot freeze on this evaluation.';
 COMMENT ON COLUMN public.meter_correction_evaluations.calculated_by IS
     'The calculation core''s version that computed this evaluation — with inputs and the cited rule rows, what makes it reproducible.';
 
@@ -1633,12 +1974,23 @@ CREATE OR REPLACE FUNCTION public.enforce_period_evidence_with_evaluation() RETU
 DECLARE
     v_txid bigint;
     v_rule record;
+    v_eval record;
 BEGIN
-    SELECT b.customer_class, b.cause INTO v_rule FROM public.backbilling_rules b WHERE b.id = NEW.rule_id;
+    SELECT b.customer_class, b.cause, b.state_code, b.service_type INTO v_rule
+      FROM public.backbilling_rules b WHERE b.id = NEW.rule_id;
+    SELECT v.cause, b.state_code, b.service_type INTO v_eval
+      FROM public.meter_correction_evaluations v
+      JOIN public.backbilling_rules b ON b.id = v.rule_id
+     WHERE v.id = NEW.evaluation_id;
+    -- The period's rule is for its own class, the evaluation's cause, and the
+    -- evaluation rule's state and service (review P1, Opus: a class code is
+    -- unique only per state and service, so another state's rule matched).
     IF v_rule.customer_class IS DISTINCT FROM NEW.customer_class
-       OR v_rule.cause IS DISTINCT FROM (SELECT v.cause FROM public.meter_correction_evaluations v WHERE v.id = NEW.evaluation_id) THEN
+       OR v_rule.cause IS DISTINCT FROM v_eval.cause
+       OR v_rule.state_code IS DISTINCT FROM v_eval.state_code
+       OR v_rule.service_type IS DISTINCT FROM v_eval.service_type THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('meter correction evidence: rule %s is for class %s and cause %s — it must match the period''s class (%s) and the evaluation''s cause (v5.4.2-13)', NEW.rule_id, v_rule.customer_class, v_rule.cause, NEW.customer_class),
+            MESSAGE = format('meter correction evidence: rule %s is for %s %s, class %s, cause %s — it must match the period''s class (%s) and the evaluation''s cause, state and service (v5.4.2-13)', NEW.rule_id, v_rule.state_code, v_rule.service_type, v_rule.customer_class, v_rule.cause, NEW.customer_class),
             ERRCODE = 'check_violation';
     END IF;
     SELECT v.recorded_txid INTO v_txid
@@ -1655,7 +2007,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_period_evidence_with_evaluation() IS
-    'v5.4.2-13 (parity). BEFORE INSERT on meter_correction_period_evidence: the cited rule must be for this period''s class and the evaluation''s cause, and the row must be written in the same transaction as its evaluation (evaluations.recorded_txid). Once that transaction commits, the evaluation''s evidence is closed.';
+    'v5.4.2-13 (parity; review P1). BEFORE INSERT on meter_correction_period_evidence: the cited rule must be for this period''s class and the evaluation''s cause, state and service (state-level only until the places table — a meter moved across a state line mid-case is residual R13), and the row must be written in the same transaction as its evaluation (evaluations.recorded_txid). Once that transaction commits, the evaluation''s evidence is closed.';
 
 DROP TRIGGER IF EXISTS a_enforce_period_evidence_written_by_evaluation ON public.meter_correction_period_evidence;
 DROP TRIGGER IF EXISTS a_enforce_period_evidence_with_evaluation ON public.meter_correction_period_evidence;
@@ -1722,7 +2074,21 @@ CREATE OR REPLACE FUNCTION public.enforce_meter_correction_approval_record() RET
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
+DECLARE
+    v_status text;
 BEGIN
+    -- Only an open case is approved (review P1, both reviewers: an approval
+    -- given after a freeze cleared approval_pending, the mark that a case
+    -- froze without its required approval). Share lock: see section 9.
+    SELECT mc.status INTO v_status
+      FROM public.meter_correction_cases mc
+     WHERE mc.id = NEW.case_id AND mc.tenant_id = NEW.tenant_id
+       FOR SHARE;
+    IF v_status IS DISTINCT FROM 'open' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('meter correction case %s is %s; an approval is given while the case is open — a late approval would hide that the case froze without one (v5.4.2-13)', NEW.case_id, coalesce(v_status, 'not visible')),
+            ERRCODE = 'restrict_violation';
+    END IF;
     NEW.approved_at := now();
     BEGIN
         NEW.approved_by := NULLIF(current_setting('app.user_id', true), '')::uuid;
@@ -1734,7 +2100,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_meter_correction_approval_record() IS
-    'v5.4.2-13 (parity). BEFORE INSERT on meter_correction_approvals: approved_by is the session''s user and approved_at the database clock — never caller-set. Whether the approver was allowed to approve is the core''s check.';
+    'v5.4.2-13 (parity; review P1). BEFORE INSERT on meter_correction_approvals: the case is open (share lock); approved_by is the session''s user and approved_at the database clock — never caller-set. Whether the approver was allowed to approve is the core''s check.';
 
 CREATE OR REPLACE FUNCTION public.meter_correction_approval_after() RETURNS trigger
     LANGUAGE plpgsql
@@ -1855,6 +2221,15 @@ BEGIN
                 MESSAGE = format('meter correction hold: a hold is opened open, not %s (v5.4.2-13)', NEW.status),
                 ERRCODE = 'check_violation';
         END IF;
+        -- Only an open case takes a new hold (review P1, both reviewers); an
+        -- existing hold may still close on a frozen or withdrawn case. Share
+        -- lock: see section 9.
+        IF (SELECT mc.status FROM public.meter_correction_cases mc
+             WHERE mc.id = NEW.case_id AND mc.tenant_id = NEW.tenant_id FOR SHARE) IS DISTINCT FROM 'open' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('meter correction case %s is not open; a hold is opened on an open case (v5.4.2-13)', NEW.case_id),
+                ERRCODE = 'restrict_violation';
+        END IF;
         NEW.opened_at := now();
         NEW.opened_by := v_user;
         NEW.closed_at := NULL;
@@ -1878,7 +2253,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.enforce_meter_correction_hold_record() IS
-    'v5.4.2-13 (parity). BEFORE INSERT OR UPDATE on meter_correction_holds, every role: a hold opens open, stamped; it changes only by closing once (completed or unrecoverable), stamped, with nothing else changing; a closed hold never changes. Whether a hold or an unrecoverable closure is allowed is the core''s.';
+    'v5.4.2-13 (parity; review P1). BEFORE INSERT OR UPDATE on meter_correction_holds, every role: a hold opens open, stamped, on an open case (share lock); it changes only by closing once (completed or unrecoverable), stamped, with nothing else changing; a closed hold never changes. Whether a hold or an unrecoverable closure is allowed is the core''s.';
 
 DROP TRIGGER IF EXISTS a_enforce_meter_correction_hold ON public.meter_correction_holds;
 DROP TRIGGER IF EXISTS a_enforce_meter_correction_hold_record ON public.meter_correction_holds;
@@ -2131,10 +2506,11 @@ GRANT EXECUTE ON FUNCTION public.session_is_supervisor() TO tally_app;
 --     service type, has no rule row; the core must refuse, never fall back.
 --
 -- R7. A LAW ROW IS NEVER EDITED — for the owner too. A row superseded by a
---     later text is closed (effective_to) and a successor added. A row wrong
---     from its first day is repaired by a reviewed platform migration that
---     disables the history trigger for that statement: rare by intent, and
---     visible in the migration history.
+--     later text is closed (effective_to) and a successor added, with its
+--     window terms in the same transaction. A rule row, window term or
+--     vocabulary row wrong from its first day is repaired by a reviewed
+--     platform migration that disables the history trigger for that
+--     statement: rare by intent, and visible in the migration history.
 --
 -- R8. -12's meter_governing_test() still computes R-36's supervisor_gate with
 --     Texas's six months written in (-12:1615). A-2 no longer reads it; the
@@ -2151,6 +2527,30 @@ GRANT EXECUTE ON FUNCTION public.session_is_supervisor() TO tally_app;
 --     tamper move is ungated. Whether Kyle wants either duty extended to
 --     unprotected accounts as policy is a question for him; the answer is a
 --     row change, not a schema change.
+--
+-- R10. INTEREST ON REFUNDS AND PAYMENT-PLAN DUTIES are not stored yet (review
+--     P1, both reviewers). Many states require interest on a refund or an
+--     offer of instalments equal to the backbilled period. Both attach to
+--     money that posts, and nothing posts until -14 (R1), so -14 adds them:
+--     a rule attribute for each and the amounts on what it posts (Ryan,
+--     2026-09-30).
+--
+-- R11. ONLY THE EVALUATION NAMES THE CORE VERSION (review P1, Opus asked for
+--     it on holds, approvals, freezes and withdrawals too; Ryan, 2026-09-30:
+--     declined). An approval, a freeze, a withdrawal and a hold are acts by
+--     a person, stamped with who and when. The core's decision is the
+--     evaluation, which names its rule rows and calculated_by, and a frozen
+--     case points at it.
+--
+-- R12. A CLOSE RACING A NEW CITATION. The close floor (section 5) reads the
+--     citations committed when it runs; an evaluation committed in the same
+--     instant, citing the row for a later date, is not seen. Closing is a
+--     reviewed owner migration, run with no evaluations in flight.
+--
+-- R13. A METER MOVED ACROSS A STATE LINE MID-CASE. Evidence rows must cite
+--     rules of the evaluation rule's state and service. A case whose periods
+--     straddle two states cannot be recorded until the places table gives
+--     each period its own place (R2).
 
 -- ----------------------------------------------------------------------------
 -- 16. The AC-32 tail

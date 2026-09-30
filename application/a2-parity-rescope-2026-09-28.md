@@ -157,3 +157,41 @@ It no longer decides whether a correction is lawful. The core does, and the eval
   - D3: the scope of R-36's gate;
   - D5: whether an adverse zero amount may be refused;
   - D6: recording the (v)(II) estimation basis.
+
+---
+
+## 7. Review round P1 (2026-09-30)
+
+One focused round on the frozen build (md5 `07ced77c…`): does it store everything, and are the records protected? Fable and Opus both said "not yet". Every finding reproduced and every finding folded, except the core version on human acts, which Ryan declined.
+
+**Findings and dispositions:** `tests/v5.4.2-13/review/review-findings-13-parity-p1.md`.
+
+**What changed:**
+- **The freeze** compares every fact the evaluation copied from the case: cause, anchor, basis, direction, claimed start and discovering test. The evaluation now records the discovering test.
+- **Frozen or withdrawn cases** take no new evaluation, approval or hold. A withdrawal changes only its status, reason and notes.
+- **Law rows:**
+  - window terms are written only in their rule's transaction;
+  - a close is stamped and can't be dated on or before a citation;
+  - only a role that sees every tenant may close;
+  - the classes, the causes and the vocabularies never change.
+- **Same-meter and same-state/service** checks apply to cases, evaluations and evidence.
+- **Ryan's A:** a known onset on any case, a `claimed_start` term kind, and term priorities (fallback chains).
+- **Ryan's B:**
+  - three lookup tables replace CHECK lists: `backbilling_anchor_bases`, `backbilling_window_term_kinds` and `backbilling_enforce_conditions`;
+  - window terms carry a quantity and unit: months, days or billing periods;
+  - `months_before_anchor` is now `before_anchor N months`.
+- **New residuals:**
+  - R10: interest and payment plans go to -14.
+  - R11: the core version is recorded on evaluations only.
+  - R12: a close racing a new citation.
+  - R13: a meter moved across a state line mid-case.
+
+**Verified:**
+- 2,567 lines; strict apply twice is clean.
+- **Battery: 99/99.**
+- **X1 PASS.**
+- **Mutations: 45/45.**
+- Regressions: 28 / 58 / 41 / 116.
+- Every reviewer probe that reaches its target is refused.
+
+**Status:** ready to mirror into `tu.sql`. Not mirrored yet.

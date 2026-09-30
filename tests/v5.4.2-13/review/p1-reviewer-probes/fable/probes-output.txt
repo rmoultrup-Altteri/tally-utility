@@ -1,0 +1,20 @@
+psql:<stdin>:135: NOTICE:  SETUP: case_fast fcdf4223-6858-4b1f-a382-391fcd047d98 with evaluation 8c52e0cc-88f0-4965-ae54-13775784197b citing TX protected/meter_error rule b6ecf89c-ff43-47dc-ab54-26e129cc948b
+psql:<stdin>:149: NOTICE:  P1 OBSERVED: owner added a window term to a CITED rule row (terms 6 -> 7); the evaluation's rule_id now names a different window
+psql:<stdin>:158: NOTICE:  P1b OBSERVED: an uncapped direction of an in-force rule became capped by a later INSERT (rate_misapplication adverse: 0 -> 1 terms)
+psql:<stdin>:168: NOTICE:  P2 OBSERVED: the TX meter_error row (cited by an evaluation for 2026 periods) was closed effective 2005-01-01; the table has no closed_at / closed_by
+psql:<stdin>:180: NOTICE:  P2b OBSERVED: a successor row with favourable_duty=permitted now covers 2026 while the frozen-able evaluation cites the closed mandatory row
+psql:<stdin>:191: NOTICE:  P8 OBSERVED: owner rewrote description/source_note on a class row and a cause row (no law-history trigger on these two tables)
+psql:<stdin>:198: NOTICE:  P8b OBSERVED: an unreferenced class row can be deleted by the owner
+psql:<stdin>:214: NOTICE:  P3 OBSERVED: case ca413654-36dd-4707-8093-68868d9a4dbd on meter M-DISC opened citing a discovering test of meter M-SLOW
+psql:<stdin>:228: NOTICE:  P3b OBSERVED: evaluation edb43087-9650-48bb-9308-d5d52044bda5 of the M-FAST case records governing_test of M-SLOW and deployment of M-PRED
+psql:<stdin>:238: NOTICE:  P3c OBSERVED: the case on M-DISC cites M-OLD's deployment removal as its tamper evidence
+psql:<stdin>:249: NOTICE:  P4 OBSERVED: case_fast (direction now customer_owes) froze on ev1 (direction customer_owed); only cause and anchor_date are compared
+psql:<stdin>:265: NOTICE:  P6 OBSERVED: on the FROZEN case_fast a new evaluation 712a53a2-48e9-49f9-bf42-1edd61774b17 and a new hold 1b6c6d53-7e9b-4d20-a82c-e311514090f6 were accepted (status still frozen)
+psql:<stdin>:279: NOTICE:  P10 OBSERVED: withdrawal statement also moved anchor_date to 1999-01-01 and direction to customer_owes; the row is now terminal
+psql:<stdin>:293: NOTICE:  P7 OBSERVED: refused 22P02 invalid input syntax for type uuid: ""
+psql:<stdin>:309: NOTICE:  P21 OBSERVED: anchor_basis=notice_date refused 23514 new row for relation "backbilling_rules" violates check constraint "backbilling_rules_anchor_basis_check"
+psql:<stdin>:319: NOTICE:  P21b OBSERVED: enforce_condition=customer_denied_access refused 23514 new row for relation "backbilling_rules" violates check constraint "backbilling_rules_enforce_condition_check"
+psql:<stdin>:327: NOTICE:  P22 OBSERVED: months=0 accepted
+psql:<stdin>:338: NOTICE:  P23 OBSERVED: backbilling_rules has no column for: {refund_interest_required,interest_rate_basis,repayment_period_terms,notice_required,de_minimis_amount}
+psql:<stdin>:338: NOTICE:  P23b OBSERVED: meter_correction_period_evidence has no column for: {interest_amount,estimation_basis}
+psql:<stdin>:351: NOTICE:  P12 OBSERVED: case inserted with caller updated_at = 2000-01-01 00:00:00+00

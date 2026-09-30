@@ -56,9 +56,9 @@ The audit's rule 4 says code decides by what a rule says, never by what it's cal
 | 9 | fast-findings surface reads `outcome = 'fast'` | 3517 | standing tests whose outcome qualifies for some cause with `favourable_duty = 'mandatory'` and gives the favourable direction | outcome fast |
 | 10 | a zero amount is refused on every period of a test-anchored case with billed usage, **both directions** | 2494–2502 | `anchor_basis = 'test_date'` (the direction is derived). **See disagreement D5** | as r7 |
 | 11 | the governing (last) test is read only when `cause = 'meter_error'` | 2230–2231 | read it whenever the resolved rule's terms (for either direction, at case or period level) include a last-test term. This is the latent defect the audit found | Texas: only `meter_error` has one, so there's no change for Texas |
-| 12 | `billable_scope = 'shorter_of_months_or_last_test'` / `'months_from_anchor'` / `'uncapped'`, plus the deployment start for either counted scope | 2233–2235, 2284–2288, 2305–2308 | window terms `months_before_anchor N`, `last_test_any_outcome`, `deployment_start`; no terms = uncapped | see §4.1 |
-| 13 | R-36 gate: `cause='meter_error' AND direction='customer_owes'`, and "anchor − 6 months" | 2329; -12 `meter_governing_test` 1614–1615 | adverse direction, **and** the resolved adverse window has a last-test term, **and** anchor − that rule's adverse `months_before_anchor` < cutover | 6 months, `meter_error` only (**see disagreement D3**) |
-| 14 | evidence fence reads defective tests "within 6 months" of the anchor | 2167 | within the widest `months_before_anchor` of the rules the case can resolve | 6 |
+| 12 | `billable_scope = 'shorter_of_months_or_last_test'` / `'months_from_anchor'` / `'uncapped'`, plus the deployment start for either counted scope | 2233–2235, 2284–2288, 2305–2308 | window terms `before_anchor N months`, `last_test_any_outcome`, `deployment_start`; no terms = uncapped | see §4.1 |
+| 13 | R-36 gate: `cause='meter_error' AND direction='customer_owes'`, and "anchor − 6 months" | 2329; -12 `meter_governing_test` 1614–1615 | adverse direction, **and** the resolved adverse window has a last-test term, **and** anchor − that rule's adverse `before_anchor` term < cutover | 6 months, `meter_error` only (**see disagreement D3**) |
+| 14 | evidence fence reads defective tests "within 6 months" of the anchor | 2167 | within the widest `before_anchor` of the rules the case can resolve | 6 |
 | 15 | case-level rule is always the `protected` class at the meter's current premise | 2222–2225 | the widest window (earliest start) across every class and place that could apply to the meter's periods | residual R5 |
 | 16 | void-and-reissue admits only `rate_misapplication` | CHECK 964–969; gate 1242–1247 | `delivery_path = 'reissue'` | `rate_misapplication` reissue; `meter_error` adjustment (R-33); the rest `unruled` (OQ-1) |
 | 17 | a `rate_misapplication` reissue must bill the same units and the same period | 1249–1282 | `units_invariant = true` | `rate_misapplication` true; every other cause false |
@@ -77,8 +77,8 @@ This is r7's seed (lines 766–834, R-20 as amended by R-39) re-expressed as des
 
 | cause | anchor_basis | adverse terms | favourable terms | favourable_duty | straddle | delivery_path | req. sup.+evidence | units_invariant | enforce | source (r7 `source_note`) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `meter_error` | test_date | months_before_anchor 6; last_test_any_outcome; deployment_start | same three | mandatory | forfeit_whole | adjustment (R-33) | false | false | never | (7)(B)(v)(I); (4)(E)(vi) |
-| `non_registering_meter` | test_date in r7 (D1) | months_before_anchor 3; deployment_start | not reached: the direction is always adverse (r7 applied one window) | permitted ((v)(II) says "may") | forfeit_whole | unruled | false | false | never | (7)(B)(v)(II); (4)(E)(vi) |
+| `meter_error` | test_date | before_anchor 6 months; last_test_any_outcome; deployment_start | same three | mandatory | forfeit_whole | adjustment (R-33) | false | false | never | (7)(B)(v)(I); (4)(E)(vi) |
+| `non_registering_meter` | test_date in r7 (D1) | before_anchor 3 months; deployment_start | not reached: the direction is always adverse (r7 applied one window) | permitted ((v)(II) says "may") | forfeit_whole | unruled | false | false | never | (7)(B)(v)(II); (4)(E)(vi) |
 | `rate_misapplication` | not used (not a case cause in r7) | none (uncapped) | none | permitted | — | reissue | false | true | months 6 | (4)(E)(v); (3)(C)(iii) |
 | `estimation_catchup` | not used | none | none | permitted | — | ordinary next bill per OQ-1 text. **The design enum has no such value (D8)** | false | false | conditional, `read_beyond_utility_control` | (6)(C); (4)(E)(vii); R-21 |
 | `tampering_bypass` | discovery_date | none | none | permitted | — | unruled | **true** | false | uncapped | (4)(D)(v); (4)(E)(vi) carve-out |
@@ -135,7 +135,7 @@ A **meter correction case** is one finding about one meter. It follows the *mete
   - the direction is `customer_owed` if the outcome is fast, and `customer_owes` otherwise.
   - A caller-supplied anchor that differs from the test date is refused, because moving the anchor moves the window (E2; M13).
   - A caller-supplied direction or basis at opening is refused (E7; M17).
-  - A test-anchored case carries no `claimed_from`.
+  - A test-anchored case carried no `claimed_from` in r7. Since review P1 it may carry one: the date the error is known to have begun, with `claimed_from_evidence`, read by a `claimed_start` window term (§4.1).
 - **Source.** R-19 ("anchor_date … (v)(I) runs back from the test"), R-29 (anchor_basis recorded, test_date hard-coded in v1), R-39.
 - **r7.** 1883–1905; INSERT fence 1817–1826; `shape_check` 1523–1529.
 - **Pinned by.** E1 (a fast test on 2026-06-15 gives anchor 2026-06-15, basis test_date, direction customer_owed), E2, E7.
@@ -230,7 +230,7 @@ r7 doesn't implement posting (residual R1). The core's delivery step (-14) must.
 ### 4.1 Window start = the latest of the rule's terms
 
 - **Rule.** For a direction with terms, the window start is the **latest** date among the terms that produce a date. A term that produces no date drops out. No terms at all means uncapped in that direction. The terms Texas uses:
-  - **`months_before_anchor N`**: anchor − N months (§0 arithmetic). This is always a date. r7 calls it `statutory_start`.
+  - **`before_anchor N months`**: anchor − N months (§0 arithmetic). This is always a date. The term can also count in `days` or `billing_periods` (review P1); Texas uses months only. r7 calls it `statutory_start`.
   - **`last_test_any_outcome`**: the governing prior test's date (§4.2). If there is no prior test, the term drops out and the months term governs alone.
   - **`deployment_start`**: the deployment bound (§4.3). It drops out if there is none or, for the favourable direction, if it isn't corroborated.
 - Every term can only move the start **later**, so the months term is the ceiling. The last-test term is the protective one: it shortens the window, it never extends it. So an interim six-month-only bound over-reaches (R-34 build order; 09-22 record §1).
@@ -242,7 +242,10 @@ r7 doesn't implement posting (residual R1). The core's delivery step (-14) must.
   - F2: a prior accurate test on 2026-03-10 gives window 2026-03-10 (M30).
   - F4: a corroborated deployment start 2026-03-01 gives window 2026-03-01.
   - F9: `non_registering_meter`, anchor 06-15: 3 months gives 03-15; the meter's start 03-20 gives window 03-20.
-- **Also in the design vocabulary, unused by Texas:** `last_test_accurate`, `half_since_last_test`, `service_start`. R-34 **rejected** an accuracy filter for Texas ("the last test of the meter" has no accuracy qualifier, and the broader reading is more protective).
+- **Fallback chains (review P1, 2026-09-30).** A term may carry a `priority`. Terms with no priority always apply. The terms with a priority form one fallback chain per direction: take them in priority order, and only the first whose date is known applies. The window start is the latest of the applying dates. Example (fictional ZZ in the battery): "from when the error is known to have begun, otherwise half the time since the last test, never more than 12 months" is `claimed_start` priority 1, `half_since_last_test` priority 2, and `before_anchor 12 months` with no priority. If no chain term is known, the chain contributes nothing and the unprioritised terms govern. Texas uses no chains.
+- **`claimed_start`** reads the case's `claimed_from`. On a test-anchored case that date is optional: it is when the error is known to have begun, with `claimed_from_evidence` saying what shows it. Whether that evidence makes the date "known" is the core's call; if the core rejects it, the term is unknown and the chain falls through.
+- **The term kinds, anchor bases and enforcement conditions are rows** (`backbilling_window_term_kinds`, `backbilling_anchor_bases`, `backbilling_enforce_conditions`), not CHECK lists. The core must refuse a rule that names a row it does not know how to evaluate, never skip it.
+- **Also in the design vocabulary, unused by Texas:** `last_test_accurate`, `half_since_last_test`, `service_start`, `claimed_start`. R-34 **rejected** an accuracy filter for Texas ("the last test of the meter" has no accuracy qualifier, and the broader reading is more protective).
 
 ### 4.2 The governing prior test
 
@@ -436,7 +439,7 @@ The structural ruling of A-2 is R-25: **direction is tested per original billing
   2. the earliest `recorded_at` of **any** test on this meter that found it defective (`found_defective`), dated in `(anchor − 6 months, anchor]`.
 
   If the case has no test (a discovery cause), the fence is empty, and every "recorded no later than the fence" filter admits nothing.
-- **Attribute form.** The "6 months" is hard-coded. Replace it with the widest `months_before_anchor` of the rules the case can resolve. Otherwise a 12-month rule would let a deployment forged between month 6 and month 12 through (audit §3.2).
+- **Attribute form.** The "6 months" is hard-coded. Replace it with the widest `before_anchor` of the rules the case can resolve. Otherwise a 12-month rule would let a deployment forged between month 6 and month 12 through (audit §3.2).
 - **r7.** `meter_correction_evidence_fence()` 2147–2169.
 
 ### 7.2 What it stops
@@ -515,7 +518,7 @@ Residual R12: the fingerprint is the canonical jsonb text. A server upgrade that
   3. the months term still reaches back before the tenant's cutover, `anchor − 6 months < cutover_date`, **or** the tenant has no cutover date.
 
   After that point the gate **lapses on its own**, because a migrated date (always on or before cutover) can no longer affect the window (09-22 record §1).
-- **Attribute form.** Condition 3's "6 months" is the resolved adverse rule's `months_before_anchor`. Condition 1 in r7 is also `cause = 'meter_error'`. The attribute form is "the resolved adverse window has a last-test term", because the gate protects a window whose start a weak prior test can move (residual R18).
+- **Attribute form.** Condition 3's "6 months" is the resolved adverse rule's `before_anchor`. Condition 1 in r7 is also `cause = 'meter_error'`. The attribute form is "the resolved adverse window has a last-test term", because the gate protects a window whose start a weak prior test can move (residual R18).
 - **Month-end arithmetic.** Condition 3 is stated as *anchor − months*, the **same** arithmetic as the window. It isn't written as *cutover + months*: at month ends the two aren't inverses (cutover 2026-08-31 + 6 months = 2027-02-28, but 2027-02-28 − 6 months = 2026-08-28), and the forward form lapsed the gate while a migrated date still set the window (-12 review round 1).
 - **Source.** R-36 (the transitional gate), R-35 (refinements 2 and 5), 09-22 record §1.
 - **r7.** 2329; -12 `meter_governing_test` 1600–1615.

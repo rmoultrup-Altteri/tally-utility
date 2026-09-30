@@ -125,11 +125,12 @@ CREATE FUNCTION pg_temp.r(p_class text, p_cause text) RETURNS uuid LANGUAGE sql 
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.r(text, text) TO tally_app;
 
--- Two issued bills on M-FAST (for evidence rows), one on M-DISC.
+-- Two issued bills on M-FAST (for evidence rows), two on M-DISC.
 INSERT INTO b13 VALUES
   ('inv_f1', pg_temp.bill('00000000-0000-4000-8000-0000000013e1', '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d1', DATE '2026-03-01', DATE '2026-03-31')),
   ('inv_f2', pg_temp.bill('00000000-0000-4000-8000-0000000013e1', '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d1', DATE '2026-04-01', DATE '2026-04-30')),
-  ('inv_d1', pg_temp.bill('00000000-0000-4000-8000-0000000013e8', '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d1', DATE '2026-04-01', DATE '2026-04-30'));
+  ('inv_d1', pg_temp.bill('00000000-0000-4000-8000-0000000013e8', '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d1', DATE '2026-04-01', DATE '2026-04-30')),
+  ('inv_d2', pg_temp.bill('00000000-0000-4000-8000-0000000013e8', '00000000-0000-4000-8000-0000000013c1', '00000000-0000-4000-8000-0000000013d1', DATE '2026-05-01', DATE '2026-05-31'));
 INSERT INTO b13 SELECT 'dep_' || right(meter_id::text, 2), id FROM public.meter_deployments
  WHERE tenant_id = '00000000-0000-4000-8000-0000000013a1';
 -- The old meter came out for tamper (owner, the migration path).
@@ -239,8 +240,8 @@ DO $$ BEGIN
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS C4: a law row is never deleted'; END $$;
 DO $$ BEGIN
-  UPDATE public.backbilling_rule_window_terms SET months = 12
-   WHERE rule_id = pg_temp.r('protected', 'meter_error') AND term_kind = 'months_before_anchor';
+  UPDATE public.backbilling_rule_window_terms SET quantity = 12
+   WHERE rule_id = pg_temp.r('protected', 'meter_error') AND term_kind = 'before_anchor';
   RAISE EXCEPTION 'FAIL C5: a window term changed';
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS C5: window terms never change'; END $$;
@@ -295,12 +296,54 @@ DO $$ BEGIN
   RAISE EXCEPTION 'FAIL C11: a month count under a non-month scope was accepted';
 EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS C11: a month count appears exactly under enforce_scope = months'; END $$;
-DO $$ BEGIN
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, months)
-  VALUES (pg_temp.r('protected', 'crossed_meters'), 'adverse', 'last_test_any_outcome', 6);
-  RAISE EXCEPTION 'FAIL C12: a month count on a non-month term was accepted';
+DO $$ DECLARE v uuid; BEGIN
+  -- A throwaway historical row, so its terms are in its own transaction.
+  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, favourable_duty,
+     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
+     enforce_scope, effective_from, effective_to, source_note)
+  VALUES ('TX', 'gas', 'protected', 'crossed_meters', 'discovery_date', 'permitted', 'include_whole', 'include_whole',
+          'unruled', false, false, 'never', DATE '1990-01-01', DATE '1995-01-01', 'battery C12') RETURNING id INTO v;
+  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit)
+  VALUES (v, 'adverse', 'last_test_any_outcome', 6, 'months');
+  RAISE EXCEPTION 'FAIL C12: a quantity on a kind that takes none was accepted';
 EXCEPTION WHEN check_violation THEN
-  RAISE NOTICE 'PASS C12: a month count appears exactly on months_before_anchor terms'; END $$;
+  RAISE NOTICE 'PASS C12: a quantity and unit appear exactly on a term kind that takes one'; END $$;
+DO $$ BEGIN
+  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit)
+  VALUES (pg_temp.r('protected', 'rate_misapplication'), 'adverse', 'before_anchor', 6, 'months');
+  RAISE EXCEPTION 'FAIL C15: a window term was added to an existing rule row';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS C15: window terms are written with their rule, never added to it later (not even by the owner)'; END $$;
+DO $$ BEGIN
+  UPDATE public.backbilling_customer_classes SET source_note = 'rewritten' WHERE state_code = 'TX' AND class_code = 'protected';
+  RAISE EXCEPTION 'FAIL C16a: a class''s citation was rewritten';
+EXCEPTION WHEN restrict_violation THEN NULL; END $$;
+DO $$ BEGIN
+  UPDATE public.backbilling_causes SET description = 'rewritten' WHERE cause_code = 'meter_error';
+  RAISE EXCEPTION 'FAIL C16b: a cause was rewritten';
+EXCEPTION WHEN restrict_violation THEN NULL; END $$;
+DO $$ BEGIN
+  UPDATE public.backbilling_anchor_bases SET rests_on_test = false WHERE basis_code = 'test_date';
+  RAISE EXCEPTION 'FAIL C16c: an anchor basis was changed';
+EXCEPTION WHEN restrict_violation THEN NULL; END $$;
+DO $$ BEGIN
+  UPDATE public.backbilling_window_term_kinds SET takes_quantity = true WHERE kind_code = 'deployment_start';
+  RAISE EXCEPTION 'FAIL C16d: a term kind was changed';
+EXCEPTION WHEN restrict_violation THEN NULL; END $$;
+DO $$ BEGIN
+  DELETE FROM public.backbilling_enforce_conditions WHERE condition_code = 'read_beyond_utility_control';
+  RAISE EXCEPTION 'FAIL C16e: an enforcement condition was deleted';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS C16: classes, causes and the three vocabularies are never edited or deleted, not even by the owner'; END $$;
+DO $$ DECLARE v uuid := pg_temp.r('unprotected', 'crossed_meters'); BEGIN
+  CREATE ROLE bat13_closer NOLOGIN;
+  GRANT SELECT, UPDATE ON public.backbilling_rules TO bat13_closer;
+  SET LOCAL ROLE bat13_closer;
+  UPDATE public.backbilling_rules SET effective_to = DATE '2099-01-01' WHERE id = v;
+  RAISE EXCEPTION 'FAIL C19: a role row-level security narrows closed a law row';
+EXCEPTION WHEN insufficient_privilege THEN
+  IF SQLERRM NOT LIKE '%sees every tenant%' THEN RAISE EXCEPTION 'FAIL C19: refused for another reason: %', SQLERRM; END IF;
+  RAISE NOTICE 'PASS C19: only a role that sees every tenant''s citations may close a law row'; END $$;
 DO $$ BEGIN
   INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
      adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
@@ -308,12 +351,20 @@ DO $$ BEGIN
   VALUES ('TX', 'gas', 'protected', 'meter_error', 'test_date', NULL, 'permitted', 'include_whole', 'include_whole',
           'adjustment', false, false, 'uncapped', DATE '1990-01-01', 'test-anchored with no outcomes');
   RAISE EXCEPTION 'FAIL C14: a test-anchored rule named no qualifying outcomes';
+EXCEPTION WHEN check_violation THEN NULL; END $$;
+DO $$ BEGIN
+  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
+     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
+     enforce_scope, effective_from, effective_to, source_note)
+  VALUES ('TX', 'gas', 'protected', 'crossed_meters', 'discovery_date', ARRAY['fast'], 'permitted', 'include_whole', 'include_whole',
+          'unruled', false, false, 'never', DATE '1990-01-01', DATE '1995-01-01', 'discovery rule naming outcomes');
+  RAISE EXCEPTION 'FAIL C14: a discovery rule named qualifying outcomes';
 EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS C14: a test-anchored rule names the test outcomes that make a finding its cause (R-39); a discovery rule names none'; END $$;
 DO $$ DECLARE t text; BEGIN
-  SELECT string_agg(direction || ':' || term_kind || coalesce(' ' || months, ''), ', ' ORDER BY direction, term_kind) INTO t
+  SELECT string_agg(direction || ':' || term_kind || coalesce(' ' || quantity || ' ' || unit, ''), ', ' ORDER BY direction, term_kind) INTO t
     FROM public.backbilling_rule_window_terms WHERE rule_id = pg_temp.r('protected', 'meter_error');
-  IF t IS DISTINCT FROM 'adverse:deployment_start, adverse:last_test_any_outcome, adverse:months_before_anchor 6, favourable:deployment_start, favourable:last_test_any_outcome, favourable:months_before_anchor 6' THEN
+  IF t IS DISTINCT FROM 'adverse:before_anchor 6 months, adverse:deployment_start, adverse:last_test_any_outcome, favourable:before_anchor 6 months, favourable:deployment_start, favourable:last_test_any_outcome' THEN
     RAISE EXCEPTION 'FAIL C13: meter_error terms are %', t;
   END IF;
   IF (SELECT favourable_duty FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> 'mandatory'
@@ -333,31 +384,53 @@ END $$;
 -- ZZ is fictional and deliberately unlike Texas: three classes, a new cause,
 -- a 12-month adverse window bounded by half the time since the last test, a
 -- 36-month refund reach, proration of straddling periods, a refund duty on a
--- cause Texas leaves permitted, and a conditional enforcement. No DDL.
+-- cause Texas leaves permitted, and a conditional enforcement. Review P1 added
+-- the shapes the reviewers found would not fit: "from when the error is known
+-- to have begun, otherwise half the time since the last test, never more than
+-- N months"; a notice-date anchor; a window in days; a new enforcement
+-- condition; and a second service. No DDL.
 DO $$ DECLARE v_rule uuid; BEGIN
   INSERT INTO public.backbilling_causes (cause_code, description)
   VALUES ('customer_culpable_conduct', 'ZZ: the customer''s own conduct caused the under-billing.');
+  INSERT INTO public.backbilling_anchor_bases (basis_code, rests_on_test, description)
+  VALUES ('notice_date', false, 'ZZ: the date the customer was notified of the correction.');
+  INSERT INTO public.backbilling_enforce_conditions (condition_code, description)
+  VALUES ('customer_denied_access', 'ZZ: whether the customer denied the utility access to the meter.');
   INSERT INTO public.backbilling_customer_classes (state_code, service_type, class_code, description, source_note) VALUES
     ('ZZ', 'gas', 'residential',      'ZZ residential',      'ZZ Admin. Code 1.1 (fictional)'),
     ('ZZ', 'gas', 'small_business',   'ZZ small business',   'ZZ Admin. Code 1.2 (fictional)'),
-    ('ZZ', 'gas', 'large_commercial', 'ZZ large commercial', 'ZZ Admin. Code 1.3 (fictional)');
+    ('ZZ', 'gas', 'large_commercial', 'ZZ large commercial', 'ZZ Admin. Code 1.3 (fictional)'),
+    ('ZZ', 'electric', 'residential', 'ZZ electric residential', 'ZZ Admin. Code 2.1 (fictional)');
   INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
      adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
      enforce_scope, enforce_months, enforce_condition, effective_from, source_note)
   VALUES ('ZZ', 'gas', 'residential', 'meter_error', 'test_date', ARRAY['fast','slow'], 'mandatory', 'prorate_days', 'prorate_days',
           'adjustment', false, false, 'conditional', NULL, 'read_beyond_utility_control', DATE '2020-01-01',
-          'ZZ Admin. Code 4.7 (fictional): 12 months or half the time since the last test; refunds 36 months; prorate.')
+          'ZZ Admin. Code 4.7 (fictional): from when the error is known to have begun, otherwise half the time since the last test, never more than 12 months; refunds 36 months; prorate.')
   RETURNING id INTO v_rule;
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, months) VALUES
-    (v_rule, 'adverse',    'months_before_anchor', 12),
-    (v_rule, 'adverse',    'half_since_last_test', NULL),
-    (v_rule, 'favourable', 'months_before_anchor', 36);
+  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit, priority) VALUES
+    (v_rule, 'adverse',    'claimed_start',        NULL, NULL,     1),
+    (v_rule, 'adverse',    'half_since_last_test', NULL, NULL,     2),
+    (v_rule, 'adverse',    'before_anchor',        12,   'months', NULL),
+    (v_rule, 'favourable', 'before_anchor',        36,   'months', NULL);
+  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
+     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
+     enforce_scope, enforce_condition, effective_from, source_note)
+  VALUES ('ZZ', 'gas', 'small_business', 'customer_culpable_conduct', 'notice_date', NULL, 'mandatory', 'include_whole', 'include_whole',
+          'reissue', true, false, 'conditional', 'customer_denied_access', DATE '2020-01-01', 'ZZ Admin. Code 4.9 (fictional): 90 days before notice.')
+  RETURNING id INTO v_rule;
+  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit) VALUES
+    (v_rule, 'adverse', 'before_anchor', 90, 'days');
   INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
      adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
      enforce_scope, effective_from, source_note)
-  VALUES ('ZZ', 'gas', 'small_business', 'customer_culpable_conduct', 'discovery_date', NULL, 'mandatory', 'include_whole', 'include_whole',
-          'reissue', true, false, 'uncapped', DATE '2020-01-01', 'ZZ Admin. Code 4.9 (fictional).');
-  RAISE NOTICE 'PASS Z1: a second state with other classes, a new cause, a 12-month + half-interval window, a 36-month refund reach, proration and a conditional enforcement is stored as rows, no DDL';
+  VALUES ('ZZ', 'electric', 'residential', 'meter_error', 'test_date', ARRAY['fast','slow'], 'mandatory', 'include_whole', 'include_whole',
+          'adjustment', false, false, 'uncapped', DATE '2020-01-01', 'ZZ Admin. Code 5.1 (fictional): electric meters, two billing periods.')
+  RETURNING id INTO v_rule;
+  INSERT INTO b13 VALUES ('zz_electric', v_rule);
+  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit) VALUES
+    (v_rule, 'adverse', 'before_anchor', 2, 'billing_periods');
+  RAISE NOTICE 'PASS Z1: a second state is stored as rows, no DDL: other classes and services, a new cause, a notice-date anchor, "known onset, else half since the last test, never over 12 months", windows in days and billing periods, a 36-month refund reach, proration and two enforcement conditions';
 END $$;
 DO $$ DECLARE v_old uuid := pg_temp.r('protected', 'estimation_catchup'); v_new uuid; BEGIN
   -- A law change: close the Texas row and add its successor.
@@ -371,13 +444,16 @@ DO $$ DECLARE v_old uuid := pg_temp.r('protected', 'estimation_catchup'); v_new 
   IF (SELECT effective_to FROM public.backbilling_rules WHERE id = v_old) <> DATE '2027-01-01' THEN
     RAISE EXCEPTION 'FAIL Z2: the close did not take';
   END IF;
-  RAISE NOTICE 'PASS Z2: a law change is a close plus a successor; both stay citable';
+  IF (SELECT closed_at IS NULL OR closed_by IS DISTINCT FROM session_user FROM public.backbilling_rules WHERE id = v_old) THEN
+    RAISE EXCEPTION 'FAIL Z2: the close was not stamped';
+  END IF;
+  RAISE NOTICE 'PASS Z2: a law change is a close (stamped with when and by which role) plus a successor; both stay citable';
 END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b1';
 SET ROLE tally_app;
 DO $$ BEGIN
   IF (SELECT count(*) FROM public.backbilling_rule_window_terms t
-        JOIN public.backbilling_rules b ON b.id = t.rule_id WHERE b.state_code = 'ZZ') <> 3 THEN
+        JOIN public.backbilling_rules b ON b.id = t.rule_id WHERE b.state_code = 'ZZ') <> 6 THEN
     RAISE EXCEPTION 'FAIL Z3: the application cannot read ZZ''s terms';
   END IF;
   RAISE NOTICE 'PASS Z3: the application reads ZZ''s rows exactly as Texas''s';
@@ -404,15 +480,19 @@ DO $$ BEGIN
 END $$;
 DO $$ DECLARE c public.meter_correction_cases%ROWTYPE; BEGIN
   INSERT INTO public.meter_correction_cases (tenant_id, meter_id, cause, discovering_test_id, anchor_date, anchor_basis,
-         direction, opened_at, opened_by)
+         direction, opened_at, opened_by, updated_at)
   VALUES ('00000000-0000-4000-8000-0000000013a1', '00000000-0000-4000-8000-0000000013e1', 'meter_error', pg_temp.id('t_fast'),
-          DATE '2026-05-15', 'test_date', 'customer_owed', TIMESTAMPTZ '2000-01-01', '00000000-0000-4000-8000-0000000013b9')
+          DATE '2026-05-15', 'test_date', 'customer_owed', TIMESTAMPTZ '2000-01-01', '00000000-0000-4000-8000-0000000013b9',
+          TIMESTAMPTZ '1999-01-01')
   RETURNING * INTO c;
   INSERT INTO b13 VALUES ('case_fast', c.id);
   IF c.opened_by IS DISTINCT FROM '00000000-0000-4000-8000-0000000013b1'::uuid OR c.opened_at < now() - interval '1 minute' THEN
     RAISE EXCEPTION 'FAIL E1: the caller chose the opening stamps (% / %)', c.opened_by, c.opened_at;
   END IF;
-  RAISE NOTICE 'PASS E1: a case opens with opened_at / opened_by stamped from the session, whatever the caller sent';
+  IF c.updated_at < now() - interval '1 minute' THEN
+    RAISE EXCEPTION 'FAIL E1: the caller chose updated_at (%)', c.updated_at;
+  END IF;
+  RAISE NOTICE 'PASS E1: a case opens with opened_at / opened_by / updated_at stamped from the session, whatever the caller sent';
 END $$;
 DO $$ BEGIN
   INSERT INTO public.meter_correction_cases (tenant_id, meter_id, cause, anchor_date, anchor_basis)
@@ -479,7 +559,7 @@ EXCEPTION WHEN check_violation THEN
 DO $$ DECLARE c public.meter_correction_cases%ROWTYPE; BEGIN
   UPDATE public.meter_correction_cases
      SET cause = 'tampering_bypass', cause_change_reason = 'seal broken, bypass pipe found',
-         evidence_kind = 'deployment_removal', evidence_deployment_id = pg_temp.id('dep_ee'),
+         evidence_kind = 'deployment_removal', evidence_deployment_id = pg_temp.id('dep_e8'),
          evidence_recorded_at = TIMESTAMPTZ '2000-01-01'
    WHERE id = pg_temp.id('case_disc') RETURNING * INTO c;
   IF c.evidence_recorded_by IS DISTINCT FROM '00000000-0000-4000-8000-0000000013b1'::uuid
@@ -514,6 +594,32 @@ DO $$ BEGIN
   RAISE EXCEPTION 'FAIL E15: the application wrote an event';
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS E15: only the database writes case events'; END $$;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_cases (tenant_id, meter_id, cause, discovering_test_id, anchor_date, anchor_basis, direction)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', '00000000-0000-4000-8000-0000000013e8', 'meter_error', pg_temp.id('t_slow'),
+          DATE '2026-05-15', 'test_date', 'customer_owes');
+  RAISE EXCEPTION 'FAIL E16: a case on one meter rested on another meter''s test';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'PASS E16: a case''s discovering test is a test of its own meter'; END $$;
+DO $$ BEGIN
+  UPDATE public.meter_correction_cases SET evidence_kind = 'deployment_removal', evidence_deployment_id = pg_temp.id('dep_ee')
+   WHERE id = pg_temp.id('case_disc');
+  RAISE EXCEPTION 'FAIL E17: a case cited another meter''s removal as evidence';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'PASS E17: a removal cited as evidence is of the case''s own meter'; END $$;
+DO $$ BEGIN
+  UPDATE public.meter_correction_cases SET claimed_from_evidence = 'service order 881' WHERE id = pg_temp.id('case_fast');
+  RAISE EXCEPTION 'FAIL E18: evidence for a claimed start with no claimed start';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'PASS E18: evidence of when an error began comes with the date it shows'; END $$;
+DO $$ DECLARE c public.meter_correction_cases%ROWTYPE; BEGIN
+  UPDATE public.meter_correction_cases SET claimed_from = DATE '2026-02-10', claimed_from_evidence = 'service order 881: regulator replaced 2026-02-10'
+   WHERE id = pg_temp.id('case_fast') RETURNING * INTO c;
+  IF c.claimed_from IS DISTINCT FROM DATE '2026-02-10' THEN RAISE EXCEPTION 'FAIL E19: the known onset was not kept'; END IF;
+  -- Put it back: the freeze tests below use the case without one.
+  UPDATE public.meter_correction_cases SET claimed_from = NULL, claimed_from_evidence = NULL WHERE id = pg_temp.id('case_fast');
+  RAISE NOTICE 'PASS E19: a test-anchored case can record when the error is known to have begun, and what shows it (a claimed_start term reads it)';
+END $$;
 
 
 -- ============================================================ F. evaluations
@@ -526,11 +632,11 @@ DO $$ DECLARE v uuid; BEGIN
 EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS F1: an evaluation''s rule row must be a rule for the evaluated cause'; END $$;
 DO $$ DECLARE e public.meter_correction_evaluations%ROWTYPE; BEGIN
-  INSERT INTO public.meter_correction_evaluations (tenant_id, case_id, cause, anchor_date, anchor_basis, direction, rule_id,
+  INSERT INTO public.meter_correction_evaluations (tenant_id, case_id, cause, anchor_date, anchor_basis, direction, discovering_test_id, rule_id,
          adverse_window_start, favourable_window_start, approval_required, inputs, inputs_fingerprint, calculated_by,
          evaluated_at, evaluated_by)
   VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), 'meter_error', DATE '2026-05-15', 'test_date',
-          'customer_owed', pg_temp.r('protected', 'meter_error'), DATE '2025-11-15', DATE '2025-11-15', true,
+          'customer_owed', pg_temp.id('t_fast'), pg_temp.r('protected', 'meter_error'), DATE '2025-11-15', DATE '2025-11-15', true,
           '{"periods":2}', 'fp-1', 'core-0.0.0', TIMESTAMPTZ '2000-01-01', '00000000-0000-4000-8000-0000000013b9')
   RETURNING * INTO e;
   INSERT INTO b13 VALUES ('ev1', e.id);
@@ -614,6 +720,39 @@ DO $$ BEGIN
   END IF;
   RAISE NOTICE 'PASS F10: the database logs each evaluation on the case';
 END $$;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_evaluations (tenant_id, case_id, cause, anchor_date, anchor_basis, direction, discovering_test_id,
+         governing_test_id, rule_id, approval_required, inputs, inputs_fingerprint, calculated_by)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), 'meter_error', DATE '2026-05-15', 'test_date',
+          'customer_owed', pg_temp.id('t_fast'), pg_temp.id('t_slow'), pg_temp.r('protected', 'meter_error'), false, '{}', 'fp-x', 'core-0.0.0');
+  RAISE EXCEPTION 'FAIL F11: an evaluation named another meter''s test as governing';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'PASS F11: the tests and deployment an evaluation names are of the case''s meter'; END $$;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_period_evidence (tenant_id, evaluation_id, invoice_id, customer_id,
+         period_start, period_end, customer_class, rule_id, direction, correction_amount, disposition, days_in_window)
+  SELECT '00000000-0000-4000-8000-0000000013a1', pg_temp.id('ev1'), pg_temp.id('inv_d2'), '00000000-0000-4000-8000-0000000013c1',
+         DATE '2026-05-01', DATE '2026-05-31', 'residential', b.id, 'customer_owed', -2.00, 'included', 31
+    FROM public.backbilling_rules b WHERE b.state_code = 'ZZ' AND b.service_type = 'gas' AND b.customer_class = 'residential' AND b.cause = 'meter_error';
+  RAISE EXCEPTION 'FAIL F12: a Texas evaluation''s evidence cited a ZZ rule';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'PASS F12: an evidence row''s rule is of the evaluation rule''s state and service'; END $$;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_evaluations (tenant_id, case_id, cause, anchor_date, anchor_basis, direction, discovering_test_id,
+         rule_id, approval_required, inputs, inputs_fingerprint, calculated_by)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), 'meter_error', DATE '2026-05-15', 'test_date',
+          'customer_owed', pg_temp.id('t_fast'), pg_temp.id('zz_electric'), false, '{}', 'fp-x', 'core-0.0.0');
+  RAISE EXCEPTION 'FAIL F14: a gas meter''s evaluation cited an electric rule';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE 'PASS F14: an evaluation''s rule is for its meter''s service'; END $$;
+RESET ROLE;
+DO $$ BEGIN
+  UPDATE public.backbilling_rules SET effective_to = DATE '2005-01-01' WHERE id = pg_temp.r('protected', 'meter_error');
+  RAISE EXCEPTION 'FAIL F13: a cited rule row was closed before the dates it is cited for';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS F13: a rule row is never closed on or before a date an evaluation or evidence row cites it for (not even by the owner)'; END $$;
+SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b1';
+SET ROLE tally_app;
 
 
 -- ============================================================ G. approvals
@@ -681,6 +820,28 @@ DO $$ BEGIN
 EXCEPTION WHEN restrict_violation OR foreign_key_violation THEN
   RAISE NOTICE 'PASS H2: a freeze pins an evaluation of THIS case'; END $$;
 DO $$ BEGIN
+  UPDATE public.meter_correction_cases SET direction = 'customer_owes' WHERE id = pg_temp.id('case_fast');
+  UPDATE public.meter_correction_cases SET status = 'frozen', frozen_evaluation_id = pg_temp.id('ev1')
+   WHERE id = pg_temp.id('case_fast');
+  RAISE EXCEPTION 'FAIL H9: a case froze on an evaluation computed for the other direction';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H9: a freeze pins an evaluation computed for the case''s current direction'; END $$;
+DO $$ BEGIN
+  UPDATE public.meter_correction_cases SET claimed_from = DATE '2026-01-01' WHERE id = pg_temp.id('case_fast');
+  UPDATE public.meter_correction_cases SET status = 'frozen', frozen_evaluation_id = pg_temp.id('ev1')
+   WHERE id = pg_temp.id('case_fast');
+  RAISE EXCEPTION 'FAIL H10: a case froze on an evaluation computed for another claimed start';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H10: a freeze pins an evaluation computed for the case''s current claimed start'; END $$;
+DO $$ BEGIN
+  INSERT INTO b13 VALUES ('t_fast2', pg_temp.rec('00000000-0000-4000-8000-0000000013e1', DATE '2026-05-15', 105));
+  UPDATE public.meter_correction_cases SET discovering_test_id = pg_temp.id('t_fast2') WHERE id = pg_temp.id('case_fast');
+  UPDATE public.meter_correction_cases SET status = 'frozen', frozen_evaluation_id = pg_temp.id('ev1')
+   WHERE id = pg_temp.id('case_fast');
+  RAISE EXCEPTION 'FAIL H11: a case re-pointed at another test froze on the old test''s evaluation';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H11: a freeze pins an evaluation computed for the case''s current discovering test'; END $$;
+DO $$ BEGIN
   UPDATE public.meter_correction_cases SET status = 'frozen', frozen_evaluation_id = pg_temp.id('ev1'), notes = 'sneak'
    WHERE id = pg_temp.id('case_fast');
   RAISE EXCEPTION 'FAIL H3: a freeze carried another change';
@@ -706,6 +867,32 @@ DO $$ BEGIN
   RAISE EXCEPTION 'FAIL H6: a frozen case went straight to withdrawn';
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS H6: a frozen case cannot be withdrawn without unfreezing'; END $$;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_evaluations (tenant_id, case_id, cause, anchor_date, anchor_basis, direction, discovering_test_id,
+         rule_id, approval_required, inputs, inputs_fingerprint, calculated_by)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), 'meter_error', DATE '2026-05-15', 'test_date',
+          'customer_owed', pg_temp.id('t_fast'), pg_temp.r('protected', 'meter_error'), false, '{}', 'fp-late', 'core-0.0.0');
+  RAISE EXCEPTION 'FAIL H12: a frozen case took a new evaluation';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H12: a frozen case takes no new evaluation'; END $$;
+RESET ROLE;
+SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b3';
+SET ROLE tally_app;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_approvals (tenant_id, case_id, evaluation_id, note)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), pg_temp.id('ev1'), 'after the freeze');
+  RAISE EXCEPTION 'FAIL H13: a frozen case took an approval';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H13: a frozen case takes no approval (a late one would hide that it froze without one)'; END $$;
+RESET ROLE;
+SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b1';
+SET ROLE tally_app;
+DO $$ BEGIN
+  INSERT INTO public.meter_correction_holds (tenant_id, case_id, range_start, range_end, hold_code)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), DATE '2026-01-01', DATE '2026-01-14', 'legacy_records_not_loaded');
+  RAISE EXCEPTION 'FAIL H14: a frozen case took a new hold';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H14: a frozen case takes no new hold'; END $$;
 
 
 -- ============================================================ J. a frozen case's tests
@@ -740,12 +927,27 @@ DO $$ BEGIN
   RAISE NOTICE 'PASS J2: once unfrozen, the test can be corrected';
 END $$;
 DO $$ BEGIN
+  UPDATE public.meter_correction_cases SET status = 'withdrawn', withdrawn_reason = 'x', anchor_date = DATE '1999-01-01',
+         direction = 'customer_owes'
+   WHERE id = pg_temp.id('case_fast');
+  RAISE EXCEPTION 'FAIL H15: a withdrawal rewrote the case it closed';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H15: a withdrawal changes only the status, its reason and the notes'; END $$;
+DO $$ BEGIN
   UPDATE public.meter_correction_cases SET status = 'withdrawn', withdrawn_reason = 'test corrected to within tolerance'
    WHERE id = pg_temp.id('case_fast');
   UPDATE public.meter_correction_cases SET status = 'open', withdrawn_reason = NULL WHERE id = pg_temp.id('case_fast');
   RAISE EXCEPTION 'FAIL H8: a withdrawn case reopened';
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS H8: a withdrawn case never changes'; END $$;
+DO $$ BEGIN
+  UPDATE public.meter_correction_cases SET status = 'withdrawn', withdrawn_reason = 'test corrected to within tolerance'
+   WHERE id = pg_temp.id('case_fast');
+  INSERT INTO public.meter_correction_holds (tenant_id, case_id, range_start, range_end, hold_code)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_fast'), DATE '2026-01-01', DATE '2026-01-14', 'legacy_records_not_loaded');
+  RAISE EXCEPTION 'FAIL H16: a withdrawn case took a new hold';
+EXCEPTION WHEN restrict_violation THEN
+  RAISE NOTICE 'PASS H16: a withdrawn case takes no new hold'; END $$;
 
 
 -- ============================================================ I. holds
@@ -807,6 +1009,21 @@ DO $$ BEGIN
     RAISE EXCEPTION 'FAIL I9: hold events missing';
   END IF;
   RAISE NOTICE 'PASS I9: hold opening and closing are logged';
+END $$;
+DO $$ DECLARE v_ev uuid; v_h uuid; BEGIN
+  INSERT INTO public.meter_correction_holds (tenant_id, case_id, range_start, range_end, hold_code)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_disc'), DATE '2026-02-01', DATE '2026-02-14', 'legacy_records_not_loaded')
+  RETURNING id INTO v_h;
+  INSERT INTO public.meter_correction_evaluations (tenant_id, case_id, cause, anchor_date, anchor_basis, claimed_from, rule_id,
+         approval_required, inputs, inputs_fingerprint, calculated_by)
+  VALUES ('00000000-0000-4000-8000-0000000013a1', pg_temp.id('case_disc'), 'crossed_meters', DATE '2026-05-01', 'discovery_date',
+          DATE '2026-01-01', pg_temp.r('protected', 'crossed_meters'), false, '{}', 'fp-d2', 'core-0.0.0')
+  RETURNING id INTO v_ev;
+  UPDATE public.meter_correction_cases SET status = 'frozen', frozen_evaluation_id = v_ev WHERE id = pg_temp.id('case_disc');
+  UPDATE public.meter_correction_holds SET status = 'completed' WHERE id = v_h;
+  UPDATE public.meter_correction_cases SET status = 'open', frozen_evaluation_id = NULL, frozen_at = NULL, frozen_by = NULL
+   WHERE id = pg_temp.id('case_disc');
+  RAISE NOTICE 'PASS I10: a hold opened while the case was open may still close after the case freezes';
 END $$;
 
 
