@@ -14,11 +14,19 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
+  v5.4.2-14/                # meter_governing_test() without R-36's gate (the core's now), LANDED 2026-09-30
+    battery-14.sql          # 6 checks: no gate column, no month count in the body, exact grants, still
+                            #   answers as tally_app, comments name the core, AC-32
+    mutations-14.py         # 4 mutations; needs a -13 BASE (tu.sql ab3ce7ae…, 25,930 lines)
+    parity/catalog-identity.sql  # the -13 identity query plus every comment (function, table, column)
   v5.4.2-12/                # the meter test history (CI-091), LANDED 2026-09-23
-    battery-12.sql          # 116 checks, groups A-K; every guard has a planted mutation that fails it
+    battery-12.sql          # 116 checks, groups A-K; every guard has a planted mutation that fails it.
+                            #   Restated 2026-09-30 for -14: F1/F3/F4/F5/F7/F10 assert weak_provenance and
+                            #   the governing test instead of supervisor_gate (passes with or without -14)
     isolation-check-12.sql  # 3 checks: a cutover change is refused outside READ COMMITTED
                             #   (cannot live in the battery, which is one READ COMMITTED transaction)
-    races/pointer-mutex-12.sh   # two sessions: the pointer's row-version mutex (R1)
+    races/pointer-mutex-12.sh   # two sessions: the pointer's row-version mutex (R1); applies -12 only to a
+                                #   base without it (-12 cannot re-apply over a -14 build)
     review/                 # five rounds: review-brief-12{,-round2..5}.md and the frozen patch
                             #   and battery for each round (patch-12-frozen-r1..r5.sql)
   v5.4.2-13/                # A-2 at PARITY (re-scoped 2026-09-28), LANDED 2026-09-30. The schema stores per-state

@@ -11,7 +11,13 @@ PATCH=${1:-sql/v5.4.2-12-meter-test-history.sql}
 DB=race12_ptr
 docker cp "$PATCH" tally-pg:/tmp/race12_patch.sql
 docker exec tally-pg psql -U tally -d tally -qtA -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB TEMPLATE tally" >/dev/null
-docker exec -e PGOPTIONS="-c search_path= -c check_function_bodies=on" tally-pg psql -U tally -d $DB -q -v ON_ERROR_STOP=1 -f /tmp/race12_patch.sql >/dev/null 2>&1
+# Apply -12 only to a base that lacks it. On a build that already has it
+# (tu.sql from 2026-09-23 on), re-applying fails since v5.4.2-14 re-created
+# meter_governing_test() with a different result, which -12's CREATE OR
+# REPLACE cannot change back.
+if [ "$(docker exec tally-pg psql -U tally -d $DB -Atc "SELECT to_regclass('public.meter_tests') IS NULL")" = "t" ]; then
+  docker exec -e PGOPTIONS="-c search_path= -c check_function_bodies=on" tally-pg psql -U tally -d $DB -q -v ON_ERROR_STOP=1 -f /tmp/race12_patch.sql >/dev/null 2>&1
+fi
 docker exec -i tally-pg psql -U tally -d $DB -q -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO public.tenants (id, name, slug, cutover_date) VALUES ('00000000-0000-4000-8000-00000000dd01','RR','race12', DATE '2026-01-15');
 INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES ('00000000-0000-4000-8000-00000000dd02','00000000-0000-4000-8000-00000000dd01','U','u@race12','operator');

@@ -1,6 +1,8 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-13, verified 2026-09-30.** After v5.4.2-13: **100 tables** / **9 views** / **4 matviews** / **91 policies** / **90 FORCE-RLS** / **409 FKs** / **434 CHECKs** / **13 EXCLUDE** / **308 triggers** / **427 functions** / **629 indexes** (counted by `tests/v5.4.2-13/parity/catalog-counts.sql` on both the patched clone and the fresh build; that query reads 379 CHECKs on the -12 build where the -12 section says 381, so compare counts only within one query). tu.sql **25,930 lines**, md5 `ab3ce7ae9e59a45a90d8d36fa70c8fa3` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14, verified 2026-09-30.** After v5.4.2-14 the counts are unchanged from -13 (the function is replaced, not added): **100 tables** / **9 views** / **4 matviews** / **91 policies** / **90 FORCE-RLS** / **409 FKs** / **434 CHECKs** / **13 EXCLUDE** / **308 triggers** / **427 functions** / **629 indexes**. tu.sql **26,049 lines**, md5 `9139367ab7da6ada63d4193ba189e17f` (the container init file matches by hash).
+
+**Previous: through v5.4.2-13, verified 2026-09-30.** Same counts (`tests/v5.4.2-13/parity/catalog-counts.sql`). tu.sql **25,930 lines**, md5 `ab3ce7ae9e59a45a90d8d36fa70c8fa3`.
 
 **Previous: through v5.4.2-12, verified 2026-09-23.** After v5.4.2-12: **86 tables** / **6 views** / **84 policies** / **83 FORCE-RLS** / **369 FKs** / **381 CHECKs** / **11 EXCLUDE** / **269 triggers** / **407 functions** / **588 indexes** (see the v5.4.2-12 section). tu.sql **23,452 lines**, md5 `2aa59147bfde61d86991f7f0a5c5d22a`.
 
@@ -9,6 +11,37 @@
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 
 **Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+
+## v5.4.2-14 — meter_governing_test() stops computing R-36's approval gate (-13 residual R8; audit §3.3)
+`sql/v5.4.2-14-governing-test-gate-to-core.sql` (177 lines, md5 `5b45a0422123523bff91280ff7df8a6a`), mirrored into tu.sql (25,930 → **26,049**, pure append: a 6-line banner and the 113-line body, header omitted; prefix and body byte-identical by `cmp`).
+
+**What changes:**
+- `meter_governing_test(uuid, date)` is dropped and re-created without `supervisor_gate`. That column was Texas's `anchor − 6 months < cutover` in the database. Every other column, and the selection and ranking logic, is unchanged.
+- EXECUTE is re-issued: `tally_app` only, not PUBLIC.
+- Four comments that said the database computes the gate are re-issued: the function, `tenants.cutover_date`, `meter_tests.record_basis` and `meter_test_absence_declarations`.
+- The gate is the calculation core's (`application/a2-rules-for-the-core.md` §9.1) and is recorded on `meter_correction_evaluations.approval_required`.
+- The delivery patch the -13 text calls "-14" is now v5.4.2-15.
+
+**Method.**
+1. Strict apply twice on a clone of the -13 build: clean.
+2. **battery-14: 6 PASS.**
+3. **mutations-14: 4 of 4 caught.** The first M3 (delete the explicit GRANT) was not caught, and correctly so: -11's default privileges give `tally_app` EXECUTE on every new public function. It now revokes outright.
+4. battery-12 restated: F1, F3, F4, F5, F7 and F10 assert `weak_provenance` and the governing test instead of the gate. Still 116, and it passes with or without -14.
+5. Regressions on the clone: 28 / 58 / 41 / 116 / 99; isolation-12 3.
+6. Mirror.
+7. Image rebuilt, fresh volume: **zero error/fatal lines**, init file = tu.sql.
+8. **Catalog parity, full identity including every comment:** `tests/v5.4.2-14/parity/catalog-identity.sql`, 9,532 lines, identical on the patched clone and the build (md5 `9f5cffebde1227676613e7a47a85f301`).
+9. **On the build:**
+    - batteries 28 / 58 / 41 / 116 / 99 / **6**;
+    - isolation-12 3;
+    - X1 PASS;
+    - pointer-mutex-12 race PASS;
+    - -14 re-applied over the build is clean, and battery-14 still passes 6;
+    - AC-32 is clean.
+
+**Not reviewed** (Ryan, 2026-09-30: a 177-line mechanical change with mutation-proven tests).
+
+**Consequence: -12 no longer re-applies over the build.** Its `CREATE OR REPLACE FUNCTION meter_governing_test` cannot change the re-created result back ("cannot change return type"). `races/pointer-mutex-12.sh` now applies -12 only to a base without `meter_tests`. Any other tool that re-applies -12 to a current build must do the same.
 
 ## v5.4.2-13 — backbilling at parity: per-state law as platform rows, correction records with integrity only (CI-008 / CI-092; Kyle R-19…R-39; Ryan 2026-09-28)
 `sql/v5.4.2-13-backbilling-caps.sql` (2,567 lines, md5 `6a773f19d1a69b7b58821a41c5f3f713`), mirrored into tu.sql (23,452 → **25,930**, pure append: a 6-line mirror banner and the 2,472-line patch body, header omitted; the first 23,452 lines byte-identical to the previous file and the appended body byte-identical to the patch body by `cmp`).

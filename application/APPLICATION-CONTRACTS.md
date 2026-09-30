@@ -319,7 +319,7 @@ What the database will refuse to certify:
 
 **Cutover.** `tenants.cutover_date` is set by the platform (a platform administrator via `tally_app`, or the owner at onboarding) **before** any test is recorded or migrated history loaded. A change must run under READ COMMITTED (a tenant INSERT carrying its cutover is exempt) and should be the first row lock in its transaction; on a deadlock, retry. It may not fall before a migrated test or after a recorded one.
 
-**Reading "the last test".** Call `meter_governing_test(meter_id, anchor_date)` — never `meters.last_test_date`. It returns exactly one row: the most recent non-superseded test strictly before the anchor, whatever its outcome, with `prior_test_failed`, `weak_provenance` and `supervisor_gate` (R-36); or, where none qualifies, NULL test columns and the declared `absence`. It never infers a date.
+**Reading "the last test".** Call `meter_governing_test(meter_id, anchor_date)` — never `meters.last_test_date`. It returns exactly one row: the most recent non-superseded test strictly before the anchor, whatever its outcome, with `prior_test_failed` and `weak_provenance`; or, where none qualifies, NULL test columns and the declared `absence`. It never infers a date. **Since v5.4.2-14 it returns no `supervisor_gate`:** whether a correction needs a supervisor's approval (R-36) is the calculation core's. The core computes it from `weak_provenance`, the direction, the resolved rule's `before_anchor` term and `tenants.cutover_date` (`a2-rules-for-the-core.md` §9.1), and records it on `meter_correction_evaluations.approval_required`.
 
 **Platform administrators.** A `tally_app` session may grant `platform_admin` only if it already is one, and may not change `users.id`.
 
