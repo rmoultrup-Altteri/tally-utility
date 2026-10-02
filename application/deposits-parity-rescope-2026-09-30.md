@@ -224,10 +224,12 @@ The discussion that led here (kept for the record):
 - **K4.** Is the cap per deposit or combined (#55 rule 9 says combined)? -06 checks it per deposit.
 - **K5.** Residential non-cash instruments (#55 rule 2, "decide, do not default").
 - **K6.** A customer meets the refund trigger, then falls behind before the refund is made. Is the refund still owed (`refund_obligation_vests`)? Codex leaned yes. Either answer is a rule-row value.
+- **K7.** "No more than two delinquencies": counted over the twelve bills, over twelve months, or over the whole hold? -06 counts the whole hold (rules-for-the-core DG4).
+- **K8.** Is an `inactive` account a return trigger? -06 treats it as closed; no source names it (DG7). Related: #54 rule 1 makes **any disconnection** a trigger, which -06 can't see (DG1).
 
 ## 6. Before anything is stripped
 
-1. **`application/deposits-rules-for-the-core.md`:** every dropped behaviour in §2, with its source, the -06 line range, and the boundary cases:
+1. **`application/deposits-rules-for-the-core.md`** (written 2026-10-01; its §7 adds K7, K8 and the -06/source disagreements DG1–DG9): every dropped behaviour in §2, with its source, the -06 line range, and the boundary cases:
    - the 30/31 day cliff;
    - a rate change mid-hold;
    - exhaustion by applications;
