@@ -4,6 +4,56 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-02 — deposits (-15): R-D2/R-D3 decided, rules for the core written, patch drafted, two review rounds (both "not yet"), round-2 revision built
+
+**What was done:**
+- **R-D2** went to a council (me, an Opus subagent, Codex). All three chose recording the core's answer. Ryan picked a separate withdrawal table.
+- **R-D3:** "the delivery patch" carries no number; deposits is v5.4.2-15.
+- **`application/deposits-rules-for-the-core.md`:**
+  - every -06 deposit rule, with -06 line ranges;
+  - 20 boundary cases with computed amounts;
+  - DG1–DG9, where -06 disagrees with tables #53–#55;
+  - Kyle questions K7 and K8.
+- **Drafted `sql/v5.4.2-15-deposits-law-to-core.sql`:**
+  - `deposit_rules` plus vocabularies; Texas gas seeded as 8 rules;
+  - deposits and accruals cite their rule row, rate row and core version;
+  - a legal-rate reference table and a discrepancy view;
+  - the return-due record with evidence and withdrawals, plus the `deposits_return_owed` view;
+  - dropped -06's formula, rate lookup, refund-trigger function and view.
+- **Review round 1** (`4f9468eb`): Opus, Fable and Codex all said "not yet". Every finding was reproduced.
+- **B3 proposal:** reviewed by the same three before building.
+- **Round-2 revision** (`026e25d2`, 2,196 lines): A1–A15 plus B1–B3 folded.
+- **Review round 2:** all three said "not yet". Every finding was reproduced. The fixes are I1–I8, and D1–D5 are shape decisions (`tests/v5.4.2-15/review/review-findings-15-r2.md`).
+- **Codex CLI** upgraded from 0.133 to 0.160; it now runs `gpt-6-astra`.
+
+**Decisions:**
+- **R-D2:** a return-due row plus a separate withdrawal table. Not the running due/not-due series, because "the answer was wrong" is distinct from "the obligation lapsed" (K6).
+- **B1:** a later record may cite the deposit's own rule, or a rule of its key in force over its dates.
+- **B2:** the cap records its source (statute or tariff).
+- **B3:** waiver reach per (rule, class, trigger) with an effect, replacing `waivable`; the utility's tariff waivers are its own rows.
+- Kept, pending Ryan: "accrued interest must be credited by the last event" (the DIVERGENCE).
+
+**Failed approaches:**
+- About 12 battery cases were refused by a different guard than the one they named, so their mutations went missed. Fixed by deferring constraints and choosing fixtures that isolate the named guard.
+- `x > 0` on a nullable column in a CHECK: NULL passes (three times). Fixed with `IS NOT NULL`.
+- A bare `FOR UPDATE` as a count mutex fails under REPEATABLE READ. It now also writes a row version.
+- Row locks on `deposit_interest_rates` need UPDATE privilege, which tally_app lacks. Uses advisory locks instead.
+- plpgsql `IF … CASE … THEN` failed to parse; the CASE now has parentheses.
+- `CREATE DATABASE … TEMPLATE` drops the database ACL, so every earlier battery run had TEMP open. TEMP is now revoked after each clone.
+
+**Verified (round-2 revision `026e25d2`, clones with TEMP revoked):**
+- strict apply ×2;
+- battery-15 **104/104**; X1 PASS; races R1–R6 PASS;
+- mutations **91/91**;
+- regressions 28/58/41/116/3/99/6; -13 X1 PASS.
+
+**Not done / next:**
+- Ryan decides D1–D5 and the stopping rule.
+- Fold I1–I8 and the chosen D items; then round 3, or mirror.
+- Still open: R12 follow-ups, the DIVERGENCE, Kyle K1–K8.
+
+---
+
 ## 2026-09-30 — -13 reviewed, folded and LANDED; -14 lands (R-36's gate leaves the database); deposits design started
 
 **What was done:**

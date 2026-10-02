@@ -1,133 +1,156 @@
-# Handoff: deposits (-06) to parity: decide R-D2 (the refund-due record), then build
+# Handoff: v5.4.2-15 deposits at parity — round 2 reviewed; decide D1–D5, then build round 3
 
-**Generated**: 2026-09-30 (end of session)
-**Branch**: tally-utility `main` (`27f2e68` plus this wrap-up) · gas-billing-memory `main` (`091c990`, no new Kyle commits at wrap-up)
-**Status**: Blocked on Ryan's decision R-D2. No deposit schema has been changed yet.
+**Generated**: 2026-10-02 (end of session)
+**Branch**: tally-utility `main` (`1a7097b` plus this wrap-up) · gas-billing-memory `main` (`091c990`, no new Kyle commits at the start of the session)
+**Status**: Blocked on Ryan's decisions D1–D5 and the proposed stopping rule. -15 is a DRAFT: not mirrored into tu.sql, not landed.
 
 ## Goal
 
-Move the Texas law built into -06's deposit guards out of the database:
+Move the Texas deposit law that -06 built into guards out of the database:
 - the law becomes per-state, dated, cited platform rows;
 - the records keep integrity only;
 - the C# core evaluates.
 
-This is the same pattern -13 used. The ground rules are unchanged:
-- **The schema represents; the core evaluates** (memory `schema-represents-core-evaluates`).
-- **A Texas-only launch is not a Texas-only architecture** (memory `launch-scope-is-not-architecture-scope`).
+This is the same pattern as -13. The ground rules (memories `schema-represents-core-evaluates`, `launch-scope-is-not-architecture-scope`, `design-permanent-record-on-change`, `utility-owns-regulated-values`) still hold.
 
 ## Completed (this session)
 
-- [x] **-13 review round P1.**
-  - Frozen on `07ced77c`; two reviewers (Fable, Opus) both said "not yet".
-  - Every finding was reproduced, then folded (`a796658`).
-  - Ryan's calls:
-    - A: a known onset on any case, plus fallback chains;
-    - B: lookup tables and term units, with interest and payment plans going to the delivery patch;
-    - C: the core version is recorded on evaluations only.
-  - Record: `tests/v5.4.2-13/review/review-findings-13-parity-p1.md`.
-- [x] **-13 mirrored and LANDED** (`197aa9e`).
-  - tu.sql went 23,452 → 25,930 lines. The rebuild is clean, and full catalog identity (6,182 lines) matches.
-  - Battery 99/99, X1, mutations 45/45 (those on the clone).
-- [x] **-14 drafted, mirrored and LANDED** (`fb184f4`, `47d5f2a`).
-  - `meter_governing_test()` is re-created without `supervisor_gate`: R-36's Texas six months leaves the database (-13 residual R8).
-  - tu.sql went 25,930 → **26,049**, md5 `9139367ab7da6ada63d4193ba189e17f`.
-  - Identity including comments (9,532 lines) matches.
-  - Batteries on the build: 28/58/41/116/99/6; mutations-14 4/4.
-- [x] **The deposits design:** `application/deposits-parity-rescope-2026-09-30.md` (commits `b29e20e`, `19c9132`, `27f2e68`).
-  - §1 keep, §2 drop, §3 platform rule tables, §4 Ryan's decisions, §5 Kyle questions, §6 prerequisites.
-  - **R-D1 DECIDED** (Ryan):
-    - the utility keeps the interest rate it applies (`deposit_interest_rates`, per tenant; each accrual cites its row);
-    - the platform keeps each state's published legal rate as a reference only (`deposit_interest_rate_law`);
-    - a discrepancy report compares them.
+- [x] **R-D2 decided** after a council (me, Opus, Codex). The core writes a return-due row when the return falls due, with evidence. A wrong row is corrected by a separate withdrawal table.
+- [x] **R-D3 decided:** "the delivery patch" carries no number; deposits is v5.4.2-15.
+- [x] **`application/deposits-rules-for-the-core.md`:** every -06 deposit rule, with its source and line range.
+  - 20 boundary cases with computed amounts.
+  - DG1–DG9: places where -06 disagrees with Kyle's tables #53–#55.
+  - Kyle questions K7 and K8 added (K1–K8 in design §5).
+- [x] **-15 drafted** (`sql/v5.4.2-15-deposits-law-to-core.sql`).
+- [x] **Review round 1** (frozen `4f9468eb`; Opus, Fable, Codex all said "not yet"). Record: `tests/v5.4.2-15/review/review-findings-15-r1.md`.
+  - Ryan decided:
+    - **B1, option 3:** a later accrual, return or due row cites the deposit's own rule, or a rule of its key in force over its dates (`deposit_rule_citable()`).
+    - **B2:** the cap records its source (`statute` or `tariff` plus `cap_tariff_reference`).
+    - **B3:** `deposit_rule_waiver_reach` (rule, class, trigger, effect excuse/reduce/defer) replaces `waivable`. The utility's tariff waivers are its own rows (`deposit_tariff_waiver_grounds`). The proposal itself was reviewed by the same three reviewers first (`review/proposal-b3-waiver-reach.md`).
+  - A1–A15 folded:
+    - a row-version due mutex;
+    - a rate advisory lock with a READ COMMITTED pin;
+    - no CHECK naming a basis;
+    - closure evidence by status and date;
+    - stamps;
+    - chronology checks;
+    - class-specific rates;
+    - `cap_other_held` for combined caps;
+    - `principal_returned`;
+    - a refund lookback and disqualifier rows;
+    - time-held evidence;
+    - reasons tied to rules;
+    - TEMP revoked on test clones.
+- [x] **Round-2 revision** `32444e5`: patch `026e25d2`, 2,196 lines.
+  - Battery-15 **104/104**; X1; races R1–R6; mutations **91/91**.
+  - Regressions 28/58/41/116/3/99/6, plus -13's X1.
+  - All of it on clones with TEMP revoked.
+- [x] **Review round 2** (frozen `026e25d2`): all three said "not yet". Every finding was reproduced.
+  - Record: `tests/v5.4.2-15/review/review-findings-15-r2.md`.
+  - Integrity fixes I1–I8 and shape decisions D1–D5 are listed there.
 
 ## Not Yet Done (in order)
 
-1. [ ] **R-D2: Ryan decides the refund-due record.** He is thinking it over. The design doc §4 records where the discussion got to.
-   - **The current recommendation:** ONE append-only row when a deposit's refund becomes due (the deposit, the date, the rule row, the reason, the counts, the core version), plus a view of due rows with no refund started.
-   - The core checks on events (payment, bill past due, status change), not in a daily sweep.
-   - There is no "not checked recently" column.
-   - **Option B** is to store nothing: the core computes on demand, with no record.
-   - Explain it in plain language, one decision at a time (memories `prefers-discussion-over-canned-options`, `explain-jargon-in-the-question`).
-2. [ ] **R-D3: numbering.** The recommendation is to call the delivery patch "the delivery patch", not "-15". This deposits patch would take v5.4.2-15.
-3. [ ] **Before stripping anything**, write `application/deposits-rules-for-the-core.md`.
-   - It covers every behaviour in the design's §2, with its source and the -06 line range.
-   - Boundary cases: the 30/31-day cliff, a rate change mid-hold, exhaustion by applications, the zero refund, and the legacy exception.
-   - **-06's battery (141 checks) was lost**, so no deposit tests exist in the repo.
-4. [ ] **Build the patch** to the design, with:
-   - a new battery, including the fictional state ZZ;
-   - mutations on a -14 base;
-   - strict apply ×2;
-   - regressions 28/58/41/116/99/6;
-   - then Ryan's call on review or mirror.
-5. [ ] Send Kyle questions K1–K5 (design §5). The answers change seed rows only.
-6. [ ] **Still open from before:**
-   - Kyle's A-2 questions: which date picks the rule row, R9, D1/D3/D5/D6, and the audit §3.13 doc values;
-   - the register re-grade;
-   - the places table;
-   - OQ-1 and the delivery patch;
-   - the rest of the landed-law strip, in audit §4 order: surcharges (-07/-08), tax (-03/-09), programs (-04), the PGA pool, escheat, the estimate cap, `America/Chicago`.
+1. [ ] **Ryan decides D1–D5 and the stopping rule** ("model a shape when it has a real source, such as a statute, Kyle's tables or our own design; record hypothetical shapes as residuals"). My recommendations:
+   - **D1, additional-deposit thresholds (#55 rules 5–7):** build it, as a rule part plus a utility table (the R-D1 pattern).
+   - **D2, two-part caps** (lesser-of; a ceiling or floor): build it, as cap parts plus a combinator.
+   - **D3, deposits paid in instalments:** build it if the citation checks out. Pennsylvania Chapter 14 is unverified.
+   - **D4, a mandatory partial return tied to a due row:** build it, as a due row with an amount, settled by `principal_returned`.
+   - **D5, reduce-to-amount, instrument substitution, per-disqualifier windows:** residual.
+   - Explain each in plain language (memories `prefers-discussion-over-canned-options`, `explain-jargon-in-the-question`).
+2. [ ] **Fold I1–I8** (no decision needed):
+   - **I1:** the close floor reads `coalesce(period_end, effective_on)`.
+   - **I2:** `deposit_return_reasons.requires_measure`, and the delinquency limit becomes optional under a count.
+   - **I3:** an accrual must end before any return's date and must not run past exhaustion; principal_basis ≤ the principal held at the period's end; a credit ≤ interest accrued for periods ending before it; period_end < today.
+   - **I4:** evidence on or before `due_on`; an event citing a due row is on or after its `due_on`.
+   - **I5:** the determination locks its tariff ground; the ground's close is pinned to READ COMMITTED; add a race leg.
+   - **I6:** coverage in the rate report per class actually held.
+   - **I7:** refuse mixing any-trigger and trigger-specific reach rows for one class on one rule.
+   - **I8:** compare the closure date in UTC; the premise's time zone becomes a residual.
+3. [ ] Build D-decisions plus I1–I8.
+   - Battery and mutations for each new guard: every mutation must be caught at its NAMED check.
+   - Strict apply ×2, races, regressions (all on TEMP-revoked clones).
+   - Freeze for round 3 if Ryan wants one.
+4. [ ] Then mirror -15 into tu.sql (procedure below) and add an entry to sql/DEPLOY-VERIFICATION.md.
+5. [ ] Still open:
+   - Ryan's R12 follow-ups (a record of a waived deposit; an explicit "no waiver reaches" flag; fail open or closed on missing input; which waiver to record when two are in force; a waiver granted while a deposit is held);
+   - the DIVERGENCE (accrued interest must be credited by the deposit's last event), which Ryan has not confirmed;
+   - Kyle K1–K8;
+   - the rest of the landed-law strip in audit §4 order.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Framing options as "until the core exists".** Ryan: nothing is live. There is no code and no data, so the only question is the PERMANENT schema. Never offer an option as a stopgap.
-- **A record per check.** Proposing an append-only row every time the core checks a deposit meant a daily sweep writing mostly useless rows (Ryan). Record only when the answer changes: the trigger firing.
-- **One platform interest rate that the core uses** (first R-D1 recommendation). It moves the regulatory update onus to Tally, takes control from the utility (the regulated party that the commission holds responsible), and makes one bad entry mis-rate every utility in the state. Use the utility's rate as the one applied, and the platform rate as a reference with a discrepancy report.
-- **Re-applying the -12 patch over a current build.**
-  - It fails with `ERROR:  cannot change return type of existing function` (-12's `CREATE OR REPLACE meter_governing_test`).
-  - `races/pointer-mutex-12.sh` now applies -12 only when `meter_tests` is absent.
-- **Assuming a deleted GRANT removes access.** -11's default privileges give `tally_app` EXECUTE on every new public function. To test the loss of access, REVOKE it.
-- **Rewriting a mutation's anchor without re-checking its target.** -13's M16 was first pointed at the cause comparison while F6 tests the class comparison, so it was missed. Re-run every mutation after edits.
-- **The -13 mutation script on the current `tally`.** `CREATE TABLE IF NOT EXISTS` keeps the real tables, so table-definition mutations don't take. It needs a -12 base (tu.sql `2aa59147…`); -14's needs a -13 base (`ab3ce7ae…`).
+- **A battery case that a different guard refuses first.** It passes whether or not its own guard exists, so the mutation goes MISSED.
+  - Happened about 12 times this session. Typical causes:
+    - a deferred evidence check firing under `SET CONSTRAINTS ALL IMMEDIATE`;
+    - a "live row" or "refund started" guard refusing before the guard under test;
+    - foreign keys from reach rows blocking a delete;
+    - the date check masking the status and customer checks.
+  - Defer constraints in the negative due-row cases (`EXECUTE 'SET CONSTRAINTS ALL DEFERRED'`). Pick fixtures where ONLY the named guard can refuse, and read the "[first FAIL/ERROR]" column the mutation script prints.
+- **`x > 0` in a CHECK on a nullable column.** NULL passes a CHECK.
+  - Found three times: `cap_divisor`, the `cap_source` NULL leg, the return-due mandatory leg.
+  - Always add `IS NOT NULL`. Use `IS NOT TRUE` or `coalesce(..., false)` in trigger IFs (memory `blank-checks-whitelist-alnum`).
+- **A bare `FOR UPDATE` as a count mutex.** It fails under REPEATABLE READ: the waiter gets the lock with no serialisation error and counts from a stale snapshot.
+  - Also write a row version: `UPDATE deposits SET status = status`.
+  - Keep the early `FOR UPDATE` too. Without it, the status read before the wait is stale (mutation M47, R2).
+- **`FOR UPDATE` / `KEY SHARE` on `deposit_interest_rates` as `tally_app`.** Every row-lock clause needs UPDATE privilege, which tally_app lacks there. Use advisory xact locks (`deposit_rate_lock_key()`).
+- **`IF x IS DISTINCT FROM CASE … END THEN` in plpgsql.** It fails with "syntax error at end of input", because plpgsql scans the IF condition up to the first THEN. Wrap the CASE in parentheses.
+- **`CREATE DATABASE … TEMPLATE tally`.** It drops the database ACL, so tally_app has TEMP and the depth fences are open. Revoke TEMP after every clone (memory `template-clone-drops-acl`). Every battery run before 2026-10-02 had this gap.
+- **Codex `read-only` sandbox.** It cannot reach the docker socket, so Codex reviews statically and writes repro scripts, which the main session runs. Codex 0.160 runs `gpt-6-astra`; `--add-dir` lets it read the scratchpad.
+- **Reviewer REPORT.md writes** were refused every time. Reviewers send findings by SendMessage instead (memory `reviewer-reports-truncate`).
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| -13 fixes all folded; the core version is recorded on evaluations only (C) | Holds, approvals and freezes are a person's acts, stamped with who and when |
-| Interest and payment plans go to the delivery patch (residual R10) | They attach to money that posts; nothing posts before delivery |
-| -14 removes `supervisor_gate` rather than feeding it from rule rows | The gate is law; the core has every input (weak_provenance, cutover, the rule's before_anchor) |
-| -14 not reviewed (Ryan) | 177 mechanical lines, with mutation-proven tests |
-| R-D1: the utility's rate is the one applied; the platform legal rate is a reference plus a discrepancy report | The utility is the regulated party; avoids one mistake reaching every customer at once |
-| Deposit law as `deposit_rules(state, service, class, basis)` plus vocabularies (bases, triggers, classes, waiver classes) | The -13 pattern; ZZ proves a second state is rows only |
+| R-D2: a return-due row plus a separate withdrawal table | Evidence of a standing obligation, recorded when it changes. A withdrawal means "the answer was wrong", which is distinct from "the obligation lapsed" (K6, law) |
+| B1 option 3: cite the own rule OR the in-force rule of the key | Amendments both spare and reach deposits already held; the citation records which |
+| B2: `cap_source` statute/tariff | A tariff can cap tighter, or where the law sets none (R-D1: the utility's value stays the utility's) |
+| B3: reach table plus tenant tariff grounds | One boolean couldn't hold K2 or per-trigger/partial waivers. The law holds the permission, the utility holds its grounds |
+| Kept "accrued must be credited by the last event" (DIVERGENCE) | Ledger arithmetic, not law; awaiting Ryan |
+| The "rule_id IS NULL" refusal has no mutation | The rule-key comparison also refuses (basis is never NULL), so it only changes the message |
+| UTC for date comparisons (I8, pending) | A session must not change the outcome; the premise's time zone waits for the places table |
 
 ## Current State
 
-**Working:**
-- `tally-pg` runs the fresh build of tu.sql, 26,049 lines (`9139367a…`); only the `tally` database exists.
-- Every battery is green on it.
-
-**Broken:** nothing.
-
+**Working:** `tally-pg` runs the fresh build of tu.sql, 26,049 lines (`9139367a…`), with -15 NOT applied. Only `postgres` and `tally` exist (every review database was dropped).
+**Broken:** nothing. -15's open items are in the r2 findings.
 **Uncommitted changes:** none after this wrap-up.
 
 ## Code Context
 
-- **Deposit guards to strip** (tu.sql 17,706–18,822 = `sql/v5.4.2-06-account-lifecycle-and-deposits.sql`):
-  - `enforce_deposit()` 840–905: the waiver and TX cap branches go; the identity freeze stays;
-  - `enforce_deposit_event()` 910–1063: the interest and refund law goes; the arithmetic stays;
-  - `deposit_accrual_amount()` 549;
-  - `deposit_refund_trigger_state()` 790;
-  - `deposits_refund_due` 821;
-  - the CHECK lists at 575, 621–624.
-- **The parity catalog check:** `tests/v5.4.2-14/parity/catalog-identity.sql`. Run it on the patched clone and on the fresh build, then `diff`.
+```sql
+-- B1: which rule a later record may cite
+public.deposit_rule_citable(p_deposit_id uuid, p_rule_id uuid, p_from date, p_to date) RETURNS boolean
+-- A2: rate lock key (rate insert: exclusive; accrual: shared)
+public.deposit_rate_lock_key(p_tenant_id uuid, p_state_code text, p_service_type text) RETURNS bigint
+-- rule parts must be written in the rule's own transaction (deposit_rules.recorded_txid)
+public.enforce_deposit_rule_part_record()   -- on deposit_rule_waiver_reach, deposit_rule_refund_disqualifiers
+```
+
+- **The rule close floor** (`enforce_deposit_rule_history`) reads `deposits.posted_on`, `deposit_events.period_end` and `deposit_return_due.due_on`. I1 adds `effective_on` for return events.
+- **The run script** for a fresh clone, strict apply and the battery: `scratchpad/run15.sh` (session-local). Its steps: `CREATE DATABASE s15 TEMPLATE tally`; `REVOKE TEMP ON DATABASE s15 FROM PUBLIC, tally_app`; apply the patch with `SET search_path=''; SET check_function_bodies=on` under `psql -1`; then the battery.
+- **The mutations** need `tally` to be the -14 build (it is). Run `python3 tests/v5.4.2-15/mutations-15.py [Mnn …]`.
 - **The mirror procedure:**
-  1. Append the body from the first `-- ---` divider before `-- 1.` onward.
-  2. Put a 4-line banner before it, following the -13 and -14 mirrors (`tu.sql` 25,931 and 26,050).
-  3. Check with `cmp` that the prefix and the appended body are unchanged.
-  4. `docker build -q -t tally-postgres -f postgres/Dockerfile . && docker rm -f -v tally-pg && docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres`.
+  1. Append the patch body from the first `-- ---` divider before `-- 1.`.
+  2. Add a 4-line banner, as at tu.sql 25,931 and 26,050.
+  3. `cmp` the prefix and the body.
+  4. Rebuild: `docker build -q -t tally-postgres -f postgres/Dockerfile . && docker rm -f -v tally-pg && docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres`, then wait for "PostgreSQL init process complete".
+  5. Run catalog identity (`tests/v5.4.2-14/parity/catalog-identity.sql`) on the clone and on the build, and diff.
 
 ## Resume Instructions
 
 1. Fetch both repos: `cd ~/code/tally-utility && git pull --ff-only; cd ~/code/gas-billing-memory && git fetch && git log --oneline HEAD..origin/main`.
-   - Expected: nothing new, or Kyle's rulings (read them before orienting).
-2. `docker ps --filter name=tally-pg`. If it has stopped, `docker start tally-pg` and wait for "PostgreSQL init process complete" (memory `tally-pg-readiness-wait`).
-3. Open `application/deposits-parity-rescope-2026-09-30.md` §4 **R-D2** and resume the discussion with Ryan there.
-4. Then do R-D3, then write `deposits-rules-for-the-core.md`, then build.
+   - Expected: nothing new, or Kyle's rulings (read those first).
+2. Run `docker ps --filter name=tally-pg`. If the container has stopped, `docker start tally-pg` and wait for the init line (memory `tally-pg-readiness-wait`).
+3. Open `tests/v5.4.2-15/review/review-findings-15-r2.md` and take D1–D5 and the stopping rule to Ryan.
+4. After his calls, fold I1–I8 plus the chosen D items into the patch.
+   - Re-run strict apply ×2, the battery, X1, `races/due-mutex-15.sh`, the mutations and the regressions, all on clones with TEMP revoked.
+   - Expected: every check green, and every new guard has a mutation caught at its named check.
 
 ## Warnings
 
-- **`tu.sql` is APPEND-ONLY.** Mirror a patch body only, then check it with `cmp`.
-- **Freeze the hash before any review round** (memory `freeze-hash-before-reviews`).
-- **Reviewer subagents may be refused a report file.** Opus sent its report in 3 SendMessages; Fable wrote its report to a file.
-- **Don't strip a deposit guard before its behaviour is written up for the core.** No battery covers -06 today.
-- **Never `git add -A` in GBM.** Log GBM canonical changes in `application/wiki-ingestion-pending.md`.
+- **`tu.sql` is append-only.** Mirror only after Ryan approves.
+- **Freeze the hash before any review round** (memory `freeze-hash-before-reviews`). One revision per round.
+- **Don't trust reviewers' "from memory" citations** (16 TAC §25.24, Pennsylvania Chapter 14). Verify them before modelling.
+- **Never `git add -A` in GBM.**
