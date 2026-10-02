@@ -40,9 +40,9 @@ SET ROLE tally_app;
 WITH r AS (SELECT id FROM public.deposit_rules WHERE state_code = 'TX' AND service_type = 'gas'
              AND customer_class = 'residential' AND basis = 'credit_evaluation' AND effective_to IS NULL),
      d AS (INSERT INTO public.deposits (tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type,
-                                        customer_class, rule_id, cap_amount, cap_basis_kind, cap_basis_amount, decided_by)
+                                        customer_class, rule_id, cap_amount, cap_basis_kind, cap_basis_amount, cap_source, decided_by)
            SELECT '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-02-01', 'TX', 'gas', 'residential', r.id,
-                  100, 'fraction_of_annual_billing', 600, 'core-test' FROM r RETURNING id, rule_id)
+                  100, 'fraction_of_annual_billing', 600, 'statute', 'core-test' FROM r RETURNING id, rule_id)
 INSERT INTO public.deposit_return_due (id, tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
 SELECT '$DUE', '$T', d.id, d.rule_id, DATE '2026-05-02', '{}', 'fp', 'core-test' FROM d;
 INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, invoice_id, classification)

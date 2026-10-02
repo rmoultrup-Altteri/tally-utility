@@ -14,14 +14,18 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
-  v5.4.2-15/                # deposits at parity: the deposit law leaves the database (DRAFT, 2026-10-02)
-    battery-15.sql          # 76 checks, groups A Z B C D E L F G; group Z stores a fictional state ZZ with
-                            #   no DDL; group L proves -06's Texas refusals are gone
+  v5.4.2-15/                # deposits at parity: the deposit law leaves the database (DRAFT; round 2 revision 2026-10-02)
+    battery-15.sql          # 104 checks, groups A Z B C D L E F W G; group Z stores a fictional state ZZ with
+                            #   no DDL (reach that halves or defers, a combined cap, a lookback); group L proves
+                            #   -06's Texas refusals are gone; W covers waiver reach and the utility's tariff grounds
     evidence-txn-15.sh      # X1: return-due evidence only in its due row's transaction (two transactions)
-    races/due-mutex-15.sh   # R1/R2: one live due row per deposit, and no due row on a returned deposit,
-                            #   hold across two sessions (the deposit-row lock)
-    mutations-15.py         # 51 mutations, each caught at its named check (battery, X1 or R1); runs
-                            #   against `tally` as a -14 BASE (tu.sql 9139367a…, 26,049 lines)
+    races/due-mutex-15.sh   # R1-R6: one live due row (READ COMMITTED and REPEATABLE READ), a due row vs a refund,
+                            #   a refund vs a withdrawal, a rate backdated during an accrual, rates only under RC
+    mutations-15.py         # 91 mutations, each caught at its named check (battery, X1 or R1-R6); runs
+                            #   against `tally` as a -14 BASE; revokes TEMP on every clone
+    review/                 # round 1: brief, frozen patch and battery, findings and dispositions; the B3 proposal
+  NOTE (2026-10-02): CREATE DATABASE … TEMPLATE does not copy the database ACL — tally_app regains TEMP on a
+  clone. Revoke it after cloning (REVOKE TEMP ON DATABASE x FROM PUBLIC, tally_app) or the depth fences are open.
   v5.4.2-14/                # meter_governing_test() without R-36's gate (the core's now), LANDED 2026-09-30
     battery-14.sql          # 6 checks: no gate column, no month count in the body, exact grants, still
                             #   answers as tally_app, comments name the core, AC-32

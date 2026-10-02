@@ -36,11 +36,11 @@ Clause references such as "§7.45(5)(C)" are carried from Kyle's research and th
 
 | # | -06 asked… | -06 lines | The core asks instead… | Texas seed |
 |---|---|---|---|---|
-| 1 | `basis IN ('credit_evaluation','additional_trigger','tariff')`: a waiver blocks it | 865 | the deposit's rule row has `waivable = true` | true for those three; false for `adequate_assurance_366` (see K2) |
+| 1 | `basis IN ('credit_evaluation','additional_trigger','tariff')`: a waiver blocks it | 865 | the customer's in-force waiver class is on the rule's reach list (`deposit_rule_waiver_reach`), for the deposit's trigger, with its effect (excuse / reduce / defer) | all four TX classes excuse the six §7.45 rules; none reaches §366 (K2) |
 | 2 | `upper(tenants.state) = 'TX'` | 876–877 | the jurisdiction from the **premise** (design §3.4), never the utility's home state | — |
 | 3 | `customer_type = 'residential'` | 877 | the account's deposit class (`deposit_customer_classes`), decided by the core from the tariff (K1) | residential, non_residential |
 | 4 | `instrument = 'cash'` for the cap | 877 | the rule's `cap_kind ≠ none`; whether non-cash counts toward the cap is K5 | cap on residential cash |
-| 5 | `cap_amount IS NULL` refused | 877–881 | `cap_kind ≠ none` ⇒ the deposit records its cap and cap basis (`cap_basis_kind`, `cap_basis_amount`) | `fraction_of_annual_billing`, 1/6 |
+| 5 | `cap_amount IS NULL` refused | 877–881 | `cap_kind ≠ none` ⇒ the deposit records the cap that applied — the statute's, or a tighter one from the utility's tariff (`cap_source`) — with its basis; under `cap_scope = combined`, what else was held (`cap_other_held`) | `fraction_of_annual_billing`, 1/6 |
 | 6 | `instrument <> 'cash'` refuses interest | 964–966 | `instrument ∈ interest_bearing_instruments` | {cash} |
 | 7 | `effective_on − posted_on < 31` refuses an accrual | 967–969 | `interest_min_hold_days` (NULL = from day 1) | 30 |
 | 8 | first period must start ON `posted_on` | 978–981 | `interest_retroactive = true` ⇒ first period starts on `posted_on`; false ⇒ on `posted_on + interest_min_hold_days` | true |
@@ -57,14 +57,16 @@ Clause references such as "§7.45(5)(C)" are carried from Kyle's research and th
 
 ## 2. Posting a deposit
 
-**2.1 A waiver in force blocks a waivable deposit** (-06 L865–874; CI-129; D-40; #53 ranks 0–3; #55 rule 8).
+**2.1 A waiver in force relieves a deposit it reaches** (-06 L865–874; CI-129; D-40; #53 ranks 0–3; #55 rule 8; v5.4.2-15 review B3).
 - A waiver determination is *in force on the posting date* when `determined_on ≤ posted_on` and (`certification_expires_on` is NULL or `≥ posted_on`). Both ends are inclusive.
-- If the deposit's rule row is `waivable` and **any** determination of **any** class is in force, no deposit may be required. -06 does not ask which class: every class blocks every waivable basis.
+- Find the rule's reach rows (`deposit_rule_waiver_reach`) for the customer's in-force waiver classes, matching the deposit's trigger (a row with no trigger matches any). Apply the effect: excuse (no deposit), reduce (by `reduce_fraction`), or defer (by `defer_days`). There is no ranking among classes; where several reach, apply the strongest (excuse, then the larger reduction, then deferral) and record which one.
+- -06 did not ask which class: every class blocked every §7.45 basis. The Texas seed reproduces that (24 reach rows) and gives §366 none (K2: Kyle's answer is a close of the two §366 rules and successors with reach rows).
+- A **tariff** waiver (a class marked `tariff_defined`) rests on the utility's own ground (`deposit_tariff_waiver_grounds`), which carries its own scope (bases, customer classes, triggers) and effect. It relieves a deposit only where the law's tariff class reaches the rule **and** within the ground's scope.
 - This includes an additional-trigger deposit: a waiver attaches to the person, a trigger to behaviour, so the waiver is re-checked when a trigger fires (#55 rule 8).
 - A determination is a recorded point-in-time act, not a re-derivation (#53 OQ2). A certification lapsing later does not reopen a deposit that was lawfully waived.
 - **Not in -06, in the sources:** #53 rank 4: if any waiver input is unevaluable (for example `date_of_birth` NULL for the 65+ waiver), **no deposit**. Fail open. The core must implement it (DG3).
 
-**2.2 The cap** (-06 L875–881, CHECKs L626–628; CI-129; D-41; #53 rank 8; #55 rule 9).
+**2.2 The cap** — the deposit records the cap that applied and its source: the statute (the rule's cap) or the utility's tariff (Ryan, 2026-10-02, B2). A tariff cap may be tighter than the statute's, or exist where the statute sets none. (-06 L875–881, CHECKs L626–628; CI-129; D-41; #53 rank 8; #55 rule 9).
 - Where the rule row's `cap_kind ≠ none`, the deposit records its cap amount and the basis it was computed from. Texas: 1/6 of estimated annual billing, residential.
 - `principal ≤ cap_amount` and "`cap_binding` ⇒ `principal = cap_amount`" stay as CHECKs (design §1): arithmetic on the recorded cap.
 - `cap_binding` must be set when the cap reduced the computed amount: the customer is entitled to know (#53 outputs).
@@ -187,6 +189,8 @@ The rate is 3% (0.030000) unless stated, the deposit $200 cash, posted 2026-01-0
 | B20 | **Disconnect ordering.** Disconnect; $200 deposit, $120 balance | $120 applied, $80 refunded; interest on $200 to the application date (#54 test note) |
 
 ---
+
+**5.5 Which rule a later record cites** (Ryan, 2026-10-02, B1). An accrual, a return or a due row cites either the rule the deposit was decided under (the old law governs it) or the rule of the same state, service, class and basis in force over the dates the record covers (a later law reaches deposits already held). The amendment decides which; the core records it.
 
 ## 7. Where -06 and its sources disagree (for Kyle and Ryan)
 

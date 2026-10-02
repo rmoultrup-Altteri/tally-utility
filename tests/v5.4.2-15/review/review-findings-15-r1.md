@@ -43,6 +43,20 @@ Reviewer IDs: Opus F1–F12, Fable F-1..F-11, Codex R-1..R-5.
 | C3 | The recorded cap isn't checked against basis ÷ divisor | Fable F-7 (P4a) | It is the formula, and the rounding convention is the core's. Recording both makes a mismatch visible |
 | C4 | A due row that a refund cites can still be withdrawn afterwards | Fable F-8b | By design (§3.5): a withdrawal says the answer was wrong and moves no money; the correction is the deposit's events |
 
+## Round-2 revision (2026-10-02)
+
+Ryan decided B1 (option 3: the deposit's own rule or one of its key in force over the record's dates), B2 (record the cap's source) and B3 (the reach table, after Opus, Fable and Codex reviewed the proposal — `proposal-b3-waiver-reach.md` — with their changes: composite key, written with its rule, a trigger and an effect per row, tariff waivers as the utility's rows). A1–A15 folded as proposed. Residuals C1–C4 stated in the patch (R8–R11), and the open B3 follow-ups in R12.
+
+Verification of the revision:
+- strict apply twice;
+- battery-15: 104;
+- X1;
+- races R1–R6;
+- mutations 91/91;
+- regressions 28/58/41/116/3/99/6 and -13's X1.
+
+All of it ran on clones with TEMP revoked (A15).
+
 ## Also pending from before the round
 
 - The **DIVERGENCE** in the patch header (accrued interest must be credited by the last event). Ryan has not yet confirmed it; no reviewer objected.

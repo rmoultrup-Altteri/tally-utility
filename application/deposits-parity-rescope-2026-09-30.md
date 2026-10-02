@@ -84,7 +84,7 @@ These follow the -13 conventions:
 
 | Column | Meaning |
 |---|---|
-| `waivable` | An in-force waiver of a class that reaches this basis means no deposit may be required |
+| ~~`waivable`~~ | Replaced after review round 1 by `deposit_rule_waiver_reach` (§3.7): which waiver classes reach the rule, per trigger, with what effect |
 | `cap_kind` | `none` / `fraction_of_annual_billing` / `months_of_billing` / `fixed_amount` |
 | `cap_divisor`, `cap_months`, `cap_amount_fixed` | The figure the kind needs: a divisor of annual billing (Texas residential: 6, i.e. 1/6, stored exactly), a number of months, or an amount. Built this way in v5.4.2-15 instead of one `cap_factor`, because 1/6 has no exact decimal |
 | `cap_scope` | `per_deposit` / `combined` (#55 rule 9: the cap governs the total held) |
@@ -171,6 +171,22 @@ The core decides when a deposit's mandatory return falls due. The schema records
 
 The patch follows this design with the three changes noted above (the cap figures, where reasons live, where the supersession link lives) and one divergence for Ryan:
 - **Interest accrued must be credited by the last event.** §2 drops "credited in full before the refund" as law. The patch keeps the arithmetic half: a refund or release is the deposit's last event, so interest already **accrued on the record** must be **credited** by then, or the ledger closes owing money it can never pay. Whether interest is owed, and to which date, stays the core's.
+
+### 3.7 After review round 1 (2026-10-02)
+
+Opus, Fable and Codex all said "not yet" on the first draft (`tests/v5.4.2-15/review/review-findings-15-r1.md`). Ryan's decisions:
+- **B1, which rule a later record cites:** the deposit's own rule, or the rule of its key in force over the record's dates. An amendment may spare or reach deposits already held.
+- **B2, the cap's source:** the deposit records whether its cap came from the statute or the utility's tariff (with the tariff provision). A tariff cap may be tighter, or exist where the law sets none.
+- **B3, waiver reach** (the proposal was reviewed by the same three before building): the `waivable` column on §3.2 is replaced by `deposit_rule_waiver_reach`: one row per (rule, waiver class, trigger), with an effect (excuse, reduce, defer).
+  - The utility's own tariff waivers are its rows (`deposit_tariff_waiver_grounds`), each with its own scope and effect. The law keeps only the permission (`deposit_waiver_classes.tariff_defined`).
+
+The other 15 findings were fixed as recorded. They added these shapes:
+- class-specific interest rates;
+- a combined cap's `cap_other_held`;
+- partial returns (`principal_returned`);
+- a refund lookback and disqualifiers as rows;
+- a time-held return reason resting on the deposit itself;
+- each return reason tied to the rule attribute that enables it.
 
 ## 4. Decisions for Ryan
 
