@@ -211,7 +211,8 @@ The discussion that led here (kept for the record):
   - **The core checks on events** (payment received, bill past due, account status change), not a daily sweep. That's the core's design.
   - **Why store it at all:** it's the evidence of meeting a standing obligation ("she qualified in March, so why was she refunded in August?"), permanent and next to the money; it's the same split as -13's evaluations; and it's the list Kyle asked for.
 
-**R-D3. Numbering.**
+**R-D3. Numbering. DECIDED (Ryan, 2026-10-01): as recommended.** The deposits patch is v5.4.2-15. The delivery patch is called "the delivery patch" and takes a number only when drafted. Landed text that says "-14" (in -13) or "-15" (in -14) means the delivery patch; it is not edited (tu.sql is append-only), and -15's header says so.
+
 - This would be v5.4.2-15. The delivery patch has been renumbered once already, to -15 by -14's header.
 - **Recommend:** from now on, call it "the delivery patch" rather than by number. Each patch takes the next number when it's drafted.
 

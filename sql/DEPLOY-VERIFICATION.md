@@ -21,6 +21,7 @@
 - Four comments that said the database computes the gate are re-issued: the function, `tenants.cutover_date`, `meter_tests.record_basis` and `meter_test_absence_declarations`.
 - The gate is the calculation core's (`application/a2-rules-for-the-core.md` §9.1) and is recorded on `meter_correction_evaluations.approval_required`.
 - The delivery patch the -13 text calls "-14" is now v5.4.2-15.
+  - **Superseded (Ryan, R-D3, 2026-10-01):** it is "the delivery patch", with no number. Each patch takes the next number when it is drafted, so v5.4.2-15 is the deposits patch. Read "-14" in -13 and "-15" in -14 (and its tu.sql banner) as "the delivery patch".
 
 **Method.**
 1. Strict apply twice on a clone of the -13 build: clean.
