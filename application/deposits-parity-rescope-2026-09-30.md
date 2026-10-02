@@ -86,7 +86,7 @@ These follow the -13 conventions:
 |---|---|
 | `waivable` | An in-force waiver of a class that reaches this basis means no deposit may be required |
 | `cap_kind` | `none` / `fraction_of_annual_billing` / `months_of_billing` / `fixed_amount` |
-| `cap_factor`, `cap_amount_fixed` | The number the kind needs (Texas residential: 1/6 of annual) |
+| `cap_divisor`, `cap_months`, `cap_amount_fixed` | The figure the kind needs: a divisor of annual billing (Texas residential: 6, i.e. 1/6, stored exactly), a number of months, or an amount. Built this way in v5.4.2-15 instead of one `cap_factor`, because 1/6 has no exact decimal |
 | `cap_scope` | `per_deposit` / `combined` (#55 rule 9: the cap governs the total held) |
 | `interest_bearing_instruments` | Which instruments earn interest (Texas: cash) |
 | `interest_min_hold_days` | No interest unless held longer (Texas: 30; NULL = from day 1) |
@@ -138,7 +138,7 @@ The core decides when a deposit's mandatory return falls due. The schema records
 
 - **`deposit_return_due`** (append-only, RLS, one row per answer):
   - `deposit_id`, `tenant_id`, `rule_id`, `due_on`;
-  - the reason or reasons (`account_closed`, `clean_bill_history`, …) as child rows keyed to a vocabulary, so a state with another trigger is rows only; both reasons firing at once make one due row with two reasons, not two due rows;
+  - the reason or reasons (`account_closed`, `clean_bill_history`, …) from a vocabulary (`deposit_return_reasons`), so a state with another trigger is rows only; both reasons firing at once make one due row with two reasons, not two due rows. As built in v5.4.2-15, each reason is carried on its evidence rows (one row per reason and record) rather than in a separate reasons table;
   - `inputs_fingerprint` and `calculated_by` (the core version);
   - created_at and created_by stamped by the database.
 - **`deposit_return_due_evidence`**: what the answer rests on, written in the same transaction as its due row (-13's evidence pattern):
@@ -147,7 +147,7 @@ The core decides when a deposit's mandatory return falls due. The schema records
   The counts are derived from these rows, not stored beside them.
 - **`deposit_return_due_withdrawals`**: says a due row was wrong (a reversed payment, a corrected bill, a core bug):
   - `due_id` (unique: a row is withdrawn once), `reason`, `calculated_by`, stamped time and role;
-  - optionally `replacement_due_id` when the corrected answer is still "due", on another date or rule;
+  - a corrected answer is a new due row naming the withdrawn one (`deposit_return_due.supersedes_due_id`, once each). As built in v5.4.2-15 the link is on the new row, not the withdrawal: the withdrawal must come first (one live row per deposit), so it cannot name a row that doesn't exist yet;
   - a withdrawal never moves money. If a return was already made, it is corrected through the deposit's own events.
   - A customer falling behind after qualifying is **not** a withdrawal. Whether the return is still owed is law (`refund_obligation_vests`, K6), decided by the core.
 - **`deposit_events.refund_initiated` / `released`** may cite the due row they settle. It is optional, because voluntary and §366 returns have none.
@@ -166,6 +166,11 @@ The core decides when a deposit's mandatory return falls due. The schema records
   The core checks on events (payment received, bill past due, status change, import, reversal, bill correction). Whether it also runs a read-only reconcile that writes only when it disagrees with the live row is the core's design (Opus raised it; noted for the core).
 
 ---
+
+### 3.6 As built (v5.4.2-15, 2026-10-02)
+
+The patch follows this design with the three changes noted above (the cap figures, where reasons live, where the supersession link lives) and one divergence for Ryan:
+- **Interest accrued must be credited by the last event.** §2 drops "credited in full before the refund" as law. The patch keeps the arithmetic half: a refund or release is the deposit's last event, so interest already **accrued on the record** must be **credited** by then, or the ledger closes owing money it can never pay. Whether interest is owed, and to which date, stays the core's.
 
 ## 4. Decisions for Ryan
 
