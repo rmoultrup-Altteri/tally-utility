@@ -51,7 +51,8 @@
 | `enforce_deposit_event`, refunded branch | held ≤ 30 days ⇒ no accrual; > 30 ⇒ accrued to the horizon and credited in full; the horizon = earlier of return and exhaustion; legacy exception with a reason | CI-130, CI-131; D-39 |
 | `deposit_accrual_amount()` | the Texas interest formula (simple, actual/365, rounded to cents) | CI-130 |
 | `deposit_refund_trigger_state()` | 12 clean bills, ≤ 2 delinquencies, not delinquent; the definitions of "clean" and "delinquent" | CI-131 |
-| `deposits_refund_due` view | which bases are refund-mandatory (an IN list); closed/final/inactive fires it | CI-131; #54 rules 1–3 |
+| `deposits_refund_due` view | which bases are refund-mandatory (an IN list); closed/final/inactive fires it. Replaced by the recorded answer (§3.5) | CI-131; #54 rules 1–3 |
+| `deposits.refund_eligibility_on` | an informational "earliest the trigger could fire" date; it would compete with the recorded due rows (§3.5). Found by the R-D2 council | -06 line 608 |
 | `deposit_interest_rate_as_of(tenant, date)` | which rate applies, keyed per utility | CI-125 |
 | CHECK lists: `deposits.basis`, `trigger_basis`, `waiver_class`, the family-violence certification CHECK | Texas's categories as DDL | #53, #55 |
 
@@ -93,6 +94,8 @@ These follow the -13 conventions:
 | `interest_method`, `interest_day_count`, `interest_credit_cadence` | `simple`/`compound_annual`; `actual_365`/`actual_actual`; `at_refund`/`annual`/`on_bill` |
 | `refund_mandatory` | Must be refunded without being asked when the trigger fires (Texas §7.45 bases: yes; §366: no) |
 | `refund_after_count`, `refund_measure`, `refund_max_delinquencies`, `refund_disqualify_on_disconnect`, `refund_on_account_close` | Texas: 12 bills, ≤ 2, disqualifying disconnect, refund on close |
+| `refund_obligation_vests` | Once the trigger fires, the return stays owed even if the customer falls behind before it is made (Kyle question K6) |
+| `return_mandatory_instruments` | Which instruments the mandatory return covers: cash is refunded, non-cash is released |
 | `source_note` | The citation |
 
 **Texas gas is seeded once, from what -06 enforces.**
@@ -129,6 +132,39 @@ These follow the -13 conventions:
   - a consistency check that `rate_applied` equals the cited rate row's rate. It is record integrity, like -13's rule-for-cause check.
 - **`trigger_basis`** becomes a foreign key to `deposit_triggers`, and `basis` a foreign key to `deposit_bases`.
 
+### 3.5 The return-due record (R-D2, Ryan, 2026-10-01)
+
+The core decides when a deposit's mandatory return falls due. The schema records that answer when it happens and never computes it. It is called *return* due because a non-cash deposit is released, not refunded.
+
+- **`deposit_return_due`** (append-only, RLS, one row per answer):
+  - `deposit_id`, `tenant_id`, `rule_id`, `due_on`;
+  - the reason or reasons (`account_closed`, `clean_bill_history`, …) as child rows keyed to a vocabulary, so a state with another trigger is rows only; both reasons firing at once make one due row with two reasons, not two due rows;
+  - `inputs_fingerprint` and `calculated_by` (the core version);
+  - created_at and created_by stamped by the database.
+- **`deposit_return_due_evidence`**: what the answer rests on, written in the same transaction as its due row (-13's evidence pattern):
+  - one row per bill, with the core's classification (clean / delinquent);
+  - or the account-closure event the row relies on.
+  The counts are derived from these rows, not stored beside them.
+- **`deposit_return_due_withdrawals`**: says a due row was wrong (a reversed payment, a corrected bill, a core bug):
+  - `due_id` (unique: a row is withdrawn once), `reason`, `calculated_by`, stamped time and role;
+  - optionally `replacement_due_id` when the corrected answer is still "due", on another date or rule;
+  - a withdrawal never moves money. If a return was already made, it is corrected through the deposit's own events.
+  - A customer falling behind after qualifying is **not** a withdrawal. Whether the return is still owed is law (`refund_obligation_vests`, K6), decided by the core.
+- **`deposit_events.refund_initiated` / `released`** may cite the due row they settle. It is optional, because voluntary and §366 returns have none.
+- **The view `deposits_return_owed`**: due rows not withdrawn, on deposits with no refund or release recorded yet. It reads recorded answers and computes no law.
+  - A deposit fully applied to its final bill stays on the list until its (zero) refund is recorded, because interest may still be owed at refund.
+- **What the database checks (integrity only, never whether the answer is right):**
+  - the due row's `rule_id` is the deposit's `rule_id`, and that rule row's `refund_mandatory` is true (this keeps §366 deposits out by reading a stored attribute, like -13's rule-for-cause check);
+  - at most one live (not withdrawn) due row per deposit;
+  - no due row on a deposit that is already refunded or released;
+  - evidence bills belong to the deposit's customer and are dated on or after `posted_on`; a closure reason cites a closure event of that customer;
+  - evidence is added only in its due row's transaction;
+  - reason codes are known vocabulary rows.
+- **Not in the schema:**
+  - no "last checked" column;
+  - no row per check.
+  The core checks on events (payment received, bill past due, status change, import, reversal, bill correction). Whether it also runs a read-only reconcile that writes only when it disagrees with the live row is the core's design (Opus raised it; noted for the core).
+
 ---
 
 ## 4. Decisions for Ryan
@@ -143,7 +179,23 @@ Why:
 
 This supersedes the first recommendation (a platform rate the core uses, with a per-utility override for a higher rate).
 
-**R-D2. The refund-due surface. OPEN: Ryan is thinking it over (2026-09-30). The next session starts here.**
+**R-D2. The refund-due surface. DECIDED (Ryan, 2026-10-01): record the core's answer when the return falls due, with a separate withdrawal table (§3.5).**
+
+How it was decided:
+- Ryan put the recommendation below to a council: Claude Opus 5.5, an Opus subagent and Codex (`gpt-5.5`, high reasoning effort).
+- **All three chose A over B.** Only a record written at the time answers "she qualified in March, so why was she refunded in August?". Recomputing later replays the rule over bills that may since have been corrected.
+- **All three found the same hole:** one append-only "became due" row can't be taken back, so a wrong row would stay on the list for good. They also agreed on:
+  - citing the bills, not just counts;
+  - the integrity checks in §3.5;
+  - covering non-cash release;
+  - no "last checked" column;
+  - Kyle question K6.
+- **Where they split, and how it was settled:**
+  - **Withdrawal shape.** Opus proposed a running series of "due" / "not due" rows, the latest one counting. Codex proposed a separate withdrawal record. Ryan chose the separate table, because "not due any more" would blur "the answer was wrong" with "the obligation lapsed", and the second is law (K6).
+  - **A deposit used up by its final bill.** Codex would drop it from the list. Opus keeps it until the zero refund is recorded. The doc follows Opus, because interest may still be owed at refund.
+  - **Missed triggers.** Opus suggested a read-only reconcile in the core. Codex called a missed trigger a core bug. Neither puts it in the schema, so it is noted for the core.
+
+The discussion that led here (kept for the record):
 
 - **The obligation.** A §7.45 deposit must be refunded without the customer asking once its trigger fires (12 clean bills, ≤ 2 late, none overdue; or the account closes). Kyle's #54 wants an owed-but-unstarted refund visible.
 - **Today.** -06's `deposit_refund_trigger_state()` and the `deposits_refund_due` view decide that in the database, which is Texas law in DDL.
@@ -170,6 +222,7 @@ This supersedes the first recommendation (a platform rate the core uses, with a 
 - **K3.** The 65+ waiver: is it mandatory, or tariff-by-tariff (the contradiction the audit notes)?
 - **K4.** Is the cap per deposit or combined (#55 rule 9 says combined)? -06 checks it per deposit.
 - **K5.** Residential non-cash instruments (#55 rule 2, "decide, do not default").
+- **K6.** A customer meets the refund trigger, then falls behind before the refund is made. Is the refund still owed (`refund_obligation_vests`)? Codex leaned yes. Either answer is a rule-row value.
 
 ## 6. Before anything is stripped
 
@@ -178,12 +231,21 @@ This supersedes the first recommendation (a platform rate the core uses, with a 
    - a rate change mid-hold;
    - exhaustion by applications;
    - the zero refund of a fully applied deposit;
-   - the legacy exception.
+   - the legacy exception;
+   - for the return-due answer (§3.5): qualifying then falling behind (K6), both reasons at once, a reversed payment that un-cleans a counted bill, and each event that must prompt a check.
 
    This is the scenario material the lost battery would have been.
 2. **A new battery**, testing:
    - that Texas is stored as rows;
    - a fictional state ZZ with other classes, a month cap, interest from day 1 credited annually, a 24-month refund measure and a waiver class Texas lacks, all with no DDL;
    - every kept integrity guard, as `tally_app`;
+   - the return-due record (§3.5):
+     - due, then withdrawn, then due again;
+     - a second live due row refused;
+     - a due row refused on a refunded or released deposit;
+     - a due row refused for §366 (rule not refund-mandatory) and for a rule that isn't the deposit's;
+     - evidence citing another customer's bill, or added in a later transaction, refused;
+     - a fully applied deposit stays on `deposits_return_owed` until its zero refund;
+     - a non-cash release clears the row;
    - the patch's legacy and backfill paths on a pre-seeded clone.
 3. **Mutations** for every guard, on a -14 base.
