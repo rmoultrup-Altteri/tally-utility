@@ -30,3 +30,29 @@ Reviewer IDs: Opus F1–F9, Fable F1–F11 (written here as Fb-n), Codex R2-1..R
 | D3 | A deposit paid in instalments | Opus F7, Fable Fb-F11 | Opus: Pennsylvania Chapter 14 (not verified) | Model it, or accept two deposit rows / leave it residual? |
 | D4 | A mandatory PARTIAL return (refund the excess over a cap) tied to a due row | Codex R2-1 | rules-for-the-core §2.2 (refund Alt 4) | A due row with an amount, settled by a partial return? |
 | D5 | Waivers that reduce TO an amount or substitute an instrument; disqualifiers with their own window | Fable Fb-F10 | none (hypothetical) | Residual? |
+
+## Citations checked (2026-10-04, after the round)
+
+The reviewers cited D2 and D3 from memory. Both citations were wrong, but each shape exists in real law under another section.
+
+| Item | Cited | What the text says | Effect on the decision |
+|---|---|---|---|
+| D2 | 16 TAC §25.24 (Texas electric), "lesser of" | §25.24(f) is a single cap: "The total of all deposits shall not exceed an amount equivalent to one-sixth of the estimated annual billing." "Lesser", "greater" and "two months" appear nowhere in it. The two-part cap is in **16 TAC §25.478(e)(1)(A)** (retail electric providers), and it is the opposite operator: "the **greater** of: (i) one-fifth of the customer's estimated annual billing; or (ii) the sum of the estimated billings for the next two months." | Real shape, but not Texas gas: **§7.45(5)(C)(ii) is a single cap** ("shall not exceed ... one-sixth of the estimated annual billings"). If built, the combinator must hold both lesser-of and greater-of. |
+| D3 | Pennsylvania Chapter 14 | **52 Pa. Code §56.42** (implements 66 Pa.C.S. Ch. 14; covers natural gas distribution companies; amended eff. 2019-06-01). (b) delinquent account: the customer "may elect" three instalments, 50% on determination, 25% at 30 days, 25% at 60 days; the utility must offer the option. (c) reconnection: 50% before reconnection, 25% at 30 and 60 days. (d) broken payment arrangement: the same. A missed instalment is grounds for termination (§56.81); the customer may pay in full early. | **Verified gas law.** One deposit, a required amount paid on a statutory schedule: the deposit's required amount and its paid amount become separate figures. This is the invasive migration, so decide it now rather than later. |
+
+### New: the Texas gas statute's own additional-deposit trigger is missing
+
+§7.45(5)(C)(ii): "If actual use is at least twice the amount of the estimated billings, a new deposit requirement may be calculated and an additional deposit may be required within two days." Same shape in §25.24(d)(1)(A) for electric.
+
+- The trigger vocabulary (`nsf`, `disconnect_history`, `broken_dpa`) comes from Kyle's #55 rules 5–7. It has no usage trigger. Neither the -15 patch nor `deposits-rules-for-the-core.md` mentions one.
+- This is a **parity gap with the statute**, not a hypothetical shape. Proposed: a `usage_doubled` trigger row, plus a Kyle question (K9: why #55 omits it).
+- It changes **D1**: the threshold is a ratio of actual use to estimated billing, not "N events in M months". A threshold part built only for event counts would not hold it.
+
+### Schema vs core: which shapes need a migration (discussed with Ryan, 2026-10-04)
+
+Vocabulary values (bases, triggers, classes, waiver classes, disqualifiers, reasons, rates) are rows; a new value is data plus core code. A rule's **shape** is closed (one column per setting on `deposit_rules`, CHECKs listing the kinds), so every D item is a schema change. They differ in cost:
+
+- **Additive, cheap to make later:** D1 (threshold columns or a part table), D4 (nullable amount on `deposit_return_due`), D5 (a window on `deposit_rule_refund_disqualifiers`; new waiver effects).
+- **Changes the meaning of existing columns:** D2 (cap moves into parts) is moderate. D3 (required vs paid amount) is expensive: status, interest basis, refund amount and `cap_other_held` all read the one amount.
+
+Sources: [16 TAC §25.24](https://www.law.cornell.edu/regulations/texas/16-Tex-Admin-Code-SS-25-24) · [16 TAC §25.478](https://www.law.cornell.edu/regulations/texas/16-Tex-Admin-Code-SS-25-478) · [16 TAC §7.45](https://www.law.cornell.edu/regulations/texas/16-Tex-Admin-Code-SS-7-45) · [52 Pa. Code §56.42](https://pacodeandbulletin.gov/secure/pacode/data/052/chapter56/s56.42.html)

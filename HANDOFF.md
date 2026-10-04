@@ -1,8 +1,19 @@
-# Handoff: v5.4.2-15 deposits at parity — round 2 reviewed; decide D1–D5, then build round 3
+# Handoff: v5.4.2-15 deposits at parity — citations checked; decide D1–D5 (+ usage trigger), then build round 3
 
-**Generated**: 2026-10-02 (end of session)
-**Branch**: tally-utility `main` (`1a7097b` plus this wrap-up) · gas-billing-memory `main` (`091c990`, no new Kyle commits at the start of the session)
-**Status**: Blocked on Ryan's decisions D1–D5 and the proposed stopping rule. -15 is a DRAFT: not mirrored into tu.sql, not landed.
+**Generated**: 2026-10-04 (end of a short session)
+**Branch**: tally-utility `main` (`6611c92` plus this wrap-up) · gas-billing-memory `main` (`091c990`, no new Kyle commits as of 2026-10-04)
+**Status**: Blocked on Ryan's decisions D1–D5, the stopping rule, and the new `usage_doubled` trigger gap. -15 is a DRAFT: not mirrored into tu.sql, not landed.
+
+## This session (2026-10-04), no code changed
+
+- Explained D1–D5 to Ryan in plain language, then answered "which need a schema change vs only the core?" Every D item is a schema change, because a rule's *shape* is closed (one column per setting on `deposit_rules`, CHECKs listing kinds); only vocabulary values are rows. They differ in cost:
+  - **Additive (cheap later):** D1, D4, D5.
+  - **Changes the meaning of existing columns:** D2 is moderate (the cap moves into parts). D3 is expensive (required vs paid amount ripples into status, interest basis, refund amount and `cap_other_held`). **Decide D2 and D3 now.**
+- **Checked the citations** (recorded in `tests/v5.4.2-15/review/review-findings-15-r2.md`, section "Citations checked"):
+  - **D2:** 16 TAC §25.24 has NO two-part cap. The real one is §25.478(e)(1)(A) (retail electric), and it's "**greater** of 1/5 annual or the next two months' bills". Texas gas §7.45(5)(C)(ii) is a single 1/6 cap. So D2 isn't needed for TX gas; if built, the combinator must hold lesser-of and greater-of.
+  - **D3:** VERIFIED. 52 Pa. Code §56.42 (gas included; eff. 2019-06-01) lets the customer elect 50/25/25 instalments at 0/30/60 days for delinquency, reconnection, or a broken payment plan. A missed instalment is grounds for termination.
+  - **NEW parity gap:** §7.45(5)(C)(ii) lets the utility require an additional deposit "if actual use is at least twice the amount of the estimated billings". There's no such trigger in our vocabulary (`nsf`, `disconnect_history`, `broken_dpa` come from Kyle #55), the patch, or rules-for-the-core. Proposed: a `usage_doubled` trigger plus K9 for Kyle. It also means D1's threshold must hold a usage ratio, not only "N events in M months".
+- Ryan has NOT yet decided anything. He was given the revised picture and asked to pick up later.
 
 ## Goal
 
@@ -51,13 +62,14 @@ This is the same pattern as -13. The ground rules (memories `schema-represents-c
 
 ## Not Yet Done (in order)
 
-1. [ ] **Ryan decides D1–D5 and the stopping rule** ("model a shape when it has a real source, such as a statute, Kyle's tables or our own design; record hypothetical shapes as residuals"). My recommendations:
-   - **D1, additional-deposit thresholds (#55 rules 5–7):** build it, as a rule part plus a utility table (the R-D1 pattern).
-   - **D2, two-part caps** (lesser-of; a ceiling or floor): build it, as cap parts plus a combinator.
-   - **D3, deposits paid in instalments:** build it if the citation checks out. Pennsylvania Chapter 14 is unverified.
-   - **D4, a mandatory partial return tied to a due row:** build it, as a due row with an amount, settled by `principal_returned`.
-   - **D5, reduce-to-amount, instrument substitution, per-disqualifier windows:** residual.
-   - Explain each in plain language (memories `prefers-discussion-over-canned-options`, `explain-jargon-in-the-question`).
+1. [ ] **Ryan decides D1–D5, the stopping rule, and the `usage_doubled` trigger.** The stopping rule: "model a shape when it has a real source, such as a statute, Kyle's tables or our own design; record hypothetical shapes as residuals". Current recommendations, as revised 2026-10-04:
+   - **D1, additional-deposit thresholds:** build it, as a rule part plus a utility table (the R-D1 pattern). It must hold both an event count over a window (#55) and a usage ratio (§7.45).
+   - **D2, two-part caps:** real (TX §25.478, greater-of) but not TX gas. A moderate migration. Ryan's call whether to do it now.
+   - **D3, instalments:** verified (Pa. §56.42) for gas. An expensive migration, so decide the shape now even if no rule uses it yet.
+   - **D4, a mandatory partial return:** build it, as a due row with an amount, settled by `principal_returned`. Additive.
+   - **D5:** residual (no source). Additive if ever needed.
+   - **New:** add a `usage_doubled` trigger (§7.45(5)(C)(ii)), and ask Kyle K9 (why #55 omits it).
+   - Discuss in prose, not menus (memories `prefers-discussion-over-canned-options`, `explain-jargon-in-the-question`).
 2. [ ] **Fold I1–I8** (no decision needed):
    - **I1:** the close floor reads `coalesce(period_end, effective_on)`.
    - **I2:** `deposit_return_reasons.requires_measure`, and the delinquency limit becomes optional under a count.
@@ -75,7 +87,7 @@ This is the same pattern as -13. The ground rules (memories `schema-represents-c
 5. [ ] Still open:
    - Ryan's R12 follow-ups (a record of a waived deposit; an explicit "no waiver reaches" flag; fail open or closed on missing input; which waiver to record when two are in force; a waiver granted while a deposit is held);
    - the DIVERGENCE (accrued interest must be credited by the deposit's last event), which Ryan has not confirmed;
-   - Kyle K1–K8;
+   - Kyle K1–K8, plus K9 (the usage-doubled trigger) once Ryan agrees;
    - the rest of the landed-law strip in audit §4 order.
 
 ## Failed Approaches (Don't Repeat These)
@@ -143,7 +155,7 @@ public.enforce_deposit_rule_part_record()   -- on deposit_rule_waiver_reach, dep
 1. Fetch both repos: `cd ~/code/tally-utility && git pull --ff-only; cd ~/code/gas-billing-memory && git fetch && git log --oneline HEAD..origin/main`.
    - Expected: nothing new, or Kyle's rulings (read those first).
 2. Run `docker ps --filter name=tally-pg`. If the container has stopped, `docker start tally-pg` and wait for the init line (memory `tally-pg-readiness-wait`).
-3. Open `tests/v5.4.2-15/review/review-findings-15-r2.md` and take D1–D5 and the stopping rule to Ryan.
+3. Open `tests/v5.4.2-15/review/review-findings-15-r2.md`: the D table, then "Citations checked" at the bottom. Ryan has already heard the explanation and the schema-vs-core cost split, so start from his decisions rather than re-explaining.
 4. After his calls, fold I1–I8 plus the chosen D items into the patch.
    - Re-run strict apply ×2, the battery, X1, `races/due-mutex-15.sh`, the mutations and the regressions, all on clones with TEMP revoked.
    - Expected: every check green, and every new guard has a mutation caught at its named check.
@@ -152,5 +164,5 @@ public.enforce_deposit_rule_part_record()   -- on deposit_rule_waiver_reach, dep
 
 - **`tu.sql` is append-only.** Mirror only after Ryan approves.
 - **Freeze the hash before any review round** (memory `freeze-hash-before-reviews`). One revision per round.
-- **Don't trust reviewers' "from memory" citations** (16 TAC §25.24, Pennsylvania Chapter 14). Verify them before modelling.
+- **Don't trust reviewers' "from memory" citations.** Both D2 and D3 were mis-cited (§25.24 has no two-part cap; the real one is §25.478 and is greater-of). Verify against the text (Cornell LII works with WebFetch; Justia returns 403).
 - **Never `git add -A` in GBM.**

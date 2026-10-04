@@ -4,6 +4,35 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-04 — deposits (-15): D1–D5 explained; schema-vs-core cost mapped; D2/D3 citations checked; Texas usage trigger found missing
+
+**What was done:**
+- Resumed from the handoff; no drift in either repo.
+- Explained D1–D5 to Ryan in plain language.
+- Answered "which shapes need a schema change and which need only the core?":
+  - Vocabulary values are rows.
+  - A rule's shape is closed (columns plus CHECKs), so every D item needs a migration.
+  - Additive and cheap later: D1, D4, D5. Changes the meaning of existing columns: D2 (moderate) and D3 (expensive).
+- **Checked the citations** against the regulation text; recorded in `tests/v5.4.2-15/review/review-findings-15-r2.md` ("Citations checked"):
+  - **D2:** 16 TAC §25.24 has no two-part cap. The real one is §25.478(e)(1)(A), and it is *greater* of 1/5 annual or the next two months' bills. Texas gas §7.45(5)(C)(ii) is a single 1/6 cap.
+  - **D3:** verified. 52 Pa. Code §56.42 gives an elective 50/25/25 instalment plan at 0/30/60 days, and it covers gas.
+  - **New gap:** §7.45(5)(C)(ii) lets the utility require an additional deposit when actual use is at least twice the estimated billings. It is missing from the trigger vocabulary, the patch and rules-for-the-core.
+
+**Decisions:**
+- None from Ryan yet. Recommendations revised:
+  - decide D2 and D3 now, because they are the costly migrations later;
+  - D1 must hold a usage ratio as well as an event count;
+  - add a `usage_doubled` trigger and Kyle question K9.
+
+**Failed approaches:**
+- Justia's TAC pages return HTTP 403 to WebFetch; Cornell LII works.
+
+**Not done / next:**
+- Ryan decides D1–D5, the stopping rule and the usage trigger.
+- Fold I1–I8 and the chosen items; then round 3, or mirror.
+
+---
+
 ## 2026-10-02 — deposits (-15): R-D2/R-D3 decided, rules for the core written, patch drafted, two review rounds (both "not yet"), round-2 revision built
 
 **What was done:**
