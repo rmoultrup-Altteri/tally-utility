@@ -8,6 +8,10 @@ import { Table, Row, Td, TableFooter } from '@/components/table/Table'
 import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
 import { date } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
+import { useImported } from '@/lib/imports-store'
+import { locations, meters } from '@/fixtures/accounts'
+import { customerName } from '@/schemas/models'
+import type { ImportedData } from '@/lib/assistant/protocol'
 
 export type AccountRow = {
   id: string
@@ -20,6 +24,8 @@ export type AccountRow = {
   meterNumber: string | null
   /** `meters.ami_endpoint_id`. Null on a manually read meter. */
   amrId: string | null
+  /** Added through the assistant and kept in this browser; it has no account page yet. */
+  imported?: boolean
 }
 
 type SortKey = 'createdAt' | 'ownerName' | 'streetAddress' | 'meterNumber' | 'amrId'
@@ -33,7 +39,9 @@ const COLUMNS: SortColumn<SortKey>[] = [
 ]
 
 /** The account list: search by name or address, sort on any column. */
-export function AccountsList({ rows }: { rows: AccountRow[] }) {
+export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
+  const imported = useImported()
+  const rows = useMemo(() => [...fixtureRows, ...importedRows(imported)], [fixtureRows, imported])
   const [query, setQuery] = useState('')
   const { sort, toggle } = useSort<SortKey>({ key: 'ownerName', dir: 'ascending' })
 
@@ -77,13 +85,24 @@ export function AccountsList({ rows }: { rows: AccountRow[] }) {
             <Row key={r.id}>
               <Td className="tabular-nums whitespace-nowrap">{date(r.createdAt)}</Td>
               <Td>
-                <Link
-                  href={`/customers/${r.id}` as Route}
-                  className="text-ink-primary font-medium hover:underline"
-                >
-                  {r.ownerName}
-                </Link>
-                <span className="block ident text-micro text-ink-tertiary">{r.customerNumber}</span>
+                {r.imported ? (
+                  <span className="text-ink-primary font-medium">{r.ownerName}</span>
+                ) : (
+                  <Link
+                    href={`/customers/${r.id}` as Route}
+                    className="text-ink-primary font-medium hover:underline"
+                  >
+                    {r.ownerName}
+                  </Link>
+                )}
+                <span className="block ident text-micro text-ink-tertiary">
+                  {r.customerNumber}
+                  {r.imported ? (
+                    <span className="font-sans text-exception-info-text" title="Imported through the assistant and kept in this browser until the API exists">
+                      {' '}· imported
+                    </span>
+                  ) : null}
+                </span>
               </Td>
               <Td>
                 {r.streetAddress ?? '—'}
@@ -110,4 +129,31 @@ export function AccountsList({ rows }: { rows: AccountRow[] }) {
       {shown.length > 0 ? <TableFooter shown={shown.length} total={shown.length} noun="accounts" /> : null}
     </Panel>
   )
+}
+
+/** Accounts the assistant imported, shaped like the fixture rows the page builds on the server. */
+function importedRows(data: ImportedData): AccountRow[] {
+  const allLocations = [...locations, ...data.locations]
+  const allMeters = [...meters, ...data.meters]
+  return data.customers.map((c) => {
+    const link = data.links.find((l) => l.customerId === c.id)
+    const location = link ? allLocations.find((l) => l.id === link.locationId) : undefined
+    const meter = link?.meterId ? allMeters.find((m) => m.id === link.meterId) : undefined
+    return {
+      id: c.id,
+      customerNumber: c.customer_number,
+      createdAt: c.created_at,
+      ownerName: customerName(c),
+      streetAddress: location?.address ?? null,
+      cityLine: location ? `${location.city}, ${location.state} ${location.zip}` : null,
+      meterNumber: meter?.meter_number ?? null,
+      amrId: meter?.ami_endpoint_id ?? null,
+      imported: true,
+    }
+  })
+}
+/** The page header's account count, including accounts imported in this browser. */
+export function AccountCount({ base }: { base: number }) {
+  const n = base + useImported().customers.length
+  return <>{n.toLocaleString('en-US')} accounts</>
 }

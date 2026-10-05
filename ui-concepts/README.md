@@ -153,9 +153,51 @@ The checks are mutation-tested rather than assumed: breaking a cent, a
 multiplier, a day count, a version chain or a narrative total each produce a
 finding. A check that has never failed is not evidence of anything.
 
+## Assistant
+
+The bubble in the bottom-right corner of every screen opens a chat backed by
+Claude (`claude-opus-5-5`) through `app/api/assistant/route.ts`. It needs
+credentials on the server:
+
+```bash
+echo ANTHROPIC_API_KEY=sk-ant-... > .env.local   # then restart pnpm dev
+```
+
+It can do three things:
+
+- **Read the tenant's account** — search, an account in full, a bill with its
+  lines, rates in force at a date, the billing overview, and a generic
+  filter/sort/sum over every fixture (`lib/assistant/tenant-data.ts`). Totals
+  are summed in exact integer micro-units, never floats.
+- **Read the web** — Anthropic's server-side web search and fetch, with sources
+  listed under the answer.
+- **Stage imports** of accounts, customers, service addresses, meters and rate
+  items from an attached CSV, TSV, JSON or PDF, or from rows typed in the chat.
+  The model only maps columns; `lib/assistant/imports.ts` parses the file,
+  coerces every value, validates it against the Zod schemas and rejects
+  duplicates. Rate items are close-then-insert successions with a required
+  change reason; a back-dated change is refused as a correction.
+
+The model can propose an import, but it cannot apply one. Each staged import
+appears as a card with **Import** and **Discard**, the same trust boundary as
+an exception's `suggested_action`. Applied records live in this browser
+(`lib/imports-store.ts`) until the API exists. The Accounts list shows them
+marked *imported*; they have no account page yet.
+
+The conversation is kept in sessionStorage and survives navigation. The route
+is stateless: the panel sends the API transcript with each turn and gets the
+extended one back.
+
 ## Known gaps
 
 - Interactions are presentational. Nothing writes; buttons do not submit.
+  Payments taken and assistant imports are the exceptions, and both are kept
+  only in this browser.
+- The assistant route has no authentication and trusts the transcript the
+  browser sends. That is fine on localhost and not fine anywhere else.
+- Assistant imports of meters, premises and rate items are stored but not yet
+  shown on the Rates or account screens; the assistant itself can see them.
+- Excel files must be saved as CSV before attaching.
 - The AR bucket drilldown lists are not built.
 - Collections rules are Texas-specific (16 TAC §7.460 forecast rule, no
   calendar moratorium). A real deployment parameterises these per jurisdiction;

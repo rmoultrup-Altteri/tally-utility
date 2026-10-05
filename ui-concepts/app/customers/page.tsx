@@ -1,8 +1,7 @@
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
-import { AccountsList, type AccountRow } from '@/components/accounts/AccountsList'
+import { AccountCount, AccountsList, type AccountRow } from '@/components/accounts/AccountsList'
 import { customers, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
-import { count } from '@/lib/format'
 
 /**
  * The account list — where "Accounts" lands before any one customer is open.
@@ -30,7 +29,7 @@ export default function CustomersPage() {
 
   return (
     <AppShell current="Accounts">
-      <PageHeader title="Accounts" meta={`${count(rows.length)} accounts`} />
+      <PageHeader title="Accounts" meta={<AccountCount base={rows.length} />} />
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5">
           <AccountsList rows={rows} />
