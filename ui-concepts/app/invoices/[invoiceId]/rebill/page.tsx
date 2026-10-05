@@ -61,6 +61,7 @@ export default async function RebillPage({
   return (
     <AppShell current="Bills">
       <PageHeader
+        back={{ href: `/invoices/${invoice.id}`, label: 'the bill' }}
         title="Void and rebill"
         meta={
           <>

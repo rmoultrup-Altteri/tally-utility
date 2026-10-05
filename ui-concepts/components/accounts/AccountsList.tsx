@@ -9,7 +9,8 @@ import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/tab
 import { date } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
 import { useImported } from '@/lib/imports-store'
-import { locations, meters } from '@/fixtures/accounts'
+import { customerById, locations, meters } from '@/fixtures/accounts'
+import { useEdits } from '@/lib/edits-store'
 import { customerName } from '@/schemas/models'
 import type { ImportedData } from '@/lib/assistant/protocol'
 
@@ -41,7 +42,15 @@ const COLUMNS: SortColumn<SortKey>[] = [
 /** The account list: search by name or address, sort on any column. */
 export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
   const imported = useImported()
-  const rows = useMemo(() => [...fixtureRows, ...importedRows(imported)], [fixtureRows, imported])
+  const edits = useEdits().customers
+  const rows = useMemo(() => {
+    /* An account renamed in this browser lists under its edited name. */
+    const named = fixtureRows.map((r) => {
+      const base = customerById.get(r.id)
+      return base && edits[r.id] ? { ...r, ownerName: customerName({ ...base, ...edits[r.id] }) } : r
+    })
+    return [...named, ...importedRows(imported)]
+  }, [fixtureRows, imported, edits])
   const [query, setQuery] = useState('')
   const { sort, toggle } = useSort<SortKey>({ key: 'ownerName', dir: 'ascending' })
 

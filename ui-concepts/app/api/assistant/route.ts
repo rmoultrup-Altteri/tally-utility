@@ -179,7 +179,7 @@ function runTool(
       return JSON.stringify(getAccount(view, INPUTS.get_account.parse(input).account))
     case 'get_invoice': {
       const i = INPUTS.get_invoice.parse(input)
-      return JSON.stringify(getInvoice(i.invoice, i.include_lines ?? true))
+      return JSON.stringify(getInvoice(view, i.invoice, i.include_lines ?? true))
     }
     case 'query_records':
       return JSON.stringify(queryRecords(view, INPUTS.query_records.parse(input)))
@@ -246,7 +246,7 @@ function friendly(err: unknown): string {
 export async function POST(request: Request) {
   const req = (await request.json()) as AssistantRequest
   const imported: ImportedData = { ...EMPTY_IMPORTED, ...(req.imported ?? {}) }
-  const view = tenantView(imported)
+  const view = tenantView(imported, req.edits)
 
   const tables = new Map<string, Table>()
   const tableErrors = new Map<string, string>()

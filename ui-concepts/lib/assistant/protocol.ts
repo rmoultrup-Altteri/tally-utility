@@ -1,4 +1,4 @@
-import type { Customer, Meter, RateItemVersion, ServiceLocation } from '@/schemas/models'
+import type { Customer, Invoice, Meter, RateItemVersion, ServiceLocation } from '@/schemas/models'
 
 /**
  * The wire contract between the chat panel and `/api/assistant`.
@@ -100,6 +100,13 @@ export type AssistantRequest = {
   /** Every table attachment in the conversation, so a later turn can still import from it. */
   files: Attachment[]
   imported: ImportedData
+  /** Account and draft-bill edits made in this browser, overlaid on the records. */
+  edits?: RecordEdits
+}
+
+export type RecordEdits = {
+  customers: Record<string, Partial<Customer>>
+  invoices: Record<string, Partial<Invoice>>
 }
 
 export type ActivityKind = 'web' | 'tenant' | 'import'

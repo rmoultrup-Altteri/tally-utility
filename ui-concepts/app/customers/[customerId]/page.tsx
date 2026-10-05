@@ -1,17 +1,18 @@
 import Link from 'next/link'
 import type { Route } from 'next'
 import { notFound } from 'next/navigation'
-import { AppShell, PageHeader } from '@/components/shell/AppShell'
+import { AppShell } from '@/components/shell/AppShell'
+import { AccountAlerts, AccountFields, AccountHeader } from '@/components/accounts/AccountDetail'
+import { InvoiceDateText } from '@/components/bills/InvoiceEdit'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
-import { Rail, StateBlock, StateFlag, invoiceTone, humanize } from '@/components/ui/State'
+import { Rail, StateFlag, invoiceTone, humanize } from '@/components/ui/State'
 import { Money, Quantity } from '@/components/ui/Money'
 import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
 import { customers, customerById, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
 import { readings } from '@/fixtures/reads'
 import { invoices } from '@/fixtures/billing'
 import { exceptions } from '@/fixtures/exceptions'
-import { customerName } from '@/schemas/models'
-import { date, dateShort, money } from '@/lib/format'
+import { date, dateShort } from '@/lib/format'
 
 /**
  * Customer 360 — the CSR's ninety seconds.
@@ -77,14 +78,8 @@ export default async function CustomerPage({
 
   return (
     <AppShell current="Accounts">
-      <PageHeader
-        title={customerName(customer)}
-        meta={
-          <>
-            <span className="ident">{customer.customer_number}</span> ·{' '}
-            {humanize(customer.customer_type)} · customer since {date(customer.created_at)}
-          </>
-        }
+      <AccountHeader
+        customer={customer}
         actions={
           <>
             <Button>Log interaction</Button>
@@ -96,29 +91,7 @@ export default async function CustomerPage({
         }
       />
 
-      {/* Protections and holds come first. A CSR must never miss these. */}
-      {(customer.do_not_disconnect || customer.billing_hold) && (
-        <div className="px-5 py-3 border-b border-rule-solid bg-surface space-y-2">
-          {customer.do_not_disconnect ? (
-            <StateBlock tone="critical">
-              <p className="text-data text-ink-primary">
-                <strong className="font-semibold">Do not disconnect.</strong>{' '}
-                {humanize(customer.disconnect_protection_type ?? '')} on file, expires{' '}
-                {date(customer.disconnect_protection_expiry)}. Collections activity on this account
-                is suspended until then.
-              </p>
-            </StateBlock>
-          ) : null}
-          {customer.billing_hold ? (
-            <StateBlock tone="held">
-              <p className="text-data text-ink-primary">
-                <strong className="font-semibold">Billing hold.</strong>{' '}
-                {customer.billing_hold_reason}
-              </p>
-            </StateBlock>
-          ) : null}
-        </div>
-      )}
+      <AccountAlerts customer={customer} />
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
@@ -126,45 +99,7 @@ export default async function CustomerPage({
             <Panel className="lg:col-span-2">
               <PanelHeader title="Account" />
               <div className="px-4 py-4">
-                <FieldGrid cols={4}>
-                  <Field label="Status">
-                    <StateFlag tone={customer.status === 'active' ? 'approved' : 'failed'}>
-                      {humanize(customer.status)}
-                    </StateFlag>
-                  </Field>
-                  <Field label="Balance">
-                    <Money value={customer.balance} arrears={customer.status === 'collections'} />
-                  </Field>
-                  <Field label="Deposit held">
-                    <Money value={customer.deposit_amount} />
-                  </Field>
-                  <Field label="Tax exempt">{customer.is_tax_exempt ? 'Yes' : 'No'}</Field>
-                  <Field label="Phone">{customer.phone ?? '—'}</Field>
-                  <Field label="Email">{customer.email ?? '—'}</Field>
-                  <Field label="Premise">
-                    {location ? (
-                      <>
-                        {location.address}
-                        <br />
-                        <span className="text-ink-secondary">
-                          {location.city}, {location.state} {location.zip}
-                        </span>
-                      </>
-                    ) : (
-                      '—'
-                    )}
-                  </Field>
-                  <Field
-                    label="Franchise city"
-                    hint={
-                      location?.inside_city_limits
-                        ? 'Inside city limits — franchise fee applies'
-                        : 'Outside city limits — no franchise fee'
-                    }
-                  >
-                    {location?.franchise_city ?? 'None'}
-                  </Field>
-                </FieldGrid>
+                <AccountFields customer={customer} location={location} />
               </div>
             </Panel>
 
@@ -269,8 +204,12 @@ export default async function CustomerPage({
                         ) : null}
                       </Td>
                       <Td>{inv.billing_period}</Td>
-                      <Td>{dateShort(inv.invoice_date)}</Td>
-                      <Td>{dateShort(inv.due_date)}</Td>
+                      <Td>
+                        <InvoiceDateText invoice={inv} field="invoice_date" />
+                      </Td>
+                      <Td>
+                        <InvoiceDateText invoice={inv} field="due_date" />
+                      </Td>
                       <Td align="right">
                         <Money value={inv.amount_due} />
                       </Td>

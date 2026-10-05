@@ -159,6 +159,28 @@ The checks are mutation-tested rather than assumed: breaking a cent, a
 multiplier, a day count, a version chain or a narrative total each produce a
 finding. A check that has never failed is not evidence of anything.
 
+## Back and edit
+
+Detail screens — an account, a bill, its correction diff and rebill, Add
+payment — have a small back arrow left of the title. It goes back to the screen
+the operator came from (a bill opened from an account returns to the account),
+and falls back to the parent screen when there is nothing behind it in the app.
+
+**Edit**, top right, opens a form dialog:
+
+- **Accounts:** name, phone, email, customer type, tax exemption, billing hold,
+  and disconnect protection. Changing a protection, a hold or the tax status
+  needs a reason, because the schema records those through
+  `customer_state_events`. Account number, status, balance and deposit are not
+  editable; money moves only through bills, payments and the ledger.
+- **Bills:** only draft and held bills — none has been issued — and only the
+  bill date, due date and hold reason. Issued bills show no Edit; their only
+  correction is still void then rebill. Amounts and lines come from the run.
+
+Edits overlay the fixtures in this browser (`lib/edits-store.ts`) with a log
+of who changed what and why; the header shows when the record was last edited.
+The assistant sees them too.
+
 ## Assistant
 
 The bubble in the bottom-right corner of every screen opens a chat backed by
@@ -197,8 +219,8 @@ extended one back.
 ## Known gaps
 
 - Interactions are presentational. Nothing writes; buttons do not submit.
-  Payments taken and assistant imports are the exceptions, and both are kept
-  only in this browser.
+  Payments taken, assistant imports and account and draft-bill edits are the
+  exceptions, and all are kept only in this browser.
 - The assistant route has no authentication and trusts the transcript the
   browser sends. That is fine on localhost and not fine anywhere else.
 - Assistant imports of meters, premises and rate items are stored but not yet

@@ -7,9 +7,9 @@ import { readings } from '@/fixtures/reads'
 import { g1Items, gutItem, pgaVersions, priorVersions, r1Items, rateSchedules, versionAsOf } from '@/fixtures/rates'
 import { pipeline, worklist } from '@/fixtures/collections'
 import { asOf, currentUser, cycle, tenant } from '@/fixtures/tenant'
-import { customerName, type Customer, type Meter, type RateItemVersion, type ServiceLocation } from '@/schemas/models'
+import { customerName, type Customer, type Invoice, type Meter, type RateItemVersion, type ServiceLocation } from '@/schemas/models'
 import { matchesSearch } from '@/lib/search'
-import type { ImportedData, ImportedLink } from './protocol'
+import type { ImportedData, ImportedLink, RecordEdits } from './protocol'
 
 /**
  * The tenant's account as the assistant reads it: every fixture, plus
@@ -19,6 +19,7 @@ import type { ImportedData, ImportedLink } from './protocol'
 
 export type TenantView = {
   customers: Customer[]
+  invoices: Invoice[]
   locations: ServiceLocation[]
   meters: Meter[]
   links: ImportedLink[]
@@ -30,9 +31,12 @@ const fixtureRates: RateItemVersion[] = [
   ...new Map([...pgaVersions, gutItem, ...r1Items, ...g1Items, ...priorVersions].map((v) => [v.id, v])).values(),
 ]
 
-export function tenantView(imported: ImportedData): TenantView {
+export function tenantView(imported: ImportedData, edits: RecordEdits = { customers: {}, invoices: {} }): TenantView {
+  const overlay = <T extends { id: string }>(rows: T[], by: Record<string, Partial<T>>) =>
+    rows.map((r) => (by[r.id] ? { ...r, ...by[r.id] } : r))
   return {
-    customers: [...customers, ...imported.customers],
+    customers: overlay([...customers, ...imported.customers], edits.customers),
+    invoices: overlay([...invoices, ...historyInvoices], edits.invoices),
     locations: [...locations, ...imported.locations],
     meters: [...meters, ...imported.meters],
     links: [...serviceLinks, ...imported.links],
@@ -53,7 +57,6 @@ function schedulesFor(v: RateItemVersion & { rate_schedule_code?: string }): str
 /** Exception statuses that no longer need anyone. */
 const CLOSED = new Set(['resolved', 'false_positive'])
 
-const allInvoices = () => [...invoices, ...historyInvoices]
 
 /* ---- Tools ----------------------------------------------------------- */
 
@@ -81,7 +84,7 @@ export function searchTenant(view: TenantView, query: string, limit = 15) {
     if (matchesSearch(query, [m.meter_number, m.serial_number, m.ami_endpoint_id]))
       hits.push({ kind: 'meter (unassigned)', id: m.id, label: m.meter_number, detail: m.serial_number ?? '' })
   }
-  for (const i of allInvoices()) {
+  for (const i of view.invoices) {
     if (matchesSearch(query, [i.invoice_number]))
       hits.push({ kind: 'invoice', id: i.id, label: i.invoice_number, detail: `${i.billing_period} · ${i.status} · due ${i.amount_due}` })
   }
@@ -112,7 +115,7 @@ export function getAccount(view: TenantView, ref: string) {
         },
       }
     })
-  const bills = allInvoices()
+  const bills = view.invoices
     .filter((i) => i.customer_id === c.id)
     .sort((a, b) => b.invoice_date.localeCompare(a.invoice_date))
     .map((i) => ({
@@ -156,8 +159,8 @@ export function getAccount(view: TenantView, ref: string) {
   }
 }
 
-export function getInvoice(ref: string, includeLines = true) {
-  const i = allInvoices().find((x) => x.id === ref || x.invoice_number === ref)
+export function getInvoice(view: TenantView, ref: string, includeLines = true) {
+  const i = view.invoices.find((x) => x.id === ref || x.invoice_number === ref)
   if (!i) return { error: `No invoice ${ref}.` }
   const lineRows = includeLines
     ? [...lines, ...historyLines].filter((l) => l.invoice_id === i.id).sort((a, b) => a.line_order - b.line_order)
@@ -196,7 +199,7 @@ function rowsFor(view: TenantView, entity: QueryEntity): Record<string, unknown>
     case 'readings':
       return readings
     case 'invoices':
-      return allInvoices()
+      return view.invoices
     case 'payments':
       return payments.map(({ applications, ...p }) => ({ ...p, applied_to: applications.map((a) => a.invoice_id) }))
     case 'exceptions':

@@ -11,6 +11,7 @@ import { Table, Row, Td, TableFooter } from '@/components/table/Table'
 import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
 import { count, date, money } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
+import { useEdits } from '@/lib/edits-store'
 
 export type BillStatus = 'current' | 'past_due' | 'paid' | 'draft' | 'held' | 'void'
 
@@ -133,7 +134,17 @@ function describe(range: Range): string {
  * The bill list: filter by bill date, status and customer, sort on any column.
  * Opening a bill goes to the bill itself.
  */
-export function BillsList({ rows, asOf }: { rows: BillRow[]; asOf: string }) {
+export function BillsList({ rows: fixtureRows, asOf }: { rows: BillRow[]; asOf: string }) {
+  /* Draft bills edited in this browser show their edited dates. */
+  const edits = useEdits().invoices
+  const rows = useMemo(
+    () =>
+      fixtureRows.map((r) => {
+        const e = edits[r.id]
+        return e ? { ...r, invoiceDate: e.invoice_date ?? r.invoiceDate, dueDate: e.due_date ?? r.dueDate } : r
+      }),
+    [fixtureRows, edits],
+  )
   const [preset, setPreset] = useState<Preset>('current')
   const [custom, setCustom] = useState<Range>(() => resolve('current', asOf, { from: null, to: null }))
   const [statuses, setStatuses] = useState<BillStatus[]>([])

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Source_Serif_4, IBM_Plex_Mono } from 'next/font/google'
 import { THEME_BOOTSTRAP } from '@/components/shell/ThemeControl'
 import { Assistant } from '@/components/assistant/Assistant'
+import { NavTracker } from '@/components/shell/BackLink'
 import './globals.css'
 
 /* The instrument. */
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         {children}
         {/* In the layout, not the shell, so the conversation survives navigation. */}
         <Assistant />
+        <NavTracker />
       </body>
     </html>
   )

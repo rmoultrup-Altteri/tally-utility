@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Markdown } from '@/components/assistant/Markdown'
 import { ImportCard, type ProposalState } from '@/components/assistant/ImportCard'
 import { applyProposal, getImported } from '@/lib/imports-store'
+import { getEdits } from '@/lib/edits-store'
 import { ENTITY_NOUN, type ActivityKind, type Attachment, type StreamEvent } from '@/lib/assistant/protocol'
 
 /**
@@ -149,6 +150,7 @@ export function Assistant() {
           /* Tables travel every turn so a later message can still import from them; a PDF is in the transcript already. */
           files: files.filter((f) => f.kind === 'table' || attachments.includes(f)),
           imported: getImported(),
+          edits: { customers: getEdits().customers, invoices: getEdits().invoices },
         }),
       })
       if (!res.ok || !res.body) throw new Error(`The assistant is unavailable (${res.status}).`)

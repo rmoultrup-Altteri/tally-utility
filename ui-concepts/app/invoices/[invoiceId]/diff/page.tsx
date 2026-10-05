@@ -66,6 +66,7 @@ export default async function DiffPage({ params }: PageProps<'/invoices/[invoice
   return (
     <AppShell current="Bills">
       <PageHeader
+        back={{ href: `/invoices/${rebill.id}`, label: 'the bill' }}
         title="Correction diff"
         meta={
           <>

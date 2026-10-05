@@ -64,6 +64,7 @@ export default async function NewPaymentPage({ searchParams }: PageProps<'/payme
   return (
     <AppShell current="Payments">
       <PageHeader
+        back={{ href: '/payments', label: 'Payments' }}
         title="Add payment"
         meta={
           <>
