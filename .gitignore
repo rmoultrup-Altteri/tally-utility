@@ -1,6 +1,9 @@
 # IDE / editor
 .idea/
 
+# Claude Code local settings (preview launch config)
+.claude/
+
 # Prototype build artifacts
 ui-concepts/node_modules/
 ui-concepts/.next/
