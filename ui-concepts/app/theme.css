@@ -1,10 +1,11 @@
 /*
  * TallyUtility — "Pressroom", in two lights.
  *
- * Editorial-utilitarian: a warm paper ground, hairline rules instead of card
- * shadows, and one deliberate pairing — a grotesque for the tool, a serif for
- * the artifact. Bills and notices are set in the serif on white stock; the
- * instrument around them is sans.
+ * A warm paper ground with rounded white panels on a soft lift, pill chips
+ * and badges, and one deliberate pairing — a grotesque for the tool, a serif
+ * for the artifact. The instrument is rounded; the bill is not. Bills and
+ * notices are set in the serif on square white stock, because a statement is
+ * a printed page.
  *
  * Tokens are named for their ROLE IN GAS BILLING, never for hue, so a palette
  * change never requires renaming a class. Text colour tiers live under
@@ -137,10 +138,10 @@
   --color-money-adjustment: light-dark(oklch(45% 0.1 262), oklch(76% 0.1 262));
   --color-money-zero: light-dark(oklch(57% 0.006 95), oklch(60% 0.006 95));
 
-  /* ==== Rules — borders do the work, not shadows ======================
-     `heavy` is the column-header underline, so it inverts: near-black on
-     paper, near-white on press metal. `doc` belongs to the printed bill
-     and never changes. */
+  /* ==== Rules =========================================================
+     Panels carry a hairline and a soft shadow; rules divide rows within
+     them. `heavy` inverts: near-black on paper, near-white on press metal.
+     `doc` belongs to the printed bill and never changes. */
   --color-rule-hair: light-dark(oklch(89% 0.004 95), oklch(28% 0.005 95));
   --color-rule-solid: light-dark(oklch(82% 0.005 95), oklch(35% 0.006 95));
   --color-rule-heavy: light-dark(oklch(30% 0.008 95), oklch(74% 0.008 95));
@@ -155,8 +156,8 @@
   /* Fixed scale — an application at controlled density, so no clamp(). */
   --text-label: 11px;
   --text-label--line-height: 14px;
-  --text-label--letter-spacing: 0.06em;
-  --text-label--font-weight: 600;
+  --text-label--letter-spacing: 0.01em;
+  --text-label--font-weight: 500;
 
   --text-micro: 11px;
   --text-micro--line-height: 15px;
@@ -192,22 +193,31 @@
   /* ==== Spacing — 4px base, named extras where a name beats a number == */
   --spacing: 4px;
   --spacing-cell-x-compact: 10px;
-  --spacing-cell-y-compact: 6px;
+  --spacing-cell-y-compact: 8px;
   --spacing-cell-x: 12px;
-  --spacing-cell-y: 8px;
+  --spacing-cell-y: 10px;
   --spacing-rail: 3px;
-  --spacing-row-compact: 26px;
-  --spacing-row: 30px;
-  --spacing-row-comfy: 36px;
+  --spacing-row-compact: 28px;
+  --spacing-row: 32px;
+  --spacing-row-comfy: 38px;
   --spacing-doc-measure: 8.5in;
 
-  /* ==== Radius — table cells and document edges are square ============ */
+  /* ==== Radius — one step per size of thing ===========================
+     Keys and tiny marks, then controls, then panels, then floating
+     surfaces. Pills (`rounded-full`) are for chips, badges and switches.
+     The bill opts out: `stock` sets every radius back to zero. */
   --radius-none: 0px;
-  --radius-xs: 2px;
-  --radius-sm: 4px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
-  /* ==== Elevation — exactly three levels ==============================
-     Shadows deepen at night, where a soft grey shadow would vanish. */
+  /* ==== Elevation — a resting level, then exactly three raised ones ====
+     `panel` is the soft resting lift every panel sits on. Shadows deepen at
+     night, where a soft grey shadow would vanish. */
+  --shadow-panel:
+    0 1px 2px light-dark(oklch(20% 0.01 95 / 0.05), oklch(0% 0 0 / 0.35)),
+    0 2px 8px -2px light-dark(oklch(20% 0.01 95 / 0.07), oklch(0% 0 0 / 0.3));
   --shadow-overlay: 0 8px 24px -12px light-dark(oklch(20% 0.01 95 / 0.28), oklch(0% 0 0 / 0.65));
   --shadow-modal: 0 24px 48px -20px light-dark(oklch(20% 0.01 95 / 0.34), oklch(0% 0 0 / 0.75));
   --shadow-sticky: 0 1px 0 0 light-dark(oklch(20% 0.01 95 / 0.12), oklch(0% 0 0 / 0.45));

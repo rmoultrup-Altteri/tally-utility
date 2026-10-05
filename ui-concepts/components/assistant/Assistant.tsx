@@ -288,7 +288,7 @@ export function Assistant() {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false)
           }}
           onDrop={onDrop}
-          className="fixed bottom-20 right-5 z-50 flex h-[min(640px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col border border-rule-solid bg-surface-raised shadow-modal"
+          className="fixed bottom-20 right-5 z-50 flex h-[min(640px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-clip rounded-lg border border-rule-hair bg-surface-raised shadow-modal"
         >
           <header className="flex items-center justify-between gap-2 border-b border-rule-solid bg-surface-ink px-3 py-2 text-ink-inverse">
             <div className="min-w-0">
@@ -300,7 +300,7 @@ export function Assistant() {
                 type="button"
                 onClick={reset}
                 disabled={state.items.length === 0}
-                className="h-6 rounded-xs px-2 text-micro opacity-80 hover:bg-white/10 hover:opacity-100 disabled:opacity-35"
+                className="h-6 rounded-full px-2.5 text-micro opacity-80 hover:bg-white/10 hover:opacity-100 disabled:opacity-35"
               >
                 New chat
               </button>
@@ -308,7 +308,7 @@ export function Assistant() {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close assistant"
-                className="flex h-6 w-6 items-center justify-center rounded-xs opacity-80 hover:bg-white/10 hover:opacity-100"
+                className="flex h-6 w-6 items-center justify-center rounded-full opacity-80 hover:bg-white/10 hover:opacity-100"
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
                   <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" />
@@ -330,7 +330,7 @@ export function Assistant() {
                       <button
                         type="button"
                         onClick={() => (s.startsWith('Import') ? fileInput.current?.click() : void send(s))}
-                        className="w-full border border-rule-solid bg-surface px-2.5 py-1.5 text-left text-data text-ink-secondary transition-colors duration-fast hover:border-rule-heavy hover:bg-surface-sunken hover:text-ink-primary"
+                        className="w-full rounded-md border border-rule-hair bg-surface px-3 py-2 text-left text-data text-ink-secondary transition-colors duration-fast hover:border-rule-heavy hover:bg-surface-sunken hover:text-ink-primary"
                       >
                         {s}
                       </button>
@@ -344,12 +344,12 @@ export function Assistant() {
                   item.role === 'user' ? (
                     <li key={item.id} className="flex flex-col items-end gap-1">
                       {item.attachments.map((a) => (
-                        <span key={a} className="ident max-w-[85%] truncate border border-rule-solid bg-surface-sunken px-1.5 py-0.5 text-micro text-ink-secondary">
+                        <span key={a} className="ident max-w-[85%] truncate rounded-full border border-rule-hair bg-surface-sunken px-2 py-0.5 text-micro text-ink-secondary">
                           {a}
                         </span>
                       ))}
                       {item.text ? (
-                        <p className="max-w-[85%] whitespace-pre-wrap bg-accent-wash px-2.5 py-1.5 text-data">{item.text}</p>
+                        <p className="max-w-[85%] whitespace-pre-wrap rounded-lg rounded-br-xs bg-accent-wash px-3 py-2 text-data">{item.text}</p>
                       ) : null}
                     </li>
                   ) : (
@@ -373,13 +373,13 @@ export function Assistant() {
                       )}
                       {item.pending ? <Thinking /> : null}
                       {item.error ? (
-                        <p className="border-l-[3px] border-exception-critical-rail bg-exception-critical-wash px-2 py-1 text-micro text-exception-critical-text">
+                        <p className="rounded-sm border border-exception-critical-rail/40 bg-exception-critical-wash px-2.5 py-1.5 text-micro text-exception-critical-text">
                           {item.error}
                         </p>
                       ) : null}
                       {item.sources.length && !item.pending ? (
                         <div className="border-t border-rule-hair pt-1.5">
-                          <p className="label-caps mb-0.5">Sources</p>
+                          <p className="field-label mb-0.5">Sources</p>
                           <ul className="space-y-0.5 text-micro">
                             {item.sources.slice(0, 8).map((s) => (
                               <li key={s.url} className="truncate">
@@ -398,7 +398,7 @@ export function Assistant() {
             )}
 
             {dragging ? (
-              <div className="pointer-events-none absolute inset-2 flex items-center justify-center border-2 border-dashed border-accent bg-accent-wash/90 text-data text-ink-primary">
+              <div className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-md border-2 border-dashed border-accent bg-accent-wash/90 text-data text-ink-primary">
                 Drop a CSV, TSV, JSON or PDF to attach
               </div>
             ) : null}
@@ -415,7 +415,7 @@ export function Assistant() {
             {staged.length ? (
               <ul className="mb-1.5 flex flex-wrap gap-1">
                 {staged.map((a) => (
-                  <li key={a.name} className="flex items-center gap-1 border border-rule-solid bg-surface-raised py-0.5 pl-1.5 pr-0.5 text-micro">
+                  <li key={a.name} className="flex items-center gap-1 rounded-full border border-rule-hair bg-surface-raised py-0.5 pl-2.5 pr-1 text-micro">
                     <span className="ident max-w-48 truncate">{a.name}</span>
                     <button
                       type="button"
@@ -446,7 +446,7 @@ export function Assistant() {
                 onClick={() => fileInput.current?.click()}
                 aria-label="Attach a file"
                 title="Attach a CSV, TSV, JSON or PDF"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xs border border-rule-solid bg-surface-raised text-ink-secondary hover:border-rule-heavy hover:text-ink-primary"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rule-solid bg-surface-raised text-ink-secondary hover:border-rule-heavy hover:text-ink-primary"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
                   <path
@@ -468,13 +468,13 @@ export function Assistant() {
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={onKey}
                 placeholder={staged.length ? 'Say what this file is, or just send it…' : 'Ask, or drop a file to import…'}
-                className="max-h-32 min-h-8 flex-1 resize-none rounded-xs border border-rule-solid bg-surface-raised px-2 py-1.5 text-data text-ink-primary placeholder:text-ink-muted [field-sizing:content]"
+                className="max-h-32 min-h-8 flex-1 resize-none rounded-md border border-rule-solid bg-surface-raised px-2 py-1.5 text-data text-ink-primary placeholder:text-ink-muted [field-sizing:content]"
               />
               {busy ? (
                 <button
                   type="button"
                   onClick={() => abort.current?.abort()}
-                  className="h-8 shrink-0 rounded-xs border border-rule-solid bg-surface-raised px-3 text-data text-ink-primary hover:bg-surface-sunken"
+                  className="h-8 shrink-0 rounded-sm border border-rule-solid bg-surface-raised px-3 text-data text-ink-primary hover:bg-surface-sunken"
                 >
                   Stop
                 </button>
@@ -482,7 +482,7 @@ export function Assistant() {
                 <button
                   type="submit"
                   disabled={!draft.trim() && staged.length === 0}
-                  className="h-8 shrink-0 rounded-xs border border-accent bg-accent px-3 text-data text-ink-inverse hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
+                  className="h-8 shrink-0 rounded-sm border border-accent bg-accent px-3 text-data text-ink-inverse hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   Send
                 </button>

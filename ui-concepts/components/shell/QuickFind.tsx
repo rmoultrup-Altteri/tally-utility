@@ -33,9 +33,9 @@ export function QuickFind() {
         type="search"
         placeholder="Jump to record…"
         title={`Matches ${MATCH_FIELDS.join(', ')}`}
-        className="h-6 w-72 rounded-xs border border-rule-solid bg-surface-raised pl-2 pr-14 text-data text-ink-primary placeholder:text-ink-muted"
+        className="h-7 w-72 rounded-full border border-rule-solid bg-surface-raised pl-3.5 pr-14 text-data text-ink-primary placeholder:text-ink-muted"
       />
-      <span className="pointer-events-none absolute right-1.5 flex items-center gap-0.5">
+      <span className="pointer-events-none absolute right-2.5 flex items-center gap-0.5">
         <Key>⌘</Key>
         <Key>K</Key>
       </span>

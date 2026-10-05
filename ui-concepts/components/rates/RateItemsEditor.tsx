@@ -40,7 +40,7 @@ const UNIT_FOR: Partial<Record<CalculationType, RateUnit>> = {
 }
 
 const input =
-  'h-6 rounded-xs border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary placeholder:text-ink-muted disabled:opacity-50'
+  'h-6 rounded-sm border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary placeholder:text-ink-muted disabled:opacity-50'
 
 /**
  * Every item that prices a bill, with its standing rate and a field to change it.
@@ -181,7 +181,7 @@ export function RateItemsEditor({
             />
           </Group>
           <div className="flex items-center gap-1.5">
-            <label htmlFor="rate-search" className="label-caps">
+            <label htmlFor="rate-search" className="field-label">
               Find
             </label>
             <input
@@ -253,7 +253,7 @@ export function RateItemsEditor({
                 return (
                   <Fragment key={group}>
                     <tr>
-                      <td colSpan={8} className="label-caps border-y border-rule-solid bg-surface-sunken px-cell-x py-1">
+                      <td colSpan={8} className="field-label border-y border-rule-solid bg-surface-sunken px-cell-x py-1">
                         {humanize(group)}
                       </td>
                     </tr>
@@ -318,7 +318,7 @@ export function RateItemsEditor({
             </ul>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_16rem]">
               <div>
-                <label htmlFor="change-reason" className="label-caps">
+                <label htmlFor="change-reason" className="field-label">
                   Reason for change <span className="text-exception-critical-text">*</span>
                 </label>
                 <textarea
@@ -327,12 +327,12 @@ export function RateItemsEditor({
                   onChange={(e) => setReason(e.target.value)}
                   rows={2}
                   placeholder="e.g. March PGA filing; annual pipeline safety fee; WNA recalculated for February"
-                  className="mt-0.5 w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary placeholder:text-ink-muted"
+                  className="mt-0.5 w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary placeholder:text-ink-muted"
                 />
                 <p className="text-micro text-ink-tertiary">Recorded on every version. It is what an auditor or the RRC reads.</p>
               </div>
               <div>
-                <label htmlFor="change-citation" className="label-caps">
+                <label htmlFor="change-citation" className="field-label">
                   Regulatory citation
                 </label>
                 <input
@@ -340,7 +340,7 @@ export function RateItemsEditor({
                   value={citation}
                   onChange={(e) => setCitation(e.target.value)}
                   placeholder="e.g. RRC GUD-10928 PGA filing"
-                  className="mt-0.5 h-8 w-full rounded-xs border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted"
+                  className="mt-0.5 h-8 w-full rounded-sm border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted"
                 />
               </div>
             </div>

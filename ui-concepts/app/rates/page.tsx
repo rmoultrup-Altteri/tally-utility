@@ -220,7 +220,7 @@ export default function RatesPage() {
             <PanelHeader title="Schedules" meta="Every schedule is date-effective" />
             <div className="px-4 py-4 grid grid-cols-1 md:grid-cols-3 gap-5">
               {rateSchedules.map((s) => (
-                <div key={s.id} className="border border-rule-hair px-3 py-3">
+                <div key={s.id} className="rounded-sm border border-rule-hair px-3 py-3">
                   <p className="ident text-data text-ink-primary">{s.code}</p>
                   <p className="text-data text-ink-secondary mt-0.5">{s.name}</p>
                   <FieldGrid cols={2}>

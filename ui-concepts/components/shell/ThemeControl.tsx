@@ -60,11 +60,11 @@ export function ThemeControl() {
 
   return (
     <div>
-      <p className="label-caps mb-1">Appearance</p>
+      <p className="field-label mb-1">Appearance</p>
       <div
         role="radiogroup"
         aria-label="Appearance"
-        className="flex border border-rule-solid rounded-xs overflow-hidden"
+        className="flex gap-0.5 rounded-full border border-rule-hair bg-surface-sunken p-0.5"
       >
         {OPTIONS.map((o) => {
           const active = o.value === choice

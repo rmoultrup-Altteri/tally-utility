@@ -71,7 +71,7 @@ export function SortHeader<K extends string>({
             <button
               type="button"
               onClick={() => onSort(col.key)}
-              className={`inline-flex items-center gap-1 whitespace-nowrap uppercase hover:text-ink-primary ${
+              className={`inline-flex items-center gap-1 whitespace-nowrap hover:text-ink-primary ${
                 col.align === 'right' ? 'flex-row-reverse' : ''
               } ${active ? 'text-ink-primary' : ''}`}
             >

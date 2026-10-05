@@ -87,7 +87,7 @@ export default async function RebillPage({
 
           {/* Step 1 — the bill being replaced. */}
           <Step n={1} title="Bill being corrected">
-            <div className="border border-rule-solid bg-surface-raised px-4 py-3">
+            <div className="rounded-md border border-rule-hair bg-surface-raised px-4 py-3 shadow-panel">
               <div className="flex items-center justify-between gap-4 mb-3">
                 <span className="ident text-data text-ink-primary">{invoice.invoice_number}</span>
                 <StateFlag tone={invoiceTone(invoice.status)}>
@@ -139,7 +139,7 @@ export default async function RebillPage({
               <textarea
                 rows={3}
                 defaultValue="January PGA adder applied at the December factor. Superseded factor was recorded late by Gas Supply."
-                className="mt-1 w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1.5 text-data text-ink-primary"
+                className="mt-1 w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1.5 text-data text-ink-primary"
               />
             </label>
             <p className="text-micro text-ink-tertiary mt-1">
@@ -160,8 +160,8 @@ export default async function RebillPage({
               defect the schema now forbids: an as-of lookup that finds nothing
               must raise, never quietly reach for a neighbouring value.
             */}
-            <div className="mb-3 border-l-[3px] border-exception-warning-rail bg-exception-warning-wash px-4 py-3">
-              <p className="label-caps mb-1">What the voided bill charged</p>
+            <div className="mb-3 rounded-md border border-exception-warning-rail/40 bg-exception-warning-wash px-4 py-3">
+              <p className="field-label mb-1">What the voided bill charged</p>
               {asOriginallyBilled ? (
                 <p className="text-data text-ink-primary">
                   PGA <span className="figures">{fmtRate(asOriginallyBilled.rate)}</span>/therm — the{' '}
@@ -214,7 +214,7 @@ export default async function RebillPage({
             </div>
 
             {historical && current && historical.rate !== current.rate ? (
-              <div className="mt-3 border-l-[3px] border-exception-info-rail bg-exception-info-wash px-4 py-3">
+              <div className="mt-3 rounded-md border border-exception-info-rail/40 bg-exception-info-wash px-4 py-3">
                 <p className="text-data text-ink-primary">
                   These elections do not produce the same bill. The commodity rate differs by{' '}
                   <span className="figures font-medium">
@@ -228,7 +228,7 @@ export default async function RebillPage({
 
           {/* Step 4 — where it runs. */}
           <Step n={4} title="Correction run">
-            <div className="border border-rule-solid bg-surface-raised px-4 py-3">
+            <div className="rounded-md border border-rule-hair bg-surface-raised px-4 py-3 shadow-panel">
               <FieldGrid cols={3}>
                 <Field label="Run">
                   <span className="ident">BR-2026-02-COR-2</span>
@@ -273,7 +273,7 @@ function Step({
   return (
     <section>
       <div className="flex items-baseline gap-2.5 mb-2.5">
-        <span className="ident flex h-5 w-5 items-center justify-center rounded-xs bg-surface-ink text-ink-inverse">
+        <span className="ident flex h-5 w-5 items-center justify-center rounded-sm bg-surface-ink text-ink-inverse">
           {n}
         </span>
         <h2 className="text-h3 text-ink-primary">{title}</h2>

@@ -58,7 +58,7 @@ export function RateHistory({
               return (
                 <Fragment key={group}>
                   <tr>
-                    <td colSpan={2 + months.length} className="label-caps border-y border-rule-solid bg-surface-sunken px-cell-x py-1">
+                    <td colSpan={2 + months.length} className="field-label border-y border-rule-solid bg-surface-sunken px-cell-x py-1">
                       {humanize(group)}
                     </td>
                   </tr>

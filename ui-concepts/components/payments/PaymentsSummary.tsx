@@ -90,7 +90,7 @@ export function PaymentsSummary({
             const total = t.list.reduce((a, p) => a + cents(p.amount), 0)
             return (
               <div key={t.key} className={`px-4 py-3 ${on ? 'bg-accent-wash' : 'bg-surface-raised'} ${t.key === 'all' ? 'xl:border-l xl:border-rule-solid' : ''}`}>
-                <p className="label-caps">{t.label}</p>
+                <p className="field-label">{t.label}</p>
                 <button
                   type="button"
                   onClick={() => setPick(on ? null : t.key)}
@@ -123,7 +123,7 @@ export function PaymentsSummary({
             }
           />
           <div className="flex items-center gap-1.5 border-b border-rule-hair bg-surface px-cell-x py-2">
-            <label htmlFor="payment-search" className="label-caps">
+            <label htmlFor="payment-search" className="field-label">
               Search
             </label>
             <input
@@ -132,7 +132,7 @@ export function PaymentsSummary({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Customer, account, address, payment or check number…"
-              className="h-6 w-80 rounded-xs border border-rule-solid bg-surface-raised px-2 text-micro text-ink-primary placeholder:text-ink-muted"
+              className="h-6 w-80 rounded-sm border border-rule-solid bg-surface-raised px-2 text-micro text-ink-primary placeholder:text-ink-muted"
             />
           </div>
           <Table caption={`${picked.label} payments`}>

@@ -187,7 +187,7 @@ export function BillsList({ rows, asOf }: { rows: BillRow[]; asOf: string }) {
                 value={custom.from ?? ''}
                 max={custom.to ?? undefined}
                 onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value || null }))}
-                className="h-6 rounded-xs border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary"
+                className="h-6 rounded-sm border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary"
               />
               <span aria-hidden>–</span>
               <label htmlFor="bill-to" className="sr-only">
@@ -199,7 +199,7 @@ export function BillsList({ rows, asOf }: { rows: BillRow[]; asOf: string }) {
                 value={custom.to ?? ''}
                 min={custom.from ?? undefined}
                 onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value || null }))}
-                className="h-6 rounded-xs border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary"
+                className="h-6 rounded-sm border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary"
               />
             </div>
           ) : (
@@ -216,7 +216,7 @@ export function BillsList({ rows, asOf }: { rows: BillRow[]; asOf: string }) {
             ))}
           </Group>
           <div className="flex items-center gap-1.5">
-            <label htmlFor="bill-search" className="label-caps">
+            <label htmlFor="bill-search" className="field-label">
               Search
             </label>
             <input
@@ -225,7 +225,7 @@ export function BillsList({ rows, asOf }: { rows: BillRow[]; asOf: string }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Customer or street address…"
-              className="h-6 w-64 rounded-xs border border-rule-solid bg-surface-raised px-2 text-micro text-ink-primary placeholder:text-ink-muted"
+              className="h-6 w-64 rounded-sm border border-rule-solid bg-surface-raised px-2 text-micro text-ink-primary placeholder:text-ink-muted"
             />
           </div>
           <p className="ml-auto text-micro text-ink-secondary">

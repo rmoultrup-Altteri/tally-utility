@@ -118,7 +118,7 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
                           <StateFlag tone={tone}>{e.severity}</StateFlag>
                           {e.blocks_delivery ? (
                             <span
-                              className="label-caps text-exception-critical-text"
+                              className="field-label text-exception-critical-text"
                               title="This exception stops the bill from being delivered"
                             >
                               Blocks
@@ -231,7 +231,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
       </div>
 
       <div className="px-4 py-4 border-b border-rule-hair">
-        <p className="label-caps mb-2">Detector findings</p>
+        <p className="field-label mb-2">Detector findings</p>
         <dl className="divide-y divide-rule-hair border-y border-rule-hair">
           {Object.entries(e.details).map(([k, v]) => (
             <div key={k} className="flex items-baseline justify-between gap-4 py-1.5">
@@ -244,7 +244,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
 
       {e.suggested_action ? (
         <div className="px-4 py-4 border-b border-rule-hair">
-          <p className="label-caps mb-2">Suggested action</p>
+          <p className="field-label mb-2">Suggested action</p>
           {/* Presented, never applied. This is the trust boundary for the AI
               features — a wrong default here becomes a wrong bill. */}
           <Button variant="primary">{e.suggested_action.label}</Button>
@@ -258,7 +258,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
       ) : null}
 
       <div className="px-4 py-4">
-        <p className="label-caps mb-2">Resolve</p>
+        <p className="field-label mb-2">Resolve</p>
         <label className="block text-micro text-ink-secondary mb-1" htmlFor="reason">
           Resolution reason <span className="text-exception-critical-text">required</span>
         </label>
@@ -266,7 +266,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
           id="reason"
           rows={3}
           placeholder="What did you find, and what did you do about it?"
-          className="w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1.5 text-data text-ink-primary placeholder:text-ink-muted"
+          className="w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1.5 text-data text-ink-primary placeholder:text-ink-muted"
         />
         <p className="text-micro text-ink-tertiary mt-1">
           Recorded against this exception permanently, with your name and the time.

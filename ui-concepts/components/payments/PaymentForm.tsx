@@ -34,8 +34,8 @@ const CHANNELS: PaymentChannel[] = ['walk_in', 'agent_phone', 'mail']
 /** Dollars and cents. A trailing point ("30.") is accepted, so a total never jumps mid-keystroke. */
 const MONEY = /^\d+(\.\d{0,2})?$/
 
-const field = 'h-8 w-full rounded-xs border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted'
-const small = 'h-6 rounded-xs border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary placeholder:text-ink-muted'
+const field = 'h-8 w-full rounded-sm border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted'
+const small = 'h-6 rounded-sm border border-rule-solid bg-surface-raised px-1.5 text-micro text-ink-primary placeholder:text-ink-muted'
 
 const daysBetween = (a: string, b: string) =>
   Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
@@ -395,7 +395,7 @@ export function PaymentForm({
               className={field}
             />
             {results.length > 0 ? (
-              <ul className="mt-2 border border-rule-solid divide-y divide-rule-hair">
+              <ul className="mt-2 overflow-clip rounded-sm border border-rule-solid divide-y divide-rule-hair">
                 {results.map(({ c, invoiceId }) => (
                   <li key={c.id}>
                     <button
@@ -483,7 +483,7 @@ export function PaymentForm({
                   <thead>
                     <tr className="border-b border-rule-heavy">
                       {['Invoice', 'Bill date', 'Due', 'Past due', 'Open balance', 'Apply'].map((h, i) => (
-                        <th key={h} scope="col" className={`label-caps bg-surface-raised px-cell-x py-1.5 font-semibold ${i >= 3 ? 'text-right' : 'text-left'}`}>
+                        <th key={h} scope="col" className={`field-label bg-surface-raised px-cell-x py-1.5 font-semibold ${i >= 3 ? 'text-right' : 'text-left'}`}>
                           {h}
                         </th>
                       ))}
@@ -558,7 +558,7 @@ export function PaymentForm({
         <div className="space-y-3 px-4 py-3">
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="label-caps">Amount *</span>
+              <span className="field-label">Amount *</span>
               <span className="mt-0.5 flex items-center gap-1">
                 <span className="text-ink-tertiary">$</span>
                 <input inputMode="decimal" autoFocus={Boolean(initialInvoice || initialCustomer)} value={amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" className={`${field} figures text-right`} />
@@ -570,14 +570,14 @@ export function PaymentForm({
               ) : null}
             </label>
             <label className="block">
-              <span className="label-caps">Payment date *</span>
+              <span className="field-label">Payment date *</span>
               <input type="date" value={paidOn} max={asOf} onChange={(e) => setPaidOn(e.target.value)} className={`${field} mt-0.5`} />
             </label>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="label-caps">Method *</span>
+              <span className="field-label">Method *</span>
               <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className={`${field} mt-0.5`}>
                 {METHODS.map((m) => (
                   <option key={m} value={m} disabled={m === 'check' && noChecks}>
@@ -588,7 +588,7 @@ export function PaymentForm({
               </select>
             </label>
             <label className="block">
-              <span className="label-caps">Received *</span>
+              <span className="field-label">Received *</span>
               <select value={channel} onChange={(e) => setChannel(e.target.value as PaymentChannel)} className={`${field} mt-0.5`}>
                 {CHANNELS.map((c) => (
                   <option key={c} value={c}>
@@ -602,11 +602,11 @@ export function PaymentForm({
           {method === 'cash' ? (
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="label-caps">Cash tendered</span>
+                <span className="field-label">Cash tendered</span>
                 <input inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="0.00" className={`${field} mt-0.5 figures text-right`} />
               </label>
               <div>
-                <span className="label-caps">Change due</span>
+                <span className="field-label">Change due</span>
                 <p className="mt-1.5 figures text-data text-ink-primary">
                   {tendered && MONEY.test(tendered.trim()) && amountCents !== null && cents(tendered) >= amountCents
                     ? money(fromCents(cents(tendered) - amountCents))
@@ -619,15 +619,15 @@ export function PaymentForm({
           {method === 'check' ? (
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="label-caps">Check number *</span>
+                <span className="field-label">Check number *</span>
                 <input value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} className={`${field} mt-0.5 ident`} />
               </label>
               <label className="block">
-                <span className="label-caps">Check date</span>
+                <span className="field-label">Check date</span>
                 <input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} className={`${field} mt-0.5`} />
               </label>
               <label className="col-span-2 block">
-                <span className="label-caps">Bank</span>
+                <span className="field-label">Bank</span>
                 <input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="Bank the check is drawn on" className={`${field} mt-0.5`} />
               </label>
             </div>
@@ -635,14 +635,14 @@ export function PaymentForm({
 
           {method === 'money_order' ? (
             <label className="block">
-              <span className="label-caps">Money order serial *</span>
+              <span className="field-label">Money order serial *</span>
               <input value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} className={`${field} mt-0.5 ident`} />
             </label>
           ) : null}
 
           {method === 'credit_card' || method === 'debit_card' ? (
             <label className="block">
-              <span className="label-caps">Authorization code *</span>
+              <span className="field-label">Authorization code *</span>
               <input value={authCode} onChange={(e) => setAuthCode(e.target.value)} placeholder="From the card terminal" className={`${field} mt-0.5 ident uppercase`} />
               <span className="text-micro text-ink-tertiary">Run the card on the terminal first. Card numbers are never entered here.</span>
             </label>
@@ -650,7 +650,7 @@ export function PaymentForm({
 
           {method === 'ach' || method === 'wire' ? (
             <label className="block">
-              <span className="label-caps">{method === 'ach' ? 'ACH trace number *' : 'Wire confirmation *'}</span>
+              <span className="field-label">{method === 'ach' ? 'ACH trace number *' : 'Wire confirmation *'}</span>
               <input value={reference} onChange={(e) => setReference(e.target.value)} className={`${field} mt-0.5 ident`} />
               <span className="text-micro text-ink-tertiary">
                 {method === 'ach'
@@ -662,14 +662,14 @@ export function PaymentForm({
 
           {method === 'other' ? (
             <label className="block">
-              <span className="label-caps">Reference</span>
+              <span className="field-label">Reference</span>
               <input value={reference} onChange={(e) => setReference(e.target.value)} className={`${field} mt-0.5`} />
             </label>
           ) : null}
 
           <label className="block">
-            <span className="label-caps">Notes</span>
-            <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={2} className="mt-0.5 w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary" />
+            <span className="field-label">Notes</span>
+            <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={2} className="mt-0.5 w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary" />
           </label>
 
           <dl className="border-y border-rule-hair divide-y divide-rule-hair text-data">

@@ -96,7 +96,7 @@ export function AgingReport({ bills, asOf }: { bills: OpenBill[]; asOf: string }
         onClick={() => setCell(on ? null : c)}
         aria-pressed={on}
         title={`${count(matched.length)} bills — ${on ? 'hide' : 'show'} them`}
-        className={`-mx-1.5 rounded-xs px-1.5 py-0.5 text-right transition-colors duration-fast ${
+        className={`-mx-1.5 rounded-sm px-1.5 py-0.5 text-right transition-colors duration-fast ${
           on ? 'bg-accent text-ink-inverse' : 'hover:bg-accent-wash'
         }`}
       >
@@ -110,7 +110,7 @@ export function AgingReport({ bills, asOf }: { bills: OpenBill[]; asOf: string }
     )
   }
 
-  const th = 'label-caps bg-surface-raised px-cell-x py-1.5 font-semibold'
+  const th = 'field-label bg-surface-raised px-cell-x py-1.5 font-semibold'
 
   return (
     <Panel>

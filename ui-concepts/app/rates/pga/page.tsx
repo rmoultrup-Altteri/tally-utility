@@ -57,7 +57,7 @@ export default function PgaConsolePage() {
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
           {/* ==== The four numbers worth reading before anything else ==== */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-rule-solid border border-rule-solid">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px overflow-clip rounded-md bg-rule-hair border border-rule-hair shadow-panel">
             <Stat label="Standing factor" sub={`at ${date(asOf.validAt)}`}>
               <span className="ident text-figure text-ink-primary">
                 {standing ? fmtRate(standing.rate) : '—'}
@@ -301,7 +301,7 @@ function Stat({
 }) {
   return (
     <div className="bg-surface-raised px-4 py-3">
-      <p className="label-caps">{label}</p>
+      <p className="field-label">{label}</p>
       <p className="mt-1">{children}</p>
       <p className="text-micro text-ink-tertiary mt-0.5">{sub}</p>
     </div>
@@ -319,7 +319,7 @@ function Exposure({
 }) {
   return (
     <div className="min-w-0">
-      <p className="label-caps mb-0.5">{label}</p>
+      <p className="field-label mb-0.5">{label}</p>
       <p className="ident text-data text-ink-primary">{children}</p>
       {hint ? <p className="text-micro text-ink-tertiary mt-0.5">{hint}</p> : null}
     </div>

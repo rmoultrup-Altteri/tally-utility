@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 /**
  * Dense table primitives.
  *
- * No zebra striping — hairlines and the status rail do the row-tracking work,
+ * No zebra striping — hairlines and the rounded status rail do the row-tracking work,
  * and stripes fight every tint needed for state. Column groups carry a label
  * row above the header, because twenty undifferentiated columns are not
  * navigable and six labelled groups are.
@@ -29,7 +29,7 @@ export function GroupRow({ groups }: { groups: { label: string; span: number }[]
           key={g.label + i}
           colSpan={g.span}
           scope="colgroup"
-          className={`label-caps bg-surface-sunken px-cell-x py-1 text-left font-semibold ${
+          className={`field-label bg-surface-sunken px-cell-x py-1 text-left ${
             i > 0 ? 'border-l border-rule-solid' : ''
           }`}
         >
@@ -41,7 +41,7 @@ export function GroupRow({ groups }: { groups: { label: string; span: number }[]
 }
 
 export function HeadRow({ children }: { children: ReactNode }) {
-  return <tr className="border-b border-rule-heavy">{children}</tr>
+  return <tr className="border-b border-rule-solid">{children}</tr>
 }
 
 export function Th({
@@ -64,7 +64,7 @@ export function Th({
       scope="col"
       style={width ? { width } : undefined}
       aria-sort={sort}
-      className={`label-caps bg-surface-raised px-cell-x py-1.5 font-semibold ${alignment} ${
+      className={`field-label bg-surface-sunken px-cell-x py-2 ${alignment} ${
         groupStart ? 'border-l border-rule-solid' : ''
       }`}
     >

@@ -29,7 +29,7 @@ export function Collapsible({
   children: ReactNode
 }) {
   return (
-    <details open={defaultOpen} className="group bg-surface-raised border border-rule-solid">
+    <details open={defaultOpen} className="group overflow-clip rounded-md border border-rule-hair bg-surface-raised shadow-panel">
       <summary className="flex cursor-pointer list-none items-baseline gap-3 px-4 py-2.5 hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
         <span
           aria-hidden
@@ -39,7 +39,7 @@ export function Collapsible({
         </span>
         <h2 className="text-h3 text-ink-primary">{title}</h2>
         <span
-          className={`ident rounded-xs px-1.5 ${
+          className={`ident rounded-full px-2 ${
             tone === 'alert' && n > 0
               ? 'bg-exception-critical-wash text-exception-critical-text'
               : 'bg-surface-sunken text-ink-primary'
@@ -53,7 +53,7 @@ export function Collapsible({
           <span className="hidden group-open:inline">Collapse</span>
         </span>
       </summary>
-      <div className="border-t border-rule-solid">
+      <div className="border-t border-rule-hair">
         {actions ? (
           <div className="flex items-center justify-end gap-2 border-b border-rule-hair bg-surface px-4 py-2">
             {actions}

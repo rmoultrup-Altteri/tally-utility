@@ -32,7 +32,7 @@ export function Favorites() {
 
   return (
     <div className="border-t border-rule-hair px-3 py-2.5">
-      <p className="label-caps mb-1.5">Favorites</p>
+      <p className="field-label mb-1.5">Favorites</p>
       {favorites.length === 0 ? (
         <p className="text-micro text-ink-tertiary">
           Star a list or save a filtered view to pin it here.
@@ -87,7 +87,7 @@ export function ListStar({ list }: { list: ListKey }) {
       onClick={() => (on ? removeFavorite(id) : addFavorite({ id, kind: 'record_list', list }))}
       aria-pressed={on}
       title={on ? 'Remove this list from favorites' : 'Add this list to favorites'}
-      className={`inline-flex h-7 items-center gap-1.5 rounded-xs border px-2 text-data transition-colors duration-fast ${
+      className={`inline-flex h-7 items-center gap-1.5 rounded-sm border px-2 text-data transition-colors duration-fast ${
         on
           ? 'border-rule-solid bg-accent-wash text-ink-primary'
           : 'border-rule-solid bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink-primary'
@@ -122,7 +122,7 @@ export function SaveView({ list, filters }: { list: ListKey; filters: QueueFilte
     <button
       type="button"
       onClick={() => (saved ? removeFavorite(id) : save())}
-      className="inline-flex h-6 items-center gap-1.5 rounded-xs border border-rule-solid bg-surface-raised px-2 text-micro text-ink-secondary transition-colors duration-fast hover:bg-surface-sunken hover:text-ink-primary"
+      className="inline-flex h-6 items-center gap-1.5 rounded-sm border border-rule-solid bg-surface-raised px-2 text-micro text-ink-secondary transition-colors duration-fast hover:bg-surface-sunken hover:text-ink-primary"
     >
       <span aria-hidden>{saved ? '★' : '☆'}</span>
       {saved ? 'View saved' : 'Save this view'}

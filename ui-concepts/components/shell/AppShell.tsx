@@ -17,6 +17,9 @@ import { TenantLogo } from '@/components/shell/TenantLogo'
  * the page header and the sidebar stay put, and only the page body beneath the
  * header scrolls. Navigation and favorites are always where the hand expects.
  *
+ * The band, the sidebar and the page sit as three rounded cards on an inset
+ * ground, with a small gutter between them.
+ *
  * Two pieces of persistent chrome matter more than the navigation itself:
  * the as-of coordinate, which must be impossible to mistake for live when it
  * is not, and the cycle the operator is standing in.
@@ -46,11 +49,13 @@ export function AppShell({
   current: string
 }) {
   return (
-    <div className="relative h-dvh flex flex-col overflow-clip">
+    <div className="relative h-dvh flex flex-col gap-2 overflow-clip bg-surface-inset p-2">
       <AsOfBand />
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 gap-2">
         <Sidebar current={current} />
-        <div className="relative flex-1 min-w-0 min-h-0 flex flex-col">{children}</div>
+        <div className="relative flex-1 min-w-0 min-h-0 flex flex-col overflow-clip rounded-md border border-rule-hair bg-surface-sunken shadow-panel">
+          {children}
+        </div>
       </div>
     </div>
   )
@@ -65,7 +70,7 @@ export function AppShell({
 function AsOfBand() {
   if (asOf.isToday) {
     return (
-      <div className="flex items-center justify-between gap-4 border-b border-rule-solid bg-surface-ink px-4 py-1.5 text-ink-inverse">
+      <div className="flex items-center justify-between gap-4 rounded-md border border-rule-hair bg-surface-ink px-4 py-2 text-ink-inverse">
         <div className="flex items-center gap-3">
           <span className="text-h3 font-semibold tracking-tight">Tally Utility</span>
           <span aria-hidden className="h-4 w-px bg-current opacity-30" />
@@ -79,7 +84,7 @@ function AsOfBand() {
             {cycle.label} · {cycle.periodLabel} · {date(cycle.periodStart)} → {date(cycle.periodEnd)}
           </span>
           <QuickFind />
-          <span className="flex h-5 w-5 items-center justify-center rounded-xs bg-surface-raised text-ink-primary text-micro font-semibold">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-raised text-ink-primary text-micro font-semibold">
             {currentUser.initials}
           </span>
         </div>
@@ -87,7 +92,7 @@ function AsOfBand() {
     )
   }
   return (
-    <div className="border-b border-exception-info-rail bg-exception-info-wash px-4 py-1.5">
+    <div className="rounded-md border border-exception-info-rail bg-exception-info-wash px-4 py-2">
       <p className="text-micro text-exception-info-text">
         Viewing as of {date(asOf.validAt)} · <Link href="/" className="underline">Return to today</Link>
       </p>
@@ -99,10 +104,10 @@ function Sidebar({ current }: { current: string }) {
   return (
     <nav
       aria-label="Main"
-      className="w-52 shrink-0 border-r border-rule-solid bg-surface flex flex-col"
+      className="w-52 shrink-0 overflow-clip rounded-md border border-rule-hair bg-surface shadow-panel flex flex-col"
     >
       <div className="px-3 py-3 border-b border-rule-hair">
-        <p className="label-caps">As of</p>
+        <p className="field-label">As of</p>
         <p className="text-data text-ink-primary mt-0.5">{date(asOf.validAt)}</p>
         <p className="text-micro text-ink-tertiary mt-0.5">
           recorded {new Date(asOf.recordedAt).toLocaleTimeString('en-US', {
@@ -112,7 +117,7 @@ function Sidebar({ current }: { current: string }) {
         </p>
       </div>
 
-      <ul className="py-2 flex-1 min-h-0 overflow-y-auto">
+      <ul className="flex-1 min-h-0 space-y-0.5 overflow-y-auto px-2 py-2">
         {NAV.map((item) => {
           const active = item.label === current
           return (
@@ -120,16 +125,16 @@ function Sidebar({ current }: { current: string }) {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center justify-between gap-2 px-3 py-1.5 text-data border-l-[3px] transition-colors duration-fast ${
+                className={`flex items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-data transition-colors duration-fast ${
                   active
-                    ? 'border-accent bg-accent-wash text-ink-primary font-medium'
-                    : 'border-transparent text-ink-secondary hover:bg-surface-sunken hover:text-ink-primary'
+                    ? 'bg-accent-wash text-accent-text font-medium'
+                    : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink-primary'
                 }`}
               >
                 <span>{item.label}</span>
                 {item.badge === 'open' && openExceptions.length > 0 ? (
                   <span
-                    className="ident text-exception-critical-text"
+                    className="ident rounded-full bg-exception-critical-wash px-1.5 text-exception-critical-text"
                     title={`${blockingCount} of these block delivery`}
                   >
                     {openExceptions.length}
@@ -171,7 +176,7 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="flex items-start justify-between gap-6 border-b border-rule-solid bg-surface-raised px-5 py-3">
+    <header className="flex items-start justify-between gap-6 border-b border-rule-hair bg-surface-raised px-5 py-3.5">
       <div className="min-w-0">
         <h1 className="text-h1 text-ink-primary">{title}</h1>
         {meta ? <div className="mt-1 text-micro text-ink-tertiary">{meta}</div> : null}

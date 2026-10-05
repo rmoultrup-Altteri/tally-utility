@@ -211,7 +211,7 @@ function BillDocument({
           </p>
         </div>
         <div className="text-right">
-          <p className="label-caps" style={{ fontFamily: 'var(--font-sans)' }}>
+          <p className="field-label" style={{ fontFamily: 'var(--font-sans)' }}>
             Statement
           </p>
           <p className="ident text-[11pt] mt-0.5">{invoice.invoice_number}</p>
@@ -221,7 +221,7 @@ function BillDocument({
 
       <div className="grid grid-cols-2 gap-8 py-4 border-b border-rule-doc">
         <div>
-          <p className="label-caps mb-1" style={{ fontFamily: 'var(--font-sans)' }}>
+          <p className="field-label mb-1" style={{ fontFamily: 'var(--font-sans)' }}>
             Service to
           </p>
           <p className="font-semibold">{customerLabel}</p>
@@ -258,7 +258,7 @@ function BillDocument({
                 <tr>
                   <td colSpan={4} className="pt-3 pb-1">
                     <span
-                      className="label-caps"
+                      className="field-label"
                       style={{ fontFamily: 'var(--font-sans)' }}
                     >
                       {GROUP_LABEL[group]}
@@ -411,7 +411,7 @@ function Inspector({
           something if the analyst can see which world they are standing in. */}
       {run ? (
         <div className="px-4 py-3 border-b border-rule-solid bg-surface-raised">
-          <p className="label-caps mb-1.5">Pricing world</p>
+          <p className="field-label mb-1.5">Pricing world</p>
           <p className="text-data text-ink-primary">
             {invoice.invoice_type === 'correction'
               ? `Priced with rates in effect ${date(run.valid_at)} — the original period.`
@@ -426,7 +426,7 @@ function Inspector({
       ) : null}
 
       <div className="px-4 py-4 border-b border-rule-hair">
-        <p className="label-caps mb-2">Derivation · {gasLine?.description}</p>
+        <p className="field-label mb-2">Derivation · {gasLine?.description}</p>
         {gasLine?.gas_ccf_used ? (
           <ol className="space-y-0 border-y border-rule-hair divide-y divide-rule-hair">
             <Step label="Metered volume" value={`${gasLine.gas_ccf_used} Ccf`} note="end read − start read" />
@@ -458,7 +458,7 @@ function Inspector({
       </div>
 
       <div className="px-4 py-4 border-b border-rule-hair">
-        <p className="label-caps mb-2">Line provenance</p>
+        <p className="field-label mb-2">Line provenance</p>
         <FieldGrid cols={2}>
           <Field label="Rate schedule">
             <span className="ident">{gasLine?.rate_schedule_code ?? '—'}</span>
@@ -484,7 +484,7 @@ function Inspector({
       </div>
 
       <div className="px-4 py-4 border-b border-rule-hair">
-        <p className="label-caps mb-2">Tax basis</p>
+        <p className="field-label mb-2">Tax basis</p>
         <table className="w-full text-data">
           <tbody className="divide-y divide-rule-hair border-y border-rule-hair">
             {invoice.tax_breakdown.map((t) => (
@@ -504,7 +504,7 @@ function Inspector({
 
       {isIssued(invoice) ? (
         <div className="px-4 py-4">
-          <p className="label-caps mb-2">Why there is no edit button</p>
+          <p className="field-label mb-2">Why there is no edit button</p>
           <p className="text-micro text-ink-secondary leading-relaxed">
             This bill was issued {stamp(invoice.first_issued_at)}. Its content is frozen — the
             database rejects any change to the amounts, dates or lines. A correction is a new

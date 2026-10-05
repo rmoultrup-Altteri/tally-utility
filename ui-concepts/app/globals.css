@@ -79,13 +79,12 @@
    re-deriving the same twelve-class incantation on every row.
    ====================================================================== */
 
-/** The uppercase micro-label that titles panels, fields and column groups. */
-@utility label-caps {
+/** The quiet sentence-case micro-label that titles panels, fields and column groups. */
+@utility field-label {
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   letter-spacing: var(--text-label--letter-spacing);
   font-weight: var(--text-label--font-weight);
-  text-transform: uppercase;
   color: var(--color-ink-tertiary);
 }
 
@@ -112,7 +111,8 @@
  * The paper a bill or notice is printed on.
  *
  * A statement is a printed object: it is white stock with dark ink whatever
- * the operator has the rest of the application set to. Pinning
+ * the operator has the rest of the application set to, and square-cornered
+ * however rounded the instrument around it is. Pinning
  * `color-scheme: light` inside the sheet makes every `light-dark()` token in
  * the subtree resolve to its day value, so nested type, rules, money and the
  * VOID stamp stay printable without any of them knowing about themes. The few
@@ -121,6 +121,12 @@
  */
 @utility stock {
   color-scheme: light;
+  /* Print geometry: square corners and no lift, whatever the instrument does. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --shadow-panel: none;
   background-color: var(--color-surface-document);
   font-family: var(--font-doc);
   color: var(--color-ink-primary);

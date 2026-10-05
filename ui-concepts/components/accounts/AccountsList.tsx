@@ -58,7 +58,7 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
   return (
     <Panel>
       <div className="flex items-center gap-3 border-b border-rule-hair bg-surface px-cell-x py-2">
-        <label htmlFor="account-search" className="label-caps">
+        <label htmlFor="account-search" className="field-label">
           Search
         </label>
         <input
@@ -67,7 +67,7 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Owner name or street address…"
-          className="h-7 w-80 rounded-xs border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted"
+          className="h-7 w-80 rounded-sm border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted"
         />
         {query ? (
           <span className="text-micro text-ink-tertiary">

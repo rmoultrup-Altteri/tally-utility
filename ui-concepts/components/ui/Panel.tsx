@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 
 /**
- * Panels sit on rules, never on shadows. A panel is white stock on the warm
- * paper ground, which reads as raised without any elevation trick.
+ * A panel is a rounded white card on the warm paper ground, lifted by a
+ * hairline and a soft resting shadow. It clips its children to its corners,
+ * with overflow: clip rather than hidden so sticky headers inside still
+ * stick to the page scroller.
  */
 export function Panel({
   children,
@@ -12,7 +14,7 @@ export function Panel({
   className?: string
 }) {
   return (
-    <section className={`bg-surface-raised border border-rule-solid ${className}`}>
+    <section className={`bg-surface-raised border border-rule-hair rounded-md shadow-panel overflow-clip ${className}`}>
       {children}
     </section>
   )
@@ -28,7 +30,7 @@ export function PanelHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="flex items-baseline justify-between gap-4 border-b border-rule-solid px-4 py-2.5">
+    <header className="flex items-baseline justify-between gap-4 border-b border-rule-hair px-4 py-3">
       <div className="flex items-baseline gap-3 min-w-0">
         <h2 className="text-h3 text-ink-primary truncate">{title}</h2>
         {meta ? <span className="text-micro text-ink-tertiary truncate">{meta}</span> : null}
@@ -50,7 +52,7 @@ export function Field({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="label-caps mb-0.5">{label}</dt>
+      <dt className="field-label mb-0.5">{label}</dt>
       <dd className="text-data text-ink-primary break-words">{children}</dd>
       {hint ? <p className="text-micro text-ink-tertiary mt-0.5">{hint}</p> : null}
     </div>
@@ -68,7 +70,7 @@ export function FieldGrid({
   return <dl className={`grid grid-cols-1 ${grid} gap-x-6 gap-y-4`}>{children}</dl>
 }
 
-/** Buttons. Primary is the single accent; everything else is a ruled surface. */
+/** Buttons. Primary is the single accent; everything else is a rounded outlined surface. */
 export function Button({
   children,
   variant = 'default',
@@ -85,7 +87,7 @@ export function Button({
   onClick?: () => void
 }) {
   const base =
-    'inline-flex items-center gap-1.5 px-3 h-7 text-data rounded-xs border transition-colors duration-fast disabled:opacity-45 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center gap-1.5 px-3.5 h-8 text-data font-medium rounded-sm border transition-colors duration-fast disabled:opacity-45 disabled:cursor-not-allowed'
   const styles = {
     default:
       'bg-surface-raised border-rule-solid text-ink-primary hover:bg-surface-sunken hover:border-rule-heavy',

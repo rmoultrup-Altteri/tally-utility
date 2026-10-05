@@ -115,7 +115,7 @@ export default function DashboardPage() {
                         flagged ? 'bg-exception-critical-wash' : ''
                       }`}
                     >
-                      <p className="label-caps">{b.bucket}</p>
+                      <p className="field-label">{b.bucket}</p>
                       <p
                         className={`text-h2 mt-1 figures ${
                           flagged ? 'text-exception-critical-text' : 'text-ink-primary'
@@ -149,7 +149,7 @@ export default function DashboardPage() {
                 <>
                   <select
                     aria-label="Rate schedule"
-                    className="h-7 rounded-xs border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary"
+                    className="h-7 rounded-sm border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary"
                     defaultValue={rateCard.scheduleCode}
                   >
                     <option value="R-1">R-1 · Residential Firm Gas Service</option>
@@ -170,12 +170,12 @@ export default function DashboardPage() {
                 </caption>
                 <thead>
                   <tr className="border-b border-rule-heavy">
-                    <th className="label-caps px-cell-x py-1.5 text-left">Charge</th>
-                    <th className="label-caps px-cell-x py-1.5 text-right">As billed</th>
-                    <th className="label-caps px-cell-x py-1.5 text-right border-l border-rule-solid">
+                    <th className="field-label px-cell-x py-1.5 text-left">Charge</th>
+                    <th className="field-label px-cell-x py-1.5 text-right">As billed</th>
+                    <th className="field-label px-cell-x py-1.5 text-right border-l border-rule-solid">
                       Current effective
                     </th>
-                    <th className="label-caps px-cell-x py-1.5 text-left">Drift</th>
+                    <th className="field-label px-cell-x py-1.5 text-left">Drift</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,7 +239,7 @@ function RevenueFigure({
   const delta = Number(value) - Number(prior)
   return (
     <div className="px-4 py-3">
-      <p className="label-caps">{label}</p>
+      <p className="field-label">{label}</p>
       <p className="text-figure mt-1 figures text-ink-primary">{money(value)}</p>
       <p className="text-micro text-ink-tertiary mt-0.5">
         {delta >= 0 ? '▲' : '▼'} {money(String(Math.abs(delta)))} vs prior month, same day

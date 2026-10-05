@@ -27,7 +27,7 @@ function blocks(text: string): ReactNode[] {
       while (i < lines.length && !lines[i].startsWith('```')) body.push(lines[i++])
       i++
       out.push(
-        <pre key={out.length} className="overflow-x-auto rounded-xs bg-surface-inset px-2 py-1.5 font-mono text-micro text-ink-primary">
+        <pre key={out.length} className="overflow-x-auto rounded-sm bg-surface-inset px-2 py-1.5 font-mono text-micro text-ink-primary">
           {body.join('\n')}
         </pre>,
       )
@@ -88,7 +88,7 @@ function MdTable({ rows }: { rows: string[] }) {
   const [head, ...body] = cells
   if (!head) return null
   return (
-    <div className="overflow-x-auto border border-rule-hair">
+    <div className="overflow-x-auto rounded-sm border border-rule-hair">
       <table className="w-full text-micro">
         <thead className="bg-surface-sunken">
           <tr>
@@ -122,7 +122,7 @@ function inline(text: string): ReactNode[] {
     if (!part) return null
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2)
       return (
-        <code key={k} className="rounded-xs bg-surface-inset px-1 font-mono text-[0.92em]">
+        <code key={k} className="rounded-sm bg-surface-inset px-1 font-mono text-[0.92em]">
           {part.slice(1, -1)}
         </code>
       )

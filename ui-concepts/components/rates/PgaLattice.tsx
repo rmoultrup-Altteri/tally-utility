@@ -48,7 +48,7 @@ export function PgaLattice() {
             <tr>
               <th
                 scope="col"
-                className="label-caps sticky left-0 z-10 bg-surface-raised border-b border-rule-heavy px-cell-x py-1.5 text-left align-bottom"
+                className="field-label sticky left-0 z-10 bg-surface-raised border-b border-rule-heavy px-cell-x py-1.5 text-left align-bottom"
                 style={{ width: '17rem' }}
               >
                 Recorded ↓ / Service month →
@@ -57,7 +57,7 @@ export function PgaLattice() {
                 <th
                   key={m.key}
                   scope="col"
-                  className="label-caps bg-surface-raised border-b border-l border-rule-heavy px-cell-x py-1.5 text-center font-semibold"
+                  className="field-label bg-surface-raised border-b border-l border-rule-heavy px-cell-x py-1.5 text-center font-semibold"
                 >
                   {m.label}
                 </th>
@@ -200,7 +200,7 @@ function Cell({
             <span className="ident text-data line-through decoration-1 text-exception-critical-text">
               {fmtRate(carryForwardDefect.billedFactor)}
             </span>
-            <span className="block text-label uppercase tracking-[0.06em] font-semibold text-exception-critical-text">
+            <span className="block text-label text-exception-critical-text">
               billed anyway
             </span>
           </span>
@@ -234,7 +234,7 @@ function Legend() {
 function LegendItem({ swatch, children }: { swatch: string; children: React.ReactNode }) {
   return (
     <span className="flex items-center gap-2">
-      <span aria-hidden className={`inline-block h-3.5 w-6 border border-rule-solid ${swatch}`} />
+      <span aria-hidden className={`inline-block h-3.5 w-6 rounded-xs border border-rule-solid ${swatch}`} />
       <span className="text-micro text-ink-secondary">{children}</span>
     </span>
   )
@@ -268,15 +268,15 @@ function Probe({ selection }: { selection: Selection | null }) {
     <div className="border-t border-rule-solid px-4 py-4">
       <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
         <div>
-          <dt className="label-caps mb-0.5">valid_at</dt>
+          <dt className="field-label mb-0.5">valid_at</dt>
           <dd className="ident text-data text-ink-primary">{month.probeAt}</dd>
         </div>
         <div>
-          <dt className="label-caps mb-0.5">recorded_at</dt>
+          <dt className="field-label mb-0.5">recorded_at</dt>
           <dd className="ident text-data text-ink-primary">{instant.at}</dd>
         </div>
         <div>
-          <dt className="label-caps mb-0.5">Resolves to</dt>
+          <dt className="field-label mb-0.5">Resolves to</dt>
           <dd className="text-data text-ink-primary">
             {version ? (
               <span className="ident font-medium">{version.id}</span>
@@ -286,7 +286,7 @@ function Probe({ selection }: { selection: Selection | null }) {
           </dd>
         </div>
         <div>
-          <dt className="label-caps mb-0.5">Factor</dt>
+          <dt className="field-label mb-0.5">Factor</dt>
           <dd className="text-data">
             {version ? (
               <span className="ident text-ink-primary font-medium">{fmtRate(version.rate)}</span>

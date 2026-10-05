@@ -86,7 +86,7 @@ export default async function DiffPage({ params }: PageProps<'/invoices/[invoice
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
           {/* The money, stated plainly and balanced. */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-rule-solid border border-rule-solid">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px overflow-clip rounded-md bg-rule-hair border border-rule-hair shadow-panel">
             <Side
               label="Voided original"
               invoice={original}
@@ -100,7 +100,7 @@ export default async function DiffPage({ params }: PageProps<'/invoices/[invoice
               href={`/invoices/${rebill.id}`}
             />
             <div className="bg-surface-raised px-4 py-3">
-              <p className="label-caps">Net adjustment to the account</p>
+              <p className="field-label">Net adjustment to the account</p>
               <p className="text-figure mt-1">
                 <Money value={String(delta)} />
               </p>
@@ -135,16 +135,16 @@ export default async function DiffPage({ params }: PageProps<'/invoices/[invoice
                 </caption>
                 <thead>
                   <tr className="border-b border-rule-heavy">
-                    <th className="label-caps px-cell-x py-1.5 text-left">Charge</th>
-                    <th className="label-caps px-cell-x py-1.5 text-right border-l border-rule-solid">
+                    <th className="field-label px-cell-x py-1.5 text-left">Charge</th>
+                    <th className="field-label px-cell-x py-1.5 text-right border-l border-rule-solid">
                       Original rate
                     </th>
-                    <th className="label-caps px-cell-x py-1.5 text-right">Original amount</th>
-                    <th className="label-caps px-cell-x py-1.5 text-right border-l border-rule-solid">
+                    <th className="field-label px-cell-x py-1.5 text-right">Original amount</th>
+                    <th className="field-label px-cell-x py-1.5 text-right border-l border-rule-solid">
                       Rebill rate
                     </th>
-                    <th className="label-caps px-cell-x py-1.5 text-right">Rebill amount</th>
-                    <th className="label-caps px-cell-x py-1.5 text-right border-l border-rule-solid">
+                    <th className="field-label px-cell-x py-1.5 text-right">Rebill amount</th>
+                    <th className="field-label px-cell-x py-1.5 text-right border-l border-rule-solid">
                       Difference
                     </th>
                   </tr>
@@ -276,7 +276,7 @@ function Side({
   return (
     <div className="bg-surface-raised px-4 py-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="label-caps">{label}</p>
+        <p className="field-label">{label}</p>
         <StateFlag tone={tone}>{invoice.status}</StateFlag>
       </div>
       <p className="text-figure mt-1">{money(invoice.amount_due)}</p>
@@ -304,7 +304,7 @@ function InputSet({
 }) {
   return (
     <div className="px-4 py-4">
-      <p className="label-caps mb-2">{title}</p>
+      <p className="field-label mb-2">{title}</p>
       <dl className="divide-y divide-rule-hair border-y border-rule-hair">
         {inputs.map((input) => {
           const other = compareTo.find((c) => c.label === input.label)
@@ -347,7 +347,7 @@ function Check({
   return (
     <li className="flex items-baseline gap-3 px-4 py-2.5">
       <span
-        className={`ident flex h-4 w-4 shrink-0 items-center justify-center rounded-xs ${
+        className={`ident flex h-4 w-4 shrink-0 items-center justify-center rounded-sm ${
           done
             ? 'bg-exception-cleared-wash text-exception-cleared-text'
             : 'bg-surface-inset text-ink-tertiary'

@@ -3,9 +3,10 @@ import type { ReactNode } from 'react'
 /**
  * Lifecycle and severity presentation.
  *
- * Every status is carried by a word AND a colour — never colour alone. The
- * 3px left rail replaces a status column entirely, which buys back a full
- * column of horizontal budget on tables that badly need it.
+ * Every status is carried by a word AND a colour — never colour alone. In a
+ * table row, a rounded 3px rail replaces a status column entirely, which buys
+ * back a full column of horizontal budget on tables that badly need it;
+ * everywhere else a status is a tinted pill.
  *
  * Class strings are spelled out rather than composed, because Tailwind cannot
  * see a class name that only exists at runtime.
@@ -78,6 +79,26 @@ const WASH: Record<Tone, string> = {
   snoozed: 'bg-exception-snoozed-wash',
 }
 
+/** The pill behind a status word. A draft has no tint of its own, so it gets the inset grey. */
+const PILL: Record<Tone, string> = { ...WASH, draft: 'bg-surface-inset' }
+
+/** A callout's outline: the rail colour, softened so the tint does the talking. */
+const BORDER: Record<Tone, string> = {
+  draft: 'border-state-draft-rail/40',
+  pending: 'border-state-pending-rail/40',
+  approved: 'border-state-approved-rail/40',
+  posted: 'border-state-posted-rail/40',
+  failed: 'border-state-failed-rail/40',
+  held: 'border-state-held-rail/40',
+  void: 'border-state-void-rail/40',
+  superseded: 'border-state-superseded-rail/40',
+  dryrun: 'border-state-dryrun-rail/40',
+  critical: 'border-exception-critical-rail/40',
+  warning: 'border-exception-warning-rail/40',
+  info: 'border-exception-info-rail/40',
+  cleared: 'border-exception-cleared-rail/40',
+  snoozed: 'border-exception-snoozed-rail/40',
+}
 /** Map a persisted status value onto a presentation tone. */
 export function invoiceTone(status: string): Tone {
   switch (status) {
@@ -141,14 +162,14 @@ export function severityTone(severity: string, status?: string): Tone {
  */
 export { label as humanize } from '@/lib/vocabulary'
 
-/** The 3px left edge that carries row state in place of a status column. */
+/** The rounded 3px edge that carries row state in place of a status column. */
 export function Rail({ tone }: { tone: Tone }) {
-  return <span aria-hidden className={`block h-full w-rail ${RAIL[tone]}`} />
+  return <span aria-hidden className={`block h-full w-rail rounded-full ${RAIL[tone]}`} />
 }
 
 /**
- * A status word. Not a pill — a letterform flag with a leading rule, which
- * stays legible at 11px and does not eat the padding a pill demands.
+ * A status word on a tinted pill. The word carries the meaning; the tint and
+ * the leading dot only reinforce it.
  */
 export function StateFlag({
   tone,
@@ -162,10 +183,11 @@ export function StateFlag({
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap text-label uppercase tracking-[0.06em] font-semibold ${TEXT[tone]}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-label ${PILL[tone]} ${TEXT[tone]}`}
     >
-      <span aria-hidden className={`inline-block h-2.5 w-rail ${RAIL[tone]}`} />
-      {children}
+      <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${RAIL[tone]}`} />
+      {/* Persisted values arrive lower-case; the badge reads in sentence case. */}
+      <span className="inline-block first-letter:uppercase">{children}</span>
     </span>
   )
 }
@@ -181,9 +203,7 @@ export function StateBlock({
   className?: string
 }) {
   return (
-    <div className={`border-l-[3px] ${RAIL[tone]} ${className}`}>
-      <div className={`${WASH[tone]} px-4 py-3`}>{children}</div>
-    </div>
+    <div className={`rounded-md border ${BORDER[tone]} ${WASH[tone]} px-4 py-3 ${className}`}>{children}</div>
   )
 }
 

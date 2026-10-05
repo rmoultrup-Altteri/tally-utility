@@ -38,9 +38,9 @@ export function ImportCard({
   const where = WHERE[p.entity]
 
   return (
-    <section className="border border-rule-solid bg-surface-raised text-data" aria-label={`Staged import: ${p.summary}`}>
+    <section className="overflow-clip rounded-md border border-rule-hair bg-surface-raised text-data shadow-panel" aria-label={`Staged import: ${p.summary}`}>
       <header className="flex items-baseline justify-between gap-2 border-b border-rule-hair bg-surface-sunken px-2.5 py-1.5">
-        <span className="label-caps">Staged import</span>
+        <span className="field-label">Staged import</span>
         <span className="truncate text-micro text-ink-tertiary">{p.source ?? 'from the chat'}</span>
       </header>
 
@@ -48,7 +48,7 @@ export function ImportCard({
         <p className="text-ink-primary">{p.summary}</p>
 
         {valid > 0 ? (
-          <div className="overflow-x-auto border border-rule-hair">
+          <div className="overflow-x-auto rounded-sm border border-rule-hair">
             <table className="w-full text-micro">
               <thead className="bg-surface-sunken">
                 <tr>

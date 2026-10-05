@@ -89,7 +89,7 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-rule-solid border border-rule-solid">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-px overflow-clip rounded-md bg-rule-hair border border-rule-hair shadow-panel">
             <Stat label="Accounts" value={count(run.total_locations)} />
             <Stat label="Bills" value={count(run.total_invoices)} />
             <Stat label="Billed amount" value={<Money value={run.total_amount} />} />
@@ -111,7 +111,7 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
               {STAGES.map((s, i) => (
                 <li key={s.key} className="flex items-center gap-3 px-4 py-2.5">
                   <span
-                    className={`ident flex h-5 w-5 shrink-0 items-center justify-center rounded-xs ${
+                    className={`ident flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
                       s.done
                         ? 'bg-exception-cleared-wash text-exception-cleared-text'
                         : 'bg-surface-inset text-ink-tertiary'
@@ -253,7 +253,7 @@ function Stat({
         : 'text-ink-primary'
   return (
     <div className="bg-surface-raised px-4 py-3">
-      <p className="label-caps">{label}</p>
+      <p className="field-label">{label}</p>
       <p className={`text-figure mt-1 ${color}`}>{value}</p>
     </div>
   )

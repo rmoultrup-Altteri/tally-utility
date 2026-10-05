@@ -41,17 +41,23 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 
 ## Design direction
 
-"Pressroom" — editorial-utilitarian. A warm paper ground, hairline rules
-instead of card shadows, and a deliberate pairing: **a grotesque for the tool,
-a serif for the artifact.** Bills are set in the serif on white stock with
-print geometry; the instrument around them is sans.
+A warm paper ground with rounded, softly lifted panels, and a deliberate
+pairing: **a grotesque for the tool, a serif for the artifact.** The
+instrument is rounded; the bill is not. Bills are set in the serif on square
+white stock with print geometry; the instrument around them is sans.
 
-The reasoning, in short: the invoice is the most-scrutinised object this
-product makes — customers dispute it, PUCs subpoena it, CSRs read it aloud. A
-card-and-pill UI renders that as a web receipt. And since the core technical
-differentiator is permanence (immutable bills, append-only ledger, bi-temporal
-reproduction), a floaty dashboard aesthetic would contradict what is being
-sold.
+The frame is three rounded cards — the as-of band, the sidebar and the page —
+on an inset ground. Corners step with the size of the thing: 4px for keys,
+8px for buttons and inputs, 12px for panels, 16px for the assistant and
+dialogs. Chips, status badges, search fields and the theme switch are pills.
+Panels carry a hairline and a soft `--shadow-panel`; labels and column headers
+are quiet sentence case rather than tracked capitals.
+
+The reasoning for keeping the bill square: the invoice is the most-scrutinised
+object this product makes — customers dispute it, PUCs subpoena it, CSRs read
+it aloud. It should look like the page that gets printed and mailed, not a web
+receipt. The `stock` utility sets every radius and the panel shadow back to
+zero inside the sheet, so nothing in the document has to opt out on its own.
 
 All tokens live in `app/theme.css` as a Tailwind v4 `@theme` block, named for
 their **role in gas billing** rather than by hue — `--color-read-estimated-rail`,

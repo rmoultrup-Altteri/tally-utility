@@ -198,7 +198,7 @@ export function TariffSandbox() {
                       onChange={(e) =>
                         setProposed((p) => ({ ...p, [lever.key]: Number(e.target.value) }))
                       }
-                      className="w-32 rounded-xs border border-rule-solid bg-surface-raised px-2 py-1 text-right text-data text-ink-primary"
+                      className="w-32 rounded-sm border border-rule-solid bg-surface-raised px-2 py-1 text-right text-data text-ink-primary"
                     />
                     <span className="text-micro text-ink-tertiary ml-1">{lever.unit}</span>
                   </Td>
@@ -249,7 +249,7 @@ export function TariffSandbox() {
       ) : (
         <>
           {/* ==== The headline ==== */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-rule-solid border border-rule-solid">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px overflow-clip rounded-md bg-rule-hair border border-rule-hair shadow-panel">
             <Stat label="Bills up" sub={`${pct(impact.up)} of the class`}>
               {count(impact.up)}
             </Stat>
@@ -408,7 +408,7 @@ export function TariffSandbox() {
             />
             <div className="px-4 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label htmlFor="eff" className="label-caps mb-1 block">
+                <label htmlFor="eff" className="field-label mb-1 block">
                   Effective from
                 </label>
                 <input
@@ -416,22 +416,22 @@ export function TariffSandbox() {
                   type="date"
                   value={effectiveFrom}
                   onChange={(e) => setEffectiveFrom(e.target.value)}
-                  className="w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary"
+                  className="w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary"
                 />
               </div>
               <div>
-                <label htmlFor="docket" className="label-caps mb-1 block">
+                <label htmlFor="docket" className="field-label mb-1 block">
                   Regulatory reference
                 </label>
                 <input
                   id="docket"
                   value={docket}
                   onChange={(e) => setDocket(e.target.value)}
-                  className="w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary"
+                  className="w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary"
                 />
               </div>
               <div>
-                <label htmlFor="reason" className="label-caps mb-1 block">
+                <label htmlFor="reason" className="field-label mb-1 block">
                   Change reason
                 </label>
                 <input
@@ -439,7 +439,7 @@ export function TariffSandbox() {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Required — recorded on every version"
-                  className="w-full rounded-xs border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary placeholder:text-ink-muted"
+                  className="w-full rounded-sm border border-rule-solid bg-surface-raised px-2 py-1 text-data text-ink-primary placeholder:text-ink-muted"
                 />
               </div>
             </div>
@@ -475,7 +475,7 @@ const pct = (n: number) => `${((n / population.length) * 100).toFixed(1)}%`
 function Fact({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="label-caps mb-0.5">{label}</dt>
+      <dt className="field-label mb-0.5">{label}</dt>
       <dd className="text-data text-ink-primary">{children}</dd>
       {hint ? <p className="text-micro text-ink-tertiary mt-0.5">{hint}</p> : null}
     </div>
@@ -493,7 +493,7 @@ function Stat({
 }) {
   return (
     <div className="bg-surface-raised px-4 py-3">
-      <p className="label-caps">{label}</p>
+      <p className="field-label">{label}</p>
       <p className="text-figure text-ink-primary mt-1">{children}</p>
       <p className="text-micro text-ink-tertiary mt-0.5">{sub}</p>
     </div>
