@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Rail, StateFlag } from '@/components/ui/State'
@@ -56,7 +57,14 @@ export default function DashboardPage() {
                       {p.tier}
                     </span>
                   }
-                  meta={`${count(p.rows.reduce((n, r) => n + r.count, 0))} items`}
+                  meta={
+                    <Link
+                      href={`/dashboard/items?tier=${p.tier}` as Route}
+                      className="text-accent-text hover:text-accent-text-hover underline"
+                    >
+                      {count(p.rows.reduce((n, r) => n + r.count, 0))} items
+                    </Link>
+                  }
                 />
                 <ul className="divide-y divide-rule-hair">
                   {p.rows.map((row) => (
@@ -213,7 +221,7 @@ function PortletLine({ row }: { row: PortletRow }) {
   return (
     <li>
       <Link
-        href="/"
+        href={`/dashboard/items?type=${row.itemType}` as Route}
         className={`flex items-baseline justify-between gap-3 px-4 py-1.5 hover:bg-surface-sunken transition-colors duration-fast ${
           empty ? 'opacity-45' : ''
         }`}
