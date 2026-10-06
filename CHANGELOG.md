@@ -4,6 +4,86 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-06 — new way of working; deposits survey breaks typed columns; rule-terms v2 adopted; places inventory (Texas law doesn't reach city gas); v5.4.2-16 drafted and through two review rounds
+
+**What was done:**
+- **Process.** Ryan asked why every step produced many questions. Agreed:
+  - inventory the sources before drafting;
+  - triage findings by standing rules;
+  - ask only when the rules conflict.
+
+  Saved as memory `source-inventory-first-triage-by-rule`.
+- **-15 round-3 revision** (`7442c68`):
+  - D1 trigger thresholds, plus the Texas `usage_doubled` trigger (K9);
+  - D2 cap parts;
+  - D3 instalments;
+  - D4 partial return-due rows;
+  - I1–I8.
+
+  Verified: battery 127/127, X1–X2, R1–R10, mutations 140/140. Now superseded as a design.
+- **Deposit source survey, 10 states:** 29 shapes the typed-column schema can't hold.
+- **Rule-terms convention.**
+  - v1 was proposed and reviewed independently by Opus, Fable and Codex, all "adopt with changes"; a research agent mapped it to Oracle CC&B, OpenFisca and Guidewire.
+  - **v2 adopted by Ryan:**
+    - a typed key plus a `terms` document, validated on write;
+    - typed facets for the database's reference checks;
+    - named, versioned strategies in the C# core;
+    - a dated table for published values;
+    - core audit passes;
+    - a `tally_core` role.
+  - Reverses audit rule 2 (correction note added). OpenFisca: its parameter format, not its runtime.
+- **Places source inventory.** Texas research and a 10-state utility-type survey, each primary-text checked.
+  - **Texas gas law (GURA, 16 TAC ch. 7, §7.45) does not bind city-owned gas systems** (Utilities Code §101.003(7)(A), §102.002).
+  - K10 answered from the statute; K11 added. The deposit survey's Louisiana entry was corrected (R.S. 45:850).
+- **v5.4.2-16 places and applicability**, drafted and revised twice:
+  - shared places;
+  - dated place facts (typed by vocabulary, keyed, ranged);
+  - premise memberships, dated per axis, with within or outside and a distance, exclusivity groups, and a void;
+  - utility service profiles (owner type, commission jurisdiction, owning place);
+  - `jurisdictions.place_id`;
+  - lookups that refuse rather than guess;
+  - an advisory-lock handshake with both sides pinned to READ COMMITTED.
+
+  **Round 1:** all three "not yet" (stale snapshot on the insert side; state editable under memberships; Chicago time-zone guess; RLS-narrowed close). **Round 2:** all three "not yet", on the same item (the time-zone tie). Both folded in.
+- **Final build `c49b1ec5`, battery `af1013f9`:**
+  - strict apply ×2;
+  - battery 68/68;
+  - races R1–R12, with waits observed;
+  - mutations 110/110 at named checks;
+  - regressions 28/58/41/116/3/99/6; -13 X1.
+
+  Frozen as r3. **The round-3 review was stopped at Ryan's request; to be relaunched next session.**
+
+**Decisions:**
+- Rule-terms v2 (Ryan).
+- Strategies selected by name, never by state.
+- Places shared; memberships and profiles per tenant, dated and evidenced.
+- Axes dated separately.
+- "Unincorporated" = an ETJ or an `unincorporated_area`.
+- Absence means unknown.
+- Void for rows wrong from their first day.
+- Texas time zone needs the county.
+- Cross-state outside distances are a residual.
+
+**Failed approaches:**
+- Typed columns per law setting (5 shapes, then 29).
+- Pinning only the close side of the lock handshake.
+- Checking the premise's state only on insert.
+- `ORDER BY specificity LIMIT 1` across axes.
+- A close floor without an RLS-visibility guard.
+- A CHECK on `service_locations.state`: breaks -12's battery; read it normalised instead.
+- About 12 battery cases refused by another guard first.
+- A Python replace with an empty anchor corrupted the battery (recovered).
+
+**Verification:** see above. All on clones with TEMP revoked. Every clone dropped at session end.
+
+**Not done / next:**
+- Relaunch review round 3 (HANDOFF step 2); triage; then copy -16 into `tu.sql` on Ryan's approval.
+- Rule-terms v2 step 2: the infrastructure. Then the sweep, the -15 rewrite and the -13 migration.
+- Kyle K1–K11.
+
+---
+
 ## 2026-10-04 — deposits (-15): D1–D5 explained; schema-vs-core cost mapped; D2/D3 citations checked; Texas usage trigger found missing
 
 **What was done:**
