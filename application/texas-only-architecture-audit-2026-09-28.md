@@ -111,9 +111,11 @@ I spot-checked the strongest claims against the source and the live catalog, and
    - Each rule is looked up from the service location's place, as of the relevant date.
    - `tenants.state` is a mailing address and nothing reads it for law.
 
-2. **One table per rule family, with typed columns.** Examples are `deposit_rules`, `backbilling_rules` and `moratorium_rules`, not one generic "key/value rules" table.
+2. **One table per rule family, with typed columns.** *(Reversed 2026-10-06 — see the note below and `application/rule-terms-convention-v2-2026-10-06.md`.)* Examples are `deposit_rules`, `backbilling_rules` and `moratorium_rules`, not one generic "key/value rules" table.
    - Typed columns can carry checks.
    - A generic table would move the Texas assumptions into untyped JSON, where nothing checks them.
+
+   > **Correction, 2026-10-06 (Ryan).** Typed columns per setting could not keep up: two review rounds on deposits found five shapes, and a 10-state survey found 29 more. Rule 2 is replaced by the rule-terms convention (v2). A law table keeps a typed applicability key, dates and citation. Its content is a `terms` document of strategy choices and parameters, checked against a registered schema on every write. Typed facets derived from it carry the database's reference checks. The logic is named, versioned strategies in the core. The concern this rule answered ("untyped JSON, where nothing checks them") is met by write-time validation, not by typed columns.
 
 3. **Every law table follows the meter-threshold template.**
    - No `tenant_id`.
