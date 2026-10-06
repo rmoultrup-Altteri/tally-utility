@@ -56,3 +56,25 @@ Vocabulary values (bases, triggers, classes, waiver classes, disqualifiers, reas
 - **Changes the meaning of existing columns:** D2 (cap moves into parts) is moderate. D3 (required vs paid amount) is expensive: status, interest basis, refund amount and `cap_other_held` all read the one amount.
 
 Sources: [16 TAC §25.24](https://www.law.cornell.edu/regulations/texas/16-Tex-Admin-Code-SS-25-24) · [16 TAC §25.478](https://www.law.cornell.edu/regulations/texas/16-Tex-Admin-Code-SS-25-478) · [16 TAC §7.45](https://www.law.cornell.edu/regulations/texas/16-Tex-Admin-Code-SS-7-45) · [52 Pa. Code §56.42](https://pacodeandbulletin.gov/secure/pacode/data/052/chapter56/s56.42.html)
+
+## Dispositions (2026-10-06)
+
+Ryan adopted the stopping rule on 2026-10-06: model a shape when a real source (a statute, Kyle's tables, our own design) calls for it; record a hypothetical shape as a residual. With it and the standing principles, no D item needed a separate decision. Each line names the rule that settled it.
+
+| # | Built as | Settled by |
+|---|---|---|
+| I1–I8 | As proposed above, with one change to I3: an accrual may not **span** a partial return (it may follow one) and may not reach a full return; "not past exhaustion" is implied by "basis ≤ the least held over the period", so it has no guard of its own | Integrity fixes |
+| D1 | `deposit_rule_trigger_thresholds` (statute) and `deposit_tariff_trigger_thresholds` (utility), each a count in a window or a usage ratio; the deposit cites one plus the observed measure; required where the rule sets one. The tariff row closes like a waiver ground (I5 pattern) | Source: #55 rules 5–7, §7.45(5)(C)(ii). Utility owns its values (R-D1) for #55's configurable thresholds |
+| new | `usage_doubled` trigger; TX additional-deposit rules carry ratio 2, payable in 2 days; K9 to Kyle | Source: §7.45(5)(C)(ii). Parity with the statute |
+| D2 | `deposit_rules.cap_combinator` (none / single / lesser_of / greater_of) plus `deposit_rule_cap_parts`; the deposit names the governing part's kind. Nested caps (floor and ceiling) are R13 | Source: §25.478(e)(1)(A). Launch scope is not architecture scope |
+| D3 | `deposit_rule_instalments` (the schedule); `deposits.received_at_posting` + `deposit_instalments`; `instalment_received` events; held = received. Tariff-only instalment plans are R14 | Source: 52 Pa. Code §56.42. Costly to migrate later, so settled now |
+| D4 | `deposit_return_due.amount`; reason `excess_over_cap`; `deposit_rules.refund_excess_over_cap`; settled by `principal_returned` of exactly the amount; a settled partial row stops being live | Source: rules-for-the-core §2.2 (refund Alt 4) |
+| D5 | Residual R16 | No source |
+
+Verified on patch `2f528181` (clones with TEMP revoked): strict apply ×2 clean and idempotent; battery **127/127** (group N covers round 2); X1–X2; races R1–R10; mutations **140/140**, each caught at its named check (M93–M144 for round 2); regressions 28/58/41/116/3/99/6; -13 X1.
+
+While building, four guards turned out to be implied by others, so each was folded in rather than kept as an uncatchable check. The new least-held check covers interest before posting and after exhaustion. The commit-time count covers instalments under a rule with no schedule. The receipt bound covers a receipt on a deposit received whole. A rule with no cap has no parts, so the parts check covers a statutory cap under such a rule. Their mutations (M30, M114, M122 and the old M84) were retired or retargeted.
+
+## The source survey (2026-10-06): 29 more shapes
+
+Ten more states' gas deposit rules were surveyed: OK, LA, NM, AR, KS, OH, IL, NY, CA and GA. See `application/deposits-source-survey-2026-10-06.md`. **29 shapes found there cannot be held by the round-2 schema.** Examples: late-payment triggers; Treasury-indexed interest bands; caps on the highest bill or the heating season; runs of consecutive bills; refund thresholds in dollars; periodic recalculation with a tolerance band; Kansas's separate municipal deposit account with January 1 crediting. Kansas K.S.A. 12-822 binds municipally owned utilities directly. This puts the typed-column representation of a rule's shape in question; see HANDOFF.

@@ -21,7 +21,7 @@ This document holds every rule the dropped code enforced, so nothing is lost whe
 | `#54 rule N` | Decision table *Deposit Refund and Interest* | `…/decision-tables/deposit-refund-and-interest.md` |
 | `#55 rule N` | Decision table *Deposit Alternatives and Triggers* | `…/decision-tables/deposit-alternatives-and-triggers.md` |
 | `accrual Alt N` / `refund Alt N`, `Exc N` | Workflow alternative and exception flows | `…/workflows/deposit-interest-accrual-cycle.md`, `…/deposit-refund-processing.md` |
-| `K1` … `K6` | Questions for Kyle | design §5 |
+| `K1` … `K9` | Questions for Kyle | design §5 |
 | `DG1` … | Places where -06 and its sources disagree | §7 below |
 
 Clause references such as "§7.45(5)(C)" are carried from Kyle's research and the decision tables. Nothing here is a fresh reading of the statute.
@@ -67,16 +67,20 @@ Clause references such as "§7.45(5)(C)" are carried from Kyle's research and th
 - **Not in -06, in the sources:** #53 rank 4: if any waiver input is unevaluable (for example `date_of_birth` NULL for the 65+ waiver), **no deposit**. Fail open. The core must implement it (DG3).
 
 **2.2 The cap** — the deposit records the cap that applied and its source: the statute (the rule's cap) or the utility's tariff (Ryan, 2026-10-02, B2). A tariff cap may be tighter than the statute's, or exist where the statute sets none. (-06 L875–881, CHECKs L626–628; CI-129; D-41; #53 rank 8; #55 rule 9).
-- Where the rule row's `cap_kind ≠ none`, the deposit records its cap amount and the basis it was computed from. Texas: 1/6 of estimated annual billing, residential.
+- Where the rule row's `cap_combinator ≠ none`, the deposit records its cap amount, the kind of the part that governed (`cap_basis_kind`) and that part's basis figure. The parts are `deposit_rule_cap_parts`; `single` takes the one part, `lesser_of` / `greater_of` the smaller / larger of the parts' amounts (v5.4.2-15 review r2 D2). Texas gas: single, 1/6 of estimated annual billing, residential. Texas retail electric (16 TAC §25.478(e)(1)(A)), for reference: the **greater** of 1/5 of annual billing and the next two months' billings.
 - `principal ≤ cap_amount` and "`cap_binding` ⇒ `principal = cap_amount`" stay as CHECKs (design §1): arithmetic on the recorded cap.
 - `cap_binding` must be set when the cap reduced the computed amount: the customer is entitled to know (#53 outputs).
 - **Estimated annual billing for a new applicant is undefined** (#53 OQ5). The core must specify the method (for example a rate-class average) so two tenants don't compute different caps.
 - **Per deposit or combined?** -06 checks per deposit. #55 rule 9 says the cap governs the **total** held: three $200 trigger deposits against a $450 cap break the rule, though each one alone is lawful. K4. The rule row carries `cap_scope`.
-- Refund Alt 4: a held deposit found above the cap has its excess refundable independently of any trigger.
+- Refund Alt 4: a held deposit found above the cap has its excess refundable independently of any trigger. Where the rule's `refund_excess_over_cap` is true, the core records a return-due row **with the amount** (reason `excess_over_cap`, resting on the deposit) and settles it with `principal_returned` of exactly that amount (review r2 D4). Texas: false, as -06.
+
+**2.2a Instalments** (52 Pa. Code §56.42, gas; review r2 D3). Where the rule has a schedule (`deposit_rule_instalments`: Pennsylvania 0.5 at 0 days, 0.25 at 30, 0.25 at 60), the customer may elect to pay in instalments. The deposit's `principal` is the deposit required; `received_at_posting` is the first instalment; `deposit_instalments` lists the rest with amounts and due dates; each receipt is an `instalment_received` event. What is held, and what interest and refunds run on, is what was received. The start of the schedule depends on the trigger (§56.42(c): from reconnection), so the core computes the dates. A missed instalment is a ground for termination (§56.81). Texas has no schedule.
 
 **2.3 Basis, trigger and instrument** (-06 L621–624, L629–631; #53 OQ4; #55).
 - Every deposit names its basis, because the bases refund on different rules: a §366 deposit is never auto-refunded while its case is live (#54 rule 3; refund Exc 2).
-- `additional_trigger` ⇔ a trigger basis (`nsf`, `disconnect_history`, `broken_dpa`). This stays as record integrity (the trigger is what the additional basis means).
+- `additional_trigger` ⇔ a trigger basis (`nsf`, `disconnect_history`, `broken_dpa`, `usage_doubled`). This stays as record integrity (the trigger is what the additional basis means).
+- **Thresholds** (review r2 D1). A trigger fires against a threshold: a count of events in a window of months (#55 rules 5–7: "nsf_count_12m ≥ threshold", disconnection in 24 months) or a ratio of actual use to the estimated billing. The statute's thresholds are rule parts (`deposit_rule_trigger_thresholds`); the utility's, set in its tariff, are its own rows (`deposit_tariff_trigger_thresholds`, R-D1). The deposit cites the one it was decided under and the measure observed. Where the rule sets a threshold for the trigger, a citation is required.
+- **Texas's own usage trigger** (16 TAC §7.45(5)(C)(ii)): "If actual use is at least twice the amount of the estimated billings, a new deposit requirement may be calculated and an additional deposit may be required within two days." Seeded as `usage_doubled`, ratio 2, payable in 2 days. -06 and #55 both omit it (DG10, **K9**).
 - Instruments: cash, or one of the §366(c)(1)(A) forms plus guarantor. Non-cash carries a reference. Residential non-cash is undecided (#55 rule 2, K5); -06 accepts any instrument for any class.
 - **Not in -06:** #55 rule 4: a non-cash instrument past its expiry no longer satisfies the deposit. -06 records the expiry and does nothing with it. The core (or an alert) owns it.
 
@@ -205,6 +209,7 @@ The rate is 3% (0.030000) unless stated, the deposit $200 cash, posted 2026-01-0
 | DG7 | `inactive` counts as closed | No source names `inactive` | **K8**: is an inactive account a return trigger? |
 | DG8 | Expiry recorded, never acted on | #55 rule 4: not satisfied past expiry | Core or alert, not schema |
 | DG9 | No minimum-refund exclusion | #54 rule 8 | Core rule; scenario B19 |
+| DG10 | No usage trigger | 16 TAC §7.45(5)(C)(ii): actual use ≥ 2× the estimate ⇒ an additional deposit, payable in 2 days | Seeded in v5.4.2-15 (review r2); **K9**: why #55 omits it, and does the utility apply it? |
 
 ---
 

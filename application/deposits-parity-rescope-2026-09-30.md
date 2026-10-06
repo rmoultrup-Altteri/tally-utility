@@ -247,6 +247,7 @@ The discussion that led here (kept for the record):
 - **K6.** A customer meets the refund trigger, then falls behind before the refund is made. Is the refund still owed (`refund_obligation_vests`)? Codex leaned yes. Either answer is a rule-row value.
 - **K7.** "No more than two delinquencies": counted over the twelve bills, over twelve months, or over the whole hold? -06 counts the whole hold (rules-for-the-core DG4).
 - **K8.** Is an `inactive` account a return trigger? -06 treats it as closed; no source names it (DG7). Related: #54 rule 1 makes **any disconnection** a trigger, which -06 can't see (DG1).
+- **K9.** (2026-10-06, review r2.) 16 TAC §7.45(5)(C)(ii) lets the utility require an additional deposit, payable within two days, when actual use is at least twice the estimated billing. Decision table #55 lists NSF, disconnection history and broken payment plans as triggers but not this one. Was it left out deliberately, and does a Texas municipal gas utility apply it? v5.4.2-15 seeds it as a trigger the core may act on.
 
 ## 6. Before anything is stripped
 

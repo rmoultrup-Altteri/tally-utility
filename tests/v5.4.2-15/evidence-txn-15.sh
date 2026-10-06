@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # v5.4.2-15 (R-D2): a return-due row's evidence is written only in the due
-# row's own transaction. Needs two committed transactions, so it cannot live
-# in the one-transaction battery. Runs against a THROWAWAY clone (it commits
+# row's own transaction (X1); a deposit's instalment schedule only in the
+# deposit's (X2, review r2 D3). Needs two committed transactions, so it cannot
+# live in the one-transaction battery. Runs against a THROWAWAY clone (it commits
 # rows that append-only tables will not let it remove).
 #   usage: evidence-txn-15.sh <db>      (default: s15)
 set -euo pipefail
@@ -64,5 +65,45 @@ if grep -q "was recorded in an earlier transaction" <<<"$OUT"; then
   echo "PASS X1: evidence for a due row committed earlier is refused (its evidence is complete)"
 else
   echo "FAIL X1: later evidence was not refused: $OUT"
+  exit 1
+fi
+
+# X2 (review r2 D3). Fixture (owner): a state ZY whose rule offers a
+# two-instalment schedule. Transaction 1 takes a deposit in instalments with
+# its schedule; transaction 2 adds an instalment to it.
+DEP=00000000-0000-4000-8000-0000000015d8
+"${PSQL[@]}" <<SQL
+BEGIN;
+INSERT INTO public.deposit_customer_classes (state_code, service_type, class_code, description, source_note)
+  VALUES ('ZY', 'gas', 'household', 'Households.', 'ZY fixture');
+WITH r AS (INSERT INTO public.deposit_rules (state_code, service_type, customer_class, basis, cap_combinator, interest_bearing_instruments,
+                                             refund_mandatory, refund_excess_over_cap, effective_from, source_note)
+           VALUES ('ZY', 'gas', 'household', 'credit_evaluation', 'none', '{}', false, false, DATE '2025-01-01', 'ZY fixture: instalments')
+           RETURNING id)
+INSERT INTO public.deposit_rule_instalments (rule_id, instalment_no, fraction, days_after)
+SELECT r.id, v.n, 0.5, v.d FROM r, (VALUES (1, 0), (2, 30)) v(n, d);
+COMMIT;
+BEGIN;
+SET LOCAL app.user_id = '$U';
+SET ROLE tally_app;
+INSERT INTO public.deposits (id, tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type,
+                             customer_class, rule_id, decided_by, received_at_posting)
+SELECT '$DEP', '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-02-01', 'ZY', 'gas', 'household', r.id, 'core-test', 50
+  FROM public.deposit_rules r WHERE r.state_code = 'ZY';
+INSERT INTO public.deposit_instalments (tenant_id, deposit_id, instalment_no, amount, due_on) VALUES ('$T', '$DEP', 2, 50, DATE '2026-03-03');
+COMMIT;
+SQL
+OUT=$("${PSQL[@]}" 2>&1 <<SQL || true
+BEGIN;
+SET LOCAL app.user_id = '$U';
+SET ROLE tally_app;
+INSERT INTO public.deposit_instalments (tenant_id, deposit_id, instalment_no, amount, due_on) VALUES ('$T', '$DEP', 3, 10, DATE '2026-04-02');
+COMMIT;
+SQL
+)
+if grep -q "was recorded in an earlier transaction; its schedule is complete" <<<"$OUT"; then
+  echo "PASS X2: an instalment added to a deposit committed earlier is refused (its schedule is complete)"
+else
+  echo "FAIL X2: a later instalment was not refused: $OUT"
   exit 1
 fi

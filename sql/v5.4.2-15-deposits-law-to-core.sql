@@ -88,6 +88,32 @@
 --        lookback and disqualifiers, time-held evidence, reasons tied to the
 --        rule, the clone ACL in the tests).
 --
+-- REVIEW ROUND 2 (frozen 026e25d2; Opus, Fable, Codex: all "not yet"; record:
+--   tests/v5.4.2-15/review/review-findings-15-r2.md). Folded here, on the
+--   standing rule Ryan adopted 2026-10-06: a shape is modelled when a real
+--   source (a statute, Kyle's tables, our own design) calls for it, and a
+--   hypothetical shape is a stated residual.
+--     D1 additional-deposit thresholds: a rule part (the statute's) and the
+--        utility's own tariff rows, a count in a window or a usage ratio;
+--        the deposit cites the one it was decided under. Texas carries
+--        16 TAC §7.45(5)(C)(ii) — use at least twice the estimate, payable
+--        in two days — as the new usage_doubled trigger (Kyle question K9).
+--     D2 the cap moves into parts with a combinator (single, lesser_of,
+--        greater_of: 16 TAC §25.478(e)(1)(A) is the greater of two).
+--     D3 instalments (52 Pa. Code §56.42, gas): the rule's schedule, the
+--        deposit's received-at-posting and remaining instalments, receipts as
+--        events; what is held is what was received.
+--     D4 a partial return due (the excess over the cap; rules-for-the-core
+--        §2.2): a due row with an amount, settled by principal_returned.
+--     D5 (waivers that reduce TO an amount, substitute an instrument, or
+--        disqualifiers with their own window) has no source: residual R16.
+--     I1-I8: the close floor reads a return's date; reasons name their
+--        measure and the delinquency limit is optional; chronology holds in
+--        either write order; evidence dates and settlement dates bound by
+--        the due date; a tariff ground's close waits on and counts a citing
+--        determination; the rate report judges each class held; one waiver
+--        class reaches a rule one way; closure dates are compared in UTC.
+--
 -- ----------------------------------------------------------------------------
 -- What the database still refuses — record integrity only
 -- ----------------------------------------------------------------------------
@@ -119,32 +145,56 @@
 --     force over the event's dates; an accrual on a legacy deposit, or
 --     citing a rate row of another tenant, state, service or class, or one
 --     not yet effective, or at another rate; an accrual before posting,
---     recorded before its period ends, starting after the principal was used
---     up, or on more than the principal; a return dated inside an accrued
---     period; a partial return of all or more than the remainder; a refund
---     or release that leaves accrued interest uncredited (see DIVERGENCE); a
---     rate inserted outside READ COMMITTED (the rate-race lock).
+--     recorded before its period ends, for a period not yet ended (UTC),
+--     spanning a partial return or reaching a full one, or on more than was
+--     held throughout its period — so nothing after the principal was used
+--     up (r2 I3); a credit of interest not yet earned (r2 I3); a return
+--     dated inside an accrued period; a partial return of all or more than
+--     the remainder; a refund or release that leaves accrued interest
+--     uncredited (see DIVERGENCE); a return settling a due row before it
+--     fell due, or of the wrong kind or amount (r2 I4, D4); a rate inserted
+--     outside READ COMMITTED (the rate-race lock).
 --   * Waivers: a certification-backed class without its reference; a
 --     tariff-defined class without the utility's ground (of its state and
 --     service, in force on the date), or any other class with one; a tariff
 --     ground where the state's law permits none, or scoped to an unknown
---     basis, class or trigger, or edited other than closed.
+--     basis, class or trigger, or edited other than closed, or closed outside
+--     READ COMMITTED (a citing determination share-locks it — r2 I5).
 --   * Return-due rows: a rule that is neither the deposit's nor one of its
 --     key in force on the due date, or that does not make the return
---     mandatory for the instrument; a deposit whose return has started; a
---     second live row (a row-version mutex on the deposit row, so this holds
---     under REPEATABLE READ too); no evidence; evidence of another customer,
---     from before posting, of the wrong kind, for a reason the rule does not
---     enable, of a state change to a non-qualifying status, or after its own
+--     mandatory for the instrument — or, with an amount, that returns no
+--     excess over the cap, or an amount leaving nothing held (r2 D4); a
+--     deposit whose return has started; a second live row (a row-version
+--     mutex on the deposit row, so this holds under REPEATABLE READ too); no
+--     evidence; evidence of another customer, from before posting or after
+--     the due date (closures by their UTC day — r2 I4, I8), of the wrong
+--     kind, for a reason the rule does not enable or whose measure it does
+--     not count in (r2 I2), partial on a whole row or whole on a partial one,
+--     of a state change to a non-qualifying status, or after its own
 --     transaction; superseding a live or another deposit's row, or the same
 --     row twice; a withdrawal twice; a return citing a withdrawn or another
 --     deposit's row.
 --   * Law: any application write to the law tables; any edit of a law,
 --     part or vocabulary row other than a stamped close not on or before a
---     date it is cited for; a rule part added after its rule's transaction;
---     a reach row of another state or service than its rule (composite key),
---     or naming a trigger for a basis without one; a disqualifier on a rule
---     without a count-based trigger.
+--     date it is cited for (a return's date counts — r2 I1); a rule part
+--     added after its rule's transaction; a reach row of another state or
+--     service than its rule (composite key), or naming a trigger for a basis
+--     without one, or one waiver class reaching a rule both for any trigger
+--     and for one (r2 I7); a disqualifier on a rule without a count-based
+--     trigger; a cap part on a rule with no cap, or at commit a cap whose
+--     parts do not fit its combinator; a threshold on a basis without a
+--     trigger; at commit an instalment schedule not numbered 1..n (n ≥ 2)
+--     or not summing to 1; a lookback without a delinquency limit (r2 I2).
+--   * Thresholds and instalments (r2 D1, D3): a trigger deposit under a rule
+--     that sets a threshold for its trigger, citing none, or one of another
+--     trigger, or (the utility's) one not in force on posting, or one its
+--     observed measure does not meet (a count whole); a deposit taken in
+--     instalments under a rule without a schedule, or at commit with
+--     instalments not matching it in number or not summing to the deposit;
+--     an instalment added later, on a deposit received whole, due before
+--     posting; a receipt beyond the deposit required; a tariff threshold
+--     edited, closed on or before a deposit citing it, or closed outside
+--     READ COMMITTED.
 --
 --   It does NOT decide whether a deposit may be required, how large it may
 --   be, what interest is owed, or when a refund falls due. The core does,
@@ -242,14 +292,15 @@ CREATE TABLE IF NOT EXISTS public.deposit_triggers (
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_triggers FROM tally_app;
 GRANT SELECT ON public.deposit_triggers TO tally_app;
 COMMENT ON TABLE public.deposit_triggers IS
-    'v5.4.2-15. The events that may give rise to an additional deposit (decision table #55 rules 5-7). Whether one does, and at what threshold, is the core''s. Platform-held vocabulary.';
+    'v5.4.2-15. The events that may give rise to an additional deposit: decision table #55 rules 5-7, and the statute''s own usage trigger (16 TAC §7.45(5)(C)(ii)). The threshold a trigger is judged against is a rule part (deposit_rule_trigger_thresholds) or the utility''s tariff (deposit_tariff_trigger_thresholds); whether one fires is the core''s. Platform-held vocabulary.';
 
 INSERT INTO public.deposit_triggers (trigger_code, description)
 SELECT v.code, v.description
   FROM (VALUES
     ('nsf',                'Payments returned unpaid (NSF).'),
     ('disconnect_history', 'Disconnection for nonpayment in the customer''s history.'),
-    ('broken_dpa',         'A broken deferred payment arrangement.')
+    ('broken_dpa',         'A broken deferred payment arrangement.'),
+    ('usage_doubled',      'Actual use at least the rule''s multiple of the estimated billing the deposit was based on (16 TAC §7.45(5)(C)(ii): twice; Kyle question K9 — why #55 omits it).')
   ) AS v(code, description)
  WHERE NOT EXISTS (SELECT 1 FROM public.deposit_triggers t WHERE t.trigger_code = v.code);
 
@@ -329,6 +380,8 @@ CREATE TABLE IF NOT EXISTS public.deposit_return_reasons (
     evidence_kind       text NOT NULL,
     qualifying_statuses text[],
     enabled_by          text NOT NULL,
+    requires_measure    text,
+    partial             boolean NOT NULL,
     description         text NOT NULL,
     created_at          timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT deposit_return_reasons_pkey PRIMARY KEY (reason_code),
@@ -345,25 +398,36 @@ CREATE TABLE IF NOT EXISTS public.deposit_return_reasons (
              OR ((evidence_kind <> 'state_event'::text) AND (qualifying_statuses IS NULL)))),
     -- Which attribute of a rule makes this reason a trigger (review r1 A14):
     -- history_trigger = the rule's count-based trigger (refund_after_count);
-    -- account_close = refund_on_account_close.
+    -- account_close = refund_on_account_close; excess_over_cap =
+    -- refund_excess_over_cap.
     CONSTRAINT deposit_return_reasons_enabled_by_check
-        CHECK ((enabled_by = ANY (ARRAY['history_trigger'::text, 'account_close'::text]))),
+        CHECK ((enabled_by = ANY (ARRAY['history_trigger'::text, 'account_close'::text, 'excess_over_cap'::text]))),
+    -- The measure a history reason rests on (review r2 I2): it is a trigger
+    -- only under a rule whose refund_measure is this one. NULL: any rule.
+    CONSTRAINT deposit_return_reasons_requires_measure_check
+        CHECK (((requires_measure IS NULL) OR ((enabled_by = 'history_trigger'::text) AND (requires_measure = ANY (ARRAY['bills'::text, 'months'::text]))))),
+    -- partial: the reason returns part of the deposit (a due row with an
+    -- amount, settled by principal_returned — review r2 D4); exactly the
+    -- excess-over-cap reasons are.
+    CONSTRAINT deposit_return_reasons_partial_check
+        CHECK ((partial = (enabled_by = 'excess_over_cap'::text))),
     CONSTRAINT deposit_return_reasons_description_check CHECK ((description ~ '[[:alnum:]]'::text))
 );
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_return_reasons FROM tally_app;
 GRANT SELECT ON public.deposit_return_reasons TO tally_app;
 COMMENT ON TABLE public.deposit_return_reasons IS
-    'v5.4.2-15 (R-D2). Why a deposit''s mandatory return fell due, and what kind of record the reason rests on (evidence_kind: invoice — the bills the core judged; state_event — the customer''s state change, to one of qualifying_statuses; deposit — the deposit itself, for a return due on time held). enabled_by names the rule attribute that makes the reason a trigger: a due row may give a reason only if its rule enables it. A state with another trigger adds a row. Disconnection as a trigger (decision table #54 rule 1; rules-for-the-core DG1) waits for a recorded disconnect reason. Platform-held vocabulary.';
+    'v5.4.2-15 (R-D2). Why a deposit''s mandatory return fell due, and what kind of record the reason rests on (evidence_kind: invoice — the bills the core judged; state_event — the customer''s state change, to one of qualifying_statuses; deposit — the deposit itself, for a return due on time held). enabled_by names the rule attribute that makes the reason a trigger: a due row may give a reason only if its rule enables it; requires_measure, for a history reason, the refund_measure the rule must count in (bills or months — review r2 I2). partial: the reason returns part of the deposit — its due row carries the amount and principal_returned settles it (review r2 D4). A state with another trigger adds a row. Disconnection as a trigger (decision table #54 rule 1; rules-for-the-core DG1) waits for a recorded disconnect reason. Platform-held vocabulary.';
 
 -- account_closed qualifies on closed, final_billed or inactive, as -06's view
 -- did; whether inactive belongs is Kyle question K8.
-INSERT INTO public.deposit_return_reasons (reason_code, evidence_kind, qualifying_statuses, enabled_by, description)
-SELECT v.code, v.kind, v.st, v.en, v.description
+INSERT INTO public.deposit_return_reasons (reason_code, evidence_kind, qualifying_statuses, enabled_by, requires_measure, partial, description)
+SELECT v.code, v.kind, v.st, v.en, v.ms, v.pt, v.description
   FROM (VALUES
-    ('clean_bill_history', 'invoice',     NULL::text[], 'history_trigger', 'The customer''s bill history met the rule''s refund measure (Texas: twelve bills, no more than two delinquencies, not currently delinquent).'),
-    ('account_closed',     'state_event', ARRAY['closed', 'final_billed', 'inactive'], 'account_close', 'The customer''s account closed, final-billed or went inactive.'),
-    ('hold_term_elapsed',  'deposit',     NULL::text[], 'history_trigger', 'The deposit has been held for the rule''s refund measure, which turns on time held rather than on bills.')
-  ) AS v(code, kind, st, en, description)
+    ('clean_bill_history', 'invoice',     NULL::text[], 'history_trigger', 'bills',   false, 'The customer''s bill history met the rule''s refund measure (Texas: twelve bills, no more than two delinquencies, not currently delinquent).'),
+    ('account_closed',     'state_event', ARRAY['closed', 'final_billed', 'inactive'], 'account_close', NULL, false, 'The customer''s account closed, final-billed or went inactive.'),
+    ('hold_term_elapsed',  'deposit',     NULL::text[], 'history_trigger', 'months',  false, 'The deposit has been held for the rule''s refund measure, which turns on time held rather than on bills.'),
+    ('excess_over_cap',    'deposit',     NULL::text[], 'excess_over_cap', NULL,      true,  'The deposit held is above the cap that now applies; the excess is returned while the rest stays held (rules-for-the-core §2.2, refund Alt 4).')
+  ) AS v(code, kind, st, en, ms, pt, description)
  WHERE NOT EXISTS (SELECT 1 FROM public.deposit_return_reasons r WHERE r.reason_code = v.code);
 
 
@@ -404,10 +468,7 @@ CREATE TABLE IF NOT EXISTS public.deposit_rules (
     service_type                    text NOT NULL,
     customer_class                  text NOT NULL,
     basis                           text NOT NULL,
-    cap_kind                        text NOT NULL,
-    cap_divisor                     integer,
-    cap_months                      numeric(6,2),
-    cap_amount_fixed                numeric(12,2),
+    cap_combinator                  text NOT NULL,
     cap_scope                       text,
     interest_bearing_instruments    text[] NOT NULL,
     interest_min_hold_days          integer,
@@ -424,6 +485,7 @@ CREATE TABLE IF NOT EXISTS public.deposit_rules (
     refund_on_account_close         boolean,
     refund_obligation_vests         boolean,
     return_mandatory_instruments    text[],
+    refund_excess_over_cap          boolean NOT NULL,
     effective_from                  date NOT NULL,
     effective_to                    date,
     source_note                     text NOT NULL,
@@ -442,16 +504,16 @@ CREATE TABLE IF NOT EXISTS public.deposit_rules (
         FOREIGN KEY (basis) REFERENCES public.deposit_bases(basis_code),
     -- Every comparison below on a nullable column is paired with IS NOT
     -- NULL: a CHECK passes on NULL, so `x > 0` alone admits a missing x.
-    -- The cap: none, a fraction of estimated annual billing (divisor), a
-    -- number of months of estimated billing, or a fixed amount — exactly the
-    -- figure its kind needs, and a scope exactly when there is a cap.
-    CONSTRAINT deposit_rules_cap_check
-        CHECK ((((cap_kind = 'none'::text) AND (cap_divisor IS NULL) AND (cap_months IS NULL) AND (cap_amount_fixed IS NULL) AND (cap_scope IS NULL))
-             OR ((cap_kind = 'fraction_of_annual_billing'::text) AND (cap_divisor IS NOT NULL) AND (cap_divisor > 0) AND (cap_months IS NULL) AND (cap_amount_fixed IS NULL) AND (cap_scope IS NOT NULL))
-             OR ((cap_kind = 'months_of_billing'::text) AND (cap_months IS NOT NULL) AND (cap_months > (0)::numeric) AND (cap_divisor IS NULL) AND (cap_amount_fixed IS NULL) AND (cap_scope IS NOT NULL))
-             OR ((cap_kind = 'fixed_amount'::text) AND (cap_amount_fixed IS NOT NULL) AND (cap_amount_fixed > (0)::numeric) AND (cap_divisor IS NULL) AND (cap_months IS NULL) AND (cap_scope IS NOT NULL)))),
+    -- The cap (review r2 D2): none; one part (single); or the lesser or the
+    -- greater of two or more parts (16 TAC §25.478(e)(1)(A): the GREATER of
+    -- one-fifth of annual billing and the next two months' billings). The
+    -- parts are deposit_rule_cap_parts; their number is checked at commit.
+    -- A scope exactly when there is a cap.
+    CONSTRAINT deposit_rules_cap_combinator_check
+        CHECK ((cap_combinator = ANY (ARRAY['none'::text, 'single'::text, 'lesser_of'::text, 'greater_of'::text]))),
     CONSTRAINT deposit_rules_cap_scope_check
-        CHECK (((cap_scope IS NULL) OR (cap_scope = ANY (ARRAY['per_deposit'::text, 'combined'::text])))),
+        CHECK ((((cap_combinator = 'none'::text) AND (cap_scope IS NULL))
+             OR ((cap_combinator <> 'none'::text) AND (cap_scope IS NOT NULL) AND (cap_scope = ANY (ARRAY['per_deposit'::text, 'combined'::text]))))),
     -- Interest: the instruments that earn it (possibly none); when any do,
     -- the method, day count and cadence; a minimum hold and whether interest
     -- then runs from posting appear together or not at all.
@@ -473,11 +535,14 @@ CREATE TABLE IF NOT EXISTS public.deposit_rules (
         CHECK (((interest_credit_cadence IS NULL) OR (interest_credit_cadence = ANY (ARRAY['at_refund'::text, 'annual'::text, 'on_bill'::text])))),
     -- The mandatory return: when there is one, whether account close
     -- triggers it, which instruments it covers, and optionally a count-based
-    -- trigger given whole (count, measure, delinquency limit, and a lookback
-    -- for that limit or none = the whole hold); when there is none, nothing
-    -- about it. What disqualifies the count-based trigger is
+    -- trigger (a count and its measure; optionally a delinquency limit —
+    -- none under a rule that counts time held, review r2 I2 — with a
+    -- lookback for that limit or none = the whole hold); when there is none,
+    -- nothing about it. What disqualifies the count-based trigger is
     -- deposit_rule_refund_disqualifiers. refund_obligation_vests NULL under a
-    -- mandatory return = unruled (K6).
+    -- mandatory return = unruled (K6). refund_excess_over_cap (review r2 D4)
+    -- stands apart: a deposit above the cap now applying returns the excess,
+    -- whatever the return rule.
     CONSTRAINT deposit_rules_return_instruments_check
         CHECK (((return_mandatory_instruments IS NULL)
              OR (return_mandatory_instruments <@ ARRAY['cash'::text, 'letter_of_credit'::text, 'certificate_of_deposit'::text, 'surety_bond'::text, 'prepayment'::text, 'guarantor'::text, 'other_agreed'::text]))),
@@ -492,9 +557,9 @@ CREATE TABLE IF NOT EXISTS public.deposit_rules (
                  AND (((refund_after_count IS NULL) AND (refund_measure IS NULL) AND (refund_max_delinquencies IS NULL)
                         AND (refund_lookback_quantity IS NULL) AND (refund_lookback_unit IS NULL))
                    OR ((refund_after_count IS NOT NULL) AND (refund_after_count > 0) AND (refund_measure IS NOT NULL)
-                       AND (refund_max_delinquencies IS NOT NULL) AND (refund_max_delinquencies >= 0)
+                       AND ((refund_max_delinquencies IS NULL) OR (refund_max_delinquencies >= 0))
                        AND ((refund_lookback_quantity IS NULL) = (refund_lookback_unit IS NULL))
-                       AND ((refund_lookback_quantity IS NULL) OR (refund_lookback_quantity > 0))))))),
+                       AND ((refund_lookback_quantity IS NULL) OR ((refund_lookback_quantity > 0) AND (refund_max_delinquencies IS NOT NULL)))))))),
     CONSTRAINT deposit_rules_refund_measure_check
         CHECK (((refund_measure IS NULL) OR (refund_measure = ANY (ARRAY['bills'::text, 'months'::text])))),
     CONSTRAINT deposit_rules_refund_lookback_unit_check
@@ -514,9 +579,11 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_rules FROM tally_app;
 GRANT SELECT ON public.deposit_rules TO tally_app;
 
 COMMENT ON TABLE public.deposit_rules IS
-    'v5.4.2-15 (deposits at parity). What a state''s deposit law requires, per (state, service type, customer class, basis, effective range), as ATTRIBUTES the calculation core reads: the cap (kind, figure, scope); which instruments earn interest and how (minimum hold, retroactivity, method, day count, credit cadence); whether the deposit must be returned unasked — on what history (count, measure, delinquency limit and its lookback) and on account close, which instruments that covers, and whether it stays owed once due. Which waivers reach it is deposit_rule_waiver_reach; what disqualifies its history trigger is deposit_rule_refund_disqualifiers — both written in the rule''s own transaction (recorded_txid). Platform-held (tally_app reads only), cited (source_note), no overlap per key. Never edited — closed (effective_to set once, stamped closed_at / closed_by, never on or before a date it is cited for) and superseded, because deposits, accruals and return-due rows cite it. A key with no row in force means no rule is known: the core refuses, never falls back. How the core applies each attribute: application/deposits-rules-for-the-core.md.';
-COMMENT ON COLUMN public.deposit_rules.cap_kind IS
-    'none; fraction_of_annual_billing (cap = estimated annual billing ÷ cap_divisor — Texas residential: 6); months_of_billing (cap_months of estimated billing); fixed_amount (cap_amount_fixed). The statutory cap. The deposit records the cap that applied and whether it was the statute''s or the utility''s tariff''s (deposits.cap_source); computing it is the core''s (the estimate for a new applicant is undefined, decision table #53 OQ5).';
+    'v5.4.2-15 (deposits at parity). What a state''s deposit law requires, per (state, service type, customer class, basis, effective range), as ATTRIBUTES the calculation core reads: the cap (combinator, scope; its parts are deposit_rule_cap_parts); which instruments earn interest and how (minimum hold, retroactivity, method, day count, credit cadence); whether the deposit must be returned unasked — on what history (count, measure, delinquency limit and its lookback) and on account close, which instruments that covers, and whether it stays owed once due; whether an excess over the cap is returned. Its PARTS, all written in the rule''s own transaction (recorded_txid): the cap''s parts (deposit_rule_cap_parts), the thresholds its additional-deposit triggers are judged against (deposit_rule_trigger_thresholds), an instalment schedule the customer may elect (deposit_rule_instalments), which waivers reach it (deposit_rule_waiver_reach) and what disqualifies its history trigger (deposit_rule_refund_disqualifiers). Platform-held (tally_app reads only), cited (source_note), no overlap per key. Never edited — closed (effective_to set once, stamped closed_at / closed_by, never on or before a date it is cited for) and superseded, because deposits, accruals and return-due rows cite it. A key with no row in force means no rule is known: the core refuses, never falls back. How the core applies each attribute: application/deposits-rules-for-the-core.md.';
+COMMENT ON COLUMN public.deposit_rules.cap_combinator IS
+    'The statutory cap (review r2 D2): none; single (one part); lesser_of or greater_of (two or more parts — 16 TAC §25.478(e)(1)(A), retail electric, is the greater of one-fifth of annual billing and the next two months'' billings). The parts, each a kind and its figure, are deposit_rule_cap_parts. The deposit records the cap that applied, the part that governed it and whether it was the statute''s or the utility''s tariff''s (deposits.cap_source); computing it is the core''s (the estimate for a new applicant is undefined, decision table #53 OQ5).';
+COMMENT ON COLUMN public.deposit_rules.refund_excess_over_cap IS
+    'A deposit held above the cap that now applies returns the excess while the rest stays held (review r2 D4; rules-for-the-core §2.2, refund Alt 4): the core records a return-due row with the amount, settled by principal_returned. Texas: false, as -06.';
 COMMENT ON COLUMN public.deposit_rules.cap_scope IS
     'per_deposit: each deposit within the cap (-06). combined: the total held within it (decision table #55 rule 9; the deposit records what else was held, deposits.cap_other_held). Kyle question K4.';
 COMMENT ON COLUMN public.deposit_rules.interest_min_hold_days IS
@@ -586,6 +653,83 @@ GRANT SELECT ON public.deposit_rule_refund_disqualifiers TO tally_app;
 COMMENT ON TABLE public.deposit_rule_refund_disqualifiers IS
     'v5.4.2-15 (review r1 A12). What in the customer''s history stops a rule''s count-based mandatory return (Texas: disconnection for nonpayment; another state might add a returned payment). Only on a rule with a count-based trigger. Platform-held, written in its rule''s transaction, never edited.';
 
+-- The cap's parts (review r2 D2): a kind and exactly the figure it needs —
+-- a fraction of estimated annual billing (divisor), a number of months of
+-- estimated billing, or a fixed amount. One kind once per rule, so a deposit
+-- naming the kind that governed its cap names one part.
+CREATE TABLE IF NOT EXISTS public.deposit_rule_cap_parts (
+    rule_id             uuid NOT NULL,
+    part_no             smallint NOT NULL,
+    cap_kind            text NOT NULL,
+    cap_divisor         integer,
+    cap_months          numeric(6,2),
+    cap_amount_fixed    numeric(12,2),
+    created_at          timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT deposit_rule_cap_parts_pkey PRIMARY KEY (rule_id, part_no),
+    CONSTRAINT deposit_rule_cap_parts_kind_key UNIQUE (rule_id, cap_kind),
+    CONSTRAINT deposit_rule_cap_parts_rule_fkey FOREIGN KEY (rule_id) REFERENCES public.deposit_rules(id),
+    CONSTRAINT deposit_rule_cap_parts_part_no_check CHECK ((part_no > 0)),
+    CONSTRAINT deposit_rule_cap_parts_kind_check
+        CHECK ((((cap_kind = 'fraction_of_annual_billing'::text) AND (cap_divisor IS NOT NULL) AND (cap_divisor > 0) AND (cap_months IS NULL) AND (cap_amount_fixed IS NULL))
+             OR ((cap_kind = 'months_of_billing'::text) AND (cap_months IS NOT NULL) AND (cap_months > (0)::numeric) AND (cap_divisor IS NULL) AND (cap_amount_fixed IS NULL))
+             OR ((cap_kind = 'fixed_amount'::text) AND (cap_amount_fixed IS NOT NULL) AND (cap_amount_fixed > (0)::numeric) AND (cap_divisor IS NULL) AND (cap_months IS NULL))))
+);
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_rule_cap_parts FROM tally_app;
+GRANT SELECT ON public.deposit_rule_cap_parts TO tally_app;
+COMMENT ON TABLE public.deposit_rule_cap_parts IS
+    'v5.4.2-15 (review r2 D2). The parts of a rule''s statutory cap: fraction_of_annual_billing (estimated annual billing ÷ cap_divisor — Texas residential gas: 6), months_of_billing (cap_months of estimated billing), fixed_amount (cap_amount_fixed); each kind once per rule. deposit_rules.cap_combinator says how they combine (single, lesser_of, greater_of); the number of parts matches it at commit. A floor-and-ceiling cap ("one-sixth, not over $X nor under $Y") nests two combinators and is not held (no source; residual R13). Platform-held, written in its rule''s transaction, never edited.';
+
+-- The threshold an additional-deposit trigger is judged against (review r2
+-- D1): a count of events in a window of months (decision table #55 rules
+-- 5-7: "nsf_count_12m ≥ threshold", disconnection in 24 months), or a ratio
+-- of actual use to the estimated billing (16 TAC §7.45(5)(C)(ii): "at least
+-- twice"), with the days the customer has to pay when the law sets them
+-- (§7.45: two). The statute's thresholds are rule parts; a utility's tariff
+-- thresholds are its own (deposit_tariff_trigger_thresholds).
+CREATE TABLE IF NOT EXISTS public.deposit_rule_trigger_thresholds (
+    id                  uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    rule_id             uuid NOT NULL,
+    trigger_code        text NOT NULL,
+    measure             text NOT NULL,
+    min_count           integer,
+    window_months       integer,
+    min_ratio           numeric(6,3),
+    payment_due_days    integer,
+    created_at          timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT deposit_rule_trigger_thresholds_pkey PRIMARY KEY (id),
+    CONSTRAINT deposit_rule_trigger_thresholds_key UNIQUE (rule_id, trigger_code),
+    CONSTRAINT deposit_rule_trigger_thresholds_rule_fkey FOREIGN KEY (rule_id) REFERENCES public.deposit_rules(id),
+    CONSTRAINT deposit_rule_trigger_thresholds_trigger_fkey FOREIGN KEY (trigger_code) REFERENCES public.deposit_triggers(trigger_code),
+    CONSTRAINT deposit_rule_trigger_thresholds_measure_check
+        CHECK ((((measure = 'event_count'::text) AND (min_count IS NOT NULL) AND (min_count > 0) AND (window_months IS NOT NULL) AND (window_months > 0) AND (min_ratio IS NULL))
+             OR ((measure = 'usage_ratio'::text) AND (min_ratio IS NOT NULL) AND (min_ratio > (1)::numeric) AND (min_count IS NULL) AND (window_months IS NULL)))),
+    CONSTRAINT deposit_rule_trigger_thresholds_payment_check
+        CHECK (((payment_due_days IS NULL) OR (payment_due_days > 0)))
+);
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_rule_trigger_thresholds FROM tally_app;
+GRANT SELECT ON public.deposit_rule_trigger_thresholds TO tally_app;
+COMMENT ON TABLE public.deposit_rule_trigger_thresholds IS
+    'v5.4.2-15 (review r2 D1). The statute''s threshold for an additional-deposit trigger under a rule: event_count (min_count events in window_months — decision table #55 rules 5-7) or usage_ratio (actual use ≥ min_ratio × the estimated billing — 16 TAC §7.45(5)(C)(ii): 2), and the days the customer has to pay (payment_due_days; §7.45: 2). Only on a rule whose basis requires a trigger; one per trigger. A deposit for that trigger under that rule cites the threshold it was decided under — this one or the utility''s tariff''s (deposits.trigger_threshold_source). Whether the trigger fired is the core''s. Platform-held, written in its rule''s transaction, never edited.';
+
+-- An instalment schedule the customer may elect (review r2 D3; 52 Pa. Code
+-- §56.42(b)-(d), gas: 50% on determination, 25% at 30 days, 25% at 60
+-- days). The fractions sum to one at commit.
+CREATE TABLE IF NOT EXISTS public.deposit_rule_instalments (
+    rule_id             uuid NOT NULL,
+    instalment_no       smallint NOT NULL,
+    fraction            numeric(5,4) NOT NULL,
+    days_after          integer NOT NULL,
+    created_at          timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT deposit_rule_instalments_pkey PRIMARY KEY (rule_id, instalment_no),
+    CONSTRAINT deposit_rule_instalments_rule_fkey FOREIGN KEY (rule_id) REFERENCES public.deposit_rules(id),
+    CONSTRAINT deposit_rule_instalments_check
+        CHECK (((instalment_no > 0) AND (fraction > (0)::numeric) AND (fraction < (1)::numeric) AND (days_after >= 0)))
+);
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_rule_instalments FROM tally_app;
+GRANT SELECT ON public.deposit_rule_instalments TO tally_app;
+COMMENT ON TABLE public.deposit_rule_instalments IS
+    'v5.4.2-15 (review r2 D3). The instalment schedule a rule lets the customer elect: instalment 1..n, the fraction of the deposit, due days_after the determination (52 Pa. Code §56.42: 0.5 at 0, 0.25 at 30, 0.25 at 60 — for a delinquent account, a reconnection or a broken payment arrangement). At commit the numbers run 1..n, n ≥ 2, and the fractions sum to 1. A deposit taken in instalments records the amount received at posting and its remaining instalments (deposits.received_at_posting, deposit_instalments); a missed instalment is a ground for termination, the core''s. A rule with no rows offers none. Platform-held, written in its rule''s transaction, never edited.';
+
 -- A rule row's record: stamped, born unclosed; its transaction recorded, as
 -- its reach and disqualifier rows must be written in it.
 CREATE OR REPLACE FUNCTION public.enforce_deposit_rule_record() RETURNS trigger
@@ -618,37 +762,65 @@ DECLARE
     v_rule record;
     v_requires_trigger boolean;
 BEGIN
-    SELECT r.recorded_txid, r.basis, r.refund_after_count INTO v_rule FROM public.deposit_rules r WHERE r.id = NEW.rule_id;
+    SELECT r.recorded_txid, r.basis, r.refund_after_count, r.cap_combinator INTO v_rule FROM public.deposit_rules r WHERE r.id = NEW.rule_id;
     IF v_rule.recorded_txid IS DISTINCT FROM txid_current() THEN
         RAISE EXCEPTION USING
             MESSAGE = format('%s: rule %s was recorded in an earlier transaction; its parts are complete — a part added later would change the law its citations were decided under (v5.4.2-15)', TG_TABLE_NAME, NEW.rule_id),
             ERRCODE = 'restrict_violation',
             HINT = 'Close the rule and add a successor with the new parts, in one transaction.';
     END IF;
-    IF TG_TABLE_NAME = 'deposit_rule_waiver_reach' THEN
-        IF NEW.trigger_code IS NOT NULL THEN
-            SELECT b.requires_trigger INTO v_requires_trigger FROM public.deposit_bases b WHERE b.basis_code = v_rule.basis;
-            IF v_requires_trigger IS NOT TRUE THEN
-                RAISE EXCEPTION USING
-                    MESSAGE = format('deposit_rule_waiver_reach: rule %s is for basis %s, which names no trigger; a reach row for it names none (v5.4.2-15)', NEW.rule_id, v_rule.basis),
-                    ERRCODE = 'check_violation';
-            END IF;
+    SELECT b.requires_trigger INTO v_requires_trigger FROM public.deposit_bases b WHERE b.basis_code = v_rule.basis;
+    CASE TG_TABLE_NAME
+    WHEN 'deposit_rule_waiver_reach' THEN
+        IF NEW.trigger_code IS NOT NULL AND v_requires_trigger IS NOT TRUE THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit_rule_waiver_reach: rule %s is for basis %s, which names no trigger; a reach row for it names none (v5.4.2-15)', NEW.rule_id, v_rule.basis),
+                ERRCODE = 'check_violation';
         END IF;
-    ELSIF v_rule.refund_after_count IS NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('deposit_rule_refund_disqualifiers: rule %s has no count-based return trigger to disqualify (v5.4.2-15)', NEW.rule_id),
-            ERRCODE = 'check_violation';
-    END IF;
+        -- One waiver class reaches a rule either for any trigger or trigger
+        -- by trigger, never both: the two would disagree with no precedence
+        -- (review r2 I7). The parts are written in one transaction, so this
+        -- count cannot race.
+        IF EXISTS (SELECT 1 FROM public.deposit_rule_waiver_reach x
+                    WHERE x.rule_id = NEW.rule_id AND x.waiver_class = NEW.waiver_class
+                      AND ((x.trigger_code IS NULL) <> (NEW.trigger_code IS NULL))) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit_rule_waiver_reach: waiver class %s already reaches rule %s %s; one class reaches a rule for any trigger or trigger by trigger, not both (v5.4.2-15)', NEW.waiver_class, NEW.rule_id,
+                                 CASE WHEN NEW.trigger_code IS NULL THEN 'for named triggers' ELSE 'for any trigger' END),
+                ERRCODE = 'check_violation';
+        END IF;
+    WHEN 'deposit_rule_refund_disqualifiers' THEN
+        IF v_rule.refund_after_count IS NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit_rule_refund_disqualifiers: rule %s has no count-based return trigger to disqualify (v5.4.2-15)', NEW.rule_id),
+                ERRCODE = 'check_violation';
+        END IF;
+    WHEN 'deposit_rule_trigger_thresholds' THEN
+        IF v_requires_trigger IS NOT TRUE THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit_rule_trigger_thresholds: rule %s is for basis %s, which names no trigger to set a threshold for (v5.4.2-15)', NEW.rule_id, v_rule.basis),
+                ERRCODE = 'check_violation';
+        END IF;
+    WHEN 'deposit_rule_cap_parts' THEN
+        IF v_rule.cap_combinator = 'none' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit_rule_cap_parts: rule %s sets no cap (cap_combinator none) (v5.4.2-15)', NEW.rule_id),
+                ERRCODE = 'check_violation';
+        END IF;
+    ELSE
+        NULL;   -- deposit_rule_instalments: shape checked at commit
+    END CASE;
     NEW.created_at := now();
     RETURN NEW;
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_rule_part_record() IS
-    'v5.4.2-15. BEFORE INSERT on deposit_rule_waiver_reach and deposit_rule_refund_disqualifiers, every role: only in the transaction that recorded the rule (deposit_rules.recorded_txid); a reach row names a trigger only for a basis that requires one (deposit_bases.requires_trigger); a disqualifier only on a rule with a count-based trigger; created_at stamped.';
+    'v5.4.2-15. BEFORE INSERT on a rule''s parts (deposit_rule_waiver_reach, deposit_rule_refund_disqualifiers, deposit_rule_cap_parts, deposit_rule_trigger_thresholds, deposit_rule_instalments), every role: only in the transaction that recorded the rule (deposit_rules.recorded_txid); a reach row names a trigger only for a basis that requires one, and one waiver class reaches a rule for any trigger or trigger by trigger, not both (review r2 I7); a disqualifier only on a rule with a count-based trigger; a threshold only on a basis that requires a trigger; a cap part only on a rule with a cap; created_at stamped.';
 DO $$
 DECLARE t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['deposit_rule_waiver_reach', 'deposit_rule_refund_disqualifiers'] LOOP
+    FOREACH t IN ARRAY ARRAY['deposit_rule_waiver_reach', 'deposit_rule_refund_disqualifiers', 'deposit_rule_cap_parts',
+                             'deposit_rule_trigger_thresholds', 'deposit_rule_instalments'] LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_deposit_rule_part_record ON public.%I', t);
         EXECUTE format('CREATE TRIGGER a_enforce_deposit_rule_part_record BEFORE INSERT ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_rule_part_record()', t);
         EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_enforce_deposit_rule_part_record', t);
@@ -656,9 +828,44 @@ BEGIN
 END;
 $$;
 
+-- A rule is whole at commit: its cap has the parts its combinator needs, and
+-- an instalment schedule, if it has one, runs 1..n (n ≥ 2) and sums to one.
+CREATE OR REPLACE FUNCTION public.enforce_deposit_rule_complete() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_parts integer;
+    v_inst record;
+BEGIN
+    SELECT count(*) INTO v_parts FROM public.deposit_rule_cap_parts p WHERE p.rule_id = NEW.id;
+    IF NOT (CASE NEW.cap_combinator WHEN 'none' THEN v_parts = 0 WHEN 'single' THEN v_parts = 1 ELSE v_parts >= 2 END) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit rule %s: cap_combinator %s with %s cap part(s) — single takes one, lesser_of and greater_of two or more (v5.4.2-15)', NEW.id, NEW.cap_combinator, v_parts),
+            ERRCODE = 'check_violation';
+    END IF;
+    SELECT count(*) AS n, max(i.instalment_no) AS top, sum(i.fraction) AS total INTO v_inst
+      FROM public.deposit_rule_instalments i WHERE i.rule_id = NEW.id;
+    IF v_inst.n > 0 AND NOT (v_inst.n >= 2 AND v_inst.top = v_inst.n AND v_inst.total = 1) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit rule %s: an instalment schedule runs 1..n with n ≥ 2 and fractions summing to 1; it has %s instalment(s), the last numbered %s, summing to %s (v5.4.2-15)', NEW.id, v_inst.n, v_inst.top, v_inst.total),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_deposit_rule_complete() IS
+    'v5.4.2-15 (review r2 D2, D3). Deferred constraint trigger, AFTER INSERT on deposit_rules: at commit the cap has the parts its combinator needs (none: 0, single: 1, lesser_of / greater_of: 2 or more), and an instalment schedule, if any, is numbered 1..n with n ≥ 2 and fractions summing to 1.';
+DROP TRIGGER IF EXISTS z_enforce_deposit_rule_complete ON public.deposit_rules;
+CREATE CONSTRAINT TRIGGER z_enforce_deposit_rule_complete AFTER INSERT ON public.deposit_rules
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_rule_complete();
+ALTER TABLE public.deposit_rules ENABLE ALWAYS TRIGGER z_enforce_deposit_rule_complete;
+
 -- A rule row's history: the only edit is a close, stamped, never on or
 -- before the latest date a citation used it — a deposit's posting date, an
--- accrual's period end, a return-due date (the v5.4.2-13 floor).
+-- accrual's period end or a return's date, a return-due date (the v5.4.2-13
+-- floor).
 CREATE OR REPLACE FUNCTION public.enforce_deposit_rule_history() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
@@ -688,7 +895,8 @@ BEGIN
     SELECT max(c.d) INTO v_latest FROM (
         SELECT d.posted_on AS d FROM public.deposits d WHERE d.rule_id = OLD.id
         UNION ALL
-        SELECT e.period_end FROM public.deposit_events e WHERE e.rule_id = OLD.id
+        -- a return carries no period: its own date (review r2 I1)
+        SELECT coalesce(e.period_end, e.effective_on) FROM public.deposit_events e WHERE e.rule_id = OLD.id
         UNION ALL
         SELECT r.due_on FROM public.deposit_return_due r WHERE r.rule_id = OLD.id
     ) c;
@@ -704,13 +912,13 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_rule_history() IS
-    'v5.4.2-15. BEFORE UPDATE OR DELETE on deposit_rules, every role: never deleted; the only edit is a close (effective_to NULL → a date, nothing else), stamped with closed_at and the session role; refused on or before the latest date a deposit (posted_on), an accrual (period_end) or a return-due row (due_on) cites the row for; refused to a role row-level security narrows.';
+    'v5.4.2-15. BEFORE UPDATE OR DELETE on deposit_rules, every role: never deleted; the only edit is a close (effective_to NULL → a date, nothing else), stamped with closed_at and the session role; refused on or before the latest date a deposit (posted_on), an accrual (period_end), a return (effective_on — review r2 I1) or a return-due row (due_on) cites the row for; refused to a role row-level security narrows.';
 DROP TRIGGER IF EXISTS a_enforce_deposit_rule_history ON public.deposit_rules;
 CREATE TRIGGER a_enforce_deposit_rule_history BEFORE UPDATE OR DELETE ON public.deposit_rules
     FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_rule_history();
 ALTER TABLE public.deposit_rules ENABLE ALWAYS TRIGGER a_enforce_deposit_rule_history;
 
--- The six vocabularies and a rule's parts never change and are never deleted.
+-- The vocabularies and a rule's parts never change and are never deleted.
 CREATE OR REPLACE FUNCTION public.enforce_deposit_law_immutable() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
@@ -723,12 +931,13 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_law_immutable() IS
-    'v5.4.2-15. BEFORE UPDATE OR DELETE, every role, on deposit_bases, deposit_triggers, deposit_customer_classes, deposit_waiver_classes, deposit_return_reasons, deposit_refund_disqualifiers, deposit_rule_waiver_reach and deposit_rule_refund_disqualifiers: refused.';
+    'v5.4.2-15. BEFORE UPDATE OR DELETE, every role, on deposit_bases, deposit_triggers, deposit_customer_classes, deposit_waiver_classes, deposit_return_reasons, deposit_refund_disqualifiers and a rule''s parts (deposit_rule_waiver_reach, deposit_rule_refund_disqualifiers, deposit_rule_cap_parts, deposit_rule_trigger_thresholds, deposit_rule_instalments): refused.';
 DO $$
 DECLARE t text;
 BEGIN
     FOREACH t IN ARRAY ARRAY['deposit_bases', 'deposit_triggers', 'deposit_customer_classes', 'deposit_waiver_classes', 'deposit_return_reasons',
-                             'deposit_refund_disqualifiers', 'deposit_rule_waiver_reach', 'deposit_rule_refund_disqualifiers'] LOOP
+                             'deposit_refund_disqualifiers', 'deposit_rule_waiver_reach', 'deposit_rule_refund_disqualifiers',
+                             'deposit_rule_cap_parts', 'deposit_rule_trigger_thresholds', 'deposit_rule_instalments'] LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_deposit_law_immutable ON public.%I', t);
         EXECUTE format('CREATE TRIGGER a_enforce_deposit_law_immutable BEFORE UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_law_immutable()', t);
         EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_enforce_deposit_law_immutable', t);
@@ -747,7 +956,10 @@ $$;
 --     twelve bills with no more than two delinquencies counted over the
 --     whole hold (-06; K7), disqualified by disconnection for nonpayment,
 --     and on account close, for cash (K5); whether it stays owed is unruled
---     (K6).
+--     (K6); no excess-over-cap return (as -06). The additional-deposit
+--     rules carry §7.45(5)(C)(ii)'s usage threshold (twice the estimate,
+--     payable in two days — K9); #55's NSF, disconnection and broken-DPA
+--     thresholds are the utility's (deposit_tariff_trigger_thresholds).
 --   §366: no waiver reaches it (-06 D-40; decision table #53 rank 0 says
 --     family violence outranks a §366 demand, and whether the other classes
 --     do is not stated — Kyle question K2: his answer is reach rows on these
@@ -774,33 +986,46 @@ BEGIN
         END IF;
         IF r.basis = 'adequate_assurance_366' THEN
             INSERT INTO public.deposit_rules
-                (state_code, service_type, customer_class, basis, cap_kind,
+                (state_code, service_type, customer_class, basis, cap_combinator,
                  interest_bearing_instruments, interest_min_hold_days, interest_retroactive,
                  interest_method, interest_day_count, interest_credit_cadence,
-                 refund_mandatory, effective_from, source_note)
+                 refund_mandatory, refund_excess_over_cap, effective_from, source_note)
             VALUES ('TX', 'gas', r.customer_class, r.basis, 'none',
                     ARRAY['cash'], 30, true, 'simple', 'actual_365', 'at_refund',
-                    false, c_from,
+                    false, false, c_from,
                     '11 U.S.C. 366 adequate assurance: a federal permission, not a 16 TAC 7.45 deposit — no 7.45 cap, never refunded on 7.45''s triggers (decision table #54 rule 3); no waiver reaches it per -06 D-40 (decision table #53 rank 0 puts the family-violence waiver above a 366 demand: Kyle question K2). Interest as on any cash deposit the utility holds (16 TAC 7.45; -06 accrued on every cash deposit).');
         ELSE
             INSERT INTO public.deposit_rules
-                (state_code, service_type, customer_class, basis, cap_kind, cap_divisor, cap_scope,
+                (state_code, service_type, customer_class, basis, cap_combinator, cap_scope,
                  interest_bearing_instruments, interest_min_hold_days, interest_retroactive,
                  interest_method, interest_day_count, interest_credit_cadence,
                  refund_mandatory, refund_after_count, refund_measure, refund_max_delinquencies,
                  refund_on_account_close, refund_obligation_vests,
-                 return_mandatory_instruments, effective_from, source_note)
+                 return_mandatory_instruments, refund_excess_over_cap, effective_from, source_note)
             VALUES ('TX', 'gas', r.customer_class, r.basis,
-                    CASE WHEN r.customer_class = 'residential' THEN 'fraction_of_annual_billing' ELSE 'none' END,
-                    CASE WHEN r.customer_class = 'residential' THEN 6 END,
+                    CASE WHEN r.customer_class = 'residential' THEN 'single' ELSE 'none' END,
                     CASE WHEN r.customer_class = 'residential' THEN 'per_deposit' END,
                     ARRAY['cash'], 30, true, 'simple', 'actual_365', 'at_refund',
                     true, 12, 'bills', 2, true, NULL,
-                    ARRAY['cash'], c_from,
+                    ARRAY['cash'], false, c_from,
                     '16 TAC 7.45 (CI-129 to CI-131): mandatory waivers (family violence 7.45(5)(C), age 65 with no balance, good payment history; a tariff may extend them) excuse this deposit (decision table #53 ranks 0-3, #55 rule 8); '
                     || CASE WHEN r.customer_class = 'residential' THEN 'the deposit may not exceed one-sixth of estimated annual billing (#53 rank 8; per deposit as -06 — #55 rule 9 says combined, Kyle question K4); ' ELSE 'no statutory cap for this class (-06; Kyle question K1); ' END
-                    || 'interest on cash: none if held 30 days or less, otherwise from the posting date (day 1, not day 31) at the rate in force, simple, actual/365, paid at refund (CI-130; #54 rules 5-7); refunded unasked after twelve bills paid with no more than two delinquencies (counted over the whole hold as -06: Kyle question K7), no disconnection for nonpayment and none currently delinquent, or on account close (CI-131; #54 rules 1-2); whether the refund stays owed if the customer falls behind before it is made is Kyle question K6.')
+                    || 'interest on cash: none if held 30 days or less, otherwise from the posting date (day 1, not day 31) at the rate in force, simple, actual/365, paid at refund (CI-130; #54 rules 5-7); refunded unasked after twelve bills paid with no more than two delinquencies (counted over the whole hold as -06: Kyle question K7), no disconnection for nonpayment and none currently delinquent, or on account close (CI-131; #54 rules 1-2); whether the refund stays owed if the customer falls behind before it is made is Kyle question K6.'
+                    || CASE WHEN r.basis = 'additional_trigger' THEN ' An additional deposit may be required when actual use is at least twice the estimated billings, payable within two days (7.45(5)(C)(ii); deposit_rule_trigger_thresholds; Kyle question K9).' ELSE '' END)
             RETURNING id INTO v_rule;
+            IF r.customer_class = 'residential' THEN
+                INSERT INTO public.deposit_rule_cap_parts (rule_id, part_no, cap_kind, cap_divisor)
+                VALUES (v_rule, 1, 'fraction_of_annual_billing', 6);
+            END IF;
+            -- §7.45(5)(C)(ii): an additional deposit when actual use is at
+            -- least twice the estimated billing, payable within two days
+            -- (review r2: missing from #55 and from -06 — Kyle question K9).
+            -- #55's NSF, disconnection and broken-DPA thresholds are the
+            -- utility's to set (deposit_tariff_trigger_thresholds).
+            IF r.basis = 'additional_trigger' THEN
+                INSERT INTO public.deposit_rule_trigger_thresholds (rule_id, trigger_code, measure, min_ratio, payment_due_days)
+                VALUES (v_rule, 'usage_doubled', 'usage_ratio', 2, 2);
+            END IF;
             INSERT INTO public.deposit_rule_waiver_reach (rule_id, state_code, service_type, waiver_class, effect)
             SELECT v_rule, 'TX', 'gas', w.class_code, 'excuse'
               FROM public.deposit_waiver_classes w
@@ -997,6 +1222,12 @@ ALTER TABLE public.deposits
     ADD COLUMN IF NOT EXISTS cap_source       text,
     ADD COLUMN IF NOT EXISTS cap_tariff_reference text,
     ADD COLUMN IF NOT EXISTS cap_other_held   numeric(12,2),
+    ADD COLUMN IF NOT EXISTS trigger_threshold_source    text,
+    ADD COLUMN IF NOT EXISTS trigger_rule_threshold_id   uuid,
+    ADD COLUMN IF NOT EXISTS trigger_tariff_threshold_id uuid,
+    ADD COLUMN IF NOT EXISTS trigger_observed            numeric(12,3),
+    ADD COLUMN IF NOT EXISTS received_at_posting         numeric(12,2),
+    ADD COLUMN IF NOT EXISTS recorded_txid               bigint,
     ADD COLUMN IF NOT EXISTS decided_by       text;
 
 ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_class_fkey;
@@ -1038,6 +1269,25 @@ ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_check
 ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_cap_binding_check;
 ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_binding_check
     CHECK (((NOT cap_binding) OR ((cap_amount IS NOT NULL) AND (principal = (cap_amount - coalesce(cap_other_held, (0)::numeric))))));
+-- The threshold an additional deposit's trigger was judged against (review
+-- r2 D1): the statute's (a rule part) or the utility's tariff's, exactly one,
+-- with the measure the core observed; only on a deposit naming a trigger.
+ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_trigger_threshold_check;
+ALTER TABLE public.deposits ADD CONSTRAINT deposits_trigger_threshold_check
+    CHECK ((((trigger_threshold_source IS NULL) AND (trigger_rule_threshold_id IS NULL) AND (trigger_tariff_threshold_id IS NULL) AND (trigger_observed IS NULL))
+         OR ((trigger_threshold_source IS NOT NULL) AND (trigger_threshold_source = 'statute'::text) AND (trigger_basis IS NOT NULL)
+             AND (trigger_rule_threshold_id IS NOT NULL) AND (trigger_tariff_threshold_id IS NULL) AND (trigger_observed IS NOT NULL) AND (trigger_observed >= (0)::numeric))
+         OR ((trigger_threshold_source IS NOT NULL) AND (trigger_threshold_source = 'tariff'::text) AND (trigger_basis IS NOT NULL)
+             AND (trigger_tariff_threshold_id IS NOT NULL) AND (trigger_rule_threshold_id IS NULL) AND (trigger_observed IS NOT NULL) AND (trigger_observed >= (0)::numeric))));
+ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_trigger_rule_threshold_fkey;
+ALTER TABLE public.deposits ADD CONSTRAINT deposits_trigger_rule_threshold_fkey
+    FOREIGN KEY (trigger_rule_threshold_id) REFERENCES public.deposit_rule_trigger_thresholds(id);
+-- Taken in instalments (review r2 D3): principal is the deposit required;
+-- received_at_posting is what was paid at posting, less than it; the rest is
+-- the schedule (deposit_instalments), received by instalment_received events.
+ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_received_at_posting_check;
+ALTER TABLE public.deposits ADD CONSTRAINT deposits_received_at_posting_check
+    CHECK (((received_at_posting IS NULL) OR ((received_at_posting > (0)::numeric) AND (received_at_posting < principal))));
 -- -06's CHECKs that named a basis go (review r1 A3): whether a basis names a
 -- trigger, and which bases are carried history, are vocabulary attributes,
 -- read by the guard below.
@@ -1062,9 +1312,14 @@ DECLARE
     v_cust public.customers%ROWTYPE;
     v_basis public.deposit_bases%ROWTYPE;
     v_rule public.deposit_rules%ROWTYPE;
+    v_statute_thr public.deposit_rule_trigger_thresholds%ROWTYPE;
+    v_tariff_thr record;
+    v_measure text;
+    v_min numeric;
 BEGIN
     IF TG_OP = 'INSERT' THEN
-        NEW.created_at := now();
+        NEW.created_at    := now();
+        NEW.recorded_txid := txid_current();
         SELECT * INTO v_cust FROM public.customers c WHERE c.id = NEW.customer_id;
         IF NOT FOUND THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit rejected: customer %s not found (or not visible)', NEW.customer_id), ERRCODE = 'foreign_key_violation';
@@ -1115,15 +1370,19 @@ BEGIN
         -- A statutory cap is of the rule's kind, and under combined scope
         -- records what else was held. Any cap records its kind, and the
         -- basis figure unless it is a fixed amount.
-        IF v_rule.cap_kind <> 'none' AND NEW.cap_amount IS NULL THEN
+        IF v_rule.cap_combinator <> 'none' AND NEW.cap_amount IS NULL THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('deposit rejected: rule %s caps the deposit (%s); record the cap that applied — the statute''s or the utility''s tariff''s (cap_source) — v5.4.2-15', NEW.rule_id, v_rule.cap_kind),
+                MESSAGE = format('deposit rejected: rule %s caps the deposit (%s); record the cap that applied — the statute''s or the utility''s tariff''s (cap_source) — v5.4.2-15', NEW.rule_id, v_rule.cap_combinator),
                 ERRCODE = 'check_violation';
         END IF;
-        IF NEW.cap_source = 'statute' AND (v_rule.cap_kind = 'none' OR NEW.cap_basis_kind IS DISTINCT FROM v_rule.cap_kind
+        -- A statutory cap names the rule's part that governed it (under
+        -- lesser_of / greater_of, the part that won — review r2 D2). A rule
+        -- with no cap has no parts, so it has no statutory cap either.
+        IF NEW.cap_source = 'statute' AND (NOT EXISTS (SELECT 1 FROM public.deposit_rule_cap_parts p
+                                                           WHERE p.rule_id = NEW.rule_id AND p.cap_kind = NEW.cap_basis_kind)
                                            OR ((NEW.cap_other_held IS NOT NULL) <> (v_rule.cap_scope = 'combined'))) THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('deposit rejected: a statutory cap is the cited rule''s — rule %s sets %s%s; record cap_basis_kind = the rule''s kind, and cap_other_held exactly under a combined cap (v5.4.2-15)', NEW.rule_id, v_rule.cap_kind, coalesce(' (' || v_rule.cap_scope || ')', '')),
+                MESSAGE = format('deposit rejected: a statutory cap is the cited rule''s — rule %s sets %s%s; record cap_basis_kind = the kind of the rule''s part that governed, and cap_other_held exactly under a combined cap (v5.4.2-15)', NEW.rule_id, v_rule.cap_combinator, coalesce(' (' || v_rule.cap_scope || ')', '')),
                 ERRCODE = 'check_violation';
         END IF;
         IF NEW.cap_amount IS NOT NULL
@@ -1135,6 +1394,51 @@ BEGIN
         IF NEW.cap_amount IS NULL AND (NEW.cap_basis_kind IS NOT NULL OR NEW.cap_basis_amount IS NOT NULL) THEN
             RAISE EXCEPTION USING MESSAGE = 'deposit rejected: no cap is recorded, so no cap basis either (v5.4.2-15)', ERRCODE = 'check_violation';
         END IF;
+        -- The threshold the trigger was judged against (review r2 D1): where
+        -- the rule sets one for this trigger, the deposit records which
+        -- applied — the statute's, or the utility's tariff's in force on
+        -- posting (locked, so a close cannot cross it: review r2 I5) — and
+        -- the measure the core observed meets it.
+        SELECT * INTO v_statute_thr FROM public.deposit_rule_trigger_thresholds t
+         WHERE t.rule_id = NEW.rule_id AND t.trigger_code = NEW.trigger_basis;
+        IF v_statute_thr.id IS NOT NULL AND NEW.trigger_threshold_source IS NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit rejected: rule %s sets a threshold for trigger %s; record the threshold the deposit was decided under — the statute''s or the utility''s tariff''s (trigger_threshold_source) — v5.4.2-15', NEW.rule_id, NEW.trigger_basis),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.trigger_threshold_source = 'statute' THEN
+            IF v_statute_thr.id IS DISTINCT FROM NEW.trigger_rule_threshold_id THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('deposit rejected: threshold %s is not rule %s''s threshold for trigger %s (v5.4.2-15)', NEW.trigger_rule_threshold_id, NEW.rule_id, NEW.trigger_basis),
+                    ERRCODE = 'check_violation';
+            END IF;
+            v_measure := v_statute_thr.measure;
+            v_min     := coalesce(v_statute_thr.min_count::numeric, v_statute_thr.min_ratio);
+        ELSIF NEW.trigger_threshold_source = 'tariff' THEN
+            SELECT g.state_code, g.service_type, g.trigger_code, g.measure, g.min_count, g.min_ratio, g.effective_from, g.effective_to
+              INTO v_tariff_thr
+              FROM public.deposit_tariff_trigger_thresholds g
+             WHERE g.id = NEW.trigger_tariff_threshold_id AND g.tenant_id = NEW.tenant_id
+               FOR SHARE;
+            IF v_tariff_thr.state_code IS DISTINCT FROM NEW.state_code OR v_tariff_thr.service_type IS DISTINCT FROM NEW.service_type
+               OR v_tariff_thr.trigger_code IS DISTINCT FROM NEW.trigger_basis
+               OR NOT coalesce(daterange(v_tariff_thr.effective_from, v_tariff_thr.effective_to, '[)') @> NEW.posted_on, false) THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('deposit rejected: tariff threshold %s is not this utility''s %s %s threshold for trigger %s in force on %s (v5.4.2-15)', NEW.trigger_tariff_threshold_id, NEW.state_code, NEW.service_type, NEW.trigger_basis, NEW.posted_on),
+                    ERRCODE = 'check_violation';
+            END IF;
+            v_measure := v_tariff_thr.measure;
+            v_min     := coalesce(v_tariff_thr.min_count::numeric, v_tariff_thr.min_ratio);
+        END IF;
+        IF v_measure IS NOT NULL AND NOT (NEW.trigger_observed >= v_min
+                                          AND (v_measure <> 'event_count' OR NEW.trigger_observed = trunc(NEW.trigger_observed))) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit rejected: the observed %s %s does not meet the threshold it cites (%s) — v5.4.2-15', v_measure, NEW.trigger_observed, v_min),
+                ERRCODE = 'check_violation';
+        END IF;
+        -- A deposit taken in instalments (review r2 D3) is checked at commit
+        -- against its rule's schedule; a rule with none matches no number of
+        -- instalments, so no separate refusal is needed here.
         RETURN NEW;
     END IF;
 
@@ -1150,6 +1454,12 @@ BEGIN
        OR OLD.state_code IS DISTINCT FROM NEW.state_code OR OLD.service_type IS DISTINCT FROM NEW.service_type
        OR OLD.customer_class IS DISTINCT FROM NEW.customer_class OR OLD.rule_id IS DISTINCT FROM NEW.rule_id
        OR OLD.decided_by IS DISTINCT FROM NEW.decided_by
+       OR OLD.trigger_threshold_source IS DISTINCT FROM NEW.trigger_threshold_source
+       OR OLD.trigger_rule_threshold_id IS DISTINCT FROM NEW.trigger_rule_threshold_id
+       OR OLD.trigger_tariff_threshold_id IS DISTINCT FROM NEW.trigger_tariff_threshold_id
+       OR OLD.trigger_observed IS DISTINCT FROM NEW.trigger_observed
+       OR OLD.received_at_posting IS DISTINCT FROM NEW.received_at_posting
+       OR OLD.recorded_txid IS DISTINCT FROM NEW.recorded_txid
        OR OLD.created_by IS DISTINCT FROM NEW.created_by OR OLD.created_at <> NEW.created_at THEN
         RAISE EXCEPTION USING
             MESSAGE = format('deposit %s: identity (customer, basis, instrument, principal, posted_on, cap, source, jurisdiction, class, rule, core version) is frozen — a wrong deposit is refunded/released and re-posted', OLD.id),
@@ -1165,7 +1475,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit() IS
-    'v5.4.2-06, re-issued by v5.4.2-15 (deposits at parity). BEFORE INSERT OR UPDATE on deposits. INSERT: created_at stamped; the customer is visible; the basis is insertable, and names a trigger exactly when it requires one (deposit_bases); no legacy interest; born held; created_by of the tenant; a source payment of the same customer flagged is_deposit; the deposit cites the deposit_rules row it was decided under — one for its state, service, class and basis, in force on its posting date; a rule with a statutory cap requires a recorded cap; a statutory cap is of the rule''s kind and records what else was held exactly under combined scope; a tariff cap names its provision; any cap records its kind and basis. UPDATE: identity frozen; status columns only from the events. Decides nothing the law decides: waivers, the cap''s size and who may be charged are the core''s.';
+    'v5.4.2-06, re-issued by v5.4.2-15 (deposits at parity). BEFORE INSERT OR UPDATE on deposits. INSERT: created_at stamped; the customer is visible; the basis is insertable, and names a trigger exactly when it requires one (deposit_bases); no legacy interest; born held; created_by of the tenant; a source payment of the same customer flagged is_deposit; the deposit cites the deposit_rules row it was decided under — one for its state, service, class and basis, in force on its posting date; a rule with a statutory cap requires a recorded cap; a statutory cap is of the rule''s kind and records what else was held exactly under combined scope; a tariff cap names its provision; any cap records its kind and basis; where the rule sets a threshold for the deposit''s trigger, the deposit cites one — the rule''s for that trigger, or the utility''s tariff threshold for it in force on posting (share-locked against a close) — and its observed measure meets it (a count whole); a deposit taken in instalments is checked at commit against its rule''s schedule. UPDATE: identity frozen; status columns only from the events. Decides nothing the law decides: waivers, the cap''s size and who may be charged are the core''s.';
 
 -- The database writes the posted event (-06); a deposit of a basis that is
 -- carried history is a backfill — read from the vocabulary, not a basis name
@@ -1176,19 +1486,120 @@ CREATE OR REPLACE FUNCTION public.post_deposit_event() RETURNS trigger
     AS $$
 BEGIN
     INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, created_by, source)
-    VALUES (NEW.tenant_id, NEW.id, 'posted', NEW.principal, NEW.posted_on, NEW.created_by,
+    VALUES (NEW.tenant_id, NEW.id, 'posted', coalesce(NEW.received_at_posting, NEW.principal), NEW.posted_on, NEW.created_by,
             CASE WHEN (SELECT b.insertable FROM public.deposit_bases b WHERE b.basis_code = NEW.basis) THEN 'system' ELSE 'backfill' END);
     RETURN NULL;
 END;
 $$;
 COMMENT ON FUNCTION public.post_deposit_event() IS
-    'v5.4.2-06, re-issued by v5.4.2-15. AFTER INSERT on deposits: writes the posted event — source system, or backfill for a basis the vocabulary marks carried history (deposit_bases.insertable = false).';
+    'v5.4.2-06, re-issued by v5.4.2-15. AFTER INSERT on deposits: writes the posted event for what was received at posting (the principal, or received_at_posting for a deposit taken in instalments — review r2 D3) — source system, or backfill for a basis the vocabulary marks carried history (deposit_bases.insertable = false).';
+
+-- The instalments still to come on a deposit taken in instalments (review r2
+-- D3): numbered from 2 (the first is received at posting), each an amount
+-- and a due date, written in the deposit's own transaction. At commit the
+-- deposit's instalments match its rule's schedule in number and sum to the
+-- principal. Receipts are instalment_received events (section 8).
+CREATE TABLE IF NOT EXISTS public.deposit_instalments (
+    id              uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    tenant_id       uuid NOT NULL,
+    deposit_id      uuid NOT NULL,
+    instalment_no   smallint NOT NULL,
+    amount          numeric(12,2) NOT NULL,
+    due_on          date NOT NULL,
+    created_at      timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT deposit_instalments_pkey PRIMARY KEY (id),
+    CONSTRAINT deposit_instalments_key UNIQUE (deposit_id, instalment_no),
+    CONSTRAINT deposit_instalments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
+    CONSTRAINT deposit_instalments_deposit_fkey FOREIGN KEY (deposit_id, tenant_id) REFERENCES public.deposits(id, tenant_id),
+    CONSTRAINT deposit_instalments_check CHECK (((instalment_no >= 2) AND (amount > (0)::numeric)))
+);
+CREATE INDEX IF NOT EXISTS idx_deposit_instalments_tenant ON public.deposit_instalments USING btree (tenant_id);
+ALTER TABLE public.deposit_instalments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deposit_instalments FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.deposit_instalments;
+CREATE POLICY tenant_isolation ON public.deposit_instalments USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+REVOKE UPDATE, DELETE, TRUNCATE ON public.deposit_instalments FROM tally_app;
+COMMENT ON TABLE public.deposit_instalments IS
+    'v5.4.2-15 (review r2 D3; 52 Pa. Code §56.42). The instalments still due on a deposit taken in instalments: number (from 2 — the first is deposits.received_at_posting), amount and due date, as the core computed them from the rule''s schedule (deposit_rule_instalments); rounding is the core''s. Written in the deposit''s own transaction; at commit their number matches the rule''s schedule and received_at_posting plus their amounts equals the principal. A receipt is an instalment_received event; a missed one is a ground for termination (the core''s). Append-only.';
+
+CREATE OR REPLACE FUNCTION public.enforce_deposit_instalment() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    d public.deposits%ROWTYPE;
+BEGIN
+    SELECT * INTO d FROM public.deposits x WHERE x.id = NEW.deposit_id AND x.tenant_id = NEW.tenant_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION USING MESSAGE = format('deposit instalment: deposit %s not found (or not visible)', NEW.deposit_id), ERRCODE = 'foreign_key_violation';
+    END IF;
+    IF d.recorded_txid IS DISTINCT FROM txid_current() THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit instalment: deposit %s was recorded in an earlier transaction; its schedule is complete (v5.4.2-15)', d.id),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    IF d.received_at_posting IS NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit instalment: deposit %s was received whole at posting (received_at_posting is empty) — v5.4.2-15', d.id),
+            ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.due_on < d.posted_on THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit instalment: due %s, before the deposit was posted (%s) — v5.4.2-15', NEW.due_on, d.posted_on),
+            ERRCODE = 'check_violation';
+    END IF;
+    NEW.created_at := now();
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_deposit_instalment() IS
+    'v5.4.2-15 (review r2 D3). BEFORE INSERT on deposit_instalments: the deposit is visible, was recorded in this transaction (deposits.recorded_txid) and was taken in instalments (received_at_posting); due on or after posting; created_at stamped.';
+DROP TRIGGER IF EXISTS a_enforce_deposit_instalment ON public.deposit_instalments;
+CREATE TRIGGER a_enforce_deposit_instalment BEFORE INSERT ON public.deposit_instalments
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_instalment();
+ALTER TABLE public.deposit_instalments ENABLE ALWAYS TRIGGER a_enforce_deposit_instalment;
+DROP TRIGGER IF EXISTS append_only ON public.deposit_instalments;
+CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.deposit_instalments FOR EACH ROW EXECUTE FUNCTION public.enforce_append_only();
+DROP TRIGGER IF EXISTS no_truncate ON public.deposit_instalments;
+CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.deposit_instalments FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+ALTER TABLE public.deposit_instalments ENABLE ALWAYS TRIGGER append_only;
+ALTER TABLE public.deposit_instalments ENABLE ALWAYS TRIGGER no_truncate;
+
+CREATE OR REPLACE FUNCTION public.enforce_deposit_instalments_complete() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_n integer;
+    v_sum numeric;
+    v_rule_n integer;
+BEGIN
+    IF NEW.received_at_posting IS NULL THEN
+        RETURN NULL;
+    END IF;
+    SELECT count(*), coalesce(sum(i.amount), 0) INTO v_n, v_sum FROM public.deposit_instalments i WHERE i.deposit_id = NEW.id;
+    SELECT count(*) INTO v_rule_n FROM public.deposit_rule_instalments r WHERE r.rule_id = NEW.rule_id;
+    IF v_n + 1 <> v_rule_n OR NEW.received_at_posting + v_sum <> NEW.principal THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit %s: taken in instalments, it records %s instalment(s) summing with the %s received at posting to %s; its rule''s schedule has %s and the principal is %s (v5.4.2-15)', NEW.id, v_n + 1, NEW.received_at_posting, NEW.received_at_posting + v_sum, v_rule_n, NEW.principal),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_deposit_instalments_complete() IS
+    'v5.4.2-15 (review r2 D3). Deferred constraint trigger, AFTER INSERT on deposits: at commit a deposit taken in instalments has as many instalments (the one at posting plus deposit_instalments) as its rule''s schedule — so none under a rule without one — and they sum to the principal.';
+DROP TRIGGER IF EXISTS z_enforce_deposit_instalments_complete ON public.deposits;
+CREATE CONSTRAINT TRIGGER z_enforce_deposit_instalments_complete AFTER INSERT ON public.deposits
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_instalments_complete();
+ALTER TABLE public.deposits ENABLE ALWAYS TRIGGER z_enforce_deposit_instalments_complete;
 
 ALTER TABLE public.deposits DROP COLUMN IF EXISTS refund_eligibility_on;
 ALTER TABLE public.deposits DROP COLUMN IF EXISTS cap_basis_annual_billing;
 
 COMMENT ON TABLE public.deposits IS
-    'A-21 (v5.4.2-06; v5.4.2-15 at parity): one record per deposit. basis (a deposit_bases row: why it was taken), trigger_basis for an additional deposit, instrument (cash, or a §366(c)(1)(A) form or guarantor; non-cash carries issuer/reference/expiry), principal, posted_on, and what it was decided under: state_code / service_type (from the premise), customer_class, the deposit_rules row (rule_id) and the core version (decided_by). The cap that applied (cap_amount, cap_basis_kind, cap_basis_amount, cap_binding), where it came from (cap_source: statute, or the utility''s tariff with cap_tariff_reference) and, under a combined cap, what else was held (cap_other_held); required when the rule has a statutory cap. Identity is frozen after insert. status / refunded_on / released_on are a PROJECTION of deposit_events: held → partial_applied / applied → refund_pending → refunded; non-cash → released. A legacy_unknown row (carried by -06) cites no rule; the core refuses to decide one. Whether a deposit may be required, how large, and what it earns are the core''s (application/deposits-rules-for-the-core.md).';
+    'A-21 (v5.4.2-06; v5.4.2-15 at parity): one record per deposit. basis (a deposit_bases row: why it was taken), trigger_basis for an additional deposit, instrument (cash, or a §366(c)(1)(A) form or guarantor; non-cash carries issuer/reference/expiry), principal, posted_on, and what it was decided under: state_code / service_type (from the premise), customer_class, the deposit_rules row (rule_id) and the core version (decided_by). The cap that applied (cap_amount; cap_basis_kind, the kind of the part that governed; cap_basis_amount, cap_binding), where it came from (cap_source: statute, or the utility''s tariff with cap_tariff_reference) and, under a combined cap, what else was held (cap_other_held); required when the rule has a statutory cap. For an additional deposit, the threshold its trigger was judged against — the statute''s or the utility''s tariff''s — and the measure observed (trigger_threshold_source, trigger_rule_threshold_id / trigger_tariff_threshold_id, trigger_observed). principal is the deposit required; a deposit taken in instalments records what was received at posting (received_at_posting) and its remaining instalments (deposit_instalments), and holds what has been received. Identity is frozen after insert. status / refunded_on / released_on are a PROJECTION of deposit_events: held → partial_applied / applied → refund_pending → refunded; non-cash → released. A legacy_unknown row (carried by -06) cites no rule; the core refuses to decide one. Whether a deposit may be required, how large, and what it earns are the core''s (application/deposits-rules-for-the-core.md).';
 COMMENT ON COLUMN public.deposits.cap_amount IS
     'The cap that applied at the deposit decision — the statute''s (the cited rule''s) or a tighter or additional one from the utility''s tariff (cap_source); required when the rule has a statutory cap. principal ≤ cap_amount − cap_other_held (CHECK); cap_binding when it reduced the amount — the customer is entitled to know (decision table #53). The computation is the core''s.';
 COMMENT ON COLUMN public.deposits.cap_basis_kind IS
@@ -1222,18 +1633,23 @@ CREATE OR REPLACE VIEW public.deposit_interest_rate_discrepancies WITH (security
                lead(r.effective_date) OVER (PARTITION BY r.tenant_id, r.state_code, r.service_type, r.customer_class ORDER BY r.effective_date) AS next_date
           FROM public.deposit_interest_rates r
     ),
+    -- Coverage is judged per class (review r2 I6): each class the tenant
+    -- holds deposits in, or names in a rate row, and — for a rate row for
+    -- every class — the class-less scope. A residential-only rate then no
+    -- longer hides a missing rate for the non-residential deposits held.
     scope AS (
-        SELECT DISTINCT r.tenant_id, r.state_code, r.service_type FROM public.deposit_interest_rates r
+        SELECT DISTINCT r.tenant_id, r.state_code, r.service_type, r.customer_class AS cls FROM public.deposit_interest_rates r
         UNION
-        SELECT DISTINCT d.tenant_id, d.state_code, d.service_type FROM public.deposits d WHERE d.state_code IS NOT NULL
+        SELECT DISTINCT d.tenant_id, d.state_code, d.service_type, d.customer_class FROM public.deposits d WHERE d.state_code IS NOT NULL
     ),
     first_rate AS (
-        SELECT s.tenant_id, l.id AS law_rate_id,
+        SELECT s.tenant_id, l.id AS law_rate_id, coalesce(s.cls, l.customer_class) AS customer_class,
                (SELECT min(r.effective_date) FROM public.deposit_interest_rates r
                  WHERE r.tenant_id = s.tenant_id AND r.state_code = l.state_code AND r.service_type = l.service_type
-                   AND (r.customer_class IS NULL OR l.customer_class IS NULL OR r.customer_class = l.customer_class)) AS first_date
+                   AND (r.customer_class IS NULL OR r.customer_class = s.cls)) AS first_date
           FROM scope s
           JOIN public.deposit_interest_rate_law l ON l.state_code = s.state_code AND l.service_type = s.service_type
+                                                  AND (s.cls IS NULL OR l.customer_class IS NULL OR l.customer_class = s.cls)
     )
     SELECT 'rate_differs'::text AS discrepancy, u.tenant_id, u.state_code, u.service_type,
            coalesce(u.customer_class, l.customer_class) AS customer_class,
@@ -1250,7 +1666,7 @@ CREATE OR REPLACE VIEW public.deposit_interest_rate_discrepancies WITH (security
        AND daterange(u.effective_date, u.next_date, '[)') && daterange(l.effective_from, l.effective_to, '[)')
        AND u.annual_rate <> l.annual_rate
     UNION ALL
-    SELECT 'no_utility_rate'::text, f.tenant_id, l.state_code, l.service_type, l.customer_class,
+    SELECT DISTINCT 'no_utility_rate'::text, f.tenant_id, l.state_code, l.service_type, f.customer_class,
            NULL::uuid, l.id,
            l.effective_from,
            CASE WHEN f.first_date IS NULL THEN l.effective_to
@@ -1263,7 +1679,7 @@ CREATE OR REPLACE VIEW public.deposit_interest_rate_discrepancies WITH (security
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposit_interest_rate_discrepancies FROM tally_app;
 GRANT SELECT ON public.deposit_interest_rate_discrepancies TO tally_app;
 COMMENT ON VIEW public.deposit_interest_rate_discrepancies IS
-    'v5.4.2-15 (R-D1). Where the rate a utility applies differs from its state''s published legal rate for an overlapping customer class (rate_differs: the overlapping span, both rates), and where a published rate covers days before the utility''s first rate row covering its class, for a state and service it keeps rates or deposits in (no_utility_rate). A read over two records, not a refusal: whether a difference is lawful is the utility''s and the core''s call. Invoker rights: a tenant sees its own rows.';
+    'v5.4.2-15 (R-D1). Where the rate a utility applies differs from its state''s published legal rate for an overlapping customer class (rate_differs: the overlapping span, both rates), and where a published rate covers days before the utility''s first rate row covering a class — judged per class the utility holds deposits in or names in a rate row, so one class''s rate never hides another''s gap (review r2 I6) — for a state and service it keeps rates or deposits in (no_utility_rate). A read over two records, not a refusal: whether a difference is lawful is the utility''s and the core''s call. Invoker rights: a tenant sees its own rows.';
 
 
 -- ----------------------------------------------------------------------------
@@ -1373,6 +1789,15 @@ BEGIN
             MESSAGE = format('deposit tariff waiver ground %s: never edited — close it (effective_to, once, nothing else) and add its successor (v5.4.2-15)', OLD.id),
             ERRCODE = 'restrict_violation';
     END IF;
+    -- A determination citing the ground holds a share lock on it until it
+    -- commits (review r2 I5); this close waits for it and, under READ
+    -- COMMITTED only, then counts it. Under REPEATABLE READ the count would
+    -- read the snapshot from before the wait.
+    IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit tariff waiver ground %s: a close runs only under READ COMMITTED — under %s its check could miss a determination committed while it waited (v5.4.2-15)', OLD.id, current_setting('transaction_isolation')),
+            ERRCODE = 'serialization_failure';
+    END IF;
     SELECT max(d.determined_on) INTO v_latest FROM public.deposit_waiver_determinations d WHERE d.tariff_ground_id = OLD.id;
     IF v_latest IS NOT NULL AND NEW.effective_to <= v_latest THEN
         RAISE EXCEPTION USING
@@ -1389,7 +1814,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_tariff_waiver_ground() IS
-    'v5.4.2-15. BEFORE INSERT OR UPDATE on deposit_tariff_waiver_grounds. INSERT: created_by of the tenant; the state''s law has a tariff_defined waiver class; the scope names existing bases, the state''s customer classes and existing triggers; stamps. UPDATE: only a close (effective_to once, stamped), not on or before a date a determination cites the ground for.';
+    'v5.4.2-15. BEFORE INSERT OR UPDATE on deposit_tariff_waiver_grounds. INSERT: created_by of the tenant; the state''s law has a tariff_defined waiver class; the scope names existing bases, the state''s customer classes and existing triggers; stamps. UPDATE: only a close (effective_to once, stamped), only under READ COMMITTED (it waits on the share lock a citing determination holds, then counts it — review r2 I5), not on or before a date a determination cites the ground for.';
 DROP TRIGGER IF EXISTS a_enforce_deposit_tariff_waiver_ground ON public.deposit_tariff_waiver_grounds;
 CREATE TRIGGER a_enforce_deposit_tariff_waiver_ground BEFORE INSERT OR UPDATE ON public.deposit_tariff_waiver_grounds
     FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_tariff_waiver_ground();
@@ -1445,7 +1870,9 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.tariff_ground_id IS NOT NULL THEN
-        SELECT * INTO v_ground FROM public.deposit_tariff_waiver_grounds g WHERE g.id = NEW.tariff_ground_id AND g.tenant_id = NEW.tenant_id;
+        -- FOR SHARE, not the foreign key's KEY SHARE: a close is a non-key
+        -- update, which KEY SHARE does not block (review r2 I5).
+        SELECT * INTO v_ground FROM public.deposit_tariff_waiver_grounds g WHERE g.id = NEW.tariff_ground_id AND g.tenant_id = NEW.tenant_id FOR SHARE;
         IF v_ground.state_code IS DISTINCT FROM NEW.state_code OR v_ground.service_type IS DISTINCT FROM NEW.service_type
            OR NOT coalesce(daterange(v_ground.effective_from, v_ground.effective_to, '[)') @> NEW.determined_on, false) THEN
             RAISE EXCEPTION USING
@@ -1458,7 +1885,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_waiver_determination() IS
-    'v5.4.2-15. BEFORE INSERT on deposit_waiver_determinations: determined_by of the tenant; a class whose deposit_waiver_classes row requires a certification carries its reference; a tariff_defined class names the utility''s ground (same tenant, state and service, in force on the determination date), and no other class names one; created_at stamped.';
+    'v5.4.2-15. BEFORE INSERT on deposit_waiver_determinations: determined_by of the tenant; a class whose deposit_waiver_classes row requires a certification carries its reference; a tariff_defined class names the utility''s ground (same tenant, state and service, in force on the determination date), share-locked so a close waits for this determination (review r2 I5), and no other class names one; created_at stamped.';
 DROP TRIGGER IF EXISTS a_enforce_deposit_waiver_determination ON public.deposit_waiver_determinations;
 CREATE TRIGGER a_enforce_deposit_waiver_determination BEFORE INSERT ON public.deposit_waiver_determinations
     FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_waiver_determination();
@@ -1466,6 +1893,124 @@ ALTER TABLE public.deposit_waiver_determinations ENABLE ALWAYS TRIGGER a_enforce
 
 COMMENT ON TABLE public.deposit_waiver_determinations IS
     'CI-129 (v5.4.2-06; v5.4.2-15 at parity): a recorded deposit-waiver determination — that a customer qualified, under which state''s class (deposit_waiver_classes: state, service, class), on which date, with the certification''s reference and expiry where the class rests on one, and for a tariff-defined class the utility''s ground (tariff_ground_id). A point-in-time act, not a re-derivation: a lapse later does not reopen a deposit lawfully waived. Whether a waiver in force relieves a deposit is the core''s, from the rule''s reach (deposit_rule_waiver_reach) and, for a tariff ground, the ground''s own scope and effect. Append-only. SENSITIVE: the family-violence class is among the most sensitive data the platform holds; RLS applies, no column-level control exists (flagged).';
+
+
+-- ----------------------------------------------------------------------------
+-- 6a. The utility's own additional-deposit thresholds (review r2 D1)
+-- ----------------------------------------------------------------------------
+-- Decision table #55 rules 5-7 leave the threshold to configuration
+-- ("nsf_count_12m ≥ threshold"): it is the utility's, set in its tariff, so
+-- it is the utility's row (R-D1), dated and cited, with the same shape as the
+-- statute's (deposit_rule_trigger_thresholds). A deposit for a trigger cites
+-- the one it was decided under (deposits.trigger_threshold_source). Closed
+-- the way a tariff waiver ground is: never on or before a deposit citing it,
+-- under READ COMMITTED, after the citing deposit's share lock (I5).
+
+CREATE TABLE IF NOT EXISTS public.deposit_tariff_trigger_thresholds (
+    id                  uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    tenant_id           uuid NOT NULL,
+    state_code          text NOT NULL,
+    service_type        text NOT NULL,
+    trigger_code        text NOT NULL,
+    measure             text NOT NULL,
+    min_count           integer,
+    window_months       integer,
+    min_ratio           numeric(6,3),
+    payment_due_days    integer,
+    tariff_reference    text NOT NULL,
+    effective_from      date NOT NULL,
+    effective_to        date,
+    created_at          timestamp with time zone DEFAULT now() NOT NULL,
+    created_by          uuid,
+    closed_at           timestamp with time zone,
+    closed_by           uuid,
+    CONSTRAINT deposit_tariff_trigger_thresholds_pkey PRIMARY KEY (id),
+    CONSTRAINT deposit_tariff_trigger_thresholds_id_tenant_id_key UNIQUE (id, tenant_id),
+    CONSTRAINT deposit_tariff_trigger_thresholds_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
+    CONSTRAINT deposit_tariff_trigger_thresholds_trigger_fkey FOREIGN KEY (trigger_code) REFERENCES public.deposit_triggers(trigger_code),
+    CONSTRAINT deposit_tariff_trigger_thresholds_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+    CONSTRAINT deposit_tariff_trigger_thresholds_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES public.users(id),
+    CONSTRAINT deposit_tariff_trigger_thresholds_state_code_check CHECK ((state_code ~ '^[A-Z]{2}$'::text)),
+    CONSTRAINT deposit_tariff_trigger_thresholds_service_type_check
+        CHECK ((service_type = ANY (ARRAY['water'::text, 'sewer'::text, 'electric'::text, 'gas'::text, 'stormwater'::text, 'trash'::text, 'reclaimed_water'::text]))),
+    CONSTRAINT deposit_tariff_trigger_thresholds_measure_check
+        CHECK ((((measure = 'event_count'::text) AND (min_count IS NOT NULL) AND (min_count > 0) AND (window_months IS NOT NULL) AND (window_months > 0) AND (min_ratio IS NULL))
+             OR ((measure = 'usage_ratio'::text) AND (min_ratio IS NOT NULL) AND (min_ratio > (1)::numeric) AND (min_count IS NULL) AND (window_months IS NULL)))),
+    CONSTRAINT deposit_tariff_trigger_thresholds_payment_check CHECK (((payment_due_days IS NULL) OR (payment_due_days > 0))),
+    CONSTRAINT deposit_tariff_trigger_thresholds_reference_check CHECK ((tariff_reference ~ '[[:alnum:]]'::text)),
+    CONSTRAINT deposit_tariff_trigger_thresholds_range_check CHECK (((effective_to IS NULL) OR (effective_to > effective_from))),
+    CONSTRAINT deposit_tariff_trigger_thresholds_no_overlap
+        EXCLUDE USING gist (tenant_id WITH =, state_code WITH =, service_type WITH =, trigger_code WITH =,
+                            daterange(effective_from, effective_to, '[)'::text) WITH &&)
+);
+CREATE INDEX IF NOT EXISTS idx_deposit_tariff_trigger_thresholds_tenant ON public.deposit_tariff_trigger_thresholds USING btree (tenant_id);
+ALTER TABLE public.deposit_tariff_trigger_thresholds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deposit_tariff_trigger_thresholds FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.deposit_tariff_trigger_thresholds;
+CREATE POLICY tenant_isolation ON public.deposit_tariff_trigger_thresholds USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+REVOKE DELETE, TRUNCATE ON public.deposit_tariff_trigger_thresholds FROM tally_app;
+COMMENT ON TABLE public.deposit_tariff_trigger_thresholds IS
+    'v5.4.2-15 (review r2 D1; R-D1). The UTILITY''s threshold for an additional-deposit trigger, set in its tariff (decision table #55 rules 5-7 leave it to configuration): event_count (min_count events in window_months) or usage_ratio (actual use ≥ min_ratio × estimated billing), the days to pay, the tariff provision, dated; no overlap per tenant, state, service and trigger. A deposit for the trigger cites it (deposits.trigger_tariff_threshold_id) or the statute''s (deposit_rule_trigger_thresholds). Written by the utility (RLS); never deleted; the only edit is a close (effective_to, once, stamped, under READ COMMITTED), never on or before a deposit citing it was posted. Whether the trigger fired is the core''s.';
+
+ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_trigger_tariff_threshold_fkey;
+ALTER TABLE public.deposits ADD CONSTRAINT deposits_trigger_tariff_threshold_fkey
+    FOREIGN KEY (trigger_tariff_threshold_id, tenant_id) REFERENCES public.deposit_tariff_trigger_thresholds(id, tenant_id);
+
+CREATE OR REPLACE FUNCTION public.enforce_deposit_tariff_trigger_threshold() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    c_close_cols CONSTANT text[] := ARRAY['effective_to', 'closed_at', 'closed_by'];
+    v_latest date;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        PERFORM public.assert_same_tenant_user(NEW.created_by, NEW.tenant_id, 'created_by');
+        NEW.created_at := now();
+        NEW.closed_at  := NULL;
+        NEW.closed_by  := NULL;
+        RETURN NEW;
+    END IF;
+    IF OLD.effective_to IS NOT NULL OR NEW.effective_to IS NULL
+       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit tariff trigger threshold %s: never edited — close it (effective_to, once, nothing else) and add its successor (v5.4.2-15)', OLD.id),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit tariff trigger threshold %s: a close runs only under READ COMMITTED — under %s its check could miss a deposit committed while it waited (v5.4.2-15)', OLD.id, current_setting('transaction_isolation')),
+            ERRCODE = 'serialization_failure';
+    END IF;
+    SELECT max(d.posted_on) INTO v_latest FROM public.deposits d WHERE d.trigger_tariff_threshold_id = OLD.id;
+    IF v_latest IS NOT NULL AND NEW.effective_to <= v_latest THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit tariff trigger threshold %s: a deposit cites it for %s; a close effective %s would put that outside its range (v5.4.2-15)', OLD.id, v_latest, NEW.effective_to),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    NEW.closed_at := now();
+    BEGIN
+        NEW.closed_by := NULLIF(current_setting('app.user_id', true), '')::uuid;
+    EXCEPTION WHEN OTHERS THEN
+        NEW.closed_by := NULL;
+    END;
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_deposit_tariff_trigger_threshold() IS
+    'v5.4.2-15 (review r2 D1). BEFORE INSERT OR UPDATE on deposit_tariff_trigger_thresholds. INSERT: created_by of the tenant; stamps. UPDATE: only a close (effective_to once, stamped), only under READ COMMITTED (it waits on the share lock a citing deposit holds, then counts it), not on or before a deposit citing it was posted.';
+DROP TRIGGER IF EXISTS a_enforce_deposit_tariff_trigger_threshold ON public.deposit_tariff_trigger_thresholds;
+CREATE TRIGGER a_enforce_deposit_tariff_trigger_threshold BEFORE INSERT OR UPDATE ON public.deposit_tariff_trigger_thresholds
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_tariff_trigger_threshold();
+DROP TRIGGER IF EXISTS no_hard_delete ON public.deposit_tariff_trigger_thresholds;
+CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.deposit_tariff_trigger_thresholds
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_no_hard_delete();
+DROP TRIGGER IF EXISTS no_truncate ON public.deposit_tariff_trigger_thresholds;
+CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.deposit_tariff_trigger_thresholds
+    FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+ALTER TABLE public.deposit_tariff_trigger_thresholds ENABLE ALWAYS TRIGGER a_enforce_deposit_tariff_trigger_threshold;
+ALTER TABLE public.deposit_tariff_trigger_thresholds ENABLE ALWAYS TRIGGER no_hard_delete;
+ALTER TABLE public.deposit_tariff_trigger_thresholds ENABLE ALWAYS TRIGGER no_truncate;
 
 
 -- ----------------------------------------------------------------------------
@@ -1530,6 +2075,7 @@ CREATE TABLE IF NOT EXISTS public.deposit_return_due (
     deposit_id          uuid NOT NULL,
     rule_id             uuid NOT NULL,
     due_on              date NOT NULL,
+    amount              numeric(12,2),
     supersedes_due_id   uuid,
     inputs              jsonb NOT NULL,
     inputs_fingerprint  text NOT NULL,
@@ -1548,7 +2094,10 @@ CREATE TABLE IF NOT EXISTS public.deposit_return_due (
     CONSTRAINT deposit_return_due_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
     CONSTRAINT deposit_return_due_inputs_check
         CHECK (((jsonb_typeof(inputs) = 'object'::text) AND (inputs_fingerprint ~ '[[:alnum:]]'::text))),
-    CONSTRAINT deposit_return_due_calculated_by_check CHECK ((calculated_by ~ '[[:alnum:]]'::text))
+    CONSTRAINT deposit_return_due_calculated_by_check CHECK ((calculated_by ~ '[[:alnum:]]'::text)),
+    -- A partial return due (review r2 D4): the amount to return; NULL = the
+    -- whole remainder.
+    CONSTRAINT deposit_return_due_amount_check CHECK (((amount IS NULL) OR (amount > (0)::numeric)))
 );
 CREATE INDEX IF NOT EXISTS idx_deposit_return_due_tenant ON public.deposit_return_due USING btree (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_deposit_return_due_deposit ON public.deposit_return_due USING btree (deposit_id, due_seq);
@@ -1616,6 +2165,23 @@ DROP POLICY IF EXISTS tenant_isolation ON public.deposit_return_due_evidence;
 CREATE POLICY tenant_isolation ON public.deposit_return_due_evidence USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
 REVOKE UPDATE, DELETE, TRUNCATE ON public.deposit_return_due_evidence FROM tally_app;
 
+-- Live: not withdrawn, and — for a partial return — not yet settled by the
+-- principal_returned that cites it (review r2 D4). A full return settles by
+-- a refund or release, after which the deposit takes no more rows.
+-- plpgsql, not sql: its body reads deposit_events.return_due_id, which
+-- section 8 adds.
+CREATE OR REPLACE FUNCTION public.deposit_return_due_is_live(p_due_id uuid) RETURNS boolean
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    RETURN NOT EXISTS (SELECT 1 FROM public.deposit_return_due_withdrawals w WHERE w.due_id = p_due_id)
+       AND NOT EXISTS (SELECT 1 FROM public.deposit_events e WHERE e.return_due_id = p_due_id AND e.event_type = 'principal_returned');
+END;
+$$;
+COMMENT ON FUNCTION public.deposit_return_due_is_live(uuid) IS
+    'v5.4.2-15 (R-D2; review r2 D4). A return-due row is live while it is not withdrawn and, for a partial return, not settled by the principal_returned event citing it.';
+
 CREATE OR REPLACE FUNCTION public.enforce_deposit_return_due_record() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
@@ -1641,11 +2207,25 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
     SELECT * INTO v_rule FROM public.deposit_rules r WHERE r.id = NEW.rule_id;
-    IF v_rule.refund_mandatory IS NOT TRUE
-       OR NOT coalesce(d.instrument = ANY (v_rule.return_mandatory_instruments), false) THEN
+    IF NEW.amount IS NULL AND (v_rule.refund_mandatory IS NOT TRUE
+       OR NOT coalesce(d.instrument = ANY (v_rule.return_mandatory_instruments), false)) THEN
         RAISE EXCEPTION USING
             MESSAGE = format('deposit return due: rule %s makes no mandatory return of a %s deposit (refund_mandatory, return_mandatory_instruments) — v5.4.2-15', NEW.rule_id, d.instrument),
             ERRCODE = 'check_violation';
+    END IF;
+    -- A partial return due (review r2 D4): the rule returns an excess over
+    -- the cap, and the amount leaves something held (all of it is a refund).
+    IF NEW.amount IS NOT NULL THEN
+        IF v_rule.refund_excess_over_cap IS NOT TRUE THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit return due: rule %s returns no excess over the cap (refund_excess_over_cap); a due row with an amount is a partial return (v5.4.2-15)', NEW.rule_id),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.amount >= (SELECT b.remainder FROM public.deposit_balance(d.id) b) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit return due: a partial return of %s leaves nothing held; returning the whole remainder is a due row without an amount (v5.4.2-15)', NEW.amount),
+                ERRCODE = 'check_violation';
+        END IF;
     END IF;
     IF d.status IN ('refund_pending', 'refunded', 'released') THEN
         RAISE EXCEPTION USING
@@ -1658,8 +2238,7 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
     SELECT r.id INTO v_live FROM public.deposit_return_due r
-     WHERE r.deposit_id = d.id
-       AND NOT EXISTS (SELECT 1 FROM public.deposit_return_due_withdrawals w WHERE w.due_id = r.id)
+     WHERE r.deposit_id = d.id AND public.deposit_return_due_is_live(r.id)
      LIMIT 1;
     IF v_live IS NOT NULL THEN
         RAISE EXCEPTION USING
@@ -1686,7 +2265,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_return_due_record() IS
-    'v5.4.2-15 (R-D2). BEFORE INSERT on deposit_return_due: locks the deposit row and writes a version of it (the row-version mutex every deposit event shares); the cited rule is the deposit''s own or one of its key in force on due_on (deposit_rule_citable, B1), and its stored attributes make the return mandatory for the deposit''s instrument; no return has started (refund_pending, refunded, released); due_on is on or after posting; no live (unwithdrawn) due row exists for the deposit; a superseded row is a withdrawn row of the same deposit; stamps created_at, created_by (session user), due_seq and recorded_txid (the transaction its evidence must be written in). Judges nothing the core computed.';
+    'v5.4.2-15 (R-D2). BEFORE INSERT on deposit_return_due: locks the deposit row and writes a version of it (the row-version mutex every deposit event shares); the cited rule is the deposit''s own or one of its key in force on due_on (deposit_rule_citable, B1), and its stored attributes make the return mandatory for the deposit''s instrument — or, for a due row with an amount, return an excess over the cap, the amount leaving something held (review r2 D4); no return has started (refund_pending, refunded, released); due_on is on or after posting; no live due row (unwithdrawn, and a partial one unsettled) exists for the deposit; a superseded row is a withdrawn row of the same deposit; stamps created_at, created_by (session user), due_seq and recorded_txid (the transaction its evidence must be written in). Judges nothing the core computed.';
 DROP TRIGGER IF EXISTS a_enforce_deposit_return_due_record ON public.deposit_return_due;
 CREATE TRIGGER a_enforce_deposit_return_due_record BEFORE INSERT ON public.deposit_return_due
     FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_return_due_record();
@@ -1722,7 +2301,8 @@ DECLARE
     v_due record;
     v_reason public.deposit_return_reasons%ROWTYPE;
 BEGIN
-    SELECT r.recorded_txid, d.customer_id, d.posted_on, rl.refund_after_count, rl.refund_on_account_close INTO v_due
+    SELECT r.recorded_txid, r.due_on, r.amount, d.customer_id, d.posted_on,
+           rl.refund_after_count, rl.refund_measure, rl.refund_on_account_close, rl.refund_excess_over_cap INTO v_due
       FROM public.deposit_return_due r
       JOIN public.deposits d ON d.id = r.deposit_id
       JOIN public.deposit_rules rl ON rl.id = r.rule_id
@@ -1745,31 +2325,51 @@ BEGIN
     IF NOT coalesce((CASE v_reason.enabled_by
                          WHEN 'history_trigger' THEN v_due.refund_after_count IS NOT NULL
                          WHEN 'account_close'   THEN v_due.refund_on_account_close
+                         WHEN 'excess_over_cap' THEN v_due.refund_excess_over_cap
                      END), false) THEN
         RAISE EXCEPTION USING
             MESSAGE = format('deposit return due evidence: reason %s is a trigger only under a rule with %s; this due row''s rule has none (v5.4.2-15)', NEW.reason_code,
-                             CASE v_reason.enabled_by WHEN 'history_trigger' THEN 'a count-based trigger (refund_after_count)' ELSE 'refund_on_account_close' END),
+                             CASE v_reason.enabled_by WHEN 'history_trigger' THEN 'a count-based trigger (refund_after_count)'
+                                                      WHEN 'account_close' THEN 'refund_on_account_close' ELSE 'refund_excess_over_cap' END),
+            ERRCODE = 'check_violation';
+    END IF;
+    -- A history reason rests on the measure the rule counts in: bills for a
+    -- clean bill history, months for time held (review r2 I2).
+    IF v_reason.requires_measure IS NOT NULL AND v_reason.requires_measure IS DISTINCT FROM v_due.refund_measure THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit return due evidence: reason %s rests on a rule counting in %s; this due row''s rule counts in %s (v5.4.2-15)', NEW.reason_code, v_reason.requires_measure, coalesce(v_due.refund_measure, 'nothing')),
+            ERRCODE = 'check_violation';
+    END IF;
+    -- A partial reason exactly on a due row with an amount (review r2 D4).
+    IF v_reason.partial IS DISTINCT FROM (v_due.amount IS NOT NULL) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit return due evidence: reason %s %s; this due row %s (v5.4.2-15)', NEW.reason_code,
+                             CASE WHEN v_reason.partial THEN 'returns part of a deposit' ELSE 'returns the whole deposit' END,
+                             CASE WHEN v_due.amount IS NULL THEN 'returns the whole remainder' ELSE format('returns %s', v_due.amount) END),
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.invoice_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM public.invoices i WHERE i.id = NEW.invoice_id AND i.customer_id = v_due.customer_id AND i.invoice_date >= v_due.posted_on) THEN
+        SELECT 1 FROM public.invoices i WHERE i.id = NEW.invoice_id AND i.customer_id = v_due.customer_id
+           AND i.invoice_date >= v_due.posted_on AND i.invoice_date <= v_due.due_on) THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('deposit return due evidence: invoice %s is not a bill of the deposit''s customer dated on or after its posting (v5.4.2-15)', NEW.invoice_id),
+            MESSAGE = format('deposit return due evidence: invoice %s is not a bill of the deposit''s customer dated from its posting to the due date %s (review r2 I4; v5.4.2-15)', NEW.invoice_id, v_due.due_on),
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.customer_state_event_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM public.customer_state_events s
          WHERE s.id = NEW.customer_state_event_id AND s.customer_id = v_due.customer_id
-           AND s.to_status = ANY (v_reason.qualifying_statuses) AND s.effective_at::date >= v_due.posted_on) THEN
+           AND s.to_status = ANY (v_reason.qualifying_statuses)
+           -- the day in UTC, which no session setting changes (review r2 I8)
+           AND (s.effective_at AT TIME ZONE 'UTC')::date BETWEEN v_due.posted_on AND v_due.due_on) THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('deposit return due evidence: state event %s is not a change of the deposit''s customer to %s on or after its posting (review r1 A4; v5.4.2-15)', NEW.customer_state_event_id, array_to_string(v_reason.qualifying_statuses, ' / ')),
+            MESSAGE = format('deposit return due evidence: state event %s is not a change of the deposit''s customer to %s from its posting to the due date %s, by the UTC date (review r1 A4, r2 I4, I8; v5.4.2-15)', NEW.customer_state_event_id, array_to_string(v_reason.qualifying_statuses, ' / '), v_due.due_on),
             ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_return_due_evidence() IS
-    'v5.4.2-15. BEFORE INSERT on deposit_return_due_evidence: only in its due row''s transaction (deposit_return_due.recorded_txid); the subject is of the reason''s evidence kind (bill, state change, the deposit itself); the reason is one the due row''s rule enables (deposit_return_reasons.enabled_by); a bill is the deposit''s customer''s and dated on or after posting; a state change is the deposit''s customer''s, to one of the reason''s qualifying statuses, on or after posting. Which bills count and how is the core''s.';
+    'v5.4.2-15. BEFORE INSERT on deposit_return_due_evidence: only in its due row''s transaction (deposit_return_due.recorded_txid); the subject is of the reason''s evidence kind (bill, state change, the deposit itself); the reason is one the due row''s rule enables (deposit_return_reasons.enabled_by), rests on the measure the rule counts in (requires_measure, review r2 I2), and is partial exactly on a due row with an amount (r2 D4); a bill is the deposit''s customer''s, dated from posting to the due date; a state change is the deposit''s customer''s, to one of the reason''s qualifying statuses, from posting to the due date by the UTC date (r2 I4, I8). Which bills count and how is the core''s.';
 DROP TRIGGER IF EXISTS a_enforce_deposit_return_due_evidence ON public.deposit_return_due_evidence;
 CREATE TRIGGER a_enforce_deposit_return_due_evidence BEFORE INSERT ON public.deposit_return_due_evidence
     FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_return_due_evidence();
@@ -1820,7 +2420,7 @@ END;
 $$;
 
 COMMENT ON TABLE public.deposit_return_due IS
-    'v5.4.2-15 (R-D2). The core''s record that a deposit''s mandatory return fell due: the deposit, the date, the rule row (the deposit''s own), the inputs and their fingerprint, the core version, stamped. Written when the answer changes, never per check; the core checks on the events that can change it (payment, bill past due, status change, reversal, correction). Its reasons and what they rest on are deposit_return_due_evidence, in the same transaction. A row found wrong is withdrawn (deposit_return_due_withdrawals) and a corrected answer is a new row naming it (supersedes_due_id). At most one live row per deposit. Append-only.';
+    'v5.4.2-15 (R-D2). The core''s record that a deposit''s mandatory return fell due: the deposit, the date, the amount for a partial return (an excess over the cap — review r2 D4; NULL = the whole remainder), the rule row, the inputs and their fingerprint, the core version, stamped. Written when the answer changes, never per check; the core checks on the events that can change it (payment, bill past due, status change, reversal, correction). Its reasons and what they rest on are deposit_return_due_evidence, in the same transaction. A row found wrong is withdrawn (deposit_return_due_withdrawals) and a corrected answer is a new row naming it (supersedes_due_id). At most one live row per deposit (live: unwithdrawn, and a partial one not yet settled by its principal_returned). Append-only.';
 COMMENT ON TABLE public.deposit_return_due_evidence IS
     'v5.4.2-15 (R-D2). Why a return fell due and on what: one row per reason and record — a bill with the core''s classification of it (clean, delinquent, not_counted), the customer''s state change, or the deposit itself (rests_on_deposit: a return due on time held). Written in its due row''s transaction; append-only. The counts are derived from these rows.';
 COMMENT ON TABLE public.deposit_return_due_withdrawals IS
@@ -1828,7 +2428,7 @@ COMMENT ON TABLE public.deposit_return_due_withdrawals IS
 
 -- The operators' list: recorded answers, not computed law.
 CREATE OR REPLACE VIEW public.deposits_return_owed WITH (security_invoker = true) AS
-    SELECT r.id AS due_id, r.tenant_id, d.customer_id, r.deposit_id, r.due_on, r.rule_id,
+    SELECT r.id AS due_id, r.tenant_id, d.customer_id, r.deposit_id, r.due_on, r.amount AS amount_due, r.rule_id,
            (SELECT array_agg(DISTINCT e.reason_code ORDER BY e.reason_code)
               FROM public.deposit_return_due_evidence e WHERE e.due_id = r.id) AS reasons,
            d.instrument, d.status AS deposit_status, b.remainder,
@@ -1837,12 +2437,12 @@ CREATE OR REPLACE VIEW public.deposits_return_owed WITH (security_invoker = true
       FROM public.deposit_return_due r
       JOIN public.deposits d ON d.id = r.deposit_id
      CROSS JOIN LATERAL public.deposit_balance(d.id) b
-     WHERE NOT EXISTS (SELECT 1 FROM public.deposit_return_due_withdrawals w WHERE w.due_id = r.id)
+     WHERE public.deposit_return_due_is_live(r.id)
        AND d.status IN ('held', 'partial_applied', 'applied');
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.deposits_return_owed FROM tally_app;
 GRANT SELECT ON public.deposits_return_owed TO tally_app;
 COMMENT ON VIEW public.deposits_return_owed IS
-    'v5.4.2-15 (R-D2; Kyle #54). Deposit returns owed and not started: live (unwithdrawn) return-due rows on deposits with no refund or release begun. A fully applied deposit stays listed until its zero refund is recorded — interest may still be owed at refund. Reads recorded answers; computes no law. Invoker rights.';
+    'v5.4.2-15 (R-D2; Kyle #54). Deposit returns owed and not started: live return-due rows (unwithdrawn; a partial one unsettled) on deposits with no refund or release begun; amount_due is a partial return''s amount (NULL = the whole remainder). A fully applied deposit stays listed until its zero refund is recorded — interest may still be owed at refund. Reads recorded answers; computes no law. Invoker rights.';
 
 
 -- ----------------------------------------------------------------------------
@@ -1865,10 +2465,11 @@ ALTER TABLE public.deposit_events ADD CONSTRAINT deposit_events_return_due_fkey
     FOREIGN KEY (return_due_id, tenant_id) REFERENCES public.deposit_return_due(id, tenant_id);
 -- A partial return of principal (review r1 A11): part of what is held goes
 -- back to the customer while the rest stays held — the excess over a cap, an
--- annual review. A full return is a refund or a release.
+-- annual review. A full return is a refund or a release. An instalment
+-- received (review r2 D3) adds to what is held, up to the principal.
 ALTER TABLE public.deposit_events DROP CONSTRAINT IF EXISTS deposit_events_type_check;
 ALTER TABLE public.deposit_events ADD CONSTRAINT deposit_events_type_check
-    CHECK ((event_type = ANY (ARRAY['posted'::text, 'applied_to_balance'::text, 'interest_accrued'::text, 'interest_credited'::text,
+    CHECK ((event_type = ANY (ARRAY['posted'::text, 'instalment_received'::text, 'applied_to_balance'::text, 'interest_accrued'::text, 'interest_credited'::text,
                                     'principal_returned'::text, 'refund_initiated'::text, 'refunded'::text, 'released'::text])));
 -- An accrual carries its period, rate, principal basis, the rate row and rule
 -- row it used, and the core version. A return (refund_initiated, refunded,
@@ -1888,11 +2489,14 @@ ALTER TABLE public.deposit_events ADD CONSTRAINT deposit_events_accrual_fields_c
              AND (principal_basis IS NULL) AND (rate_id IS NULL) AND (rule_id IS NULL) AND (calculated_by IS NULL))));
 ALTER TABLE public.deposit_events DROP CONSTRAINT IF EXISTS deposit_events_return_due_check;
 ALTER TABLE public.deposit_events ADD CONSTRAINT deposit_events_return_due_check
-    CHECK (((return_due_id IS NULL) OR (event_type = ANY (ARRAY['refund_initiated'::text, 'refunded'::text, 'released'::text]))));
+    CHECK (((return_due_id IS NULL) OR (event_type = ANY (ARRAY['principal_returned'::text, 'refund_initiated'::text, 'refunded'::text, 'released'::text]))));
 
 -- The balance reads (-06), re-issued so a partial return leaves the
--- remainder and the principal in force (review r1 A11). Signatures and
--- columns unchanged: `applied` is still applications to balance only.
+-- remainder and the principal in force (review r1 A11), and so what is held
+-- is what was RECEIVED — the posted event and any instalments (review r2
+-- D3); for a deposit received whole that is the principal, as before.
+-- Signatures and columns unchanged: `principal` is the deposit required,
+-- `applied` is still applications to balance only.
 CREATE OR REPLACE FUNCTION public.deposit_balance(p_deposit_id uuid)
     RETURNS TABLE (principal numeric, applied numeric, remainder numeric, interest_accrued numeric, interest_credited numeric, days_held integer, accrued_through date, exhausted_on date)
     LANGUAGE sql STABLE
@@ -1900,7 +2504,8 @@ CREATE OR REPLACE FUNCTION public.deposit_balance(p_deposit_id uuid)
     AS $$
     SELECT d.principal,
            coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type = 'applied_to_balance'), 0),
-           d.principal - coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type IN ('applied_to_balance', 'principal_returned')), 0),
+           coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type IN ('posted', 'instalment_received')), 0)
+             - coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type IN ('applied_to_balance', 'principal_returned')), 0),
            coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type = 'interest_accrued'), 0),
            coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type = 'interest_credited'), 0),
            (coalesce(d.refunded_on, d.released_on, CURRENT_DATE) - d.posted_on)::integer,
@@ -1912,16 +2517,18 @@ CREATE OR REPLACE FUNCTION public.deposit_balance(p_deposit_id uuid)
              WHERE x.cum >= d.principal)
     FROM public.deposits d WHERE d.id = p_deposit_id
 $$;
-COMMENT ON FUNCTION public.deposit_balance(uuid) IS 'Derived from deposit_events (never stored): principal, applied to balance, remainder (less applications and partial returns), interest accrued, interest credited, days held (to refund/release/today), accrued-through date, exhausted_on (the day applications and returns together reached the principal). v5.4.2-06; re-issued by v5.4.2-15.';
+COMMENT ON FUNCTION public.deposit_balance(uuid) IS 'Derived from deposit_events (never stored): principal (the deposit required), applied to balance, remainder (received — at posting and by instalment — less applications and partial returns), interest accrued, interest credited, days held (to refund/release/today), accrued-through date, exhausted_on (the day applications and returns together reached the principal). v5.4.2-06; re-issued by v5.4.2-15.';
 
 CREATE OR REPLACE FUNCTION public.deposit_principal_in_force(p_deposit_id uuid, p_on date) RETURNS numeric
     LANGUAGE sql STABLE
     SET search_path = public, pg_temp
     AS $$
-    SELECT d.principal - coalesce((SELECT sum(e.amount) FROM public.deposit_events e WHERE e.deposit_id = d.id AND e.event_type IN ('applied_to_balance', 'principal_returned') AND e.effective_on <= p_on), 0)
-    FROM public.deposits d WHERE d.id = p_deposit_id
+    SELECT coalesce(sum(CASE WHEN e.event_type IN ('posted', 'instalment_received') THEN e.amount
+                             WHEN e.event_type IN ('applied_to_balance', 'principal_returned') THEN -e.amount
+                             ELSE 0 END), 0)
+      FROM public.deposit_events e WHERE e.deposit_id = p_deposit_id AND e.effective_on <= p_on
 $$;
-COMMENT ON FUNCTION public.deposit_principal_in_force(uuid, date) IS 'Principal held on p_on: principal less applications and partial returns effective on or before that day (a plain read; which principal interest is owed on is the core''s). v5.4.2-06; re-issued by v5.4.2-15.';
+COMMENT ON FUNCTION public.deposit_principal_in_force(uuid, date) IS 'Principal held on p_on: what was received (at posting and by instalment) less applications and partial returns, effective on or before that day (a plain read; which principal interest is owed on is the core''s). v5.4.2-06; re-issued by v5.4.2-15.';
 
 CREATE OR REPLACE FUNCTION public.enforce_deposit_event() RETURNS trigger
     LANGUAGE plpgsql
@@ -1931,6 +2538,10 @@ DECLARE
     d public.deposits%ROWTYPE;
     b record;
     v_rate public.deposit_interest_rates%ROWTYPE;
+    v_due record;
+    v_held numeric;
+    v_last_return date;
+    v_earned numeric;
 BEGIN
     SELECT * INTO d FROM public.deposits x WHERE x.id = NEW.deposit_id FOR UPDATE;
     IF NOT FOUND THEN
@@ -1963,14 +2574,30 @@ BEGIN
             MESSAGE = format('deposit %s: rule %s is neither the rule the deposit was decided under (%s) nor a rule of its key in force over %s..%s (v5.4.2-15)', d.id, NEW.rule_id, coalesce(d.rule_id::text, 'none — a carried legacy deposit'), coalesce(NEW.period_start, NEW.effective_on), coalesce(NEW.period_end, NEW.effective_on)),
             ERRCODE = 'check_violation';
     END IF;
-    -- A return that cites the due row it settles cites a live one of this deposit.
-    IF NEW.return_due_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM public.deposit_return_due r
-         WHERE r.id = NEW.return_due_id AND r.deposit_id = d.id
-           AND NOT EXISTS (SELECT 1 FROM public.deposit_return_due_withdrawals w WHERE w.due_id = r.id)) THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('deposit event rejected: return_due_id %s is not a live (unwithdrawn) due row of deposit %s (v5.4.2-15)', NEW.return_due_id, d.id),
-            ERRCODE = 'check_violation';
+    -- A return that cites the due row it settles cites a live one of this
+    -- deposit, of its kind — a partial return settles a due row with that
+    -- amount, a refund or release one without (review r2 D4) — dated on or
+    -- after it fell due (review r2 I4).
+    IF NEW.return_due_id IS NOT NULL THEN
+        SELECT r.due_on, r.amount INTO v_due FROM public.deposit_return_due r
+         WHERE r.id = NEW.return_due_id AND r.deposit_id = d.id AND public.deposit_return_due_is_live(r.id);
+        IF NOT FOUND THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit event rejected: return_due_id %s is not a live due row of deposit %s (v5.4.2-15)', NEW.return_due_id, d.id),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF (NEW.event_type = 'principal_returned') <> (v_due.amount IS NOT NULL)
+           OR (NEW.event_type = 'principal_returned' AND NEW.amount <> v_due.amount) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit event rejected: due row %s returns %s; a %s of %s does not settle it (v5.4.2-15)', NEW.return_due_id,
+                                 coalesce(v_due.amount::text, 'the whole remainder'), NEW.event_type, NEW.amount),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.effective_on < v_due.due_on THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit event rejected: due row %s fell due %s; a %s settling it is dated %s, before then (review r2 I4; v5.4.2-15)', NEW.return_due_id, v_due.due_on, NEW.event_type, NEW.effective_on),
+                ERRCODE = 'check_violation';
+        END IF;
     END IF;
     SELECT * INTO b FROM public.deposit_balance(d.id);
     -- Arithmetic, not law (review r1 A7): money handed back on a day cannot
@@ -1986,6 +2613,20 @@ BEGIN
     WHEN 'posted' THEN
         IF pg_trigger_depth() < 2 THEN
             RAISE EXCEPTION USING MESSAGE = 'deposit event rejected: the posted event is written by the database when the deposit is inserted', ERRCODE = 'check_violation';
+        END IF;
+    WHEN 'instalment_received' THEN
+        -- An instalment of a deposit taken in instalments (review r2 D3):
+        -- what is received never passes the principal required.
+        -- (A deposit received whole has nothing left to receive, so the
+        -- bound below refuses any receipt on it.)
+        IF d.status = 'refund_pending' THEN
+            RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — nothing more is received (v5.4.2-15)', d.id), ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.amount <= 0 OR NEW.amount > d.principal - coalesce((SELECT sum(e.amount) FROM public.deposit_events e
+                                                                     WHERE e.deposit_id = d.id AND e.event_type IN ('posted', 'instalment_received')), 0) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit %s: instalment_received must be > 0 and no more than the principal %s less what was already received (v5.4.2-15)', d.id, d.principal),
+                ERRCODE = 'check_violation';
         END IF;
     WHEN 'applied_to_balance' THEN
         IF d.status = 'refund_pending' THEN
@@ -2030,29 +2671,48 @@ BEGIN
                 MESSAGE = format('deposit %s: rate_applied %s is not the cited row''s rate %s (v5.4.2-15)', d.id, NEW.rate_applied, v_rate.annual_rate),
                 ERRCODE = 'check_violation';
         END IF;
-        IF NEW.period_start < d.posted_on THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('deposit %s: an accrual period cannot start (%s) before the deposit was posted (%s)', d.id, NEW.period_start, d.posted_on),
-                ERRCODE = 'check_violation';
-        END IF;
         IF NEW.period_end >= NEW.effective_on THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: an accrual is recorded after the period it covers (period_end %s, effective_on %s)', d.id, NEW.period_end, NEW.effective_on), ERRCODE = 'check_violation';
         END IF;
-        -- Arithmetic, not law (review r1 A7): nothing earns after it was used
-        -- up, and no more is earned on than was ever held.
-        IF b.exhausted_on IS NOT NULL AND NEW.period_start >= b.exhausted_on THEN
+        -- A period that has ended: today by the UTC date, which no session
+        -- setting changes (review r2 I3, I8).
+        IF NEW.period_end >= (now() AT TIME ZONE 'UTC')::date THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('deposit %s: the principal was used up on %s; nothing is held from then to accrue on (period from %s) — v5.4.2-15', d.id, b.exhausted_on, NEW.period_start),
+                MESSAGE = format('deposit %s: an accrual period must have ended — period_end %s is not before today (UTC) (review r2 I3; v5.4.2-15)', d.id, NEW.period_end),
                 ERRCODE = 'check_violation';
         END IF;
-        IF NEW.principal_basis > d.principal THEN
+        -- Arithmetic, not law (review r1 A7, r2 I3), whichever is written
+        -- first: no period spans a partial return or ends on or after a full
+        -- one; no more is earned on than was held throughout the period —
+        -- which also means nothing earns before posting or from the day the
+        -- principal was used up, when nothing is held (principal_basis > 0;
+        -- r2 folded -06's separate "before posting" and r1's "after
+        -- exhaustion" refusals into this one).
+        SELECT max(e.effective_on) INTO v_last_return FROM public.deposit_events e
+         WHERE e.deposit_id = d.id
+           AND ((e.event_type IN ('refund_initiated', 'refunded', 'released') AND e.effective_on <= NEW.period_end)
+             OR (e.event_type = 'principal_returned' AND e.effective_on BETWEEN NEW.period_start AND NEW.period_end));
+        IF v_last_return IS NOT NULL THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('deposit %s: principal_basis %s exceeds the principal %s (v5.4.2-15)', d.id, NEW.principal_basis, d.principal),
+                MESSAGE = format('deposit %s: money was returned on %s; an accrual for %s..%s would say it earned while it was leaving (review r2 I3; v5.4.2-15)', d.id, v_last_return, NEW.period_start, NEW.period_end),
+                ERRCODE = 'check_violation';
+        END IF;
+        SELECT min(public.deposit_principal_in_force(d.id, x.day)) INTO v_held
+          FROM (SELECT NEW.period_start AS day
+                UNION SELECT e.effective_on FROM public.deposit_events e
+                 WHERE e.deposit_id = d.id AND e.effective_on BETWEEN NEW.period_start AND NEW.period_end) x;
+        IF NEW.principal_basis > v_held THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit %s: principal_basis %s exceeds the least held over %s..%s (%s) — review r2 I3; v5.4.2-15', d.id, NEW.principal_basis, NEW.period_start, NEW.period_end, v_held),
                 ERRCODE = 'check_violation';
         END IF;
     WHEN 'interest_credited' THEN
-        IF NEW.amount <= 0 OR NEW.amount > b.interest_accrued - b.interest_credited THEN
-            RAISE EXCEPTION USING MESSAGE = format('deposit %s: interest_credited must be > 0 and ≤ accrued − credited (%s)', d.id, b.interest_accrued - b.interest_credited), ERRCODE = 'check_violation';
+        -- Only interest already earned: accrued for periods ending before
+        -- the credit's date, less what was credited (review r2 I3).
+        SELECT coalesce(sum(e.amount), 0) INTO v_earned FROM public.deposit_events e
+         WHERE e.deposit_id = d.id AND e.event_type = 'interest_accrued' AND e.period_end < NEW.effective_on;
+        IF NEW.amount <= 0 OR NEW.amount > v_earned - b.interest_credited THEN
+            RAISE EXCEPTION USING MESSAGE = format('deposit %s: interest_credited must be > 0 and ≤ interest accrued for periods ending before %s, less credited (%s) — review r2 I3', d.id, NEW.effective_on, v_earned - b.interest_credited), ERRCODE = 'check_violation';
         END IF;
     WHEN 'principal_returned' THEN
         -- Part of the principal goes back; the rest stays held (review r1 A11).
@@ -2101,10 +2761,39 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_deposit_event() IS
-    'v5.4.2-06, re-issued by v5.4.2-15 (deposits at parity). The deposit sub-ledger''s integrity: locks the deposit row (so events, due rows and withdrawals serialise); tenant, actor, dates, ledger link; nothing after refunded / released; the posted event is the database''s; a rule an event names is the deposit''s own or one of its key in force over the event''s dates (B1); applications within the remainder, not while a refund is pending, not into an accrued period; an accrual cites a rate row of its tenant, state, service and (or every) class in effect by the period''s start, at that rate, takes the shared rate lock, lies within the deposit''s life and before the principal was used up, on no more than the principal, recorded after the period; credits within accrued − credited; a partial return below the remainder; no return dated inside an accrued period; one pending refund; full returns of exactly the remainder, cash refunded and non-cash released, leaving nothing accrued uncredited; a legacy return without accruals states how its interest was settled; a cited return-due row is live and the deposit''s. Decides no law: whether interest is owed, at which rate row, over which periods and in what amount are the core''s.';
+    'v5.4.2-06, re-issued by v5.4.2-15 (deposits at parity). The deposit sub-ledger''s integrity: locks the deposit row (so events, due rows and withdrawals serialise); tenant, actor, dates, ledger link; nothing after refunded / released; the posted event is the database''s; a rule an event names is the deposit''s own or one of its key in force over the event''s dates (B1); an instalment received not while a refund is pending and within the principal less what was received — so none on a deposit received whole (review r2 D3); applications within the remainder, not while a refund is pending, not into an accrued period; an accrual cites a rate row of its tenant, state, service and (or every) class in effect by the period''s start, at that rate, takes the shared rate lock, lies within the deposit''s life, ends before today (UTC) and before any full return, spans no partial return, on no more than the least held over the period (so nothing after the principal was used up), recorded after the period (review r2 I3); credits within interest accrued for periods ending before the credit, less credited; a partial return below the remainder; no return dated inside an accrued period; one pending refund; full returns of exactly the remainder, cash refunded and non-cash released, leaving nothing accrued uncredited; a legacy return without accruals states how its interest was settled; a cited return-due row is live, the deposit''s and of the event''s kind (a partial return settles a due row with exactly its amount — review r2 D4), and the event is dated on or after it fell due (r2 I4). Decides no law: whether interest is owed, at which rate row, over which periods and in what amount are the core''s.';
 
 COMMENT ON TABLE public.deposit_events IS
-    'CI-125 / CI-130 / CI-131 (v5.4.2-06; v5.4.2-15 at parity): the append-only deposit sub-ledger. posted (written by the database at deposit insert), applied_to_balance, interest_accrued (period, rate, principal basis and amount as the core computed them, citing the utility rate row (rate_id), the deposit''s rule row (rule_id) and the core version (calculated_by); periods never overlap), interest_credited (≤ accrued − credited), refund_initiated, refunded (cash) / released (non-cash) — of the remainder, leaving nothing accrued uncredited, optionally citing the return-due row they settle (return_due_id). deposits.status is projected from these. Optional link to the account_ledger row that moved the money.';
+    'CI-125 / CI-130 / CI-131 (v5.4.2-06; v5.4.2-15 at parity): the append-only deposit sub-ledger. posted (written by the database at deposit insert, for what was received then), instalment_received (a deposit taken in instalments), applied_to_balance, interest_accrued (period, rate, principal basis and amount as the core computed them, citing the utility rate row (rate_id), the deposit''s rule row (rule_id) and the core version (calculated_by); periods never overlap), interest_credited (≤ accrued for periods ended − credited), principal_returned (part of what is held; may settle a partial return-due row), refund_initiated, refunded (cash) / released (non-cash) — of the remainder, leaving nothing accrued uncredited, optionally citing the return-due row they settle (return_due_id). deposits.status is projected from these. Optional link to the account_ledger row that moved the money.';
+
+
+-- The status projection (-06), re-issued: an instalment received after the
+-- remainder was applied to nothing leaves a remainder again, so an applied
+-- deposit is partially applied once more (review r2 D3).
+CREATE OR REPLACE FUNCTION public.project_deposit_status() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    b record;
+BEGIN
+    SELECT * INTO b FROM public.deposit_balance(NEW.deposit_id);
+    UPDATE public.deposits d
+       SET status = CASE NEW.event_type
+                        WHEN 'refunded' THEN 'refunded'
+                        WHEN 'released' THEN 'released'
+                        WHEN 'refund_initiated' THEN 'refund_pending'
+                        WHEN 'applied_to_balance' THEN CASE WHEN b.remainder = 0 THEN 'applied' ELSE 'partial_applied' END
+                        WHEN 'instalment_received' THEN CASE WHEN d.status = 'applied' THEN 'partial_applied' ELSE d.status END
+                        ELSE d.status END,
+           refunded_on = CASE WHEN NEW.event_type = 'refunded' THEN NEW.effective_on ELSE d.refunded_on END,
+           released_on = CASE WHEN NEW.event_type = 'released' THEN NEW.effective_on ELSE d.released_on END
+     WHERE d.id = NEW.deposit_id;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.project_deposit_status() IS
+    'v5.4.2-06, re-issued by v5.4.2-15. AFTER INSERT on deposit_events: projects deposits.status, refunded_on and released_on from the event — an instalment received turns an applied deposit back to partially applied (review r2 D3).';
 
 
 -- ----------------------------------------------------------------------------
@@ -2126,7 +2815,8 @@ DROP FUNCTION IF EXISTS public.deposit_interest_rate_as_of(uuid, date);
 --     accrual and due row cites its rule row and core version. The core's
 --     rules and their boundary cases: application/deposits-rules-for-the-
 --     core.md, which also lists nine places -06 disagreed with its sources
---     (DG1-DG9) and Kyle questions K1-K8.
+--     (DG1-DG9) and Kyle questions K1-K8, plus K9 (why decision table #55
+--     omits §7.45(5)(C)(ii)'s usage trigger, which this patch seeds).
 --
 -- R2. ONLY TEXAS GAS IS SEEDED. A premise in another state, or another
 --     service, has no rule row; the core must refuse, never fall back. No
@@ -2167,7 +2857,11 @@ DROP FUNCTION IF EXISTS public.deposit_interest_rate_as_of(uuid, date);
 -- R10. A RECORDED CAP IS NOT CHECKED AGAINST ITS BASIS (review r1 C3).
 --     cap_amount = cap_basis_amount ÷ divisor (or × months) is the formula,
 --     and its rounding is the core's; recording both makes a mismatch
---     visible.
+--     visible. Under lesser_of / greater_of the deposit records the part
+--     that governed, not the losing part's figure (that is in the core's
+--     inputs). Likewise an instalment's amount against its fraction, and its
+--     due date against days_after (the start differs by trigger: §56.42(c)
+--     counts from reconnection).
 --
 -- R11. A SETTLED DUE ROW CAN STILL BE WITHDRAWN (review r1 C4). By design
 --     (R-D2): a withdrawal says the answer was wrong and moves no money; the
@@ -2180,14 +2874,33 @@ DROP FUNCTION IF EXISTS public.deposit_interest_rate_as_of(uuid, date);
 --     a dated rule setting (Texas: #53 rank 4, fail open); which waiver the
 --     core records when two are in force; and whether a waiver determined
 --     after a deposit is held returns it.
+--
+-- R13. NESTED CAPS (review r2 D2). "One-sixth, not over $X nor under $Y"
+--     needs a combinator over combinators; no source in hand uses one (the
+--     reviewers' example was hypothetical). One combinator over parts holds
+--     §7.45's single cap and §25.478's greater-of.
+--
+-- R14. INSTALMENTS ARE THE LAW'S (review r2 D3). A deposit is taken in
+--     instalments only where its rule offers a schedule (§56.42). A utility
+--     tariff that offers instalments where the law does not has no source in
+--     hand; it would be a utility row, as tariff caps and waivers are. A
+--     missed instalment is a ground for termination (§56.81): the core's.
+--
+-- R15. THE PREMISE'S TIME ZONE (review r2 I8). Closure dates are compared
+--     by their UTC day, which no session setting changes. The premise's own
+--     day waits for the places table, beside R8.
+--
+-- R16. WAIVERS TO AN AMOUNT, SUBSTITUTE INSTRUMENTS, DISQUALIFIERS WITH
+--     THEIR OWN WINDOW (review r2 D5). No source; stated, not modelled. Each
+--     is additive (a waiver effect, a disqualifier column) if one appears.
 
 -- ----------------------------------------------------------------------------
 -- 11. The AC-32 tail
 -- ----------------------------------------------------------------------------
--- Four new tenant tables and two new views, each born leaky by the default
+-- Six new tenant tables and two new views, each born leaky by the default
 -- grants. The assertion raises if any lacks RLS, FORCE, the single canonical
--- policy, or invoker rights. The ten law tables carry no tenant_id and are
--- read-only to tally_app.
+-- policy, or invoker rights. The thirteen law tables carry no tenant_id and
+-- are read-only to tally_app.
 
 SELECT public.assert_tenant_isolation_invariants();
 
