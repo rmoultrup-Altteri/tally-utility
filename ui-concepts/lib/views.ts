@@ -32,13 +32,29 @@ export const LISTS = {
 export type ListKey = keyof typeof LISTS
 
 /**
- * Reports are favoritable under the ruling. None are built in this prototype,
- * so the registry is empty and the `report` favorite variant is currently
- * uninhabitable — which is the honest state, rather than a stub destination
- * that leads nowhere.
+ * Reports are favoritable under the ruling. The registry holds only the key
+ * and label; the report bodies live in `fixtures/reports.ts`, typed against
+ * these keys so a favorite can never point at a report that does not exist.
  */
-export const REPORTS = {} as const
+export const REPORTS = {
+  ar_aging: { label: 'AR aging' },
+  payment_plans: { label: 'Payment plans and progress' },
+  revenue_by_type: { label: 'Revenue by customer type' },
+  cash_by_type_item: { label: 'Cash collected by customer type and item' },
+  gl_journal: { label: 'General ledger journal entries' },
+  read_exceptions: { label: 'Meter read exceptions' },
+  zero_reads: { label: 'Zero reads' },
+  high_low_reads: { label: 'High / low reads' },
+  wna: { label: 'Degree-day weather normalization' },
+  deposit_refunds: { label: 'Deposit refunds' },
+  franchise_fees: { label: 'Municipal franchise fees' },
+  state_gross_receipts: { label: 'State gross receipts and sales tax' },
+  rrc_annual: { label: 'RRC annual report' },
+  rrc_audit: { label: 'RRC gas utility tax audit' },
+} as const
 export type ReportKey = keyof typeof REPORTS
+
+export const reportFavoriteId = (report: ReportKey) => `report:${report}`
 
 /* ---- Exception queue filters ------------------------------------------ */
 
@@ -143,8 +159,7 @@ export function favoriteHref(f: Favorite): string {
     case 'named_view':
       return `${LISTS[f.list].href}${serializeFilters(f.filters)}`
     case 'report':
-      /* Unreachable while REPORTS is empty; kept so the union stays total. */
-      return '/'
+      return `/reports/${f.report}`
   }
 }
 
@@ -155,7 +170,7 @@ export function favoriteLabel(f: Favorite): string {
     case 'named_view':
       return f.name
     case 'report':
-      return 'Report'
+      return REPORTS[f.report].label
   }
 }
 
@@ -167,7 +182,7 @@ export function favoriteHint(f: Favorite): string {
     case 'named_view':
       return `${LISTS[f.list].label} — ${describeFilters(f.filters)}`
     case 'report':
-      return 'Report'
+      return `Report — ${REPORTS[f.report].label}`
   }
 }
 

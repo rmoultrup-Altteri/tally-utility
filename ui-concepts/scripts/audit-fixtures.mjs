@@ -11,12 +11,13 @@
  */
 import { customers, locations, meters, serviceLinks, customerById, locationById, meterById } from '../fixtures/accounts.ts'
 import { readings } from '../fixtures/reads.ts'
-import { invoices, lines, runs, linesByInvoiceId, arAging, portlets, rateCard } from '../fixtures/billing.ts'
+import { invoices, lines, runs, linesByInvoiceId, arAging, portlets, rateCard, revenue } from '../fixtures/billing.ts'
 import { exceptions } from '../fixtures/exceptions.ts'
 import { worklist, BYPASSES, reconnectQueue, stayedAccounts, evaluate } from '../fixtures/collections.ts'
 import { pgaVersions, r1Items, g1Items, priorVersions, rateSchedules, versionAsOf } from '../fixtures/rates.ts'
 import { backfillExposure } from '../fixtures/pga.ts'
 import { seedFavorites } from '../fixtures/favorites.ts'
+import { reports, reportById, drillFor } from '../fixtures/reports.ts'
 import { LISTS, applyFilters, isFiltered } from '../lib/views.ts'
 import { baseline as sandboxBaseline, billFor, currentCard } from '../fixtures/tariff.ts'
 import { payments } from '../fixtures/payments.ts'
@@ -294,12 +295,52 @@ if (janRun) {
 }
 /* Every favorite must point at a destination that exists. */
 for (const f of seedFavorites) {
-  if (f.kind === 'report') { fail('favorites', f.id, 'report favorite exists but no report is built'); continue }
+  if (f.kind === 'report') { if (!reportById.get(f.report)) fail('favorites', f.id, `points at unknown report ${f.report}`); continue }
   if (!LISTS[f.list]) fail('favorites', f.id, `points at unknown list ${f.list}`)
   if (f.kind === 'named_view' && !isFiltered(f.filters))
     fail('favorites', f.id, 'saved view carries no filters — it is the plain list')
   if (f.kind === 'named_view' && applyFilters(exceptions, f.filters, 'Dana Pearce').length === 0)
     fail('favorites', f.id, `saved view "${f.name}" matches nothing in the fixtures`)
+}
+
+/* Reports tie out with each other and with the dashboard figures. */
+{
+  const col = (id, key, rows = reportById.get(id).rows) => rows.reduce((t, r) => t + Math.round(Number(r[key] ?? 0) * 100), 0) / 100
+  for (const [i, key] of ['current', 'd30', 'd60', 'd90'].entries())
+    if (!exact(col('ar_aging', key), n(arAging[i].amount))) fail('reports', `ar_aging.${key}`, `sums to ${col('ar_aging', key)} but the dashboard bucket is ${arAging[i].amount}`)
+  const gl = reportById.get('gl_journal').rows
+  for (const je of new Set(gl.map((r) => r._group))) {
+    const lines = gl.filter((r) => r._group === je)
+    if (!exact(col('gl_journal', 'debit', lines), col('gl_journal', 'credit', lines))) fail('reports', je, 'journal entry does not balance')
+  }
+  const billing = gl.filter((r) => r._group === gl[0]._group)
+  if (!exact(col('revenue_by_type', 'total'), col('gl_journal', 'credit', billing.filter((r) => r.account.startsWith('48')))))
+    fail('reports', 'revenue_by_type', 'revenue does not tie to the GL billing entry')
+  if (!exact(col('franchise_fees', 'fee'), col('gl_journal', 'credit', billing.filter((r) => r.account.startsWith('241')))))
+    fail('reports', 'franchise_fees', 'fees do not tie to the GL billing entry')
+  if (!exact(col('gl_journal', 'debit', billing), n(revenue.billedNetOfVoids))) fail('reports', 'gl_journal', 'billing entry does not equal billed net of voids')
+  if (!exact(col('cash_by_type_item', 'total'), n(revenue.collected))) fail('reports', 'cash_by_type_item', 'does not tie to collected')
+  if (!exact(col('rrc_audit', 'books'), col('rrc_annual', 'revenue'))) fail('reports', 'rrc_audit', 'books do not tie to the annual report')
+  if (reports.length !== new Set(reports.map((r) => r.id)).size) fail('reports', 'ids', 'duplicate report id')
+
+  /* Every line opens a drilldown, and the drilldown sums back to the line:
+     column for column where they share a key, and at least one money total
+     must equal one of the line's money figures. */
+  const cents100 = (v) => Math.round(Number(v ?? 0) * 100)
+  for (const r of reports) {
+    r.rows.forEach((row, i) => {
+      const d = drillFor(r.id, i)
+      if (!d) return fail('reports', `${r.id}/${i}`, 'line has no drilldown')
+      const totals = d.columns.filter((c) => c.total && c.kind === 'money').map((c) => [c.key, d.rows.reduce((t, x) => t + cents100(x[c.key]), 0)])
+      if (r.id !== 'deposit_refunds')
+        for (const [key, t] of totals)
+          if (r.columns.some((c) => c.key === key && c.kind === 'money') && t !== cents100(row[key]))
+            fail('reports', `${r.id}/${i}.${key}`, `drilldown sums to ${t / 100} but the line says ${row[key]}`)
+      const lineMoney = r.columns.filter((c) => c.kind === 'money').map((c) => cents100(row[c.key]))
+      if (totals.length && !totals.some(([, t]) => lineMoney.includes(t)))
+        fail('reports', `${r.id}/${i}`, 'no drilldown total ties to the line')
+    })
+  }
 }
 
 /* The sandbox's baseline cycle must be a run that exists, with its counts. */

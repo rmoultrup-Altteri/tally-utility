@@ -33,12 +33,13 @@ const NAV: NavItem[] = [
   { href: '/collections', label: 'Collections' },
   { href: '/customers' as Route, label: 'Accounts' },
   { href: '/invoices' as Route, label: 'Bills' },
+  { href: '/payments' as Route, label: 'Payments' },
   { href: '/runs/run-2026-02-04' as Route, label: 'Billing run' },
   { href: '/rates', label: 'Rates & tariffs' },
   { href: '/reads', label: 'Read validation' },
   { href: '/rates/pga', label: 'PGA console' },
   { href: '/rates/sandbox', label: 'Tariff sandbox' },
-  { href: '/payments' as Route, label: 'Payments' },
+  { href: '/reports' as Route, label: 'Reports' },
 ]
 
 export function AppShell({
