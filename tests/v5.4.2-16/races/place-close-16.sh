@@ -33,6 +33,13 @@
 #   R17 two overlapping profiles: the second waits, then is refused.
 #   R18 A closes an owning place and holds; B's profile owned by it waits,
 #       then sees the close and is refused (R2 in the other order).
+#   R19 A closes a state row and inserts its successor, and holds; B's
+#       profile waits on the row it found, then — though the successor now
+#       covers it — is refused: a row committed while it waited is never
+#       trusted unlocked (review r4 B1, Codex).
+#   R20 a state of two rows, the open one not first by id: A closes the open
+#       row and holds; B's profile waits on THAT row, then is refused (review
+#       r4, Fable: the lock follows the covering row, not the first one).
 # Every two-session leg also checks that the second session ITSELF was SEEN
 # WAITING (pg_stat_activity, by its application_name, wait_event_type Lock)
 # before the first committed, so a leg cannot pass by running sequentially,
@@ -59,6 +66,10 @@ P8=00000000-0000-4000-8000-0000000016f8    # state RS
 P9=00000000-0000-4000-8000-0000000016f9    # county
 P10=00000000-0000-4000-8000-000000001610   # county
 P11=00000000-0000-4000-8000-000000001611   # city
+P12=00000000-0000-4000-8000-000000001612   # state RU
+P13=00000000-0000-4000-8000-000000001613   # RU's successor (A inserts it)
+P14=00000000-0000-4000-8000-000000001614   # state RV, 1950-2000
+P15=00000000-0000-4000-8000-000000001615   # state RV, from 2000
 
 "${PSQL[@]}" <<SQL >/dev/null
 INSERT INTO public.tenants (id, name, slug) VALUES ('$T', 'Race City Gas', 'race16-$RANDOM$RANDOM');
@@ -74,7 +85,11 @@ SELECT v.id, 'municipality', 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'rac
        (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX') s;
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, effective_from, source_note)
 VALUES ('$P7', 'state', 'RQ', 'RQ', 'Race state Q', DATE '1950-01-01', 'race fixture'),
-       ('$P8', 'state', 'RS', 'RS', 'Race state S', DATE '1950-01-01', 'race fixture');
+       ('$P8', 'state', 'RS', 'RS', 'Race state S', DATE '1950-01-01', 'race fixture'),
+       ('$P12', 'state', 'RU', 'RU', 'Race state U', DATE '1950-01-01', 'race fixture'),
+       ('$P15', 'state', 'RV', 'RV', 'Race state V', DATE '2000-01-01', 'race fixture');
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, effective_from, effective_to, source_note)
+VALUES ('$P14', 'state', 'RV', 'RV', 'Race state V (old)', DATE '1950-01-01', DATE '2000-01-01', 'race fixture');
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
 SELECT v.id, v.kind, 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'race fixture'
   FROM (VALUES ('$P9'::uuid, 'county', '48001'), ('$P10'::uuid, 'county', '48003'), ('$P11'::uuid, 'municipality', 'RACE11')) v(id, kind, code),
@@ -126,8 +141,8 @@ else
 fi
 
 # R2
-race R2 "INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, owning_place_id,
-          effective_from, evidence_reference, evidence_date) VALUES ('$T', 'gas', 'TX', 'municipal', false, '$P2', DATE '2026-01-01', 'Charter', DATE '2025-01-01');" "$P2"
+race R2 "INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, owning_place_id,
+          effective_from, evidence_reference, evidence_date) VALUES ('$T', 'gas', 'distribution', 'TX', 'municipal', false, '$P2', DATE '2026-01-01', 'Charter', DATE '2025-01-01');" "$P2"
 if seen R2 && grep -q "a utility profile" <<<"$OUT"; then
   echo "PASS R2: a place closed while a profile it owns is in flight waits, then sees it and is refused"
 else
@@ -162,8 +177,8 @@ rr "R4: a membership is recorded only under READ COMMITTED" \
     VALUES ('$T', '$L', '$P3', 'regulatory', 'x', DATE '2026-01-01', 'ordinance', 'Ord. 2', DATE '2025-12-01');" \
    "recording a premise place membership runs only under READ COMMITTED"
 rr "R5: a profile is recorded only under READ COMMITTED" \
-   "INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
-    VALUES ('$T', 'water', 'TX', 'municipal', false, '$P3', DATE '2026-01-01', 'Charter', DATE '2025-01-01');" \
+   "INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
+    VALUES ('$T', 'water', 'distribution', 'TX', 'municipal', false, '$P3', DATE '2026-01-01', 'Charter', DATE '2025-01-01');" \
    "recording a utility service profile runs only under READ COMMITTED"
 rr "R6: a jurisdiction is pointed at a place only under READ COMMITTED" \
    "INSERT INTO public.jurisdictions (tenant_id, jurisdiction_code, jurisdiction_name, place_id) VALUES ('$T', 'R6', 'R6', '$P3');" \
@@ -233,8 +248,8 @@ fi
 
 # R13: A records a profile governed by RQ and holds; B closes RQ.
 two "SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
-INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
-VALUES ('$T', 'gas', 'RQ', 'investor_owned', true, DATE '2026-01-01', 'Tariff', DATE '2025-01-01');" \
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'distribution', 'RQ', 'investor_owned', true, DATE '2026-01-01', 'Tariff', DATE '2025-01-01');" \
     "UPDATE public.places SET effective_to = DATE '2030-01-01' WHERE id = '$P7';"
 if seen R13 && grep -q "a utility profile governed by it" <<<"$OUT"; then
   echo "PASS R13: a state closed while a profile it governs is in flight waits, then sees it and is refused"
@@ -244,8 +259,8 @@ fi
 # R14: A (owner) closes RS from 2026-01-01 and holds; B records a profile for RS from 2026-06-01.
 two "UPDATE public.places SET effective_to = DATE '2026-01-01' WHERE id = '$P8';" \
     "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
-INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
-VALUES ('$T', 'gas', 'RS', 'investor_owned', true, DATE '2026-06-01', 'Tariff', DATE '2025-01-01'); COMMIT;"
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'distribution', 'RS', 'investor_owned', true, DATE '2026-06-01', 'Tariff', DATE '2025-01-01'); COMMIT;"
 if seen R14 && grep -q "is no state with a place in force" <<<"$OUT"; then
   echo "PASS R14: a profile recorded while its state's close is in flight waits, then sees the close and is refused"
 else
@@ -265,8 +280,8 @@ else
   echo "FAIL R16: the second membership said: $OUT (A: $(cat "$A_OUT"))"; fail=1
 fi
 # R17: two overlapping water profiles for TX.
-PROF17="INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
-VALUES ('$T', 'water', 'TX', 'investor_owned', true, DATE '2026-01-01', 'Tariff', DATE '2025-01-01');"
+PROF17="INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'water', 'distribution', 'TX', 'investor_owned', true, DATE '2026-01-01', 'Tariff', DATE '2025-01-01');"
 two "SET LOCAL app.user_id = '$U'; SET ROLE tally_app; $PROF17" \
     "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app; $PROF17 COMMIT;"
 if seen R17 && grep -q "utility_service_profiles_no_overlap" <<<"$OUT"; then
@@ -277,11 +292,33 @@ fi
 # R18: A (owner) closes P11 from 2026-01-01 and holds; B records a profile owned by P11 from 2026-06-01.
 two "UPDATE public.places SET effective_to = DATE '2026-01-01' WHERE id = '$P11';" \
     "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
-INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
-VALUES ('$T', 'sewer', 'TX', 'municipal', false, '$P11', DATE '2026-06-01', 'Charter', DATE '2025-01-01'); COMMIT;"
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'sewer', 'distribution', 'TX', 'municipal', false, '$P11', DATE '2026-06-01', 'Charter', DATE '2025-01-01'); COMMIT;"
 if seen R18 && grep -q "not over the whole profile" <<<"$OUT"; then
   echo "PASS R18: a profile recorded while its owning place's close is in flight waits, then sees the close and is refused"
 else
   echo "FAIL R18: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R19: A closes RU at 2020 and inserts its successor from 2020, and holds; B records an RU profile from 2021.
+two "UPDATE public.places SET effective_to = DATE '2020-01-01' WHERE id = '$P12';
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, effective_from, source_note)
+VALUES ('$P13', 'state', 'RU', 'RU', 'Race state U (successor)', DATE '2020-01-01', 'race fixture');" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'distribution', 'RU', 'investor_owned', true, DATE '2021-01-01', 'Tariff', DATE '2021-01-01'); COMMIT;"
+if seen R19 && grep -q "closed while this waited" <<<"$OUT"; then
+  echo "PASS R19: a profile that waited on a state row now closed is refused, though a successor committed meanwhile covers it"
+else
+  echo "FAIL R19: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R20: A closes RV's open row (P15) from 2026-01-01 and holds; B records an RV profile from 2026-06-01.
+two "UPDATE public.places SET effective_to = DATE '2026-01-01' WHERE id = '$P15';" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'distribution', 'RV', 'investor_owned', true, DATE '2026-06-01', 'Tariff', DATE '2025-01-01'); COMMIT;"
+if seen R20 && grep -q "closed while this waited" <<<"$OUT"; then
+  echo "PASS R20: in a state of two rows, a profile waits on the row that covers it, then sees its close and is refused"
+else
+  echo "FAIL R20: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
 fi
 exit $fail

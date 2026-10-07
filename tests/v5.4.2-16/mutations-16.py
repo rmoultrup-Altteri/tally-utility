@@ -28,6 +28,10 @@ def rep(old, new):
     return m
 
 
+def both(f, g):
+    return lambda s: g(f(s))
+
+
 CLOSE_LEG = "    IF OLD.effective_to IS NOT NULL OR NEW.effective_to IS NULL\n       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('%s"
 def close_leg(label):
     return rep(CLOSE_LEG.encode().decode('unicode_escape') % label,
@@ -43,10 +47,10 @@ MUTATIONS = [
      rep("    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('place %s: never deleted",
          "    IF TG_OP = 'DELETE' THEN\n        RETURN OLD;\n        RAISE EXCEPTION USING\n            MESSAGE = format('place %s: never deleted")),
     ("M04", "place kinds left editable", "A3",
-     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable",
-         "    FOREACH t IN ARRAY ARRAY['place_fact_kinds', 'utility_owner_types', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable")),
+     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'utility_system_kinds', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable",
+         "    FOREACH t IN ARRAY ARRAY['place_fact_kinds', 'utility_owner_types', 'utility_system_kinds', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable")),
     ("M05", "the platform tables may be truncated", "A3",
-     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'place_membership_evidence_kinds', 'places', 'place_facts'] LOOP",
+     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'utility_system_kinds', 'place_membership_evidence_kinds', 'places', 'place_facts'] LOOP",
          "    FOREACH t IN ARRAY ARRAY[]::text[] LOOP")),
     ("M06", "a code need not be of its kind's form", "A4",
      rep("        IF NEW.place_code !~ v_kind.code_pattern OR (NEW.kind_code", "        IF false OR (NEW.kind_code")),
@@ -105,7 +109,7 @@ MUTATIONS = [
     ("M30", "two of one exclusivity group at once", "M5",
      rep("        WHERE ((exclusivity_group IS NOT NULL) AND (relation = 'within'::text) AND (voided_at IS NULL))", "        WHERE (false)")),
     ("M31", "a city and its extraterritorial area are not exclusive", "M5",
-     rep("    ('extraterritorial_area',  ARRAY['regulatory'],          'municipal_status',", "    ('extraterritorial_area',  ARRAY['regulatory'],          'extraterritorial',")),
+     rep("    ('extraterritorial_area',  ARRAY['regulatory', 'tax'],   'municipal_status',", "    ('extraterritorial_area',  ARRAY['regulatory', 'tax'],   'extraterritorial',")),
     ("M32", "the same place twice", "M5",
      rep("EXCLUDE USING gist (service_location_id WITH =, place_id WITH =, axis WITH =,", "EXCLUDE USING gist (id WITH =, place_id WITH =, axis WITH =,")),
     ("M33", "outside rows occupy the group", "M6",
@@ -221,7 +225,7 @@ MUTATIONS = [
      rep("          JOIN public.place_facts f ON f.place_id = pl.place_id AND f.fact_code = 'time_zone_uniform'\n                                   AND daterange(f.effective_from, f.effective_to, '[)') @> p_on",
          "          JOIN public.place_facts f ON f.place_id = pl.place_id AND f.fact_code = 'time_zone_uniform'")),
     ("M85", "the limited-purpose area is its own group", "N3",
-     rep("    ('limited_purpose_area',   ARRAY['regulatory'],          'municipal_status',", "    ('limited_purpose_area',   ARRAY['regulatory'],          'limited_purpose',")),
+     rep("    ('limited_purpose_area',   ARRAY['regulatory', 'tax'],   'municipal_status',", "    ('limited_purpose_area',   ARRAY['regulatory', 'tax'],   'limited_purpose',")),
     ("M86", "unincorporated territory is its own group", "N3",
      rep("    ('unincorporated_area',    ARRAY['regulatory', 'tax'],   'municipal_status',", "    ('unincorporated_area',    ARRAY['regulatory', 'tax'],   'unincorporated',")),
     ("M87", "a void may change other columns", "N4",
@@ -240,7 +244,7 @@ MUTATIONS = [
      rep("                            daterange(effective_from, effective_to, '[)'::text) WITH &&)\n        WHERE (voided_at IS NULL)\n);\nCREATE INDEX IF NOT EXISTS idx_utility_service_profiles_tenant",
          "                            daterange(effective_from, effective_to, '[)'::text) WITH &&)\n);\nCREATE INDEX IF NOT EXISTS idx_utility_service_profiles_tenant")),
     ("M94", "a profile for a state that does not exist", "N6",
-     rep("        IF NOT EXISTS (SELECT 1 FROM public.places p\n                        WHERE p.kind_code = 'state' AND p.state_code = NEW.state_code", "        IF false AND NOT EXISTS (SELECT 1 FROM public.places p\n                        WHERE p.kind_code = 'state' AND p.state_code = NEW.state_code")),
+     rep("        IF v_state_place IS NULL THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('utility service profile rejected: %s is no state", "        IF false THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('utility service profile rejected: %s is no state")),
     ("M95", "a profile on evidence dated in the future", "N6",
      rep("        IF NEW.evidence_date > CURRENT_DATE THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('utility service profile rejected: its evidence", "        IF false THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('utility service profile rejected: its evidence")),
     ("M96", "a membership on evidence dated in the future", "N6",
@@ -248,13 +252,13 @@ MUTATIONS = [
     ("M97", "a membership born voided", "N7",
      rep("        NEW.void_reason := NULL;\n        NEW.voided_at   := NULL;\n        NEW.voided_by   := NULL;\n        RETURN NEW;\n    END IF;\n    RETURN public.place_citation_close_or_void(OLD, NEW, 'premise place membership'",
          "        RETURN NEW;\n    END IF;\n    RETURN public.place_citation_close_or_void(OLD, NEW, 'premise place membership'")),
-    ("M98", "a jurisdiction may point at a place scheduled to close", "N9",
+    ("M98", "a jurisdiction may point at a place with a close date", "J1",
      rep("    IF v_place.kind_code = 'state' OR v_place.effective_to IS NOT NULL", "    IF v_place.kind_code = 'state'")),
     ("M99", "the application may write evidence kinds", "N10",
      rep("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.place_membership_evidence_kinds FROM tally_app;", "GRANT INSERT ON public.place_membership_evidence_kinds TO tally_app;")),
     ("M100", "fact kinds and evidence kinds left editable", "N11",
-     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable",
-         "    FOREACH t IN ARRAY ARRAY['place_kinds', 'utility_owner_types'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable")),
+     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'utility_system_kinds', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable",
+         "    FOREACH t IN ARRAY ARRAY['place_kinds', 'utility_owner_types', 'utility_system_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable")),
     ("M101", "a number fact of any value", "N12",
      rep("                                          AND (v_fk.value_min IS NULL OR (NEW.value)::text::numeric >= v_fk.value_min)\n                                          AND (v_fk.value_max IS NULL OR (NEW.value)::text::numeric <  v_fk.value_max)", "")),
     ("M102", "a fixed Etc/ offset as a zone", "N13",
@@ -314,8 +318,10 @@ MUTATIONS = [
     ("M127", "a voided membership blocks the same place recorded again", "T9",
      rep("                            daterange(valid_from, valid_to, '[)'::text) WITH &&)\n        WHERE (voided_at IS NULL),", "                            daterange(valid_from, valid_to, '[)'::text) WITH &&),")),
     ("M128", "a profile's state place need only overlap its range", "T10",
-     rep("                          AND daterange(p.effective_from, p.effective_to, '[)') @> daterange(NEW.effective_from, NEW.effective_to, '[)')) THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('utility service profile rejected: %s is no state",
-         "                          AND daterange(p.effective_from, p.effective_to, '[)') && daterange(NEW.effective_from, NEW.effective_to, '[)')) THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('utility service profile rejected: %s is no state")),
+     both(rep("           AND daterange(p.effective_from, p.effective_to, '[)') @> daterange(NEW.effective_from, NEW.effective_to, '[)');\n        IF v_state_place IS NOT NULL THEN",
+              "           AND daterange(p.effective_from, p.effective_to, '[)') && daterange(NEW.effective_from, NEW.effective_to, '[)');\n        IF v_state_place IS NOT NULL THEN"),
+          rep("             WHERE p.id = v_state_place\n               AND daterange(p.effective_from, p.effective_to, '[)') @> daterange(NEW.effective_from, NEW.effective_to, '[)');",
+              "             WHERE p.id = v_state_place\n               AND daterange(p.effective_from, p.effective_to, '[)') && daterange(NEW.effective_from, NEW.effective_to, '[)');"))),
     ("M129", "membership evidence dated today refused", "T11",
      rep("        IF NEW.evidence_date > CURRENT_DATE THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('premise place membership rejected: its evidence", "        IF NEW.evidence_date >= CURRENT_DATE THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('premise place membership rejected: its evidence")),
     ("M130", "profile evidence dated today refused", "T11",
@@ -327,6 +333,40 @@ MUTATIONS = [
     ("M133", "two counties racing past the exclusion", "R16",
      rep("    CONSTRAINT premise_place_memberships_exclusive\n        EXCLUDE USING gist (service_location_id WITH =, exclusivity_group WITH =, axis WITH =,\n                            daterange(valid_from, valid_to, '[)'::text) WITH &&)\n        WHERE ((exclusivity_group IS NOT NULL) AND (relation = 'within'::text) AND (voided_at IS NULL))",
          "    CONSTRAINT premise_place_memberships_exclusive CHECK (true)")),
+    # ---- review round 4 (battery group U; races R19-R20)
+    ("M134", "a profile trusts a state row committed while it waited", "R19",
+     rep("            PERFORM 1 FROM public.places p\n             WHERE p.id = v_state_place\n",
+         "            PERFORM 1 FROM public.places p\n             WHERE p.kind_code = 'state' AND p.state_code = NEW.state_code\n")),
+    ("M135", "a profile locks the state's first row, not the covering one", "R20",
+     rep("            PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_state_place));\n            PERFORM 1 FROM public.places p",
+         "            PERFORM pg_advisory_xact_lock_shared(public.place_lock_key((SELECT min(x.id) FROM public.places x WHERE x.kind_code = 'state' AND x.state_code = NEW.state_code)));\n            PERFORM 1 FROM public.places p")),
+    ("M136", "a negative distance", "U1",
+     rep("((distance_miles > (0)::numeric) AND", "((distance_miles <> (0)::numeric) AND")),
+    ("M137", "agreeing zones at the answering level counted twice", "U2",
+     rep("    SELECT array_agg(DISTINCT c.tz) FILTER (WHERE c.tz IS NOT NULL),", "    SELECT array_agg(c.tz) FILTER (WHERE c.tz IS NOT NULL),")),
+    ("M138", "the state row read on any date", "U3",
+     rep("     WHERE p.kind_code = 'state' AND p.state_code = v_state AND daterange(p.effective_from, p.effective_to, '[)') @> p_on;",
+         "     WHERE p.kind_code = 'state' AND p.state_code = v_state;")),
+    ("M139", "the state floor counts only open governed profiles", "U4",
+     rep("           AND (g.effective_to IS NULL OR g.effective_to > NEW.effective_to)", "           AND (g.effective_to IS NULL)")),
+    ("M140", "within and outside one place at once", "U5",
+     rep("        EXCLUDE USING gist (service_location_id WITH =, place_id WITH =, axis WITH =,", "        EXCLUDE USING gist (service_location_id WITH =, place_id WITH =, axis WITH =, relation WITH =,")),
+    ("M141", "a system kind of another service", "U6",
+     rep("WHERE k.system_kind = NEW.system_kind AND NEW.service_type = ANY (k.service_types)) THEN", "WHERE k.system_kind = NEW.system_kind) THEN")),
+    ("M142", "piped propane still an owner type", "U6",
+     rep("    ('cooperative',            ARRAY[]::text[],                    'A cooperative or customer-owned not-for-profit.', 'KS 66-104c; OH 4905.02(A)(2); NM 62-3-3.')\n",
+         "    ('cooperative',            ARRAY[]::text[],                    'A cooperative or customer-owned not-for-profit.', 'KS 66-104c; OH 4905.02(A)(2); NM 62-3-3.'),\n    ('propane_piped', ARRAY[]::text[], 'x', 'x')\n")),
+    ("M143", "an ETJ only on the regulatory axis", "U7",
+     rep("    ('extraterritorial_area',  ARRAY['regulatory', 'tax'],", "    ('extraterritorial_area',  ARRAY['regulatory'],")),
+    ("M144", "a key that is a bare section sign", "U8",
+     rep("                                       AND (fact_key ~ '[[:alnum:]]'::text) AND", "                                       AND")),
+    ("M145", "a key with a space after the section sign", "U8",
+     rep(" AND (fact_key !~ '§ '::text)))),", "))),")),
+    ("M146", "a membership of an unknown place not refused by name", "U9",
+     rep("        IF NOT FOUND THEN\n            RAISE EXCEPTION USING MESSAGE = format('premise place membership: place %s not found (v5.4.2-16)', NEW.place_id), ERRCODE = 'foreign_key_violation';\n        END IF;\n", "")),
+    ("M147", "a no-op update of an open place accepted", "U10",
+     rep("    IF OLD.effective_to IS NOT NULL OR NEW.effective_to IS NULL\n       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('place %s: never edited",
+         "    IF OLD.effective_to IS NOT NULL\n       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('place %s: never edited")),
     # ---- tenancy (sections 6, 11)
     ("M79", "memberships and profiles deletable by the owner", "G3",
      rep("    FOREACH t IN ARRAY ARRAY['premise_place_memberships', 'utility_service_profiles'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS no_hard_delete",
@@ -357,6 +397,29 @@ def run_check(check):
     return out.stdout + out.stderr
 
 
+def battery_order():
+    """Check ids in the order the battery passes them (PASS lines)."""
+    seen = []
+    for c in re.findall(r"PASS ([A-Z]+[0-9]+):", BATTERY.read_text()):
+        if c not in seen:
+            seen.append(c)
+    return seen
+
+
+def caught(check, text):
+    """CAUGHT only where the named check itself failed (review r4, Codex):
+    a race leg prints FAIL <check>; a battery check prints FAIL <check>[a-z],
+    or the run stopped inside it — every check before it passed, it did not."""
+    if re.search(rf"FAIL {check}[a-z]?:", text):
+        return True
+    if check.startswith("R"):
+        return False
+    order = battery_order()
+    if check not in order or re.search(rf"PASS {check}:", text):
+        return False
+    return all(re.search(rf"PASS {c}:", text) for c in order[:order.index(check)])
+
+
 def main():
     base = PATCH.read_text()
     only = set(sys.argv[1:])
@@ -366,11 +429,15 @@ def main():
         if only and mid not in only:
             continue
         ran += 1
-        for q in (f"DROP DATABASE IF EXISTS {DB}", f"CREATE DATABASE {DB} TEMPLATE tally"):
-            sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", "postgres", "-qc", q])
+        setup = [sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", "postgres", "-qc", q])
+                 for q in (f"DROP DATABASE IF EXISTS {DB}", f"CREATE DATABASE {DB} TEMPLATE tally")]
         # A TEMPLATE clone does not copy the database ACL: revoke TEMP again,
         # or the depth fences are open (review r1 A15).
-        sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-qc", f"REVOKE TEMP ON DATABASE {DB} FROM PUBLIC, tally_app"])
+        setup.append(sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-qc", f"REVOKE TEMP ON DATABASE {DB} FROM PUBLIC, tally_app"]))
+        if any(x.returncode for x in setup):
+            print(f"{mid} SETUP-ERROR: {next(x for x in setup if x.returncode).stderr.strip()[:110]}")
+            missed += 1
+            continue
         a = psql(DB, "SET search_path = ''; SET check_function_bodies = on;\n" + mut(base), single=True)
         if a.returncode:
             if check == "APPLY":
@@ -388,7 +455,7 @@ def main():
         # unrelated earlier check is visible rather than silently counted.
         first = next((l for l in text.splitlines() if "FAIL" in l or "ERROR" in l), "")
         first = re.sub(r"^psql:<stdin>:\d+: ", "", first)[:110]
-        if re.search(rf"FAIL {check}[a-z]?:", text) or ("ERROR" in text and not re.search(rf"PASS {check}:", text)):
+        if caught(check, text):
             print(f"{mid} caught at {check}: {what}  [{first}]")
         else:
             print(f"{mid} MISSED ({check} still passes): {what}")
