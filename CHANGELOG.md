@@ -4,6 +4,62 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-07 — v5.4.2-17, the rule-terms convention written once: inventory, draft, three review rounds, frozen r4 (Opus and Fable "ready"; Codex pending)
+
+**What was done:**
+- Resumed from the handoff with no drift. Wrote the **step-2 source inventory** (`application/rule-terms-step2-source-inventory-2026-10-07.md`): what the -13 migration and the -15 rewrite need. Ryan approved three defaults: adopt -13's rows in place; law-file tooling in Python; CI as GitHub Actions.
+- **Drafted `sql/v5.4.2-17-rule-terms-convention.sql`**:
+  - the `tally_core` role;
+  - a term-schema registry, and an IMMUTABLE interpreter of a JSON Schema 2020-12 subset;
+  - a duplicate-key parser;
+  - facets with scoped vocabularies;
+  - applicability sets as multirange spans;
+  - the law and tariff template (`rule_table_register`), with lookups, close and citation locks, a tariff-versus-law check, adoption and strict seeding;
+  - published values;
+  - audit findings with dispositions;
+  - the core-inputs fingerprint.
+- **The ZZ fixture area** (`law/`) and **lawc** (`tools/law/lawc.py`): a strict YAML loader, seed SQL emission, the round trip, and a cross-check against `jsonschema`.
+- **CI:** `tests/ci.sh` and a GitHub Actions workflow (green).
+- **Review rounds:**
+  - **R1:** all three "not yet". The tariff check read the law rows before locking them (reproduced by two reviewers); adoption had no equivalence check; core inputs had no READ COMMITTED check; facet columns were unchecked; Python and PostgreSQL disagreed on `$` before a newline. Folded into r2.
+  - **R2:** Opus and Fable "ready", Codex "not yet": facet types were not paired with their columns, depth counted union branches, and an adopting registration admitted filled documents. Fable found that the adoption check blocked every later insert. Folded into r3.
+  - **R3:** Opus and Fable "ready"; Codex hit its usage limit. Their last points (the core belongs to no role; seeds name the whole envelope and no id; integer version bounds) are folded into **r4**, frozen `ad7045b9` (3,080 lines).
+
+**Decisions:**
+- One interpreter, not a function generated per version: it is reviewed once, and registration refuses any keyword it does not enforce.
+- NULL means "every one" for owner types, system kinds and jurisdiction, with spans in the exclusion.
+- Law kinds must admit a cited "delegated_to_utility" document; records cite the law always and a tariff optionally.
+- Published values have a unit vocabulary but no class scope (R10, by the stopping rule).
+- Golden scenarios are shape-checked until the core's types exist (R11).
+- `tally_core` holds explicit grants only, is a member of no role, and is checked by `assert_core_role_invariants()` in the tail and in CI.
+- -13's adoption sequence is recorded as R14.
+- **Ryan:** wait for Codex's review before asking to mirror.
+
+**Failed approaches:**
+- Read, then lock, in the tariff check.
+- An equivalence check living in the permanent insert check.
+- An allowed-type list instead of type pairing (recorded as fixed in r1, and it wasn't).
+- A union branch counted as a depth level.
+- A pattern claimed identical across engines.
+- Decimal `normalize()`.
+- Race and battery check names that collide.
+- APPLY mutations credited without a phrase.
+- Redundant guards hiding mutations.
+
+**Verification (r4):**
+- strict apply ×2;
+- battery 220/220;
+- isolation X1–X6;
+- races RC1–RC7 (the second session observed waiting);
+- law files W1–W5 (899 documents, 0 disagreements);
+- mutations 139/139 at named checks;
+- every earlier battery (-09 to -14, -16), the -16, -13 and -12 race and transaction scripts, and both invariant assertions;
+- GitHub Actions green.
+
+**Next:** Codex reviews r4 (brief `review-brief-17-r4.md`), then Ryan approves the mirror into `tu.sql`, then step 4: the -13 migration and the -15 rewrite.
+
+---
+
 ## 2026-10-07 — v5.4.2-16 through review rounds 3–5 (all three "ready"), a profile per system kind (Ryan), mirrored into tu.sql
 
 **What was done:**
