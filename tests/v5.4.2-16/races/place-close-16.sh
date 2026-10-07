@@ -22,14 +22,26 @@
 #       close and is refused.
 #   R12 A closes a place and holds; B's membership in it waits, then sees the
 #       close and is refused (R1 in the other order).
-# Every two-session leg also checks that the second session was SEEN WAITING
-# (pg_stat_activity, wait_event_type Lock) before the first committed, so a
-# leg cannot pass by running sequentially (review r2, Codex).
+#   R13 A records a profile governed by a state and holds; B's close of the
+#       state waits, then sees it and is refused (review r3).
+#   R14 A closes a state and holds; B's profile for it waits, then sees the
+#       close and is refused (R13 in the other order).
+#   R15 every READ COMMITTED refusal (R3-R6, R8) is SQLSTATE 25000
+#       invalid_transaction_state, never a retryable 40001 (review r3, Fable).
+#   R16 two memberships in two counties on one axis: the second waits on the
+#       first's exclusion entry, then is refused (review r3, Codex).
+#   R17 two overlapping profiles: the second waits, then is refused.
+#   R18 A closes an owning place and holds; B's profile owned by it waits,
+#       then sees the close and is refused (R2 in the other order).
+# Every two-session leg also checks that the second session ITSELF was SEEN
+# WAITING (pg_stat_activity, by its application_name, wait_event_type Lock)
+# before the first committed, so a leg cannot pass by running sequentially,
+# nor by another session's wait (review r2 and r3, Codex).
 # Runs against a THROWAWAY clone (it commits rows).
 #   usage: place-close-16.sh <db>      (default: s16)
 set -uo pipefail
 DB="${1:-s16}"
-PSQL=(docker exec -i tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -q -At)
+PSQL=(docker exec -i tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -q -At)
 
 T=00000000-0000-4000-8000-0000000016e1
 U=00000000-0000-4000-8000-0000000016e2
@@ -42,6 +54,11 @@ P3=00000000-0000-4000-8000-0000000016f3
 P4=00000000-0000-4000-8000-0000000016f4
 P5=00000000-0000-4000-8000-0000000016f5
 P6=00000000-0000-4000-8000-0000000016f6
+P7=00000000-0000-4000-8000-0000000016f7    # state RQ
+P8=00000000-0000-4000-8000-0000000016f8    # state RS
+P9=00000000-0000-4000-8000-0000000016f9    # county
+P10=00000000-0000-4000-8000-000000001610   # county
+P11=00000000-0000-4000-8000-000000001611   # city
 
 "${PSQL[@]}" <<SQL >/dev/null
 INSERT INTO public.tenants (id, name, slug) VALUES ('$T', 'Race City Gas', 'race16-$RANDOM$RANDOM');
@@ -55,13 +72,20 @@ SELECT v.id, 'municipality', 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'rac
   FROM (VALUES ('$P1'::uuid, 'RACE1'), ('$P2'::uuid, 'RACE2'), ('$P3'::uuid, 'RACE3'),
                ('$P4'::uuid, 'RACE4'), ('$P5'::uuid, 'RACE5'), ('$P6'::uuid, 'RACE6')) v(id, code),
        (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX') s;
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, effective_from, source_note)
+VALUES ('$P7', 'state', 'RQ', 'RQ', 'Race state Q', DATE '1950-01-01', 'race fixture'),
+       ('$P8', 'state', 'RS', 'RS', 'Race state S', DATE '1950-01-01', 'race fixture');
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT v.id, v.kind, 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'race fixture'
+  FROM (VALUES ('$P9'::uuid, 'county', '48001'), ('$P10'::uuid, 'county', '48003'), ('$P11'::uuid, 'municipality', 'RACE11')) v(id, kind, code),
+       (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX') s;
 SQL
 
 fail=0
 A_OUT=$(mktemp); B_OUT=$(mktemp); trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
 
-waiting() {  # sessions of this database blocked on a lock right now
-docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'"
+waiting() {  # is B (application_name race16_b) blocked on a lock right now?
+docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND application_name = 'race16_b' AND wait_event_type = 'Lock'"
 }
 
 # two(): A's SQL holds 3s; B's SQL starts 1s later in the background; we
@@ -75,6 +99,7 @@ COMMIT;
 SQL
 sleep 1
 "${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+SET application_name = 'race16_b';
 $2
 SQL
 sleep 1
@@ -116,7 +141,7 @@ UPDATE public.places SET effective_to = DATE '2030-01-01' WHERE id = '$P3';
 COMMIT;
 SQL
 )
-if grep -q "closing place .* runs only under READ COMMITTED" <<<"$OUT"; then
+if grep -q "closing place .* runs only under READ COMMITTED" <<<"$OUT" && grep -q "ERROR:  25000" <<<"$OUT"; then
   echo "PASS R3: a place is closed only under READ COMMITTED"
 else
   echo "FAIL R3: $OUT"; fail=1
@@ -130,7 +155,7 @@ $2
 COMMIT;
 SQL
 )
-if grep -q "$3" <<<"$OUT"; then echo "PASS $1"; else echo "FAIL $1: $OUT"; fail=1; fi
+if grep -q "$3" <<<"$OUT" && grep -q "ERROR:  25000" <<<"$OUT"; then echo "PASS $1"; else echo "FAIL $1: $OUT"; fail=1; fi
 }
 rr "R4: a membership is recorded only under READ COMMITTED" \
    "INSERT INTO public.premise_place_memberships (tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date)
@@ -160,7 +185,7 @@ UPDATE public.service_locations SET state = 'OK' WHERE id = '$L';
 COMMIT;
 SQL
 )
-if grep -q "runs only under READ COMMITTED" <<<"$OUT"; then
+if grep -q "runs only under READ COMMITTED" <<<"$OUT" && grep -q "ERROR:  25000" <<<"$OUT"; then
   echo "PASS R8: a premise's state is changed only under READ COMMITTED"
 else
   echo "FAIL R8: $OUT"; fail=1
@@ -204,5 +229,59 @@ if seen R12 && grep -q "not over the whole membership" <<<"$OUT"; then
   echo "PASS R12: a membership recorded while its place's close is in flight waits, then sees the close and is refused"
 else
   echo "FAIL R12: the membership said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+
+# R13: A records a profile governed by RQ and holds; B closes RQ.
+two "SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'RQ', 'investor_owned', true, DATE '2026-01-01', 'Tariff', DATE '2025-01-01');" \
+    "UPDATE public.places SET effective_to = DATE '2030-01-01' WHERE id = '$P7';"
+if seen R13 && grep -q "a utility profile governed by it" <<<"$OUT"; then
+  echo "PASS R13: a state closed while a profile it governs is in flight waits, then sees it and is refused"
+else
+  echo "FAIL R13: the close said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R14: A (owner) closes RS from 2026-01-01 and holds; B records a profile for RS from 2026-06-01.
+two "UPDATE public.places SET effective_to = DATE '2026-01-01' WHERE id = '$P8';" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'RS', 'investor_owned', true, DATE '2026-06-01', 'Tariff', DATE '2025-01-01'); COMMIT;"
+if seen R14 && grep -q "is no state with a place in force" <<<"$OUT"; then
+  echo "PASS R14: a profile recorded while its state's close is in flight waits, then sees the close and is refused"
+else
+  echo "FAIL R14: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R15 has no leg of its own: R3-R6 and R8 each require SQLSTATE 25000.
+# R16: A records L in county P9 (regulatory) and holds; B records L in county P10.
+two "SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.premise_place_memberships (tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date)
+VALUES ('$T', '$L', '$P9', 'regulatory', 'x', DATE '2026-01-01', 'ordinance', 'Ord. 16a', DATE '2025-12-01');" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.premise_place_memberships (tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date)
+VALUES ('$T', '$L', '$P10', 'regulatory', 'x', DATE '2026-01-01', 'ordinance', 'Ord. 16b', DATE '2025-12-01'); COMMIT;"
+if seen R16 && grep -q "premise_place_memberships_exclusive" <<<"$OUT"; then
+  echo "PASS R16: two counties racing for one premise and axis: the second waits on the first, then is refused"
+else
+  echo "FAIL R16: the second membership said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R17: two overlapping water profiles for TX.
+PROF17="INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'water', 'TX', 'investor_owned', true, DATE '2026-01-01', 'Tariff', DATE '2025-01-01');"
+two "SET LOCAL app.user_id = '$U'; SET ROLE tally_app; $PROF17" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app; $PROF17 COMMIT;"
+if seen R17 && grep -q "utility_service_profiles_no_overlap" <<<"$OUT"; then
+  echo "PASS R17: two overlapping profiles racing: the second waits on the first, then is refused"
+else
+  echo "FAIL R17: the second profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R18: A (owner) closes P11 from 2026-01-01 and holds; B records a profile owned by P11 from 2026-06-01.
+two "UPDATE public.places SET effective_to = DATE '2026-01-01' WHERE id = '$P11';" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'sewer', 'TX', 'municipal', false, '$P11', DATE '2026-06-01', 'Charter', DATE '2025-01-01'); COMMIT;"
+if seen R18 && grep -q "not over the whole profile" <<<"$OUT"; then
+  echo "PASS R18: a profile recorded while its owning place's close is in flight waits, then sees the close and is refused"
+else
+  echo "FAIL R18: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
 fi
 exit $fail
