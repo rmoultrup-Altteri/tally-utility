@@ -397,6 +397,17 @@ MUTATIONS = [
          "    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('the %s ordinal of %s is never edited")),
     ("M136", "an ordinal for an unknown code", "O2",
      rep("    IF (NEW.dimension = 'owner_type' AND NOT EXISTS (SELECT 1 FROM public.utility_owner_types WHERE owner_type = NEW.code))", "    IF (false)")),
+    # ---- review round 3 (r4)
+    ("M137", "the core may belong to another role", "K10",
+     rep("    IF v_bad IS NOT NULL THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('tally_core is a member of %s",
+         "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('tally_core is a member of %s")),
+    ("M138", "a seed may name an id", "T4l",
+     rep("    IF jsonb_typeof(p_row) IS DISTINCT FROM 'object' OR p_row ? 'id'\n", "    IF jsonb_typeof(p_row) IS DISTINCT FROM 'object'\n")),
+    ("M139", "a seed may leave the envelope out", "T4m",
+     rep("       OR NOT p_row ?& ARRAY['state_code', 'service_type', 'owner_types', 'system_kinds', 'commission_jurisdiction',\n                             'effective_from', 'effective_to', 'source_note', 'terms_kind', 'terms_version', 'terms_source'] THEN",
+         "       OR NOT p_row ?& ARRAY['state_code', 'effective_from', 'terms_source'] THEN")),
+    ("M140", "a strategy version bound may be fractional", "R4p",
+     rep("                   OR (v_target ->> 'maximum')::numeric <> trunc((v_target ->> 'maximum')::numeric)\n", "")),
 ]
 
 
