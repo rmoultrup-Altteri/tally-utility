@@ -159,7 +159,7 @@ MUTATIONS = [
     ("M52", "the profile lookup returns empty instead of refusing", "L1",
      rep("    IF NOT FOUND THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('no utility profile is recorded", "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('no utility profile is recorded")),
     ("M53", "the profile lookup accepts NULL arguments", "L1",
-     rep("    IF p_tenant_id IS NULL OR p_service_type IS NULL OR p_state_code IS NULL OR p_on IS NULL THEN", "    IF false THEN")),
+     rep("    IF p_tenant_id IS NULL OR p_service_type IS NULL OR p_system_kind IS NULL OR p_state_code IS NULL OR p_on IS NULL THEN", "    IF false THEN")),
     ("M54", "candidates of every specificity, not the most specific", "L2",
      rep("     WHERE c.specificity = (SELECT max(z.specificity) FROM cand z WHERE z.tz IS NOT NULL);", "     WHERE c.tz IS NOT NULL;")),
     ("M55", "a non-uniform state's zone answers (the Chicago guess)", "L3",
@@ -239,7 +239,7 @@ MUTATIONS = [
     ("M91", "a voided membership still occupies its group", "N4",
      rep("        WHERE ((exclusivity_group IS NOT NULL) AND (relation = 'within'::text) AND (voided_at IS NULL))", "        WHERE ((exclusivity_group IS NOT NULL) AND (relation = 'within'::text))")),
     ("M92", "the profile lookup reads voided profiles", "N5",
-     rep("       AND u.voided_at IS NULL AND daterange(u.effective_from, u.effective_to, '[)') @> p_on;", "       AND daterange(u.effective_from, u.effective_to, '[)') @> p_on;")),
+     rep("       AND u.state_code = p_state_code AND u.voided_at IS NULL AND daterange(u.effective_from, u.effective_to, '[)') @> p_on;", "       AND u.state_code = p_state_code AND daterange(u.effective_from, u.effective_to, '[)') @> p_on;")),
     ("M93", "a voided profile still blocks its successor", "N5",
      rep("                            daterange(effective_from, effective_to, '[)'::text) WITH &&)\n        WHERE (voided_at IS NULL)\n);\nCREATE INDEX IF NOT EXISTS idx_utility_service_profiles_tenant",
          "                            daterange(effective_from, effective_to, '[)'::text) WITH &&)\n);\nCREATE INDEX IF NOT EXISTS idx_utility_service_profiles_tenant")),
@@ -280,8 +280,8 @@ MUTATIONS = [
     ("M109", "a voided membership holds its place open", "N17",
      rep("WHERE m.place_id = OLD.id AND m.voided_at IS NULL AND", "WHERE m.place_id = OLD.id AND")),
     ("M110", "the jurisdiction pointer takes no place lock", "R10",
-     rep("    PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(NEW.place_id));\n    SELECT * INTO v_place FROM public.places p WHERE p.id = NEW.place_id;\n    -- The pointer is undated",
-         "    SELECT * INTO v_place FROM public.places p WHERE p.id = NEW.place_id;\n    -- The pointer is undated")),
+     rep("    PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(NEW.place_id));\n    SELECT * INTO v_place FROM public.places p WHERE p.id = NEW.place_id;\n    IF NOT FOUND THEN\n        RAISE EXCEPTION USING MESSAGE = format('jurisdiction",
+         "    SELECT * INTO v_place FROM public.places p WHERE p.id = NEW.place_id;\n    IF NOT FOUND THEN\n        RAISE EXCEPTION USING MESSAGE = format('jurisdiction")),
     ("M111", "a voided membership holds the premise's state", "N18",
      rep("     WHERE m.service_location_id = OLD.id AND m.voided_at IS NULL AND p.state_code", "     WHERE m.service_location_id = OLD.id AND p.state_code")),
     # ---- review round 3 (battery group T; races R13-R18)
@@ -367,6 +367,33 @@ MUTATIONS = [
     ("M147", "a no-op update of an open place accepted", "U10",
      rep("    IF OLD.effective_to IS NOT NULL OR NEW.effective_to IS NULL\n       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('place %s: never edited",
          "    IF OLD.effective_to IS NOT NULL\n       OR (to_jsonb(NEW) - c_close_cols) <> (to_jsonb(OLD) - c_close_cols) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('place %s: never edited")),
+    # ---- review round 5 (battery group V; race R21)
+    ("M148", "one profile per service and state, whatever the system", "V1",
+     rep("        EXCLUDE USING gist (tenant_id WITH =, service_type WITH =, state_code WITH =, system_kind WITH =,", "        EXCLUDE USING gist (tenant_id WITH =, service_type WITH =, state_code WITH =,")),
+    ("M149", "the profile lookup ignores the system kind", "V1",
+     rep("AND u.system_kind = p_system_kind\n", "\n")),
+    ("M150", "the profile lookup takes a NULL system kind", "V2",
+     rep("IF p_tenant_id IS NULL OR p_service_type IS NULL OR p_system_kind IS NULL OR", "IF p_tenant_id IS NULL OR p_service_type IS NULL OR")),
+    ("M151", "the application may write system kinds", "V3",
+     rep("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.utility_system_kinds FROM tally_app;", "GRANT INSERT ON public.utility_system_kinds TO tally_app;")),
+    ("M152", "system kinds left editable", "V3",
+     rep("    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'utility_system_kinds', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable",
+         "    FOREACH t IN ARRAY ARRAY['place_kinds', 'place_fact_kinds', 'utility_owner_types', 'place_membership_evidence_kinds'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_place_vocabulary_immutable")),
+    ("M153", "piped propane for water", "V4",
+     rep("    ('piped_propane_distribution', ARRAY['gas'],", "    ('piped_propane_distribution', ARRAY['gas', 'water'],")),
+    ("M154", "a limited-purpose area only on the regulatory axis", "V5",
+     rep("    ('limited_purpose_area',   ARRAY['regulatory', 'tax'],", "    ('limited_purpose_area',   ARRAY['regulatory'],")),
+    ("M155", "a limited-purpose area carries a zone", "V5",
+     rep("    ('time_zone',                     'time_zone', false, ARRAY['state', 'county', 'municipality'],",
+         "    ('time_zone',                     'time_zone', false, ARRAY['state', 'county', 'municipality', 'limited_purpose_area'],")),
+    ("M156", "a profile is checked against the state's oldest row", "V6",
+     rep("        SELECT p.id INTO v_state_place FROM public.places p\n         WHERE p.kind_code = 'state' AND p.state_code = NEW.state_code\n           AND daterange(p.effective_from, p.effective_to, '[)') @> daterange(NEW.effective_from, NEW.effective_to, '[)');",
+         "        SELECT p.id INTO v_state_place FROM public.places p\n         WHERE p.kind_code = 'state' AND p.state_code = NEW.state_code\n         ORDER BY p.effective_from LIMIT 1;")),
+    ("M157", "a pointer at an unknown place not refused by name", "V7",
+     rep("    IF NOT FOUND THEN\n        RAISE EXCEPTION USING MESSAGE = format('jurisdiction %s: place %s not found (v5.4.2-16)', NEW.id, NEW.place_id), ERRCODE = 'foreign_key_violation';\n    END IF;\n", "")),
+    ("M158", "a city-owned profile locks its owning place, not its state", "R21",
+     rep("            PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_state_place));\n            PERFORM 1 FROM public.places p",
+         "            PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(coalesce(NEW.owning_place_id, v_state_place)));\n            PERFORM 1 FROM public.places p")),
     # ---- tenancy (sections 6, 11)
     ("M79", "memberships and profiles deletable by the owner", "G3",
      rep("    FOREACH t IN ARRAY ARRAY['premise_place_memberships', 'utility_service_profiles'] LOOP\n        EXECUTE format('DROP TRIGGER IF EXISTS no_hard_delete",
@@ -406,18 +433,48 @@ def battery_order():
     return seen
 
 
+def battery_spans():
+    """The battery lines each check's own DO blocks occupy: from the DO $$ that
+    opens the first block naming it to the END $$; closing the last. Fixture
+    statements between checks belong to no check (review r5, Codex)."""
+    lines = BATTERY.read_text().splitlines()
+    spans = {}
+    for i, l in enumerate(lines):
+        mm = re.search(r"(?:FAIL|PASS) ([A-Z]+[0-9]+)[a-z]?:", l)
+        if not mm:
+            continue
+        c = mm.group(1)
+        a = i
+        while a > 0 and not lines[a].startswith("DO $$"):
+            a -= 1
+        b = i
+        while b < len(lines) - 1 and "END $$;" not in lines[b]:
+            b += 1
+        lo, hi = spans.get(c, (a + 1, b + 1))
+        spans[c] = (min(lo, a + 1), max(hi, b + 1))
+    return spans
+
+
 def caught(check, text):
-    """CAUGHT only where the named check itself failed (review r4, Codex):
-    a race leg prints FAIL <check>; a battery check prints FAIL <check>[a-z],
-    or the run stopped inside it — every check before it passed, it did not."""
+    """CAUGHT only where the named check itself failed (review r4, r5 Codex).
+    A race leg must print its own FAIL line (a setup failure, or a leg whose
+    session A failed, is no catch). A battery check must print its own FAIL,
+    or the run must stop with its first ERROR on a line inside the check's own
+    blocks, every earlier check having passed and this one not."""
+    if check.startswith("R"):
+        if "SETUP FAIL" in text or re.search(rf"FAIL {check}: session A itself failed", text):
+            return False
+        return bool(re.search(rf"FAIL {check}:", text))
     if re.search(rf"FAIL {check}[a-z]?:", text):
         return True
-    if check.startswith("R"):
-        return False
     order = battery_order()
     if check not in order or re.search(rf"PASS {check}:", text):
         return False
-    return all(re.search(rf"PASS {c}:", text) for c in order[:order.index(check)])
+    if not all(re.search(rf"PASS {c}:", text) for c in order[:order.index(check)]):
+        return False
+    err = re.search(r"psql:<stdin>:(\d+): ERROR", text)
+    lo, hi = battery_spans()[check]
+    return bool(err) and lo <= int(err.group(1)) <= hi
 
 
 def main():

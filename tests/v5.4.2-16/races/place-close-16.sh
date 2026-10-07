@@ -40,6 +40,11 @@
 #   R20 a state of two rows, the open one not first by id: A closes the open
 #       row and holds; B's profile waits on THAT row, then is refused (review
 #       r4, Fable: the lock follows the covering row, not the first one).
+#   R21 the launch customers' shape: A closes a state and holds; B's
+#       city-owned profile governed by it waits on the STATE's lock (not only
+#       its owning city's), then is refused (review r5, Fable).
+# Setup failures exit 2 ("SETUP FAIL"), and a leg whose session A failed is a
+# FAIL, so a named FAIL is never a fixture error (review r5, Codex).
 # Every two-session leg also checks that the second session ITSELF was SEEN
 # WAITING (pg_stat_activity, by its application_name, wait_event_type Lock)
 # before the first committed, so a leg cannot pass by running sequentially,
@@ -70,6 +75,8 @@ P12=00000000-0000-4000-8000-000000001612   # state RU
 P13=00000000-0000-4000-8000-000000001613   # RU's successor (A inserts it)
 P14=00000000-0000-4000-8000-000000001614   # state RV, 1950-2000
 P15=00000000-0000-4000-8000-000000001615   # state RV, from 2000
+P16=00000000-0000-4000-8000-000000001616   # TX city owning R21's system
+P17=00000000-0000-4000-8000-000000001617   # state RW
 
 "${PSQL[@]}" <<SQL >/dev/null
 INSERT INTO public.tenants (id, name, slug) VALUES ('$T', 'Race City Gas', 'race16-$RANDOM$RANDOM');
@@ -87,14 +94,17 @@ INSERT INTO public.places (id, kind_code, state_code, place_code, name, effectiv
 VALUES ('$P7', 'state', 'RQ', 'RQ', 'Race state Q', DATE '1950-01-01', 'race fixture'),
        ('$P8', 'state', 'RS', 'RS', 'Race state S', DATE '1950-01-01', 'race fixture'),
        ('$P12', 'state', 'RU', 'RU', 'Race state U', DATE '1950-01-01', 'race fixture'),
-       ('$P15', 'state', 'RV', 'RV', 'Race state V', DATE '2000-01-01', 'race fixture');
+       ('$P15', 'state', 'RV', 'RV', 'Race state V', DATE '2000-01-01', 'race fixture'),
+       ('$P17', 'state', 'RW', 'RW', 'Race state W', DATE '1950-01-01', 'race fixture');
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, effective_from, effective_to, source_note)
 VALUES ('$P14', 'state', 'RV', 'RV', 'Race state V (old)', DATE '1950-01-01', DATE '2000-01-01', 'race fixture');
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
 SELECT v.id, v.kind, 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'race fixture'
-  FROM (VALUES ('$P9'::uuid, 'county', '48001'), ('$P10'::uuid, 'county', '48003'), ('$P11'::uuid, 'municipality', 'RACE11')) v(id, kind, code),
+  FROM (VALUES ('$P9'::uuid, 'county', '48001'), ('$P10'::uuid, 'county', '48003'), ('$P11'::uuid, 'municipality', 'RACE11'),
+               ('$P16'::uuid, 'municipality', 'RACE16')) v(id, kind, code),
        (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX') s;
 SQL
+if [ $? -ne 0 ]; then echo "SETUP FAIL: the race fixtures did not load"; exit 2; fi
 
 fail=0
 A_OUT=$(mktemp); B_OUT=$(mktemp); trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
@@ -112,6 +122,7 @@ $1
 SELECT pg_sleep(3);
 COMMIT;
 SQL
+APID=$!
 sleep 1
 "${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
 SET application_name = 'race16_b';
@@ -119,6 +130,7 @@ $2
 SQL
 sleep 1
 WAITED=$(waiting)
+wait $APID; AST=$?
 wait
 OUT=$(cat "$B_OUT")
 }
@@ -128,6 +140,7 @@ two "SET LOCAL app.user_id = '$U'; SET ROLE tally_app; $2" \
     "UPDATE public.places SET effective_to = DATE '2030-01-01' WHERE id = '$3';"
 }
 seen() {  # $1 label: the second session must have been seen waiting
+if [ "${AST:-0}" -ne 0 ]; then echo "FAIL $1: session A itself failed: $(cat "$A_OUT")"; fail=1; return 1; fi
 if [ "${WAITED:-0}" -lt 1 ]; then echo "FAIL $1: the second session was never seen waiting (sequential, not a race)"; fail=1; return 1; fi
 }
 
@@ -320,5 +333,15 @@ if seen R20 && grep -q "closed while this waited" <<<"$OUT"; then
   echo "PASS R20: in a state of two rows, a profile waits on the row that covers it, then sees its close and is refused"
 else
   echo "FAIL R20: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
+fi
+# R21: A closes RW from 2026-01-01 and holds; B records a gas profile for RW owned by TX city P16, from 2026-06-01.
+two "UPDATE public.places SET effective_to = DATE '2026-01-01' WHERE id = '$P17';" \
+    "BEGIN; SET LOCAL app.user_id = '$U'; SET ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
+VALUES ('$T', 'gas', 'distribution', 'RW', 'municipal', false, '$P16', DATE '2026-06-01', 'Charter', DATE '2025-01-01'); COMMIT;"
+if seen R21 && grep -q "closed while this waited" <<<"$OUT"; then
+  echo "PASS R21: a city-owned profile waits on its governing state's lock, then sees the state's close and is refused"
+else
+  echo "FAIL R21: the profile said: $OUT (A: $(cat "$A_OUT"))"; fail=1
 fi
 exit $fail
