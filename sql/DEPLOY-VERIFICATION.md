@@ -1,6 +1,8 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14, verified 2026-09-30.** After v5.4.2-14 the counts are unchanged from -13 (the function is replaced, not added): **100 tables** / **9 views** / **4 matviews** / **91 policies** / **90 FORCE-RLS** / **409 FKs** / **434 CHECKs** / **13 EXCLUDE** / **308 triggers** / **427 functions** / **629 indexes**. tu.sql **26,049 lines**, md5 `9139367ab7da6ada63d4193ba189e17f` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16, verified 2026-10-07.** v5.4.2-15 (deposits) is a draft, not landed: it is being rebuilt on the rule-terms convention. After v5.4.2-16: **109 tables** / **9 views** / **4 matviews** / **93 policies** / **92 FORCE-RLS** / **429 FKs** / **469 CHECKs** / **19 EXCLUDE** / **330 triggers** / **440 functions** / **652 indexes**. tu.sql **27,331 lines**, md5 `9c1d0813e64853cebcb5aaff519a4201` (the container init file matches by hash).
+
+**Previous: through v5.4.2-14, verified 2026-09-30.** 100 tables / 9 views / 4 matviews / 91 policies / 90 FORCE-RLS / 409 FKs / 434 CHECKs / 13 EXCLUDE / 308 triggers / 427 functions / 629 indexes. tu.sql **26,049 lines**, md5 `9139367ab7da6ada63d4193ba189e17f`.
 
 **Previous: through v5.4.2-13, verified 2026-09-30.** Same counts (`tests/v5.4.2-13/parity/catalog-counts.sql`). tu.sql **25,930 lines**, md5 `ab3ce7ae9e59a45a90d8d36fa70c8fa3`.
 
@@ -11,6 +13,49 @@
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 
 **Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+
+## v5.4.2-16 — places and applicability: where a premise is, and what kind of utility serves it (rule-terms v2 §9, §12 step 1; Ryan 2026-10-06/07)
+`sql/v5.4.2-16-places-and-applicability.sql` (1,434 lines, md5 `eec3f3a6c0310f1f6505c48e07486a1a`), mirrored into tu.sql (26,049 → **27,331**, pure append: a 5-line banner and the 1,277-line body, header omitted; prefix and body byte-identical by `cmp`).
+
+**What changes** (the patch header has the full list of what the database refuses):
+- **Platform tables (shared, read-only to `tally_app`, never edited, never truncated):**
+  - five vocabularies: `place_kinds`, `place_fact_kinds`, `utility_owner_types`, `utility_system_kinds`, `place_membership_evidence_kinds`;
+  - `places` (dated, cited, close-only, one unincorporated area per state);
+  - `place_facts` (typed by vocabulary, ranged, keyed by citation code).
+- **Tenant tables (RLS, FORCE, the canonical policy):**
+  - `premise_place_memberships`: per axis (regulatory or tax), within or outside with a distance, exclusivity groups, evidence, close or void;
+  - `utility_service_profiles`: owner type, system kind, commission jurisdiction, owning place; one per tenant, service, state and system kind at a time.
+- **`jurisdictions.place_id`:** an open place below the state.
+- **A premise's normalised state cannot change under its memberships.**
+- **Three lookups that refuse rather than guess:** `premise_places_as_of`, `premise_time_zone_as_of`, `utility_service_profile_as_of(tenant, service, system kind, state, date)`.
+- **The place-lock handshake:** advisory, citers shared and closes exclusive; both sides run only under READ COMMITTED, and a refusal is SQLSTATE 25000.
+- **Seed:** Texas (not one time zone), Unincorporated Texas, and El Paso and Hudspeth counties (Mountain time).
+- **Residuals R1–R22** are stated in section 10 of the patch.
+
+**Review:** five rounds with three reviewers (Opus, Fable, Codex):
+- rounds 1–3: all three "not yet";
+- round 4: two "ready", Codex "not yet" on a successor-state race;
+- round 5: all three **"ready"**.
+
+The final revision (r6) folds round 5's should-fixes and Ryan's 2026-10-07 decision that a profile is per system kind. It was not reviewed again. Findings and dispositions are in `tests/v5.4.2-16/review/review-findings-16-r{1..5}.md`.
+
+**Method.**
+1. Strict apply twice on a clone of the -14 build (TEMP revoked): clean.
+2. **battery-16: 97 PASS** (groups A–V).
+3. **Races R1–R21** (`tests/v5.4.2-16/races/place-close-16.sh`): 20 legs. Every two-session leg checks that the second session itself was observed waiting and that session A succeeded.
+4. **mutations-16: 157 of 157 caught**, each at its named check. A battery catch needs the check's own FAIL line, or the run's first error inside the check's own blocks with every earlier check passed.
+5. Regressions on the clone: 28 / 58 / 41 / 116 / 99 / 6; isolation-12 3; X1 PASS.
+6. Mirror.
+7. Image rebuilt, fresh volume: **zero error/fatal lines during init**, init file = tu.sql by md5.
+8. **Catalog parity, full identity including every comment:** `tests/v5.4.2-14/parity/catalog-identity.sql`, 9,964 lines, identical on the patched clone and the build (md5 `05ebd75bb7023d1eb071382da0728ac9`). Counts (`tests/v5.4.2-13/parity/catalog-counts.sql`) also identical.
+9. **On the build:**
+    - batteries 28 / 58 / 41 / 116 / 99 / 6 / **97**;
+    - isolation-12 3;
+    - X1 PASS;
+    - pointer-mutex-12 race PASS;
+    - -16 re-applied over the build is clean;
+    - races R1–R21 PASS on the build;
+    - AC-32 is clean (the patch's own tail).
 
 ## v5.4.2-14 — meter_governing_test() stops computing R-36's approval gate (-13 residual R8; audit §3.3)
 `sql/v5.4.2-14-governing-test-gate-to-core.sql` (177 lines, md5 `5b45a0422123523bff91280ff7df8a6a`), mirrored into tu.sql (25,930 → **26,049**, pure append: a 6-line banner and the 113-line body, header omitted; prefix and body byte-identical by `cmp`).
