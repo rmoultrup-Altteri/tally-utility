@@ -249,7 +249,8 @@ def for_validator(value: Any) -> Any:
     return value
 
 
-CONTROL = re.compile("[\x01-\x1f\x7f]")
+CONTROL = re.compile("[\x00-\x1f\x7f]")
+SURROGATE = re.compile("[\ud800-\udfff]")
 MAX_DEPTH = 64
 
 
@@ -267,6 +268,10 @@ def fixed_rule_errors(doc: Any, component_ids: bool = True) -> list[str]:
             return
         if isinstance(v, str) and not isinstance(v, RawNumber) and CONTROL.search(v):
             errs.append(f"{path}: control character")
+        if isinstance(v, str) and SURROGATE.search(v):
+            # PostgreSQL cannot store a lone surrogate (nor NUL, above): the
+            # document would fail before the validator saw it (review r2, Codex).
+            errs.append(f"{path}: a lone surrogate PostgreSQL cannot store")
         if v is None:
             errs.append(f"{path}: null")
         elif isinstance(v, RawNumber):

@@ -58,6 +58,9 @@ VALUES ('00000000-0000-4000-8000-0000000017fa', 'ZZ', 'gas', 'commercial', DATE 
 INSERT INTO public.rule_term_schemas (terms_kind, terms_version, rule_role, json_schema, introduced_on, description, source_note)
 VALUES ('zz_iso_inputs', 1, 'inputs', '{"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
   "required": ["n"], "properties": {"n": {"type": "integer"}}}', DATE '2026-10-07', 'isolation fixture inputs', 'fixture');
+INSERT INTO public.rule_term_schemas (terms_kind, terms_version, rule_role, json_schema, introduced_on, description, source_note)
+SELECT 'zz_iso_inputs', v, 'inputs', json_schema, DATE '2026-10-07', 'isolation fixture inputs v' || v, 'fixture'
+  FROM public.rule_term_schemas, generate_series(2, 3) v WHERE terms_kind = 'zz_iso_inputs' AND terms_version = 1 ORDER BY v;
 CREATE TABLE public.zz_iso_calcs (
   id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
   tenant_id uuid NOT NULL REFERENCES public.tenants(id),

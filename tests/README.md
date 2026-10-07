@@ -18,17 +18,17 @@ tests/
                             #   fresh tally-pg). Clones `tally`; strict-applies (twice) patches not yet mirrored;
                             #   batteries -09..-14, -16, -17; -17's isolation, races and law files; -16 and -12 races;
                             #   -13's evidence script; the tenant-isolation invariants. Never writes `tally`.
-  v5.4.2-17/                # the rule-terms convention written once (DRAFT r2, 2026-10-07; review round 2)
-    battery-17.sql          # 202 checks, groups R V F T L U C A P I K G, on a fictional state's law (ZZ) from
+  v5.4.2-17/                # the rule-terms convention written once (DRAFT r3, 2026-10-07; review round 3)
+    battery-17.sql          # 216 checks, groups R V F T L U C A P I K G, on a fictional state's law (ZZ) from
                             #   law/fixtures/zz/ (fixture-zz.sql); every refusal must carry its own guard's phrase
     run-battery-17.sh       # copies law/ into the container, then runs the battery against <db>
     isolation-17.sh         # X1-X6: a facet after its schema's transaction; rows, citations, closes, freezes
                             #   and core records outside READ COMMITTED (fixture-iso-17.sql, committed into a scratch clone)
-    races/rule-close-17.sh  # RC1-RC5: a close against a citation, a freeze against a row, each in both orders;
-                            #   a tariff against a close and successor in flight; the second session seen waiting
+    races/rule-close-17.sh  # RC1-RC7: a close against a citation, a freeze against a row or a core record, each
+                            #   in both orders; a tariff against a close and successor in flight; the second session seen waiting
     lawfiles-17.sh          # W1-W5: law files valid; seed SQL not drifted; seed twice + round trip; the database
                             #   validator agrees with jsonschema on 899 documents; the strict loader's refusals
-    mutations-17.py         # 124 mutations, each caught at its named check (battery, X, R, W or APPLY); clones
+    mutations-17.py         # 135 mutations, each caught at its named check (battery, X, R, W or APPLY); clones
                             #   `tally` (the -16 build) and revokes TEMP on every clone
   v5.4.2-15/                # deposits at parity: the deposit law leaves the database (DRAFT; round 2 revision 2026-10-02)
     battery-15.sql          # 104 checks, groups A Z B C D L E F W G; group Z stores a fictional state ZZ with

@@ -87,6 +87,7 @@ clone ci_r16 "$BASE" && step "races v5.4.2-16" tests/v5.4.2-16/races/place-close
 clone ci_e13 "$BASE" && step "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh
 step "tenant isolation invariants" q "$BASE" -c "SELECT public.assert_tenant_isolation_invariants()"
+step "core role invariants" q "$BASE" -c "SELECT public.assert_core_role_invariants()"
 
 printf '%s\n' "${results[@]}"
 echo "ci: $([ $fail -eq 0 ] && echo 'all pass' || echo 'FAILURES')"

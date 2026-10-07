@@ -7,9 +7,9 @@ and runs the script that owns the named check:
 
   battery check (R V F T L U C A P I K G)  run-battery-17.sh
   X1-X6                                     isolation-17.sh
-  RC1-RC5                                   races/rule-close-17.sh
+  RC1-RC7                                   races/rule-close-17.sh
   W1-W5                                     lawfiles-17.sh
-  APPLY                                     the patch itself must refuse
+  APPLY:<phrase>                            the patch itself must refuse, with that phrase
 
 CAUGHT only when the named check prints its own FAIL line ("FAIL T4a:",
 "FAIL RC1:"): the battery stops at the first failing check, so a mutation an
@@ -86,7 +86,7 @@ MUTATIONS = [
      rep("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.rule_term_schemas FROM tally_app, tally_core;",
          "REVOKE UPDATE, DELETE, TRUNCATE ON public.rule_term_schemas FROM tally_app, tally_core;\nGRANT INSERT ON public.rule_term_schemas TO tally_app;")),
     ("M14", "a schema may be edited", "R7a",
-     rep("        IF NOT (OLD.accepts_new_rows AND NOT NEW.accepts_new_rows)\n           OR (to_jsonb(NEW) - c_frozen_cols) IS DISTINCT FROM (to_jsonb(OLD) - c_frozen_cols) THEN",
+     rep("        IF NOT (OLD.accepts_new_rows AND NOT NEW.accepts_new_rows)\n           OR (to_jsonb(NEW) - c_frozen_cols)::text IS DISTINCT FROM (to_jsonb(OLD) - c_frozen_cols)::text THEN",
          "        IF NOT (OLD.accepts_new_rows AND NOT NEW.accepts_new_rows) AND false THEN")),
     ("M15", "a schema may be deleted", "R7c",
      rep("    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('term schema %s v%s is never deleted",
@@ -210,7 +210,7 @@ MUTATIONS = [
     ("M61", "registration takes any hook", "T1d",
      rep("    IF p_close_floor IS NOT NULL AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = p_close_floor", "    IF false AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = p_close_floor")),
     ("M62", "the application may register a table", "T1e",
-     rep("REVOKE ALL ON FUNCTION public.rule_table_register(regclass, text, text, text[], text[], regprocedure, regprocedure, regclass, regprocedure, boolean)\n    FROM PUBLIC, tally_app, tally_core;\nREVOKE ALL ON FUNCTION public.assert_tenant_isolation_invariants() FROM tally_core;",
+     rep("REVOKE ALL ON FUNCTION public.rule_table_register(regclass, text, text, text[], text[], regprocedure, regprocedure, regclass, regprocedure, regprocedure)\n    FROM PUBLIC, tally_app, tally_core;\nREVOKE ALL ON FUNCTION public.assert_tenant_isolation_invariants() FROM tally_core;",
          "REVOKE ALL ON FUNCTION public.assert_tenant_isolation_invariants() FROM tally_core;")),
     # ---- lookups
     ("M63", "the law lookup ignores the owner", "L1",
@@ -311,13 +311,13 @@ MUTATIONS = [
          "    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'an audit finding is never edited or deleted")),
     ("M100", "a finding's kind and version are the writer's", "K3",
      rep("        NEW.terms_kind := v_rule ->> 'terms_kind';\n        NEW.terms_version := (v_rule ->> 'terms_version')::integer;", "        NULL;")),
-    ("M101", "the core holds TEMP", "APPLY",
+    ("M101", "the core holds TEMP", "APPLY:tally_core can define code",
      rep("    EXECUTE format('REVOKE TEMP ON DATABASE %I FROM tally_core', current_database());",
          "    EXECUTE format('GRANT TEMP ON DATABASE %I TO tally_core', current_database());")),
-    ("M102", "the core reads materialized views", "APPLY",
+    ("M102", "the core reads materialized views", "APPLY:reaches materialized views",
      rep("              WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v') LOOP\n        EXECUTE format('GRANT SELECT ON %s TO tally_core', r.t);",
          "              WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm') LOOP\n        EXECUTE format('GRANT SELECT ON %s TO tally_core', r.t);")),
-    ("M103", "findings have an open policy", "APPLY",
+    ("M103", "findings have an open policy", "APPLY:rule_audit_findings",
      rep("CREATE POLICY tenant_isolation ON public.rule_audit_findings USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));",
          "CREATE POLICY tenant_isolation ON public.rule_audit_findings USING (true);")),
     ("M104", "a tariff table's policy is open", "U5b",
@@ -331,14 +331,12 @@ MUTATIONS = [
          "        SELECT '{}'::uuid[] INTO v_new;\n        PERFORM pg_advisory_xact_lock_shared(public.rule_row_lock_key(p_cfg.law_table, x)) FROM unnest(v_ids) x;")),
     ("M107", "a core record under REPEATABLE READ", "X6",
      rep("    PERFORM public.assert_rule_read_committed(format('writing a core record of %s', TG_RELID::regclass));\n", "")),
-    ("M108", "an adopting table need not name its equivalence check", "A1c",
-     rep("    IF p_adopts_legacy_rows AND p_insert_check IS NULL THEN", "    IF false THEN")),
+    ("M108", "an adoption check of any signature", "A1c",
+     rep("        IF NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = p_adoption_check", "        IF false AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = p_adoption_check")),
     ("M109", "a template column may be a facet", "T1f",
      rep("        IF v_c = ANY (c_template_cols) OR v_c = ANY (p_area_key) THEN", "        IF false THEN")),
-    ("M110", "a facet column of any type", "T1g",
-     rep("            ELSIF NOT v_type = ANY (ARRAY['text', 'text[]', 'integer', 'bigint', 'numeric', 'boolean']) THEN", "            ELSIF false THEN")),
     ("M111", "a table holding rows registers as new", "A1d",
-     rep("        IF v_has_rows THEN", "        IF false THEN")),
+     rep("        IF v_has_rows THEN\n            v_err := v_err || format('%s already holds rows", "        IF false THEN\n            v_err := v_err || format('%s already holds rows")),
     ("M112", "a strategy need not fix its version", "R4n",
      rep("        IF v_disc = 'strategy' THEN", "        IF false THEN")),
     ("M113", "control characters allowed", "V23",
@@ -367,8 +365,38 @@ MUTATIONS = [
      rep("       AND (v_new - c_close_cols)::text = (v_old - c_close_cols)::text THEN", "       AND (v_new - c_close_cols) = (v_old - c_close_cols) THEN")),
     ("M123", "the parser's NUL refusal is a duplicate-key one", "V21e",
      rep("    BEGIN\n        v_doc := p_text::jsonb;\n    EXCEPTION WHEN OTHERS THEN", "    BEGIN\n        v_doc := p_text::jsonb;\n    EXCEPTION WHEN invalid_text_representation THEN")),
-    ("M124", "the TEMP assertion at apply is gone and the core holds TEMP", "K1",
-     rep("    IF has_database_privilege('tally_core', current_database(), 'TEMP') OR", "    EXECUTE format('GRANT TEMP ON DATABASE %I TO tally_core', current_database());\n    IF false AND has_database_privilege('tally_core', current_database(), 'TEMP') OR")),
+    ("M124", "the tail no longer asserts the core's invariants, and the core holds TEMP", "K1",
+     rep("DO $$\nBEGIN\n    PERFORM public.assert_core_role_invariants();\nEND\n$$;",
+         "DO $$\nBEGIN\n    EXECUTE format('GRANT TEMP ON DATABASE %I TO tally_core', current_database());\nEND\n$$;")),
+    # ---- review round 2 (r3)
+    ("M125", "a facet column of another facet type than its facet's", "T1g",
+     rep("       AND coalesce(format_type(a.atttypid, a.atttypmod), 'missing') <> ALL (CASE f.facet_type", "       AND false AND coalesce(format_type(a.atttypid, a.atttypmod), 'missing') <> ALL (CASE f.facet_type")),
+    ("M126", "a union branch counts as a document level", "V24",
+     rep("        RETURN public.rule_terms_node_errors(p_root, v_branch, p_doc, p_path, p_depth);", "        RETURN public.rule_terms_node_errors(p_root, v_branch, p_doc, p_path, p_depth + 1);")),
+    ("M127", "an adopting table may hold filled documents", "A1e",
+     rep("            IF v_has_rows THEN\n                v_err := v_err || format('%s holds rows whose document is already filled",
+         "            IF false THEN\n                v_err := v_err || format('%s holds rows whose document is already filled")),
+    ("M128", "the adoption check runs on every insert", "A4",
+     rep("    IF p_cfg.insert_check IS NOT NULL THEN", "    IF (SELECT adoption_check FROM public.rule_tables WHERE table_name = p_cfg.table_name) IS NOT NULL THEN\n        EXECUTE format('SELECT %s($1)', (SELECT adoption_check FROM public.rule_tables WHERE table_name = p_cfg.table_name)::regproc) USING (p_row || v_out);\n    END IF;\n    IF p_cfg.insert_check IS NOT NULL THEN")),
+    ("M129", "the adoption check never runs", "A3h",
+     rep("        IF v_cfg.adoption_check IS NOT NULL THEN\n            EXECUTE", "        IF false THEN\n            EXECUTE")),
+    ("M130", "a re-seed compares only the document", "T4k",
+     rep("                WHERE k <> ALL (ARRAY['id', 'terms_source', 'owner_types', 'system_kinds', 'commission_jurisdiction'])",
+         "                WHERE k = ANY (ARRAY['effective_to', 'source_note', 'terms_kind', 'terms_version'])")),
+    ("M131", "a freeze compares jsonb, not text", "R8c",
+     rep("           OR (to_jsonb(NEW) - c_frozen_cols)::text IS DISTINCT FROM (to_jsonb(OLD) - c_frozen_cols)::text THEN",
+         "           OR (to_jsonb(NEW) - c_frozen_cols) IS DISTINCT FROM (to_jsonb(OLD) - c_frozen_cols) THEN")),
+    ("M132", "a strategy version may be unbounded", "R4o",
+     rep("                   OR jsonb_typeof(v_target -> 'maximum') IS DISTINCT FROM 'number'\n", "")),
+    ("M133", "the core-role assertion ignores column grants on matviews", "K8",
+     rep("       AND has_any_column_privilege('tally_core', c.oid, 'SELECT');", "       AND has_table_privilege('tally_core', c.oid, 'SELECT');")),
+    ("M134", "a core record takes no inputs-schema lock", "RC7",
+     rep("    PERFORM pg_advisory_xact_lock_shared(public.rule_term_schema_lock_key(v_row ->> 'inputs_kind', (v_row ->> 'inputs_version')::integer));", "")),
+    ("M135", "an ordinal may be edited", "O1",
+     rep("    IF TG_OP <> 'INSERT' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('the %s ordinal of %s is never edited",
+         "    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('the %s ordinal of %s is never edited")),
+    ("M136", "an ordinal for an unknown code", "O2",
+     rep("    IF (NEW.dimension = 'owner_type' AND NOT EXISTS (SELECT 1 FROM public.utility_owner_types WHERE owner_type = NEW.code))", "    IF (false)")),
 ]
 
 
@@ -379,7 +407,7 @@ def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
 def runner(check: str) -> list[str]:
     if check.startswith("X"):
         return [str(HERE / "isolation-17.sh"), DB, "m17iso"]
-    if re.fullmatch(r"RC[1-5]", check):
+    if re.fullmatch(r"RC[1-7]", check):
         return [str(HERE / "races/rule-close-17.sh"), DB, "m17race"]
     if check.startswith("W"):
         return [str(HERE / "lawfiles-17.sh"), DB, "m17law"]
@@ -408,13 +436,17 @@ def main() -> int:
                "SET search_path = ''; SET check_function_bodies = on;\n" + patched)
         if a.returncode:
             last = a.stderr.strip().splitlines()[-1] if a.stderr.strip() else "?"
-            if check == "APPLY":
-                print(f"{mid} caught at apply: {what} ({last[:90]})")
+            phrase = check.split(":", 1)[1] if check.startswith("APPLY:") else None
+            if phrase is not None and phrase in a.stderr:
+                print(f"{mid} caught at apply: {what} ({phrase})")
+            elif phrase is not None:
+                print(f"{mid} MISSED (apply failed, but not on \"{phrase}\"): {what}: {last[:120]}")
+                missed += 1
             else:
                 print(f"{mid} APPLY-ERROR ({what}): {last[:140]}")
                 missed += 1
             continue
-        if check == "APPLY":
+        if check.startswith("APPLY"):
             print(f"{mid} MISSED (applied cleanly): {what}")
             missed += 1
             continue

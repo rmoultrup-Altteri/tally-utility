@@ -13,6 +13,11 @@
 #       and holds; B's tariff of 40 over both waits on the row it found, then
 #       re-reads, finds the successor, and is refused as looser than the law
 #       (review r1 B1, all three reviewers: the check read, then locked).
+#   RC6  A writes a core record of inputs version 2 and holds; B's freeze of
+#       version 2 waits, then succeeds; a core record of version 2 after it is
+#       refused (review r2, Codex S4).
+#   RC7  A freezes inputs version 3 and holds; B's core record of version 3
+#       waits, then sees the freeze and is refused.
 # Every leg checks that the second session was SEEN WAITING (pg_stat_activity,
 # by application_name, wait_event_type Lock) before the first committed, and
 # that session A itself succeeded, so no leg passes by running sequentially.
@@ -117,6 +122,21 @@ two "UPDATE public.zz_fee_rules SET effective_to = DATE '2025-01-01' WHERE id = 
 if seen RC5 && grep -q "fee 40 above the cap 10 of cap 10" <<<"$OUT"; then
   echo "PASS RC5: a tariff waits for a close and a stricter successor in flight, then re-reads and is refused against the successor"
 else echo "FAIL RC5: the tariff said: $OUT"; fail=1; fi
+
+CORE="SET LOCAL app.user_id = '$U'; SET LOCAL ROLE tally_core;"
+CALC="INSERT INTO public.zz_iso_calcs (tenant_id, inputs, inputs_kind, inputs_version, calculated_by) VALUES ('$T', '{\"n\": 1}', 'zz_iso_inputs',"
+two "$CORE $CALC 2, 'core x');" \
+    "UPDATE public.rule_term_schemas SET accepts_new_rows = false WHERE terms_kind = 'zz_iso_inputs' AND terms_version = 2;"
+AFTER=$(printf '%s\n' "BEGIN; $CORE $CALC 2, 'core x'); COMMIT;" | "${PSQL[@]}" 2>&1)
+if seen RC6 && ! grep -q ERROR <<<"$OUT" && grep -q "is frozen" <<<"$AFTER"; then
+  echo "PASS RC6: a freeze of an inputs version waits for a core record of it in flight, then holds against the next"
+else echo "FAIL RC6: the freeze said: $OUT; the next record said: $AFTER"; fail=1; fi
+
+two "UPDATE public.rule_term_schemas SET accepts_new_rows = false WHERE terms_kind = 'zz_iso_inputs' AND terms_version = 3;" \
+    "BEGIN; $CORE $CALC 3, 'core x'); COMMIT;"
+if seen RC7 && grep -q "is frozen" <<<"$OUT"; then
+  echo "PASS RC7: a core record waits for a freeze of its inputs version in flight, then sees it and is refused"
+else echo "FAIL RC7: the record said: $OUT"; fail=1; fi
 
 echo "rule-close-17: $([ $fail -eq 0 ] && echo 'all legs pass' || echo 'FAILURES')"
 exit $fail
