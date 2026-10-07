@@ -9,6 +9,10 @@
 #       waits, then succeeds; a row of version 2 written after is refused.
 #   RC4  A freezes version 3 and holds; B's row of version 3 waits, then sees
 #       the freeze and is refused.
+#   RC5  A closes a law row (cap 50) and adds its stricter successor (cap 10)
+#       and holds; B's tariff of 40 over both waits on the row it found, then
+#       re-reads, finds the successor, and is refused as looser than the law
+#       (review r1 B1, all three reviewers: the check read, then locked).
 # Every leg checks that the second session was SEEN WAITING (pg_stat_activity,
 # by application_name, wait_event_type Lock) before the first committed, and
 # that session A itself succeeded, so no leg passes by running sequentially.
@@ -22,6 +26,21 @@ docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $DB"
 docker exec tally-pg psql -U tally -d "$DB" -qc "REVOKE TEMP ON DATABASE $DB FROM PUBLIC" -qc "REVOKE TEMP ON DATABASE $DB FROM tally_app" >/dev/null
 PSQL=(docker exec -i tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -q -At)
 "${PSQL[@]}" < "$HERE/fixture-iso-17.sql" >/dev/null || { echo "SETUP FAIL: the fixture did not load"; exit 2; }
+ROOT=$(cd "$HERE/../.." && pwd)
+docker exec tally-pg rm -rf /tmp/law && docker cp "$ROOT/law" tally-pg:/tmp/law
+printf 'BEGIN;\n\\i /tmp/law/fixtures/zz/fixture-zz.sql\nCOMMIT;\n' | "${PSQL[@]}" >/dev/null 2>&1 || { echo "SETUP FAIL: the ZZ area did not load"; exit 2; }
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: the RC5 rows did not load"; exit 2; }
+BEGIN;
+SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000017f2';
+SET LOCAL ROLE tally_app;
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                             effective_from, evidence_reference, evidence_date)
+VALUES ('00000000-0000-4000-8000-0000000017f1', 'gas', 'distribution', 'ZZ', 'investor_owned', true, DATE '2000-01-01', 'Cert 1', DATE '2000-01-01');
+COMMIT;
+INSERT INTO public.zz_fee_rules (id, state_code, service_type, customer_class, effective_from, source_note, terms_kind, terms_version, terms_source)
+VALUES ('00000000-0000-4000-8000-0000000017fb', 'ZZ', 'gas', 'residential', DATE '2000-01-01', 'cap 50', 'zz_fee', 1,
+        '{"governs": "law", "citation": "ZZ 1", "fee": {"strategy": "flat", "version": 1, "id": "f1", "cap": 50, "citation": "ZZ 1"}, "waivers": []}');
+SQL
 
 T=00000000-0000-4000-8000-0000000017f1
 U=00000000-0000-4000-8000-0000000017f2
@@ -88,6 +107,16 @@ two "UPDATE public.rule_term_schemas SET accepts_new_rows = false WHERE terms_ki
 if seen RC4 && grep -q "is frozen" <<<"$OUT"; then
   echo "PASS RC4: a row waits for a freeze of its version in flight, then sees it and is refused"
 else echo "FAIL RC4: the row said: $OUT"; fail=1; fi
+
+two "UPDATE public.zz_fee_rules SET effective_to = DATE '2025-01-01' WHERE id = '00000000-0000-4000-8000-0000000017fb';
+     INSERT INTO public.zz_fee_rules (state_code, service_type, customer_class, effective_from, source_note, terms_kind, terms_version, terms_source)
+     VALUES ('ZZ', 'gas', 'residential', DATE '2025-01-01', 'cap 10', 'zz_fee', 1,
+             '{\"governs\": \"law\", \"citation\": \"ZZ 2\", \"fee\": {\"strategy\": \"flat\", \"version\": 1, \"id\": \"f1\", \"cap\": 10, \"citation\": \"ZZ 2\"}, \"waivers\": []}');" \
+    "BEGIN; $APP INSERT INTO public.zz_fee_tariffs (tenant_id, state_code, service_type, system_kind, customer_class, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
+     VALUES ('$T', 'ZZ', 'gas', 'distribution', 'residential', DATE '2020-01-01', 'Ord 1', 'zz_fee_tariff', 1, '{\"fee\": {\"strategy\": \"flat\", \"version\": 1, \"id\": \"t1\", \"amount\": 40}}'); COMMIT;"
+if seen RC5 && grep -q "fee 40 above the cap 10 of cap 10" <<<"$OUT"; then
+  echo "PASS RC5: a tariff waits for a close and a stricter successor in flight, then re-reads and is refused against the successor"
+else echo "FAIL RC5: the tariff said: $OUT"; fail=1; fi
 
 echo "rule-close-17: $([ $fail -eq 0 ] && echo 'all legs pass' || echo 'FAILURES')"
 exit $fail

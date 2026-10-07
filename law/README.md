@@ -56,8 +56,11 @@ rows:
   - A boolean is `true` or `false`.
   - A number is digits with an optional sign and fraction: no exponent, no leading `+`.
 - **Numbers are written canonically: `1.5`, not `1.50`; `2`, not `2.0`.** The database stores and hashes exactly what is written, and refuses a non-canonical number.
-- **Duplicate keys, anchors and aliases, merge keys (`<<`) and explicit tags are refused.** Each hides or repeats content a reviewer reads once.
+- **Duplicate keys, anchors and aliases, merge keys (`<<`) and explicit tags (even `!`) are refused.** Each hides or repeats content a reviewer reads once.
 - **A null is refused anywhere in a document.** "Unknown" is a value the schema names, such as `unruled`, never an absence (v2 §3).
+- **No control characters (newline, tab, …) in any string or key.** Validators disagree on how a pattern treats a trailing newline; nothing the law says needs one.
+- **Nesting is at most 64 levels deep.**
+- **JSON examples write numbers out in full, without exponents.** The database rewrites `1e2` as `100`, so the file would no longer say what is stored.
 
 ### A document
 
@@ -65,7 +68,7 @@ rows:
 - **Component ids.** An `id` names a part a record can cite (`"id": "p1"`). It is unique within the document.
 - **Citations per section.** A citation goes where the provision applies, not only at the root.
 - **Delegated law.** Every law kind admits `{"governs": "delegated_to_utility", "citation": …}`: the law leaves the matter to the utility's own tariff. This is not the same as no law; with no law row, the database refuses (places finding 1).
-- **Published values.** A value published on its own schedule is named, not copied: `{"source": "published", "name": "…"}`. The core reads it from `rule_parameter_values` on the date.
+- **Published values.** A value published on its own schedule is named, not copied: `{"source": "published", "name": "…"}`. The core reads it from `rule_parameter_values` on the date. An area that wants the database to check the names declares a `text[]` facet over those paths, with `rule_parameters` as its vocabulary.
 
 ## A schema
 
@@ -120,7 +123,9 @@ A seed is never an upsert. A change in the law is a close and a new row, written
 1. Every law file is valid.
 2. The committed seed SQL is what the files emit today.
 3. Seeding twice changes nothing; every stored document equals its file, and no seeded table holds a row without a file.
-4. The database validator and a standard JSON Schema validator (`jsonschema`, Draft 2020-12) agree on every example document in `fixtures/*/examples/`, and on every single-edit mutation of each. This proves the database enforces what the schema says, rather than assuming it.
+4. For every `<kind>.vN.schema.json` under `law/`, the file equals the schema registered for that version, and the database validator agrees with a standard JSON Schema validator (`jsonschema`, Draft 2020-12, plus the fixed rules) on its examples (`examples/<kind>*.yaml`) and on every single-edit mutation of each. A schema without examples fails.
+
+   This shows agreement on that corpus; it is not a proof for every possible document (patch residual R7). The corpus includes edits at type, length and number edges, control characters, non-ASCII text and branch switches.
 5. The strict loader refuses what it should.
 
 Golden scenarios are checked for shape now. They run against the core once it exists.

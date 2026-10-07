@@ -6,8 +6,8 @@ and function-body checking on) to a fresh clone of `tally` with TEMP revoked,
 and runs the script that owns the named check:
 
   battery check (R V F T L U C A P I K G)  run-battery-17.sh
-  X1-X5                                     isolation-17.sh
-  RC1-RC4                                   races/rule-close-17.sh
+  X1-X6                                     isolation-17.sh
+  RC1-RC5                                   races/rule-close-17.sh
   W1-W5                                     lawfiles-17.sh
   APPLY                                     the patch itself must refuse
 
@@ -187,7 +187,7 @@ MUTATIONS = [
     ("M52", "the area's insert check never called", "T6j",
      rep("    IF p_cfg.insert_check IS NOT NULL THEN", "    IF false THEN")),
     ("M53", "a close may carry an edit", "T7c",
-     rep("    IF (v_old -> 'effective_to') = 'null'::jsonb AND (v_new -> 'effective_to') <> 'null'::jsonb\n       AND (v_new - c_close_cols) = (v_old - c_close_cols) THEN",
+     rep("    IF (v_old -> 'effective_to') = 'null'::jsonb AND (v_new -> 'effective_to') <> 'null'::jsonb\n       AND (v_new - c_close_cols)::text = (v_old - c_close_cols)::text THEN",
          "    IF (v_old -> 'effective_to') = 'null'::jsonb AND (v_new -> 'effective_to') <> 'null'::jsonb THEN")),
     ("M54", "a rule row may be deleted", "T7d",
      rep("    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('%s rows are never deleted: records cite them",
@@ -288,7 +288,7 @@ MUTATIONS = [
     ("M91", "the writer's fingerprint is kept", "I3a",
      rep("    IF v_row ->> 'inputs_fingerprint' IS NOT NULL AND v_row ->> 'inputs_fingerprint' <> v_fp THEN", "    IF false THEN")),
     ("M92", "inputs not validated", "I3b",
-     rep("    v_err := public.rule_terms_errors(v_schema.json_schema, v_row -> 'inputs');", "    v_err := '{}';")),
+     rep("    v_err := public.rule_terms_errors(v_schema.json_schema, v_row -> 'inputs', false);", "    v_err := '{}';")),
     ("M93", "any kind is an inputs kind", "I3d",
      rep("     WHERE terms_kind = v_row ->> 'inputs_kind' AND terms_version = (v_row ->> 'inputs_version')::integer AND rule_role = 'inputs';",
          "     WHERE terms_kind = v_row ->> 'inputs_kind' AND terms_version = (v_row ->> 'inputs_version')::integer;")),
@@ -300,7 +300,7 @@ MUTATIONS = [
      rep("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.rule_audit_findings FROM tally_app;\n",
          "REVOKE UPDATE, DELETE, TRUNCATE ON public.rule_audit_findings FROM tally_app;\nGRANT INSERT ON public.rule_audit_findings TO tally_app;\n")),
     ("M96", "a missed decision need not say what", "K4b",
-     rep("    IF FOUND AND v_kind.expects_decision <> (NEW.expected_decision IS NOT NULL) THEN", "    IF false THEN")),
+     rep("    IF FOUND AND (v_kind.expects_decision <> (NEW.expected_decision IS NOT NULL) OR v_kind.expects_decision <> (NEW.expected_by IS NOT NULL)) THEN", "    IF false THEN")),
     ("M97", "a finding's subject in another tenant", "K4d",
      rep("    IF v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF false THEN")),
     ("M98", "a finding names an unregistered rule table", "K4f",
@@ -311,7 +311,7 @@ MUTATIONS = [
          "    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'an audit finding is never edited or deleted")),
     ("M100", "a finding's kind and version are the writer's", "K3",
      rep("        NEW.terms_kind := v_rule ->> 'terms_kind';\n        NEW.terms_version := (v_rule ->> 'terms_version')::integer;", "        NULL;")),
-    ("M101", "the core holds TEMP", "K1",
+    ("M101", "the core holds TEMP", "APPLY",
      rep("    EXECUTE format('REVOKE TEMP ON DATABASE %I FROM tally_core', current_database());",
          "    EXECUTE format('GRANT TEMP ON DATABASE %I TO tally_core', current_database());")),
     ("M102", "the core reads materialized views", "APPLY",
@@ -323,6 +323,52 @@ MUTATIONS = [
     ("M104", "a tariff table's policy is open", "U5b",
      rep("        EXECUTE format('CREATE POLICY tenant_isolation ON %s USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())))', v_rel);",
          "        EXECUTE format('CREATE POLICY tenant_isolation ON %s USING (true)', v_rel);")),
+    # ---- review round 1 (r2)
+    ("M105", "minLength not enforced (only the cross-check sees it)", "W4",
+     rep("        IF v_node ? 'minLength' AND char_length(v_value) < (v_node ->> 'minLength')::numeric THEN", "        IF false THEN")),
+    ("M106", "the tariff check reads, then locks, and never re-reads", "RC5",
+     rep("        SELECT coalesce(array_agg(DISTINCT x ORDER BY x), '{}') INTO v_new FROM unnest(v_ids) x WHERE NOT x = ANY (v_locked);",
+         "        SELECT '{}'::uuid[] INTO v_new;\n        PERFORM pg_advisory_xact_lock_shared(public.rule_row_lock_key(p_cfg.law_table, x)) FROM unnest(v_ids) x;")),
+    ("M107", "a core record under REPEATABLE READ", "X6",
+     rep("    PERFORM public.assert_rule_read_committed(format('writing a core record of %s', TG_RELID::regclass));\n", "")),
+    ("M108", "an adopting table need not name its equivalence check", "A1c",
+     rep("    IF p_adopts_legacy_rows AND p_insert_check IS NULL THEN", "    IF false THEN")),
+    ("M109", "a template column may be a facet", "T1f",
+     rep("        IF v_c = ANY (c_template_cols) OR v_c = ANY (p_area_key) THEN", "        IF false THEN")),
+    ("M110", "a facet column of any type", "T1g",
+     rep("            ELSIF NOT v_type = ANY (ARRAY['text', 'text[]', 'integer', 'bigint', 'numeric', 'boolean']) THEN", "            ELSIF false THEN")),
+    ("M111", "a table holding rows registers as new", "A1d",
+     rep("        IF v_has_rows THEN", "        IF false THEN")),
+    ("M112", "a strategy need not fix its version", "R4n",
+     rep("        IF v_disc = 'strategy' THEN", "        IF false THEN")),
+    ("M113", "control characters allowed", "V23",
+     rep("     WHERE (v #>> '{}') ~ ('[' || chr(1) || '-' || chr(31) || chr(127) || ']');", "     WHERE false;")),
+    ("M114", "any two letters are a state", "T5e",
+     rep("    IF NOT EXISTS (SELECT 1 FROM public.places pl WHERE pl.kind_code = 'state' AND pl.place_code = p_row ->> 'state_code') THEN", "    IF false THEN")),
+    ("M115", "a seed drops unknown columns", "T4i",
+     rep("    IF v_unknown IS NOT NULL THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('rule_row_seed: %s has no column %s", "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('rule_row_seed: %s has no column %s")),
+    ("M116", "a citation of any law row in force", "C2c",
+     rep("    IF v_expected IS DISTINCT FROM p_id THEN", "    IF false THEN")),
+    ("M117", "a date due without a decision", "K4i",
+     rep("    IF FOUND AND (v_kind.expects_decision <> (NEW.expected_decision IS NOT NULL) OR v_kind.expects_decision <> (NEW.expected_by IS NOT NULL)) THEN",
+         "    IF FOUND AND v_kind.expects_decision <> (NEW.expected_decision IS NOT NULL) THEN"),
+     ),
+    ("M118", "a disposition keeps the writer's user", "K7a",
+     rep("    NEW.decided_by := nullif(current_setting('app.user_id', true), '')::uuid;\n    IF NEW.decided_by IS NULL THEN",
+         "    IF NEW.decided_by IS NULL THEN")),
+    ("M119", "a disposition may be edited", "K7e",
+     rep("    IF TG_OP <> 'INSERT' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'a finding''s disposition is never edited",
+         "    IF TG_OP = 'DELETE' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'a finding''s disposition is never edited")),
+    ("M120", ".double() allowed in a facet path", "F2g",
+     rep("    IF NEW.json_path ~* 'double' THEN", "    IF false THEN")),
+    ("M121", "any unit", "P3i",
+     rep("    CONSTRAINT rule_parameters_unit_fkey FOREIGN KEY (unit) REFERENCES public.rule_units(unit),\n", "")),
+    ("M122", "a close may rewrite a number's scale", "T8c",
+     rep("       AND (v_new - c_close_cols)::text = (v_old - c_close_cols)::text THEN", "       AND (v_new - c_close_cols) = (v_old - c_close_cols) THEN")),
+    ("M123", "the parser's NUL refusal is a duplicate-key one", "V21e",
+     rep("    BEGIN\n        v_doc := p_text::jsonb;\n    EXCEPTION WHEN OTHERS THEN", "    BEGIN\n        v_doc := p_text::jsonb;\n    EXCEPTION WHEN invalid_text_representation THEN")),
+    ("M124", "the TEMP assertion at apply is gone and the core holds TEMP", "K1",
+     rep("    IF has_database_privilege('tally_core', current_database(), 'TEMP') OR", "    EXECUTE format('GRANT TEMP ON DATABASE %I TO tally_core', current_database());\n    IF false AND has_database_privilege('tally_core', current_database(), 'TEMP') OR")),
 ]
 
 
@@ -333,7 +379,7 @@ def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
 def runner(check: str) -> list[str]:
     if check.startswith("X"):
         return [str(HERE / "isolation-17.sh"), DB, "m17iso"]
-    if re.fullmatch(r"RC[1-4]", check):
+    if re.fullmatch(r"RC[1-5]", check):
         return [str(HERE / "races/rule-close-17.sh"), DB, "m17race"]
     if check.startswith("W"):
         return [str(HERE / "lawfiles-17.sh"), DB, "m17law"]

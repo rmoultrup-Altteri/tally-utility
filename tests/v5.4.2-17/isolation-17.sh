@@ -1,6 +1,6 @@
 #!/bin/bash
 # The v5.4.2-17 refusals that need separate transactions or another isolation
-# level (X1-X5). Builds its own scratch clone of a -17 database.
+# level (X1-X6). Builds its own scratch clone of a -17 database.
 # usage: tests/v5.4.2-17/isolation-17.sh <db-with-17> [scratch-db]
 set -uo pipefail
 SRC=${1:?db with v5.4.2-17}
@@ -32,5 +32,7 @@ expect "X4: a close under SERIALIZABLE" 25000 "closing a row of" \
   "BEGIN ISOLATION LEVEL SERIALIZABLE; UPDATE public.zz_iso_rules SET effective_to = DATE '2090-01-01' WHERE id = '$ROW'; COMMIT;"
 expect "X5: a freeze under REPEATABLE READ" 25000 "freezing a term schema" \
   "BEGIN ISOLATION LEVEL REPEATABLE READ; UPDATE public.rule_term_schemas SET accepts_new_rows = false WHERE terms_kind = 'zz_iso' AND terms_version = 2; COMMIT;"
+expect "X6: a core record written under REPEATABLE READ" 25000 "writing a core record of" \
+  "BEGIN ISOLATION LEVEL REPEATABLE READ; SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000017f2'; SET LOCAL ROLE tally_core; INSERT INTO public.zz_iso_calcs (tenant_id, inputs, inputs_kind, inputs_version, calculated_by) VALUES ('00000000-0000-4000-8000-0000000017f1', '{\"n\": 1}', 'zz_iso_inputs', 1, 'core x'); COMMIT;"
 echo "isolation-17: $FAILS failure(s)"
 exit $FAILS

@@ -22,7 +22,8 @@ fail=0
 docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $DB" -qc "CREATE DATABASE $DB TEMPLATE $SRC" >/dev/null 2>&1
 docker exec tally-pg psql -U tally -d "$DB" -qc "REVOKE TEMP ON DATABASE $DB FROM PUBLIC" -qc "REVOKE TEMP ON DATABASE $DB FROM tally_app" >/dev/null
 docker exec tally-pg rm -rf /tmp/law && docker cp "$ROOT/law" tally-pg:/tmp/law
-printf 'BEGIN;\n\\i /tmp/law/fixtures/zz/fixture-zz.sql\nCOMMIT;\n' \
+printf 'BEGIN;\n\\i /tmp/law/fixtures/zz/fixture-zz.sql\nINSERT INTO public.places (kind_code, state_code, place_code, name, effective_from, source_note) VALUES (%s);\nCOMMIT;\n' \
+  "'state', 'ZZ', 'ZZ', 'Zedland', DATE '1900-01-01', 'the fictional state of the ZZ fixture'" \
   | docker exec -i tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -q -o /dev/null 2>/dev/null \
   || { echo "SETUP FAIL: the ZZ fixture area did not load"; exit 2; }
 
@@ -40,13 +41,26 @@ if [ $drift -eq 0 ]; then echo "PASS W2: the committed seed SQL matches its law 
 
 if "${LAWC[@]}" roundtrip "${LAWFILES[@]}"; then echo "PASS W3: seeded, re-seeded unchanged, every row equals its file"; else echo "FAIL W3"; fail=1; fi
 
-EX="$ROOT/law/fixtures/zz/examples"
 SCH="$ROOT/law/fixtures/zz"
+# W4 over EVERY schema in law/ (review r1, Opus S2): <kind>.v<N>.schema.json
+# with examples/<kind>*.yaml beside it. A schema with no examples fails, and
+# the file must equal the schema the registry holds for that version.
 w4=0
-"${LAWC[@]}" crosscheck "$SCH/zz_fee.v1.schema.json" "$EX/zz_fee.flat.yaml" "$EX/zz_fee.greater_of.yaml" "$EX/zz_fee.delegated.yaml" || w4=1
-"${LAWC[@]}" crosscheck "$SCH/zz_fee_tariff.v1.schema.json" "$EX/zz_fee_tariff.yaml" || w4=1
-"${LAWC[@]}" crosscheck "$SCH/zz_charge_inputs.v1.schema.json" "$EX/zz_charge_inputs.yaml" || w4=1
-if [ $w4 -eq 0 ]; then echo "PASS W4: the database validator agrees with the reference validator"; else echo "FAIL W4"; fail=1; fi
+while IFS= read -r schema; do
+  base=$(basename "$schema"); kind=${base%%.v*}; ver=${base#*.v}; ver=${ver%%.*}
+  dir=$(dirname "$schema")
+  examples=(); while IFS= read -r e; do examples+=("$e"); done < <(find "$dir/examples" -name "$kind.yaml" -o -name "$kind.*.yaml" 2>/dev/null | sort)
+  if [ ${#examples[@]} -eq 0 ]; then echo "  W4: $base has no examples"; w4=1; continue; fi
+  docker cp "$schema" tally-pg:/tmp/w4schema.json
+  reg=$(printf '%s\n' "\\set s \`cat /tmp/w4schema.json\`" \
+          "SELECT rule_role || '|' || (json_schema = :'s'::jsonb) FROM public.rule_term_schemas WHERE terms_kind = '$kind' AND terms_version = $ver;" \
+        | docker exec -i tally-pg psql -U tally -d "$DB" -At 2>&1)
+  role=${reg%%|*}; same=${reg##*|}
+  if [ "$same" != "true" ]; then echo "  W4: $base is not the registered $kind v$ver ($reg)"; w4=1; continue; fi
+  flag=(); [ "$role" = "inputs" ] && flag=(--inputs)
+  "${LAWC[@]}" crosscheck ${flag[@]+"${flag[@]}"} "$schema" "${examples[@]}" || w4=1
+done < <(find "$ROOT/law" -name '*.v*.schema.json' | sort)
+if [ $w4 -eq 0 ]; then echo "PASS W4: the database validator agrees with the reference validator on every schema's examples and their mutations"; else echo "FAIL W4"; fail=1; fi
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 w5=0
@@ -71,6 +85,8 @@ rows:
   - <<: {name: x}"
 bad tag "explicit tags" "$HEAD
 rows: !!seq []"
+bad bang "explicit tags" "$HEAD
+rows: ! []"
 bad number "non-canonical number" "$HEAD
 rows:
   - name: r

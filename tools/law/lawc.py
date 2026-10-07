@@ -82,7 +82,7 @@ class StrictLoader(yaml.BaseLoader):
         if anchor is not None:
             raise LawError(f"line {event.start_mark.line + 1}: anchors (&{anchor}) are refused — write the content out")
         tag = getattr(event, "tag", None)
-        if tag is not None and tag not in ("!", None):
+        if tag is not None:
             raise LawError(f"line {event.start_mark.line + 1}: explicit tags ({tag}) are refused — the schema types values")
         return super().compose_node(parent, index)
 
@@ -119,8 +119,14 @@ def load_json(path: Path) -> Any:
                 raise LawError(f"{path}: key {k!r} repeats in one object")
             out[k] = v
         return out
+    def number(text: str) -> Decimal:
+        # PostgreSQL rewrites 1e2 as 100 on the way in, which would make the
+        # file and the stored document differ; write numbers out in full.
+        if "e" in text or "E" in text:
+            raise LawError(f"{path}: {text} — write numbers without an exponent")
+        return Decimal(text)
     with path.open(encoding="utf-8") as fh:
-        return json.load(fh, parse_float=Decimal, parse_int=Decimal, object_pairs_hook=pairs)
+        return json.load(fh, parse_float=number, parse_int=number, object_pairs_hook=pairs)
 
 
 # ---------------------------------------------------------------------------
@@ -135,11 +141,13 @@ class RawNumber(str):
 def canonical_number(d: Decimal) -> str:
     if d.is_nan() or d.is_infinite():
         raise LawError(f"{d} is not a JSON number")
-    if d == 0:
-        return "0"
-    text = format(d.normalize(), "f")
+    # format(…, "f") writes the exact value, whatever the Decimal context's
+    # precision (normalize() would round past 28 digits; review r1, Codex).
+    text = format(d, "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")
+    if text in ("-0", ""):
+        text = "0"
     return text
 
 
@@ -241,13 +249,24 @@ def for_validator(value: Any) -> Any:
     return value
 
 
-def fixed_rule_errors(doc: Any) -> list[str]:
-    """The validator's three fixed rules, as rule_terms_errors applies them:
-    no nulls, numbers canonical, component ids unique strings."""
+CONTROL = re.compile("[\x01-\x1f\x7f]")
+MAX_DEPTH = 64
+
+
+def fixed_rule_errors(doc: Any, component_ids: bool = True) -> list[str]:
+    """The validator's fixed rules, as rule_terms_errors applies them: no
+    nulls, numbers canonical, no control characters in strings or keys,
+    nesting at most 64 deep, and (unless an inputs document) component ids
+    unique strings."""
     errs: list[str] = []
     ids: dict[str, int] = {}
 
-    def walk(v: Any, path: str) -> None:
+    def walk(v: Any, path: str, depth: int = 0) -> None:
+        if depth > MAX_DEPTH:
+            errs.append(f"{path}: nested too deeply")
+            return
+        if isinstance(v, str) and not isinstance(v, RawNumber) and CONTROL.search(v):
+            errs.append(f"{path}: control character")
         if v is None:
             errs.append(f"{path}: null")
         elif isinstance(v, RawNumber):
@@ -258,25 +277,27 @@ def fixed_rule_errors(doc: Any) -> list[str]:
                 errs.append(f"{path}: non-canonical number {v}")
         elif isinstance(v, list):
             for i, e in enumerate(v):
-                walk(e, f"{path}/{i}")
+                walk(e, f"{path}/{i}", depth + 1)
         elif isinstance(v, dict):
             for k, e in v.items():
-                if k == "id":
+                if CONTROL.search(k):
+                    errs.append(f"{path}: control character in key {k!r}")
+                if k == "id" and component_ids:
                     if isinstance(e, str):
                         ids[e] = ids.get(e, 0) + 1
                     else:
                         errs.append(f"{path}/id: a component id must be a string")
-                walk(e, f"{path}/{k}")
+                walk(e, f"{path}/{k}", depth + 1)
 
     walk(doc, "")
     errs += [f": component id {i} repeated" for i, n in sorted(ids.items()) if n > 1]
     return errs
 
 
-def reference_errors(schema: dict, doc: Any) -> list[str]:
+def reference_errors(schema: dict, doc: Any, component_ids: bool = True) -> list[str]:
     validator = Draft202012Validator(schema)
     errs = [f"/{'/'.join(str(p) for p in e.absolute_path)}: {e.message}" for e in validator.iter_errors(for_validator(doc))]
-    return errs + fixed_rule_errors(doc)
+    return errs + fixed_rule_errors(doc, component_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -414,13 +435,30 @@ def sql_literal(text: str) -> str:
 # The cross-check (inventory V10; v5.4.2-17 residual R7)
 # ---------------------------------------------------------------------------
 
-def mutations(doc: Any) -> Iterator[tuple[str, Any]]:
+def schema_consts(schema: Any) -> set[str]:
+    """Every string const in a schema: the discriminator values of its unions."""
+    found: set[str] = set()
+
+    def walk(n: Any) -> None:
+        if isinstance(n, dict):
+            if isinstance(n.get("const"), str):
+                found.add(n["const"])
+            for v in n.values():
+                walk(v)
+        elif isinstance(n, list):
+            for v in n:
+                walk(v)
+    walk(schema)
+    return found
+
+
+def mutations(doc: Any, schema: Any = None) -> Iterator[tuple[str, Any]]:
     """Single-edit variants of a valid document: every key removed, an
     unknown key added, every value replaced by values of other types and at
     the edges, every array emptied, its first item repeated, numbers written
     non-canonically."""
-    replacements = [None, "x", "", RawNumber("0"), RawNumber("-1"), RawNumber("1.5"), RawNumber("1.50"),
-                    RawNumber("10000"), True, [], {}]
+    replacements = [None, "x", "", "f1\n", "a\tb", "é", "x" * 201, RawNumber("0"), RawNumber("-1"), RawNumber("1.5"),
+                    RawNumber("1.50"), RawNumber("10000"), RawNumber("12345678901234567890123456789.5"), True, [], {}]
 
     def paths(v: Any, path: tuple) -> Iterator[tuple]:
         yield path
@@ -436,6 +474,7 @@ def mutations(doc: Any) -> Iterator[tuple[str, Any]]:
             v = v[p]
         return v
 
+    consts = schema_consts(schema) if schema is not None else set()
     for path in paths(doc, ()):
         target = get(doc, path)
         label = "/" + "/".join(map(str, path))
@@ -449,6 +488,13 @@ def mutations(doc: Any) -> Iterator[tuple[str, Any]]:
                 m = copy.deepcopy(doc)
                 get(m, path[:-1])[path[-1]] = copy.deepcopy(r)
                 yield f"{label} := {dumps(r)}", m
+            # A discriminator switched to another branch's value: the document
+            # now claims a strategy whose parameters it does not carry.
+            if isinstance(target, str) and target in consts:
+                for other in sorted(consts - {target}):
+                    m = copy.deepcopy(doc)
+                    get(m, path[:-1])[path[-1]] = other
+                    yield f"{label} := {other!r}", m
             if isinstance(target, Decimal):
                 for delta in (Decimal("0.01"), Decimal("-0.01")):
                     m = copy.deepcopy(doc)
@@ -464,15 +510,16 @@ def mutations(doc: Any) -> Iterator[tuple[str, Any]]:
             yield f"{label} + repeat of its first item", m
 
 
-def crosscheck(schema_path: Path, docs: list[Any]) -> int:
+def crosscheck(schema_path: Path, docs: list[Any], component_ids: bool = True) -> int:
     schema = load_json(schema_path)
     cases: list[tuple[str, Any]] = []
     for i, d in enumerate(docs):
         cases.append((f"doc {i}", d))
-        cases += [(f"doc {i}: {label}", m) for label, m in mutations(d)]
-    ref = [not reference_errors(schema, d) for _, d in cases]
+        cases += [(f"doc {i}: {label}", m) for label, m in mutations(d, schema)]
+    ref = [not reference_errors(schema, d, component_ids) for _, d in cases]
     values = ",\n".join(f"({i}, {sql_literal(dumps(d))}::jsonb)" for i, (_, d) in enumerate(cases))
-    out = run_sql(f"SELECT c.i, cardinality(public.rule_terms_errors({sql_literal(dumps(schema))}::jsonb, c.d)) = 0\n"
+    flag = "true" if component_ids else "false"
+    out = run_sql(f"SELECT c.i, cardinality(public.rule_terms_errors({sql_literal(dumps(schema))}::jsonb, c.d, {flag})) = 0\n"
                   f"  FROM (VALUES {values}) AS c(i, d) ORDER BY c.i;\n")
     db = {int(i): v == "t" for i, v in (line.split("|") for line in out.split())}
     disagree = [(cases[i][0], ref[i], db.get(i)) for i in range(len(cases)) if ref[i] != db.get(i)]
@@ -522,6 +569,7 @@ def main(argv: list[str]) -> int:
         if name == "emit":
             p.add_argument("-o", "--out", type=Path)
     p = sub.add_parser("crosscheck")
+    p.add_argument("--inputs", action="store_true", help="an inputs schema: component ids are not unique-checked")
     p.add_argument("schema", type=Path)
     p.add_argument("docs", nargs="+", type=Path, help="JSON or YAML documents valid for the schema")
     args = ap.parse_args(argv)
@@ -530,10 +578,10 @@ def main(argv: list[str]) -> int:
             schema = load_json(args.schema)
             docs = [typed(schema, schema, load_yaml(d), "") if d.suffix in (".yaml", ".yml") else load_json(d) for d in args.docs]
             for d, path in zip(docs, args.docs):
-                errs = reference_errors(schema, d)
+                errs = reference_errors(schema, d, component_ids=not args.inputs)
                 if errs:
                     raise LawError(f"{path}: a crosscheck seed document must be valid: {errs[:5]}")
-            return crosscheck(args.schema, docs)
+            return crosscheck(args.schema, docs, component_ids=not args.inputs)
         rows = [r for f in args.files for r in read_law_file(f)]
         if args.cmd == "check":
             print(f"check: {len(rows)} row(s) in {len(args.files)} file(s) valid")

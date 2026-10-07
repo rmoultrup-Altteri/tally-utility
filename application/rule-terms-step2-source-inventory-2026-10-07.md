@@ -172,3 +172,14 @@ None of these is a conflict between standing rules. Each is a choice with a cost
 | Whether chapter 183 binds a city (P2), and K10/K11 | Kyle |
 | Whether the -13 rows are investor-owned only, or also cover cooperatives | -13's migration. The saved §101.003(7) text in `places-sources/texas.md` is elided after exclusion (A), "a municipal corporation", so its full list of exclusions has to be read from the primary source before the backfill |
 | Retiring `tests/v5.4.2-13` content-column references (64 in `battery-13.sql`) | -13's migration |
+
+---
+
+## Amendments after review round 1 (2026-10-07)
+
+Recorded in `tests/v5.4.2-17/review/review-findings-17-r1.md`.
+
+- **P1, class scope:** not built; patch residual R10. No source publishes a class-specific value: §183.003 publishes one rate a year, and -15's class column was a design choice, not a source. The unit vocabulary **is** built (`rule_units`).
+- **L1, file partition:** one file per (table, state, service). Owner types are a set on each row, so a file holds rows for several owner types.
+- **L3, scenarios:** shape-checked now. Schema-checked once the core's decision-point types exist (patch residual R11).
+

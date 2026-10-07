@@ -59,22 +59,45 @@ CREATE TABLE public.zz_fee_tariffs (
   terms_kind text NOT NULL, terms_version integer NOT NULL, terms_source text NOT NULL, terms jsonb NOT NULL,
   tariff_amount numeric, component_ids text[],
   created_at timestamptz NOT NULL DEFAULT now(), created_by uuid, recorded_txid bigint, closed_at timestamptz, closed_by uuid);
--- Records that cite them, and the area's hooks.
+-- Records that cite them — the citing-record pattern an area copies
+-- (inventory U4, F7; review r1): the record names the utility's profile key
+-- and its own area key, cites THE law row for them (rule_law_row_cite), cites
+-- the utility's tariff row only if it is the one in force for that key, names
+-- the component that governed by its id, and is never edited.
 CREATE TABLE public.zz_charges (
   id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
   tenant_id uuid NOT NULL REFERENCES public.tenants(id),
+  state_code text NOT NULL, service_type text NOT NULL, system_kind text NOT NULL, customer_class text NOT NULL,
   rule_id uuid NOT NULL REFERENCES public.zz_fee_rules(id),
   tariff_id uuid REFERENCES public.zz_fee_tariffs(id),
-  charged_on date NOT NULL, amount numeric NOT NULL);
+  fee_component text NOT NULL,
+  charged_on date NOT NULL, amount numeric NOT NULL,
+  UNIQUE (tenant_id, id));
 ALTER TABLE public.zz_charges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.zz_charges FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON public.zz_charges USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+REVOKE UPDATE, DELETE, TRUNCATE ON public.zz_charges FROM tally_app;
 GRANT SELECT ON public.zz_charges TO tally_core;
 CREATE FUNCTION public.zz_charge_cites() RETURNS trigger LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE
+  v_key jsonb := jsonb_build_object('customer_class', NEW.customer_class);
+  v_components text[];
 BEGIN
-  PERFORM public.rule_row_cite('public.zz_fee_rules', NEW.rule_id, NEW.charged_on);
+  PERFORM public.rule_law_row_cite('public.zz_fee_rules', NEW.rule_id, NEW.tenant_id, NEW.service_type, NEW.system_kind,
+                                   NEW.state_code, v_key, NEW.charged_on);
   IF NEW.tariff_id IS NOT NULL THEN
     PERFORM public.rule_row_cite('public.zz_fee_tariffs', NEW.tariff_id, NEW.charged_on);
+    IF NEW.tariff_id IS DISTINCT FROM public.rule_tariff_row_as_of('public.zz_fee_tariffs', NEW.tenant_id, NEW.service_type, NEW.system_kind,
+                                                                   NEW.state_code, v_key, NEW.charged_on) THEN
+      RAISE EXCEPTION 'zz: tariff row % is not this utility''s tariff for % on %', NEW.tariff_id, v_key, NEW.charged_on USING ERRCODE = 'check_violation';
+    END IF;
+    SELECT component_ids INTO v_components FROM public.zz_fee_tariffs WHERE id = NEW.tariff_id;
+  ELSE
+    SELECT component_ids INTO v_components FROM public.zz_fee_rules WHERE id = NEW.rule_id;
+  END IF;
+  -- F7: the part that governed, named by its id and checked against the facet.
+  IF NOT coalesce(NEW.fee_component = ANY (v_components), false) THEN
+    RAISE EXCEPTION 'zz: component % is not a component of the row that governed (%)', NEW.fee_component, v_components USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END $$;
@@ -102,7 +125,8 @@ $$;
 CREATE TABLE public.zz_charge_calcs (
   id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
   tenant_id uuid NOT NULL REFERENCES public.tenants(id),
-  charge_id uuid NOT NULL REFERENCES public.zz_charges(id),
+  charge_id uuid NOT NULL,
+  FOREIGN KEY (tenant_id, charge_id) REFERENCES public.zz_charges(tenant_id, id),
   inputs jsonb NOT NULL, inputs_kind text NOT NULL, inputs_version integer NOT NULL,
   inputs_fingerprint text NOT NULL, calculated_by text NOT NULL);
 ALTER TABLE public.zz_charge_calcs ENABLE ROW LEVEL SECURITY;

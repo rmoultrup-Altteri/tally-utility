@@ -54,4 +54,18 @@ VALUES ('00000000-0000-4000-8000-0000000017f9', 'ZZ', 'gas', 'residential', DATE
 INSERT INTO public.zz_iso_rules (id, state_code, service_type, customer_class, effective_from, source_note, terms_kind, terms_version, terms_source)
 VALUES ('00000000-0000-4000-8000-0000000017fa', 'ZZ', 'gas', 'commercial', DATE '2000-01-01', 'iso law row 2', 'zz_iso', 1,
         '{"governs": "law", "citation": "ZZ 2", "cap": 500}');
+-- A core-written table, for X6.
+INSERT INTO public.rule_term_schemas (terms_kind, terms_version, rule_role, json_schema, introduced_on, description, source_note)
+VALUES ('zz_iso_inputs', 1, 'inputs', '{"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
+  "required": ["n"], "properties": {"n": {"type": "integer"}}}', DATE '2026-10-07', 'isolation fixture inputs', 'fixture');
+CREATE TABLE public.zz_iso_calcs (
+  id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id),
+  inputs jsonb NOT NULL, inputs_kind text NOT NULL, inputs_version integer NOT NULL,
+  inputs_fingerprint text NOT NULL, calculated_by text NOT NULL);
+ALTER TABLE public.zz_iso_calcs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.zz_iso_calcs FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON public.zz_iso_calcs USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+GRANT SELECT, INSERT ON public.zz_iso_calcs TO tally_core;
+CREATE TRIGGER zz_iso_calcs_inputs BEFORE INSERT ON public.zz_iso_calcs FOR EACH ROW EXECUTE FUNCTION public.stamp_core_inputs();
 COMMIT;
