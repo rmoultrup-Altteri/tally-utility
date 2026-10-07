@@ -1,7 +1,7 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
-import { currentUser } from '@/fixtures/tenant'
+import { activeUserName } from '@/lib/session'
 import type { Customer, Invoice } from '@/schemas/models'
 
 /**
@@ -163,7 +163,7 @@ export function saveCustomer(base: Customer, next: CustomerEdit, reason: string 
   write({
     ...current,
     customers: { ...current.customers, [base.id]: { ...current.customers[base.id], ...next } },
-    log: [...current.log, { at: new Date().toISOString(), by: currentUser.name, entity: 'customer', id: base.id, changes, reason }],
+    log: [...current.log, { at: new Date().toISOString(), by: activeUserName(), entity: 'customer', id: base.id, changes, reason }],
   })
   return true
 }
@@ -178,7 +178,7 @@ export function saveInvoice(base: Invoice, next: InvoiceEdit): boolean {
   write({
     ...current,
     invoices: { ...current.invoices, [base.id]: { ...current.invoices[base.id], ...next } },
-    log: [...current.log, { at: new Date().toISOString(), by: currentUser.name, entity: 'invoice', id: base.id, changes, reason: null }],
+    log: [...current.log, { at: new Date().toISOString(), by: activeUserName(), entity: 'invoice', id: base.id, changes, reason: null }],
   })
   return true
 }

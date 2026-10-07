@@ -20,6 +20,7 @@ export const currentUser = {
   name: 'Dana Pearce',
   role: 'Billing Analyst',
   initials: 'DP',
+  email: 'dpearce@brazosvalleygas.example',
 } as const
 
 /**

@@ -34,7 +34,7 @@ function apply(choice: Choice) {
   }
 }
 
-export function ThemeControl() {
+export function ThemeControl({ bare = false }: { bare?: boolean } = {}) {
   /* Render "system" on the server and correct after mount — the inline script
      in the layout has already painted the right palette, so this only syncs
      the control's own highlight and never causes a visible change. */
@@ -60,7 +60,8 @@ export function ThemeControl() {
 
   return (
     <div>
-      <p className="field-label mb-1">Appearance</p>
+      {/* Settings labels the control itself. */}
+      {bare ? null : <p className="field-label mb-1">Appearance</p>}
       <div
         role="radiogroup"
         aria-label="Appearance"

@@ -2,13 +2,14 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import type { ReactNode } from 'react'
-import { asOf, currentUser, cycle, tenant } from '@/fixtures/tenant'
+import { asOf, cycle, tenant } from '@/fixtures/tenant'
 import { blockingCount, openExceptions } from '@/fixtures/exceptions'
 import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
 import { ThemeControl } from '@/components/shell/ThemeControl'
 import { Favorites } from '@/components/shell/Favorites'
 import { TenantLogo } from '@/components/shell/TenantLogo'
+import { UserMenu } from '@/components/shell/UserMenu'
 
 /**
  * The application frame.
@@ -85,9 +86,7 @@ function AsOfBand() {
             {cycle.label} · {cycle.periodLabel} · {date(cycle.periodStart)} → {date(cycle.periodEnd)}
           </span>
           <QuickFind />
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-raised text-ink-primary text-micro font-semibold">
-            {currentUser.initials}
-          </span>
+          <UserMenu />
         </div>
       </div>
     )
@@ -156,11 +155,6 @@ function Sidebar({ current }: { current: string }) {
 
       <div className="border-t border-rule-hair px-3 py-2.5">
         <ThemeControl />
-      </div>
-
-      <div className="border-t border-rule-hair px-3 py-2.5">
-        <p className="text-micro text-ink-primary">{currentUser.name}</p>
-        <p className="text-micro text-ink-tertiary">{currentUser.role}</p>
       </div>
     </nav>
   )

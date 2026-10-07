@@ -37,6 +37,8 @@ const NAMES: [RegExp, string][] = [
   [/^\/reports\/[^/]+/, 'the report'],
   [/^\/reports/, 'Reports'],
   [/^\/dashboard/, 'the dashboard'],
+  [/^\/settings\/[^/]+/, 'the settings section'],
+  [/^\/settings/, 'Settings'],
   [/^\/$/, 'Exceptions'],
 ]
 

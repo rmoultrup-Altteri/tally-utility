@@ -38,6 +38,8 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/rates/pga` | PGA console — the bi-temporal lattice, late-filing exposure, filing discipline |
 | `/rates/sandbox` | Tariff sandbox — move a rate, rehearse it against a closed cycle's actual volumes |
 | `/customers/cus-0001` | Customer 360 with usage-vs-weather |
+| `/settings` | Tenant settings — reached from the operator's name, top right |
+| `/settings/dunning` | Automatic dunning setup, with a working-day preview on a real bill |
 
 ## Design direction
 
@@ -180,6 +182,64 @@ and falls back to the parent screen when there is nothing behind it in the app.
 Edits overlay the fixtures in this browser (`lib/edits-store.ts`) with a log
 of who changed what and why; the header shows when the record was last edited.
 The assistant sees them too.
+
+## Settings
+
+The operator's name at top right opens a menu with **Settings** and **Log out**.
+Settings holds every tenant-configurable value from the configurable-rules
+review (`tally-utility-memory/application/configurable-rules/`), catalogued as
+data in `fixtures/settings.ts` and grouped by area: organization, billing,
+money in, collections, operations, and the operator's own preferences.
+
+Each setting says how far the tenant's hand reaches. *Fixed* values are statute
+or platform invariants, shown read-only so nobody hunts for the switch.
+*Tariff-bound* values are editable but must match the filing, and saving one
+asks for the reference. *Not in schema yet* marks values ruled configurable
+that have no column yet, and *Open question* marks values the domain expert
+has not ruled on.
+
+Tenant configuration is history (`tenant_configuration_history`, v5.4.1-02),
+so a save never overwrites. It asks when the change takes effect (the next
+billing period by default, never backdated) and why, and appends to the change
+history on the overview. Changes are kept in this browser (`lib/settings-store.ts`).
+
+**Access.** Tenant settings are open only to roles holding the **Change
+settings** capability (`settings.edit`), built to the RBAC ruling D-1
+(2026-08-18). Each tenant role is composed from a platform-seeded capability
+catalog and inherits a fixed system tier (`fixtures/roles.ts`). Without the
+capability, the user menu offers **Preferences** instead of Settings, and a
+settings URL explains who has access and who to ask. An operator's own
+preferences stay open to everyone.
+
+**Roles & access** is where an administrator assigns roles and decides what
+each role may do. Holding Change settings lets you see that page. Changing it
+takes an Administrator-tier role, and nobody may change their own role. Two
+tier rules are enforced in the editor:
+
+- Administrator roles always keep Change settings, so the utility can never
+  lock itself out.
+- Read-only roles hold nothing that writes.
+
+Access changes apply at once rather than from a date.
+
+The user menu has a concept-only **View as** list, so gated screens can be
+seen as an administrator, a CSR or an auditor without editing fixtures. The
+gate in the concepts hides screens. Real enforcement belongs on the server.
+
+**Dunning** has its own setup screen, built to be done in a minute:
+
+- Choose Off, Preview (evaluate daily, send nothing) or On.
+- Pick a schedule: Standard, Gentle or Fastest lawful.
+- Adjust any step if needed.
+
+The steps follow the platform's fixed sequence: reminder, late fee,
+termination notice, disconnect. The form enforces the statutory floors of five
+working days past due before the notice, and five working days after confirmed
+delivery before a disconnect. Beside the steps, a preview runs the schedule on
+Cycle 04's real due date in working days around the Texas holiday calendar
+(`lib/working-days.ts`). A disconnect landing on a Friday moves to Monday,
+because a disconnect may not fall on the day before a weekend. The protection
+checks that run before every step are listed beneath, read-only.
 
 ## Assistant
 
