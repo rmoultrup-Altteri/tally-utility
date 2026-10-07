@@ -4,6 +4,74 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-07 — v5.4.2-16 through review rounds 3–5 (all three "ready"), a profile per system kind (Ryan), mirrored into tu.sql
+
+**What was done:**
+- Resumed from the handoff. The only drift was Kyle's UI-only commit `aa574a1` (no rulings).
+- **Round 3** on r3 (`c49b1ec5`): all three "not yet", converging on a `NaN` distance. Every finding reproduced on a clone. Folded into r4 (`70134c1`):
+  - NaN refused;
+  - a state can't close under the profiles it governs, and a profile share-locks its state;
+  - the time zone refuses an unzoned peer at the answering level;
+  - citation-shaped fact keys;
+  - the isolation refusal is 25000, not 40001;
+  - one unincorporated area per state;
+  - battery group T, races R13–R18, mutations M112–M133.
+- **Round 4** on r4 (`a0b43c01`): Opus and Fable "ready", Codex "not yet" on a successor-state race (reproduced). Folded into r5 (`e1debe1`):
+  - lock the covering state row and re-read that same row;
+  - owner type split from system kind (`utility_system_kinds`);
+  - ETJ and LPA on the tax axis;
+  - keys need a letter or digit, and no space after `§`;
+  - group U, races R19–R20, mutations M134–M147;
+  - strict mutation attribution.
+- **Round 5** on r5 (`24757cfc`): **all three "ready"**.
+- **Ryan explained and decided:** a profile is reference data inside one tenant (one login), per service, state and **system kind**. Opus's option was chosen over Fable's "state it as a residual".
+- **r6 cleanup** (`c339035`), not re-reviewed:
+  - the system kind in the profile exclusion and the 5-argument lookup;
+  - owner wording (ownership, not operation; TX 101.003(8));
+  - residuals R21 and R22;
+  - an unknown jurisdiction-pointer place refused by name;
+  - group V, race R21 (a city-owned profile), mutations M148–M158;
+  - catches attributed by line span.
+- **Mirrored into `tu.sql`** (`c86d811`, Ryan approved): 26,049 → 27,331 lines, md5 `9c1d0813`; `tally-pg` rebuilt; `sql/DEPLOY-VERIFICATION.md` -16 entry added.
+
+**Decisions:**
+- A profile per system kind; the lookup takes it (Ryan).
+- Five owner types plus three system kinds.
+- Owner type means ownership.
+- ETJ and LPA on both axes.
+- The time-zone answering level.
+- R19: a state row isn't succeeded under its profiles.
+- R20: key spelling is the loader's.
+- r6 shipped without a sixth review: all three were "ready", and r6 is a decision plus should-fixes, re-verified in full.
+
+**Failed approaches:**
+- Locking all of a state's rows, then trusting any covering row: a successor committed meanwhile escaped the lock.
+- Product and operator values as owner types.
+- A `btrim` key check.
+- A retryable 40001 for an isolation refusal.
+- Mutation credit for any error: it hid mis-aimed tests (M98, U10).
+- Fixtures refused by another guard first: T7, T10, U6b.
+
+**Verification (frozen r6, patch `eec3f3a6`, battery `0b7e7174`):**
+- strict apply ×2;
+- battery 97/97;
+- races R1–R21 (20 legs; the second session observed waiting, session A checked);
+- mutations 157/157 at named checks;
+- regressions 28/58/41/116/3/99/6; X1.
+
+**On the fresh build:**
+- zero init errors;
+- catalog identity (9,964 lines) and counts identical to the patched clone: 109 tables, 93 policies, 440 functions;
+- all batteries, the pointer-mutex-12 race and R1–R21 pass;
+- -16 re-applies cleanly.
+
+**Not done / next:**
+- Rule-terms v2 step 2: the infrastructure. First, a source inventory of what the -15 rewrite and the -13 migration need from it.
+- Then the sweep, the -15 rebuild and the -13 migration.
+- Kyle K1–K11. Ryan's R12 waiver follow-ups.
+
+---
+
 ## 2026-10-06 — new way of working; deposits survey breaks typed columns; rule-terms v2 adopted; places inventory (Texas law doesn't reach city gas); v5.4.2-16 drafted and through two review rounds
 
 **What was done:**

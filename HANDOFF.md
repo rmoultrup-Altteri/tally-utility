@@ -1,148 +1,133 @@
-# Handoff: v5.4.2-16 places and applicability. Relaunch review round 3 on the frozen r3 build
+# Handoff: v5.4.2-16 landed in tu.sql. Next: rule-terms v2 step 2 (the convention infrastructure)
 
-**Generated**: 2026-10-06, end of session
-**Branch**: `main` at `c3f1a50` (pushed). gas-billing-memory unchanged (`091c990`).
-**Status**: In progress. -16 is in review round 3, which was stopped mid-run at Ryan's request. No round-3 findings exist. -16 is a DRAFT, not yet copied into `tu.sql`.
+**Generated**: 2026-10-07, end of session
+**Branch**: `main` at `c86d811`, pushed. gas-billing-memory unchanged (`091c990`).
+**Status**: Ready for the next piece. -16 is done: five review rounds, Ryan's approval, mirrored into `tu.sql`, and verified on a fresh build.
 
 ## Goal
 
-Get to the C# core billing engine. Before that, the schema needs a foundation that every law and tariff row will key on:
+Get to the C# core billing engine. The foundation every law and tariff row keys on is now in place in `tu.sql` (-16):
 - places;
-- each premise's dated membership in places;
-- each utility's owner type and commission status.
+- premise memberships;
+- utility profiles (owner type, system kind, commission jurisdiction).
 
-It also needs a convention for representing law that doesn't need DDL for every new state shape.
+Next comes the shared machinery that represents law: rule-terms v2 §12, step 2.
 
-## Completed this session (2026-10-06)
+## Completed this session (2026-10-07)
 
-- [x] **A new way of working** (memory `source-inventory-first-triage-by-rule`):
-  - inventory the real sources before drafting;
-  - triage review findings by standing rules;
-  - ask Ryan only when the rules conflict.
-- [x] **The -15 deposits round-3 revision was built and verified** (`7442c68`). It is now **superseded as a design** by rule-terms v2. Its ledger, due rows, races and tests carry over.
-- [x] **Deposit source survey across 10 more states:** 29 shapes the typed-column schema can't hold. See `application/deposits-source-survey-2026-10-06.md`.
-- [x] **Rule-terms convention v2, ADOPTED by Ryan:** `application/rule-terms-convention-v2-2026-10-06.md`.
-  - A law row is a typed key plus a `terms jsonb` document holding strategy choices and parameters only.
-  - That document is validated on every write against `rule_term_schemas`.
-  - Typed facets copied from the document carry the database's reference checks.
-  - Logic lives in named, versioned strategies in the C# core, selected by name, never by state.
-  - It uses OpenFisca's parameter-file format, not its runtime.
-  - It reverses audit rule 2; a correction note is in the audit.
-  - Reviews and research are in `application/rule-terms-review/`.
-- [x] **Places source inventory:** `application/places-source-inventory-2026-10-06.md`, research in `application/places-sources/`.
-  - **Texas gas law does not bind city-owned gas systems.** Utilities Code §101.003(7)(A) and §102.002; municipal deposits fall under LGC §552.0025(c).
-  - K10 is answered from the statute; Kyle should confirm practice. K11 was added.
-- [x] **v5.4.2-16 drafted**, then revised twice after review rounds 1 and 2.
-  - Patch: `sql/v5.4.2-16-places-and-applicability.sql`.
-  - Tests: `tests/v5.4.2-16/` (battery, races, mutations, review).
-  - Round 1: all three said "not yet"; triaged in `review-findings-16-r1.md`.
-  - Round 2: all three said "not yet", on the same item (the time-zone tie); triaged in `review-findings-16-r2.md`.
-  - **Current build: patch `c49b1ec5`, battery `af1013f9`** (frozen as `tests/v5.4.2-16/review/*-frozen-r3.sql`).
-  - Verified (all on clones with TEMP revoked):
-    - strict apply ×2;
-    - battery **68/68**;
-    - races **R1–R12**, each two-session leg with the wait observed;
-    - mutations **110/110**, each at its named check;
-    - regressions 28/58/41/116/3/99/6, and -13's X1.
+- [x] **Review round 3** on r3 (`c49b1ec5`): all three said "not yet", converging on a `NaN` distance. Folded into r4 (`70134c1`):
+  - NaN refused;
+  - a state can't close under the profiles it governs, and a profile locks its state;
+  - the time zone refuses an unzoned peer at the answering level;
+  - fact keys must be citation-shaped;
+  - the isolation refusal raises SQLSTATE 25000;
+  - one unincorporated area per state;
+  - residual R19.
+- [x] **Round 4** on r4 (`a0b43c01`): Opus and Fable "ready", Codex "not yet" on a successor-state race (reproduced). Folded into r5 (`e1debe1`):
+  - a profile locks *and re-reads the same* covering state row;
+  - owner type split from system kind (`utility_system_kinds`);
+  - extraterritorial and limited-purpose areas take the tax axis;
+  - key rules tightened;
+  - mutation attribution made strict;
+  - residual R20.
+- [x] **Round 5** on r5 (`24757cfc`): **all three "ready"**.
+- [x] **Ryan's decision, 2026-10-07:** a profile is per system kind. `system_kind` joins the profile exclusion, and the lookup takes it. Residual R21: which system serves a premise.
+- [x] **The r6 cleanup** (`c339035`), not re-reviewed:
+  - owner wording: ownership, not operation; a nonprofit or public trust acting for a city is municipal;
+  - residual R22 (untyped owners);
+  - a jurisdiction pointer at an unknown place refused by name;
+  - battery group V;
+  - race R21 (a city-owned profile racing its state's close);
+  - mutation catches attributed by line span.
+- [x] **Verified on frozen r6** (patch `eec3f3a6`, battery `0b7e7174`):
+  - strict apply ×2;
+  - battery **97/97**;
+  - races **R1–R21** (20 legs);
+  - mutations **157/157**, each at its named check;
+  - regressions 28/58/41/116/3/99/6, and -13's X1.
+- [x] **Mirrored into `tu.sql`** (`c86d811`, Ryan approved):
+  - 26,049 → **27,331 lines**, md5 `9c1d0813e64853cebcb5aaff519a4201`;
+  - prefix and body checked with `cmp`;
+  - `tally-pg` rebuilt with zero init errors;
+  - catalog identity (9,964 lines) and counts identical to the patched clone;
+  - every battery passes on the build, races too;
+  - -16 re-applies cleanly;
+  - entry added to `sql/DEPLOY-VERIFICATION.md`.
+  - New counts: 109 tables, 93 policies, 429 FKs, 469 CHECKs, 19 EXCLUDE, 330 triggers, 440 functions, 652 indexes.
 
 ## Not Yet Done
 
-- [ ] **Relaunch review round 3** with the same three reviewers on the frozen r3 build (Resume step 2).
-- [ ] Triage round-3 findings by rule. One revision per round. Repeat until "ready".
-- [ ] Copy -16 into `tu.sql` (procedure below) and add a `sql/DEPLOY-VERIFICATION.md` entry, **after Ryan approves**.
-- [ ] **Rule-terms v2 §12, step 2, the convention infrastructure, written once:**
+- [ ] **Rule-terms v2 §12 step 2, the convention infrastructure, written once:**
   - `rule_term_schemas`;
   - the validator generator;
   - the facet pattern;
   - `rule_parameter_values`;
-  - the YAML file format and loader;
+  - the YAML format and loader;
   - a `tally_core` role;
   - an audit-findings table;
-  - CI (round trip, load, golden scenarios).
-- [ ] **Step 3, the sweep:** a source inventory per law area.
-- [ ] **Step 4, the rebuilds:**
-  - rewrite -15 on the convention (Texas municipal deposits are the city's own tariff rows);
-  - migrate -13 (backbilling).
-- [ ] **Kyle:**
-  - K1–K9;
-  - K10 (does practice match the statute; does ch. 183 bind cities?);
-  - K11 (which policies sit in the city's ordinance and which in a tariff).
-- [ ] **Still open from earlier:** Ryan's R12 follow-ups on deposit waivers. The DIVERGENCE is settled in v2 §8 by a forfeiture event.
+  - CI (round trip, load, golden scenarios; a fictional-state fixture, which Opus noted).
+- [ ] **First,** a short source inventory of what the two consumers need from step 2:
+  - the -15 rewrite (Texas municipal deposits as the city's own tariff rows);
+  - the -13 migration (backbilling).
+- [ ] **Step 3:** the per-law-area sweep. **Step 4:** rebuild -15 on the convention, then migrate -13.
+- [ ] **Kyle:** K1–K11 (K10: does practice match the statute; K11: which policies sit in an ordinance and which in a tariff).
+- [ ] **Still open:** Ryan's R12 follow-ups on deposit waivers.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Typed column per law setting** (audit rule 2): 5 shapes in two -15 review rounds, then 29 more in the survey; every one needs DDL. Use rule-terms v2 instead.
-- **Pinning only the close side of an advisory-lock handshake to READ COMMITTED:** a REPEATABLE READ writer waits on the lock, then reads the place from its pre-wait snapshot, and commits against a closed place (r1 B1). Pin **both** sides (`assert_place_read_committed`).
-- **Checking a premise's state only when a membership is inserted:** the state can be edited afterwards (r1 B2). Use a `BEFORE UPDATE OF state` guard, plus `FOR SHARE` on the premise when a membership is inserted.
-- **Reading both axes for the time zone with `ORDER BY specificity LIMIT 1`:** picks arbitrarily between disagreeing equal-rank candidates (r2 N1). Refuse when the distinct zones at the top specificity number more than one.
-- **A close-floor count with no `rolsuper`/`rolbypassrls` guard:** RLS hides other tenants' rows from it (r1 B4).
-- **Validating `service_locations.state` with a CHECK:** breaks -12's landed battery, which keeps `' tx '` and `'Texas'` on purpose. Read it as `upper(btrim(state))`, as -12 does (residual R10).
-- **Battery cases refused by another guard first** (about 12 this session). Typical causes:
-  - a time-zone fact on Travis County blocking a close test;
-  - TRUNCATE cascading into a tenant table's guard;
-  - a race premise that already had a committed membership;
-  - an edit test where the "close only" rule refuses before the jsonb-comparison guard;
-  - a test role lacking EXECUTE on `pg_temp` helpers or the RLS policy functions.
+- **Locking every row of a state, then checking containment against any row** (r4): a successor row committed while the profile waited was trusted unlocked, so its later close didn't wait. Lock the *covering* row, then re-read *that same row*, and refuse if it changed.
+- **Owner type holding product or role values** (`propane_piped`, `master_meter`): a city-owned propane system could be recorded only one way. Who owns a system and what it runs are separate facts.
+- **ETJ and limited-purpose areas on the regulatory axis only:** "in no city" had no positive tax record, and "unincorporated" meant two things depending on the axis.
+- **A `btrim` key check:** strips U+0020 only, so tab, NBSP and doubled spaces passed. Whitelist the characters (the standing rule *blank checks whitelist alnum*).
+- **SQLSTATE 40001 for an isolation refusal:** drivers retry it forever at the same isolation. `tu.sql` uses 25000.
+- **Mutation "caught" = any ERROR without the target's PASS:**
+  - credited earlier checks and fixture errors;
+  - stricter rules exposed mis-aimed tests (M98 is J1's, not N9's; U10 used a place with a citation).
 
-  Build fixtures where only the named guard can refuse, and read the harness's first failure for every catch made outside its named check.
-- **A Python `s.replace(old, new)` where `old` was empty:** inserted `new` between every character (battery grew to 525,937 lines). Recovered by removing every copy of `new`. Always `assert s.count(old) == 1`.
-- **Codex `read-only` cannot reach docker:** it reviews statically and writes repro SQL, and the main session runs it.
+  Now a catch needs the target's own FAIL line, or the first error inside the target's own DO-block lines with every earlier check passing.
+- **Battery fixtures refused by a different guard than the one named** (again): T7 (rate overlap), T10 (overlap), U6b (state check before the owner-type FK). Read each mutation's first failure.
+- **Untestable on their own, and recorded as such:** the NOT NULL on `system_kind` (the trigger's service check refuses first), and `utility_system_kinds`' no-truncate trigger (the foreign key or the profiles guard refuses first).
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Rule-terms v2 (Ryan, 2026-10-06) | Typed key + validated `terms` + facets; strategies in the core. Converged reviews (Opus, Fable, Codex) plus research (Oracle CC&B, OpenFisca, Guidewire) |
-| OpenFisca's format, not its runtime | Python microsimulation; no records or ledger; our core is C# |
-| Strategy pattern selected by the name in `terms`, never by state | A per-state class rebuilds the branch on a state's name that audit rule 4 forbids |
-| Places shared (no tenant); memberships and profiles per tenant, dated, evidenced | Ryan's 2026-09-22 proposal; inventory D1–D3 |
-| Axes (regulatory/tax) dated separately | An annexation has an ordinance date and a sales-tax quarter (Tax §321.102) |
-| Exclusivity groups: one county; one of {city, limited-purpose area, ETJ, unincorporated} | LGC ch. 42–43; "unincorporated" in law = ETJ or `unincorporated_area` (a law row predicate) |
-| Explicit `outside` relation with optional distance; absence = unknown | TX §103.053, KS 66-104f, NM 3-25-3 |
-| Owner type and commission status separate and dated, per governing state; an owning place may be in another state | Elections change status without changing ownership; border cities |
-| Void (stamped, once, with a reason) for rows wrong from their first day | Settled now because every reader filters voided rows (costly to add later) |
-| A Texas state place is `time_zone_uniform = false`, so the lookup refuses without a county or city | El Paso and Hudspeth are Mountain |
-| Cross-state outside distances not modelled (R16) | No source in hand |
+| A profile per system kind; the lookup takes `p_system_kind` (Ryan, 2026-10-07) | Law keys on the system (NM 62-3-3(G)(2)). Cheap now and meaning-changing once the core exists. The premise→system link is R21 |
+| Five owner types plus three system kinds (distribution / piped_propane_distribution / master_meter) | NM, OH 4905.90(K) and 5117.01(D), TX 121.211(d): product and operator are tested apart from owner |
+| Owner type = ownership, not operation; a nonprofit or trust acting for a city is `municipal` | LA 45:850 "owned by"; TX 101.003(8); OK 60 O.S. 176. Operator-only and other owners are R22 |
+| ETJ and LPA on both axes | One meaning per row; LGC 43.130 makes an LPA a tax fact |
+| Time zone: answer at the most specific level where any place has a zone; refuse an unzoned or disagreeing peer there | A partial load must refuse, not answer; a city's zone outranks its county's by design |
+| A state row isn't succeeded under its profiles (R19) | A profile lies within one state row; no source has a state's identity change |
+| r6 not re-reviewed | All three "ready" on r5. r6 is Ryan's decision plus should-fixes, re-verified in full |
 
 ## Current State
 
-**Working:** `tally-pg` runs the -14 build (`tally` database), with neither -15 nor -16 applied. Every clone was dropped; only `postgres` and `tally` exist.
+**Working:** `tally-pg` runs the **-16 build** (`tally` = `tu.sql` at `9c1d0813`). Only `postgres` and `tally` exist.
 **Broken:** nothing.
 **Uncommitted changes:** none apart from this HANDOFF and the CHANGELOG entry.
 
 ## Code Context
 
 ```sql
--- v5.4.2-16 (draft) — key functions
-public.place_lock_key(p_place_id uuid) RETURNS bigint                      -- advisory key: citers shared, close exclusive
-public.assert_place_read_committed(p_what text) RETURNS void               -- both sides of the handshake
-public.place_citation_close_or_void(p_old anyelement, p_new anyelement, p_what text, p_end_col text) RETURNS anyelement
+-- in tu.sql since c86d811
 public.premise_places_as_of(p_service_location_id uuid, p_on date, p_axis text)
   RETURNS TABLE (place_id uuid, kind_code text, state_code text, place_code text, name text, specificity int, relation text, distance_miles numeric)
-public.premise_time_zone_as_of(p_service_location_id uuid, p_on date) RETURNS text   -- refuses: no data, non-uniform state, conflict (cardinality_violation)
-public.utility_service_profile_as_of(p_tenant_id uuid, p_service_type text, p_state_code text, p_on date) RETURNS utility_service_profiles
+public.premise_time_zone_as_of(p_service_location_id uuid, p_on date) RETURNS text
+  -- no_data_found: nothing answers, or an unzoned peer at the answering level; cardinality_violation: disagreeing zones
+public.utility_service_profile_as_of(p_tenant_id uuid, p_service_type text, p_system_kind text, p_state_code text, p_on date)
+  RETURNS utility_service_profiles   -- 5 args since r6; the 4-arg form is dropped
+public.place_lock_key(uuid) RETURNS bigint          -- citers take it shared, a close takes it exclusive
+public.assert_place_read_committed(text)            -- raises 25000 invalid_transaction_state
 ```
 
-Tables:
-- platform: `place_kinds`, `place_fact_kinds`, `utility_owner_types`, `place_membership_evidence_kinds`, `places`, `place_facts`;
-- tenant: `premise_place_memberships`, `utility_service_profiles`;
-- plus `jurisdictions.place_id`.
+Vocabularies (platform, immutable):
+- `place_kinds`;
+- `place_fact_kinds`;
+- `utility_owner_types` (municipal, political_subdivision, special_district, investor_owned, cooperative);
+- `utility_system_kinds`;
+- `place_membership_evidence_kinds`.
 
-Non-obvious logic:
-- The handshake relies on a READ COMMITTED trigger re-reading after it waits on the lock: the VOLATILE plpgsql statements take fresh snapshots.
-- `exclusivity_group` and `place_kind` are copied from the kind on insert; the caller can't set them.
-- The edit rule (`place_citation_close_or_void`) decides close or void by whether `void_reason` changed.
-
-**Harnesses:**
-- Mutations: `python3 tests/v5.4.2-16/mutations-16.py [Mnn …]`. It needs `tally` to be the -14 build, uses database `m16`, and runs serially.
-- Races: `bash tests/v5.4.2-16/races/place-close-16.sh <clone>`, on a throwaway clone of a patched build.
-- Each mutation line prints its first failure. Check by hand any catch made outside its named check.
-
-**Copying -16 into `tu.sql`** (after approval):
-1. Append the patch body after a 4-line banner, as at `tu.sql` 25,931 and 26,050.
-2. `cmp` the prefix and the body.
-3. Rebuild: `docker build -q -t tally-postgres -f postgres/Dockerfile . && docker rm -f -v tally-pg && docker run -d --name tally-pg -e POSTGRES_PASSWORD=tally tally-postgres`, then wait for "PostgreSQL init process complete".
-4. Diff `tests/v5.4.2-14/parity/catalog-identity.sql` between the clone and the fresh build.
+Lock order for a profile: the state row, then the owning place. Migrations close places in that order too (R18).
 
 ## Resume Instructions
 
@@ -151,24 +136,25 @@ Non-obvious logic:
    cd ~/code/tally-utility && git pull --ff-only
    cd ~/code/gas-billing-memory && git fetch && git log --oneline HEAD..origin/main
    ```
-   - Expected: nothing new, or Kyle's UI or ruling commits (read any rulings first).
-2. **Relaunch round 3** (Ryan: "the same reviewers can pick up in the new session"). Nothing to re-freeze:
-   - **Check the hashes:** `md5 -q tests/v5.4.2-16/review/patch-16-frozen-r3.sql` should give `c49b1ec5075e9b7eee16cdb9ad23603e`; the battery file should give `af1013f9e2a4150afe986ab3a43903da`.
-   - **Opus and Fable:** a general-purpose Agent each (model `opus`, then model `fable`), background. Prompt: "Read and follow the review brief at `tests/v5.4.2-16/review/review-brief-16-r3.md` exactly. Use database `opus16r3` / `fable16r3`. Write OUTPUT_PATH to `<scratchpad>/review16/opus-r3.md` / `fable-r3.md`. Never modify repo files."
-   - **Codex:**
-     - Copy the brief and replace its `## Output` section with: "Write the full review as your final message (it is captured to a file); under 12,000 characters. You run read-only and cannot reach docker: review statically, and where a finding needs proof, write the exact SQL repro script into your review."
-     - Run it: `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s read-only -C ~/code/tally-utility -o <scratchpad>/review16/codex-r3.md - < brief-codex-r3.md` (background).
-   - Expected: three reports, each within about 10 minutes. Reproduce every finding on a clone before accepting it.
-3. Triage into `tests/v5.4.2-16/review/review-findings-16-r3.md`, with the deciding rule for each item.
-   - If any item is blocking: fold it in, re-verify everything (strict ×2, battery, races, all mutations, regressions), freeze r4.
-   - If all three say "ready": ask Ryan to approve copying -16 into `tu.sql`.
-4. Then rule-terms v2 step 2, the convention infrastructure. Start with a short source inventory of what the -15 rewrite and the -13 migration need from it.
+   - Expected: nothing new, or Kyle's UI or ruling commits. Read any rulings first.
+2. Confirm the build: `docker exec tally-pg psql -U tally -d tally -Atc "select count(*) from pg_tables where schemaname='public'"`.
+   - Expected: **109**. If you get 100, the container predates `c86d811`: rebuild (`sql/DEPLOY-VERIFICATION.md`, -16 entry).
+3. Read `application/rule-terms-convention-v2-2026-10-06.md` §§10–12, then write the **step-2 source inventory**: what the -15 rewrite and the -13 migration each need from the infrastructure.
+   - Method: memory `source-inventory-first-triage-by-rule`.
+   - Raise with Ryan only the conflicts between rules.
+4. Draft step 2 as v5.4.2-17 (the next number at drafting), on the house review loop:
+   - freeze the hash;
+   - three reviewers;
+   - triage by rule;
+   - one revision per round.
 
 ## Warnings
 
-- **`tu.sql` is append-only.** Copy patches into it only after Ryan approves.
-- **Freeze the hash before any review; one revision per round.** The r3 artefacts are frozen; don't edit them.
-- **Revoke TEMP after every `CREATE DATABASE … TEMPLATE`** (memory `template-clone-drops-acl`).
-- **Don't trust from-memory citations.** Check against the saved texts; the research agents keep them in the session scratchpad.
+- **The -16 harnesses assume `tally` is the -14 build.** `mutations-16.py` and the review briefs clone `tally` and apply -16 to it, which over the -16 build only tests re-application. Use a -14 base, or retire them; -16 is landed.
+- **`tu.sql` is append-only.** Mirror a patch only after Ryan approves.
+- **Revoke TEMP after every `CREATE DATABASE … TEMPLATE`.**
+- **Freeze the hash before any review; one revision per round.**
+- **Don't trust from-memory citations.** Check them against `application/places-sources/` or saved texts.
 - **Never `git add -A` in gas-billing-memory.**
-- **Raise only conflicts with Ryan** (memory `source-inventory-first-triage-by-rule`). Explain in prose, not menus.
+- **Explain choices to Ryan in prose, not menus.** Ask only on rule conflicts.
+- **Background reviewers' reports truncate at about 4 KB.** Read their output files.
