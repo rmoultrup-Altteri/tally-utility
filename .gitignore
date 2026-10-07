@@ -7,3 +7,7 @@
 # Prototype build artifacts
 ui-concepts/node_modules/
 ui-concepts/.next/
+
+# tools/law virtualenv
+tools/law/.venv/
+__pycache__/

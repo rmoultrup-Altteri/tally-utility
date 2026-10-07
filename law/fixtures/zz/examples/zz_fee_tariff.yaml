@@ -1,0 +1,6 @@
+fee:
+  strategy: flat
+  version: 1
+  id: t1
+  amount: 40
+note: Ordinance 2020-7, section 3.

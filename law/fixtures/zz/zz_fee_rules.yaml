@@ -1,0 +1,72 @@
+# The ZZ connection fee — a FICTIONAL state's law, the convention's fixture.
+# One file per (kind, state, service); each row is one law row of
+# public.zz_fee_rules. Every value is read as text and typed by the schema;
+# write numbers canonically (1.5, not 1.50) and dates as YYYY-MM-DD.
+table: public.zz_fee_rules
+kind: zz_fee
+version: 1
+key: [customer_class]
+schema: zz_fee.v1.schema.json
+rows:
+  - name: residential_iou
+    state_code: ZZ
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: any
+    commission_jurisdiction: true
+    customer_class: residential
+    effective_from: "2000-01-01"
+    source_note: ZZ Code 1.1 (fixture)
+    terms:
+      governs: law
+      citation: ZZ Code 1.1
+      fee:
+        strategy: flat
+        version: 1
+        id: f1
+        cap: 50
+        citation: ZZ Code 1.1(a)
+      waivers:
+        - id: w1
+          class: senior
+          effect: halve
+    scenarios:
+      - name: a senior pays half the capped fee
+        inputs: {customer_class: residential, waiver_class: senior, tariff_fee: 40}
+        expected: {fee: 20}
+  - name: residential_city
+    state_code: ZZ
+    service_type: gas
+    owner_types: [municipal]
+    system_kinds: any
+    commission_jurisdiction: any
+    customer_class: residential
+    effective_from: "2000-01-01"
+    source_note: ZZ Code 9.9 (fixture)
+    terms:
+      governs: delegated_to_utility
+      citation: ZZ Code 9.9
+      note: Cities set their own connection fees.
+  - name: commercial_all
+    state_code: ZZ
+    service_type: gas
+    owner_types: any
+    system_kinds: any
+    commission_jurisdiction: any
+    customer_class: commercial
+    effective_from: "2000-01-01"
+    effective_to: "2030-01-01"
+    source_note: ZZ Code 1.2 (fixture)
+    terms:
+      governs: law
+      citation: ZZ Code 1.2
+      fee:
+        strategy: greater_of
+        version: 1
+        id: f2
+        cap: 500
+        citation: ZZ Code 1.2(b)
+        parts:
+          - {id: p1, kind: fixed, amount: 25}
+          - {id: p2, kind: per_meter, amount: 12.5}
+      waivers: []

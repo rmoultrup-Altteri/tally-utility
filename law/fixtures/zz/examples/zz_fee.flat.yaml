@@ -1,0 +1,6 @@
+governs: law
+citation: ZZ Code 1.1
+fee: {strategy: flat, version: 1, id: f1, cap: 50, citation: ZZ Code 1.1(a)}
+waivers:
+  - {id: w1, class: senior, effect: halve}
+  - {id: w2, class: medical, effect: excuse}

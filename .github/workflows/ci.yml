@@ -1,0 +1,42 @@
+# The schema and law-file checks (rule-terms v2 §5; v5.4.2-17 inventory L3).
+# Ryan, 2026-10-07: CI as a GitHub Actions workflow on this repo.
+# Builds tu.sql in PostgreSQL 16 from postgres/Dockerfile and runs
+# tests/ci.sh: patches not yet mirrored strict-applied twice, every battery,
+# the isolation, race and law-file checks, the tenant-isolation invariants.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Law-file tooling
+        run: |
+          python -m venv tools/law/.venv
+          tools/law/.venv/bin/pip install --quiet -r tools/law/requirements.txt
+
+      - name: Build tu.sql and run every check
+        run: tests/ci.sh --build
+
+      - name: Container log on failure
+        if: failure()
+        run: docker logs tally-pg 2>&1 | tail -200

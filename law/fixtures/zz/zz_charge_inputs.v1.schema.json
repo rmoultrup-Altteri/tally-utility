@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/fixtures/zz/zz_charge_inputs.v1.schema.json",
+  "title": "What the core read to compute a ZZ charge, version 1 (fixture)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bill_amount", "meters", "rule_row", "flags"],
+  "properties": {
+    "bill_amount": {"type": "number", "minimum": 0},
+    "meters": {"type": "integer", "minimum": 1},
+    "rule_row": {"type": "string", "minLength": 36, "maxLength": 36},
+    "flags": {"type": "array", "uniqueItems": true, "items": {"type": "boolean"}}
+  }
+}

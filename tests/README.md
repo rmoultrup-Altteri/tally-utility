@@ -14,6 +14,22 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 
 ```
 tests/
+  ci.sh                     # EVERY check, as .github/workflows/ci.yml runs it (--build: image from postgres/Dockerfile,
+                            #   fresh tally-pg). Clones `tally`; strict-applies (twice) patches not yet mirrored;
+                            #   batteries -09..-14, -16, -17; -17's isolation, races and law files; -16 and -12 races;
+                            #   -13's evidence script; the tenant-isolation invariants. Never writes `tally`.
+  v5.4.2-17/                # the rule-terms convention written once (DRAFT r1, 2026-10-07)
+    battery-17.sql          # 176 checks, groups R V F T L U C A P I K G, on a fictional state's law (ZZ) from
+                            #   law/fixtures/zz/ (fixture-zz.sql); every refusal must carry its own guard's phrase
+    run-battery-17.sh       # copies law/ into the container, then runs the battery against <db>
+    isolation-17.sh         # X1-X5: a facet after its schema's transaction; rows, citations, closes and freezes
+                            #   outside READ COMMITTED (fixture-iso-17.sql, committed into a scratch clone)
+    races/rule-close-17.sh  # RC1-RC4: a close against a citation, a freeze against a row, each in both orders,
+                            #   the second session seen waiting
+    lawfiles-17.sh          # W1-W5: law files valid; seed SQL not drifted; seed twice + round trip; the database
+                            #   validator agrees with jsonschema on 634 documents; the strict loader's refusals
+    mutations-17.py         # 104 mutations, each caught at its named check (battery, X, R, W or APPLY); clones
+                            #   `tally` (the -16 build) and revokes TEMP on every clone
   v5.4.2-15/                # deposits at parity: the deposit law leaves the database (DRAFT; round 2 revision 2026-10-02)
     battery-15.sql          # 104 checks, groups A Z B C D L E F W G; group Z stores a fictional state ZZ with
                             #   no DDL (reach that halves or defers, a combined cap, a lookback); group L proves

@@ -1,0 +1,9 @@
+# tools/law — pinned (Ryan, 2026-10-07: law-file tooling in Python).
+# Install: python3 -m venv tools/law/.venv && tools/law/.venv/bin/pip install -r tools/law/requirements.txt
+PyYAML==6.0.2
+jsonschema==4.23.0
+jsonschema-specifications==2025.9.1
+referencing==0.36.2
+rpds-py==0.27.1
+attrs==26.1.0
+typing_extensions==4.16.0

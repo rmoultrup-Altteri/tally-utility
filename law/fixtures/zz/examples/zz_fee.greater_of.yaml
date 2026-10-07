@@ -1,0 +1,12 @@
+governs: law
+citation: ZZ Code 1.2
+fee:
+  strategy: greater_of
+  version: 1
+  id: f2
+  cap: 500
+  citation: ZZ Code 1.2(b)
+  parts:
+    - {id: p1, kind: fixed, amount: 25}
+    - {id: p2, kind: per_meter, amount: 12.5}
+waivers: []

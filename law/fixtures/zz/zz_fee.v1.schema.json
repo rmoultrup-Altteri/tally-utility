@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/fixtures/zz/zz_fee.v1.schema.json",
+  "title": "ZZ connection fee, version 1 (fictional-state fixture)",
+  "description": "A fictional law exercising the convention: a fee chosen by strategy, waivers naming vocabulary codes, component ids, and the delegated document every law kind admits.",
+  "oneOf": [
+    {"$ref": "#/$defs/law"},
+    {"$ref": "#/$defs/delegated"}
+  ],
+  "$defs": {
+    "citation": {"type": "string", "pattern": "[A-Za-z0-9]"},
+    "code": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "delegated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governs", "citation"],
+      "properties": {
+        "governs": {"type": "string", "const": "delegated_to_utility"},
+        "citation": {"type": "string", "pattern": "[A-Za-z0-9]"},
+        "note": {"type": "string", "pattern": "[A-Za-z0-9]"}
+      }
+    },
+    "law": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governs", "citation", "fee", "waivers"],
+      "properties": {
+        "governs": {"type": "string", "const": "law"},
+        "citation": {"$ref": "#/$defs/citation"},
+        "fee": {"oneOf": [{"$ref": "#/$defs/fee_flat"}, {"$ref": "#/$defs/fee_greater_of"}]},
+        "waivers": {"type": "array", "uniqueItems": true, "maxItems": 8, "items": {"$ref": "#/$defs/waiver"}}
+      }
+    },
+    "fee_flat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version", "id", "cap", "citation"],
+      "properties": {
+        "strategy": {"type": "string", "const": "flat"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1},
+        "id": {"$ref": "#/$defs/code"},
+        "cap": {"type": "number", "minimum": 0},
+        "citation": {"$ref": "#/$defs/citation"}
+      }
+    },
+    "fee_greater_of": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version", "id", "parts", "cap", "citation"],
+      "properties": {
+        "strategy": {"type": "string", "const": "greater_of"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1},
+        "id": {"$ref": "#/$defs/code"},
+        "parts": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "#/$defs/part"}},
+        "cap": {"type": "number", "minimum": 0},
+        "citation": {"$ref": "#/$defs/citation"}
+      }
+    },
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "amount"],
+      "properties": {
+        "id": {"$ref": "#/$defs/code"},
+        "kind": {"type": "string", "enum": ["fixed", "per_meter"]},
+        "amount": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 10000}
+      }
+    },
+    "waiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "class", "effect"],
+      "properties": {
+        "id": {"$ref": "#/$defs/code"},
+        "class": {"$ref": "#/$defs/code"},
+        "effect": {"type": "string", "enum": ["excuse", "halve"]}
+      }
+    }
+  }
+}
