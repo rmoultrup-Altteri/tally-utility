@@ -515,7 +515,7 @@ MUTATIONS = [
          """            THEN ARRAY['{"governs": "delegated_to_utility", "citation": "x", "note": "x"}'::jsonb]""")),
     ("M186", "a generated column may be a template, key or facet column", "T1ze",
      rep("AND a.attgenerated <> ''", "AND false")),
-    ("M187", "an audit finding may cite a rule row whose document is not filled", "K4i",
+    ("M187", "an audit finding may cite a rule row whose document is not filled", "K4j",
      rep("        IF jsonb_typeof(v_rule -> 'terms') IS DISTINCT FROM 'object' THEN", "        IF false THEN")),
     ("M188", "a trigger function of the template's name in another schema is the template's", "T1zd",
      rep("AND p.pronamespace = 'public'::regnamespace AND p.pronargs = 0", "AND p.pronargs = 0")),
@@ -533,6 +533,19 @@ MUTATIONS = [
      rep("OR (v_row -> 'system_span') IS DISTINCT FROM", "OR false AND (v_row -> 'system_span') IS DISTINCT FROM")),
     ("M195", "registration does not compare the jurisdiction span", "A1i",
      rep("OR (v_row -> 'jurisdiction_span') IS DISTINCT FROM", "OR false AND (v_row -> 'jurisdiction_span') IS DISTINCT FROM")),
+    # ---- r9: coverage for r8 clauses
+    ("M196", "an area key column may be a generated column", "T1zf",
+     rep("= ANY (c_template_cols || p_area_key || p_facet_columns)", "= ANY (c_template_cols || p_facet_columns)")),
+    ("M197", "a template column may be a generated column", "T1zg",
+     rep("= ANY (c_template_cols || p_area_key || p_facet_columns)", "= ANY (p_area_key || p_facet_columns)")),
+    ("M198", "a note on the law branch makes the delegated branch admit one", "T1zh",
+     rep("""       AND public.rule_terms_resolve(sc.json_schema, b) #>> '{properties,governs,const}' = 'delegated_to_utility';""", "       AND true;")),
+    ("M199", "a note admitted by another version of the kind is taken for this version's", "T1zi",
+     rep("     WHERE sc.terms_kind = p_kind AND sc.terms_version = p_version\n", "     WHERE sc.terms_kind = p_kind\n")),
+    ("M200", "registration checks the first legacy row only", "A1m",
+     rep("FROM %s t ORDER BY t.id', v_rel) LOOP", "FROM %s t ORDER BY t.id LIMIT 1', v_rel) LOOP")),
+    ("M201", "a tariff row's system kind need not be a kind of its service", "U3d",
+     rep("    ELSIF NOT EXISTS (SELECT 1 FROM public.utility_system_kinds k WHERE k.system_kind = p_row ->> 'system_kind'", "    ELSIF false AND NOT EXISTS (SELECT 1 FROM public.utility_system_kinds k WHERE k.system_kind = p_row ->> 'system_kind'")),
 ]
 
 
