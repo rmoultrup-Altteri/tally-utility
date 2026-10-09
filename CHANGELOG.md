@@ -4,6 +4,30 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-09 (final) — v5.4.2-17: r7, r8, r9 built and reviewed; MIRRORED into tu.sql (30,570 lines)
+
+**What was done:**
+- **r7** (Ryan: "go with r7"): six round-6 groups folded, each test written first and run alone against r6 (`tests/v5.4.2-17/fail-first.py`). Template triggers are known by function, events, WHEN and column list, not name; an inheritance child or a rewrite rule is refused; an unfilled legacy row (`terms IS NULL`) is refused by lookup, cite and the tariff check; the delegated dry-run covers a note; `strategy` is required; the trigger-name clauses have cases; the discriminator is inline (message and README). Round 7: Opus and Fable ready, Codex "not yet" on one blocker (B1: the note sample refused a table whose delegated branch forbids a note, a regression of r7's own; Opus found the same as S2).
+- **r8**: B1 fixed (the note is tried only where a delegated branch has one); registration now runs the fill's own checks on every legacy row (`rule_key_check`, the new `rule_row_scope_check` extracted from `rule_row_prepare`, the span compare); the audit-findings guard refuses an unfilled rule row; a generated template/key/facet column is refused (a gap since r1); cases for the r7 clauses that had none. Round 8: all three ready.
+- **r9**: only tests, their mutations (M196-M201) and wording; non-comment lines of the patch identical to r8. Frozen at patch `ed1b8298…` (3,459 lines), battery `ac59a943…` (276 PASS), 198/198 mutations caught.
+- **Mirror** (Ryan approved r9): appended to `sql/tu.sql` (27,331 to 30,570 lines, md5 `5ac8ed99…`), prefix and body byte-identical by `cmp`; image rebuilt with zero init errors; catalog identity (10,435 lines) and counts identical to the -16 build plus the patch; `tests/ci.sh` all pass; -17 re-applies twice cleanly; `PENDING` in `tests/ci.sh` is empty. Entry in `sql/DEPLOY-VERIFICATION.md`.
+- Findings records `review-findings-17-r6.md`, `-r7.md`, `-r8.md`; briefs r7, r8; Codex probes `codex-r7-probes/`, `codex-r8-probes/`.
+
+**Decisions and measurements:**
+- Dropping `COLLATE "C"` from the trigger-name rule changes nothing: `pg_trigger.tgname` is C-collated and the cast keeps it (Opus's O01 survived for that reason). The clause stays with a comment; M175 compares in `en_US.utf8`. The byte-order *property* is pinned by T1w/T1x.
+- Registration shares the fill's checks by calling them, not copying them (a copied blank-key test had already drifted from `rule_key_check`).
+- Residuals R22-R26 added (dry-run limits, facet columns nullable, the invariant is vacuous until -13, plain `FROM` reads, small edges of legacy rows).
+
+**Lessons:**
+- A reviewer's "load-bearing" claim needs measuring before it drives a change (COLLATE).
+- The three reviewers converge on the same untested clauses; two agreeing is near-certain.
+- A new check that tries a case the schema forbids is a false refusal: derive the sample from what the schema admits.
+- `pgrep -f` in a Monitor loop matches the monitor's own command line and never ends; wait on the log file instead.
+
+**Next:** the -13 migration (R14's sequence; its legacy rows need a non-blank key, a known state, system kinds of their service and correct spans, and its typed NOT NULL columns go nullable, R23), then the -15 rewrite; bump the GitHub Actions versions. `mutations-17.py` clones `tally`, which now contains -17: a rerun needs a pre-17 base.
+
+---
+
 ## 2026-10-09 (end) — v5.4.2-17: round 6 (Opus, Fable, Codex all "ready"); r7 proposed, awaiting Ryan
 
 **What was done:**
