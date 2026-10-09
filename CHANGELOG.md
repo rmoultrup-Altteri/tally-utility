@@ -4,6 +4,26 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-09 — v5.4.2-17: Codex's round-4 review ("not yet") folded into r5; frozen for round 5
+
+**What was done:**
+- Ran Codex on r4: verdict **not yet**, two blockers and three should-fixes (`review-r4-codex.md`). Its sandbox could not reach Docker, so its database claims were static.
+- Reproduced B1, B2 and S1 on a scratch clone of frozen r4, then folded all five into r5:
+  - **B1:** the delegated branch of a law kind must equal the standard document (annotations aside), so it can always be satisfied.
+  - **B2:** the strategy-version rule moved from the union into the object case; a lone strategy now needs a bounded integer `version`.
+  - **S1:** `rule_row_seed` types `owner_types`, `system_kinds` and `commission_jurisdiction` before matching (6 of 6 malformed values had matched an existing wildcard row).
+  - **S2:** lawc refuses a lone surrogate in a key. **S3:** header and R14 name the adoption check.
+- Tests: battery 220 to 230, W5 gains a surrogate case, `tests/ci.sh` all pass, mutations 147/147 (8 new, M112/M132/M140 re-anchored).
+- Froze r5 (`patch-17-frozen-r5.sql`, `battery-17-frozen-r5.sql`, `review-brief-17-r5.md`); wrote `review-findings-17-r4.md`.
+
+**Failed approaches / lessons:**
+- Keeping the version check in the union and adding a second one for lone strategies would have left two guards for one rule, and a mutation could hide behind the other. One guard, in the object case.
+- `codex exec -s workspace-write` cannot call `docker exec` on this machine; a review that needs the database needs another route.
+
+**Next:** round-5 review, then Ryan's approval to mirror -17 into `tu.sql`.
+
+---
+
 ## 2026-10-07 — v5.4.2-17, the rule-terms convention written once: inventory, draft, three review rounds, frozen r4 (Opus and Fable "ready"; Codex pending)
 
 **What was done:**

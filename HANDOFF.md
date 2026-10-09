@@ -1,8 +1,8 @@
-# Handoff: v5.4.2-17 (rule-terms step 2) is frozen at r4; next, Codex's review, then Ryan approves the mirror
+# Handoff: v5.4.2-17 (rule-terms step 2) is frozen at r5; next, review round 5, then Ryan approves the mirror
 
-**Generated**: 2026-10-07, end of session
-**Branch**: `main` at `37d98bc`, pushed. gas-billing-memory unchanged (`091c990`).
-**Status**: Waiting on a review. Opus and Fable say "ready" (on r3; r4 folds their last points). Codex has not yet reviewed r3 or r4: its CLI hit its usage limit. **Ryan's instruction:** wait for Codex's review of r4, then ask him to approve mirroring -17 into `tu.sql`.
+**Generated**: 2026-10-09, end of session
+**Branch**: `main`, pushed. gas-billing-memory unchanged (`091c990`) as of 2026-10-07; fetch both before orienting.
+**Status**: r5 frozen (patch md5 `d20d453c0aaecadb79ffdc0852d8cb56`, 3,120 lines; battery `ea9bb460c10534fce95b9c5883e48904`). Codex reviewed r4 on 2026-10-09: **not yet** (B1, B2, S1-S3), all folded into r5. Next: a round-5 review (brief: `tests/v5.4.2-17/review/review-brief-17-r5.md`), by all three if possible. **Codex's sandbox could not reach Docker** in round 4 (`codex exec -s workspace-write` gave "permission denied" on the docker socket), so its probes were static; run its probes yourself, or give it a way in. Then ask Ryan to approve the mirror.
 
 ## Goal
 
@@ -12,7 +12,16 @@ Rule-terms v2 §12 step 2: the convention infrastructure, written once, so that 
 
 Both lead toward the C# core billing engine.
 
-## Completed (this session)
+## Round 4 and r5 (2026-10-09)
+
+Codex: not yet. I reproduced B1, B2 and S1 on a scratch clone before folding (`review-findings-17-r4.md`):
+- **B1:** a law kind registered with a delegated branch no document could satisfy (`maxLength: 1` on `governs`). Now the branch must equal the standard one, annotations aside.
+- **B2:** the strategy-version rule only ran inside a union discriminated by `strategy`. Now any object with a `strategy` property requires a bounded integer `version` (one guard, in the object case).
+- **S1:** `rule_row_seed` read a malformed applicability value as NULL ("every one") and matched an existing wildcard row. Now typed first.
+- **S2:** lawc checks lone surrogates in keys. **S3:** adoption wording.
+Tests: battery 230, `tests/ci.sh` all pass, mutations **147/147** caught (M141-M148 new; M112 retargeted).
+
+## Completed (through r4)
 
 - [x] **Source inventory** `application/rule-terms-step2-source-inventory-2026-10-07.md` (`e34b58e`). Requirements V/F/T/U/P/C/L. Amended after round 1: P1 class scope moved to a residual; L1 is one file per (table, state, service); L3 scenarios are shape-checked only.
 - [x] **Ryan's three defaults:**
@@ -49,7 +58,7 @@ Both lead toward the C# core billing engine.
 
 ## Not Yet Done
 
-- [ ] **Codex review of r4.** Brief: `tests/v5.4.2-17/review/review-brief-17-r4.md`. It asks Codex to verify its round-2 B1–B3 and should-fixes, and the r3/r4 changes.
+- [ ] **Review round 5** on the r5 freeze (brief above). Opus and Fable have not seen r4 or r5; Codex needs a working Docker path.
 - [ ] Triage Codex's findings by rule (into r5 if needed, with one revision per round). Then **ask Ryan to approve the mirror**.
 - [ ] **Mirror into `tu.sql`**, following the -16 procedure in `sql/DEPLOY-VERIFICATION.md`:
   - append the body with a banner, omitting the header;

@@ -338,7 +338,7 @@ MUTATIONS = [
     ("M111", "a table holding rows registers as new", "A1d",
      rep("        IF v_has_rows THEN\n            v_err := v_err || format('%s already holds rows", "        IF false THEN\n            v_err := v_err || format('%s already holds rows")),
     ("M112", "a strategy need not fix its version", "R4n",
-     rep("        IF v_disc = 'strategy' THEN", "        IF false THEN")),
+     rep("        IF jsonb_typeof(p_node -> 'properties') = 'object' AND (p_node -> 'properties') ? 'strategy' THEN", "        IF false THEN")),
     ("M113", "control characters allowed", "V23",
      rep("     WHERE (v #>> '{}') ~ ('[' || chr(1) || '-' || chr(31) || chr(127) || ']');", "     WHERE false;")),
     ("M114", "any two letters are a state", "T5e",
@@ -387,7 +387,7 @@ MUTATIONS = [
      rep("           OR (to_jsonb(NEW) - c_frozen_cols)::text IS DISTINCT FROM (to_jsonb(OLD) - c_frozen_cols)::text THEN",
          "           OR (to_jsonb(NEW) - c_frozen_cols) IS DISTINCT FROM (to_jsonb(OLD) - c_frozen_cols) THEN")),
     ("M132", "a strategy version may be unbounded", "R4o",
-     rep("                   OR jsonb_typeof(v_target -> 'maximum') IS DISTINCT FROM 'number'\n", "")),
+     rep("               OR jsonb_typeof(v_target -> 'maximum') IS DISTINCT FROM 'number'\n", "")),
     ("M133", "the core-role assertion ignores column grants on matviews", "K8",
      rep("       AND has_any_column_privilege('tally_core', c.oid, 'SELECT');", "       AND has_table_privilege('tally_core', c.oid, 'SELECT');")),
     ("M134", "a core record takes no inputs-schema lock", "RC7",
@@ -407,7 +407,30 @@ MUTATIONS = [
      rep("       OR NOT p_row ?& ARRAY['state_code', 'service_type', 'owner_types', 'system_kinds', 'commission_jurisdiction',\n                             'effective_from', 'effective_to', 'source_note', 'terms_kind', 'terms_version', 'terms_source'] THEN",
          "       OR NOT p_row ?& ARRAY['state_code', 'effective_from', 'terms_source'] THEN")),
     ("M140", "a strategy version bound may be fractional", "R4p",
-     rep("                   OR (v_target ->> 'maximum')::numeric <> trunc((v_target ->> 'maximum')::numeric)\n", "")),
+     rep("               OR (v_target ->> 'maximum')::numeric <> trunc((v_target ->> 'maximum')::numeric)\n", "")),
+    # ---- review round 4 (r5)
+    ("M141", "a delegated 'governs' may carry other constraints", "R3d",
+     rep("""                       AND (v_core #> '{properties,governs}') - 'title' - 'description' - '$comment'
+                           = '{"type": "string", "const": "delegated_to_utility"}'::jsonb
+""", "")),
+    ("M142", "a delegated branch may require its note", "R3e",
+     rep("                       AND jsonb_array_length(v_core -> 'required') = 2\n", "")),
+    ("M143", "a delegated citation may carry other constraints", "R3f",
+     rep("""                       AND (v_core #> '{properties,citation}') - 'title' - 'description' - '$comment'
+                           = '{"type": "string", "pattern": "[A-Za-z0-9]"}'::jsonb
+""", "")),
+    ("M144", "a seed's owner_types may be any type", "T4n1",
+     rep("    IF jsonb_typeof(p_row -> 'owner_types') NOT IN ('null', 'array')\n", "    IF false\n")),
+    ("M145", "a seed's system_kinds may be any type", "T4n2",
+     rep("       OR jsonb_typeof(p_row -> 'system_kinds') NOT IN ('null', 'array')\n", "")),
+    ("M146", "a seed's commission_jurisdiction may be any type", "T4n3",
+     rep("       OR jsonb_typeof(p_row -> 'commission_jurisdiction') NOT IN ('null', 'boolean')\n", "")),
+    ("M147", "a seed's owner types may be non-strings", "T4n4",
+     rep("                   WHERE jsonb_typeof(e) <> 'string')\n       OR EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p_row -> 'system_kinds')",
+         "                   WHERE false)\n       OR EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p_row -> 'system_kinds')")),
+    ("M148", "a seed's system kinds may be non-strings", "T4n5",
+     rep("                   WHERE jsonb_typeof(e) <> 'string') THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'rule_row_seed: owner_types",
+         "                   WHERE false) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'rule_row_seed: owner_types")),
 ]
 
 

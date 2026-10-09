@@ -287,6 +287,8 @@ def fixed_rule_errors(doc: Any, component_ids: bool = True) -> list[str]:
             for k, e in v.items():
                 if CONTROL.search(k):
                     errs.append(f"{path}: control character in key {k!r}")
+                if SURROGATE.search(k):
+                    errs.append(f"{path}: a lone surrogate PostgreSQL cannot store in key {k!r}")
                 if k == "id" and component_ids:
                     if isinstance(e, str):
                         ids[e] = ids.get(e, 0) + 1

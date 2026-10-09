@@ -9,7 +9,7 @@
 #       agree on every example document and every single-edit mutation of it
 #   W5  the strict YAML loader refuses duplicate keys, anchors (so aliases,
 #       which need one),
-#       merge keys, tags, and non-canonical numbers
+#       merge keys, tags, non-canonical numbers, and a lone surrogate in a key
 # usage: tests/v5.4.2-17/lawfiles-17.sh <db-with-17> [scratch-db]
 set -uo pipefail
 SRC="${1:?db with v5.4.2-17}"
@@ -111,6 +111,17 @@ rows:
     effective_from: \"2000-01-01\"
     source_note: x
     terms: {fee: {strategy: flat, version: 1, id: t1, amount: 1}}"
+# A lone surrogate PostgreSQL cannot store, in a key as in a value (review r2
+# Codex for values; r4 Codex S2 for keys).
+sur=$(PYTHONDONTWRITEBYTECODE=1 "$PY" -I -c "
+import sys; sys.path.insert(0, '$ROOT/tools/law')
+import lawc
+for label, doc in (('value', {'x': '\\ud800'}), ('key', {'\\ud800': 'x'}), ('pair', {'x': '\\U0001F600'})):
+    print(label, bool(lawc.fixed_rule_errors(doc)))
+" 2>&1)
+[ "$sur" = "value True
+key True
+pair False" ] || { echo "  W5 surrogate: got: $sur"; w5=1; }
 if [ $w5 -eq 0 ]; then echo "PASS W5: the loader refuses duplicate keys, anchors, merge keys, tags, non-canonical numbers and a yes for true"; else echo "FAIL W5"; fail=1; fi
 
 echo "lawfiles-17: $([ $fail -eq 0 ] && echo 'all pass' || echo 'FAILURES')"

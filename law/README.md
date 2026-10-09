@@ -64,7 +64,7 @@ rows:
 
 ### A document
 
-- **Strategies, not logic.** A decision point names a strategy and its version: `{"strategy": "flat", "version": 1, …}`. The core resolves `(decision point, strategy, version)` to code (v2 §4). There are no expressions, conditions or formulas in a document.
+- **Strategies, not logic.** A decision point names a strategy and its version: `{"strategy": "flat", "version": 1, …}`. Any object with a `strategy` property requires a `version` that is an integer with `1 <= minimum <= maximum`, whether it is one branch of a union or the only strategy. The core resolves `(decision point, strategy, version)` to code (v2 §4). There are no expressions, conditions or formulas in a document.
 - **Component ids.** An `id` names a part a record can cite (`"id": "p1"`). It is unique within the document.
 - **Citations per section.** A citation goes where the provision applies, not only at the root.
 - **Delegated law.** Every law kind admits `{"governs": "delegated_to_utility", "citation": …}`: the law leaves the matter to the utility's own tariff. This is not the same as no law; with no law row, the database refuses (places finding 1).
@@ -95,7 +95,7 @@ A kind's schema is JSON Schema 2020-12, limited to the subset the database's val
                 "note": {"type": "string", "pattern": "[A-Za-z0-9]"}}}
 ```
 
-`note` is optional.
+`note` is optional. Registration refuses any other shape of this branch (a `maxLength` on `governs` or `citation`, a required `note`, another keyword), because it could leave no document that validates; `title`, `description` and `$comment` are annotations and change nothing.
 
 **Versions** (v2 §11):
 - A version is registered once, numbered 1, 2, …, and never edited.
