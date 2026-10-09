@@ -17,7 +17,6 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 
 # patch file : a table it creates (its marker)
 PENDING=(
-  "sql/v5.4.2-17-rule-terms-convention.sql:rule_term_schemas"
 )
 BASE=ci_base
 
@@ -61,7 +60,7 @@ step() {  # $1 label, rest: the command
 }
 
 clone "$BASE" tally || { echo "SETUP FAIL: clone"; exit 2; }
-for entry in "${PENDING[@]}"; do
+for entry in ${PENDING[@]+"${PENDING[@]}"}; do
   patch=${entry%%:*}; marker=${entry##*:}
   if [ "$(q tally -c "SELECT to_regclass('public.$marker') IS NULL")" = "t" ]; then
     docker cp "$patch" tally-pg:/tmp/pending.sql

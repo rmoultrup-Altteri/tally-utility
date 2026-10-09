@@ -1,6 +1,8 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16, verified 2026-10-07.** v5.4.2-15 (deposits) is a draft, not landed: it is being rebuilt on the rule-terms convention. After v5.4.2-16: **109 tables** / **9 views** / **4 matviews** / **93 policies** / **92 FORCE-RLS** / **429 FKs** / **469 CHECKs** / **19 EXCLUDE** / **330 triggers** / **440 functions** / **652 indexes**. tu.sql **27,331 lines**, md5 `9c1d0813e64853cebcb5aaff519a4201` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16 + v5.4.2-17, verified 2026-10-09.** v5.4.2-15 (deposits) is a draft, not landed: it is being rebuilt on the rule-terms convention. After v5.4.2-17: **120 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **438 FKs** / **507 CHECKs** / **20 EXCLUDE** / **352 triggers** / **487 functions** / **670 indexes**. tu.sql **30,570 lines**, md5 `5ac8ed99179e7e0f80ba35f21cd0043b` (the container init file matches by hash).
+
+**Previous: through v5.4.2-16, verified 2026-10-07.** After v5.4.2-16: **109 tables** / **9 views** / **4 matviews** / **93 policies** / **92 FORCE-RLS** / **429 FKs** / **469 CHECKs** / **19 EXCLUDE** / **330 triggers** / **440 functions** / **652 indexes**. tu.sql **27,331 lines**, md5 `9c1d0813e64853cebcb5aaff519a4201`.
 
 **Previous: through v5.4.2-14, verified 2026-09-30.** 100 tables / 9 views / 4 matviews / 91 policies / 90 FORCE-RLS / 409 FKs / 434 CHECKs / 13 EXCLUDE / 308 triggers / 427 functions / 629 indexes. tu.sql **26,049 lines**, md5 `9139367ab7da6ada63d4193ba189e17f`.
 
@@ -13,6 +15,31 @@
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 
 **Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+
+## v5.4.2-17 — the rule-terms convention, written once (rule-terms v2 §12 step 2; Ryan 2026-10-06/07; mirror approved by Ryan 2026-10-09)
+`sql/v5.4.2-17-rule-terms-convention.sql` (3,459 lines, md5 `ed1b8298d22de9f5015a9007422eab19`, the r9 freeze), mirrored into tu.sql (27,331 → **30,570**, pure append: a blank line, a 5-line banner and the 3,233-line body, header omitted; prefix and body byte-identical by `cmp`).
+
+**What changes** (the patch header has the full list of what the database refuses):
+- **`tally_core`**, the calculation core's role: explicit grants only, no default privileges, member of no role, defines no code; checked by `assert_core_role_invariants()`.
+- **The registry** `rule_term_schemas` / `rule_term_facets`, with one IMMUTABLE interpreter of a JSON Schema subset (`rule_terms_errors`), the duplicate-key parser, facets, applicability spans.
+- **The law- and tariff-table template**: `rule_table_register()`, generic insert / history / no-truncate triggers (ENABLE ALWAYS), lookups, citations, the tariff check, seeds, one-time adoption of pre-convention rows. `assert_rule_table_invariants()` checks the template's triggers by function, events, WHEN and column list, and refuses an inheritance child or a rewrite rule.
+- **Published values** (`rule_units`, `rule_parameters`, `rule_parameter_values`), **audit findings** and their dispositions, **core inputs** and their fingerprint (`stamp_core_inputs`).
+- **No area's tables ship**: the machinery only. The -13 migration (adopt `backbilling_rules`, residual R14) and the -15 rewrite are the first consumers. Residuals R1–R26 are stated at the end of the patch.
+
+**Review:** nine revisions, eight rounds with three reviewers (Opus, Fable, Codex):
+- rounds 1–2: "not yet" (8 and 3 blocking items); round 3: Opus and Fable ready; round 4: Codex "not yet" (2 blocking), reproduced before folding; rounds 5–6: all three ready; round 7: Opus and Fable ready, Codex "not yet" on one blocking false refusal (the note dry-run), also found by Opus; round 8: all three ready.
+- r9 added only a case and a mutation per clause round 8 found untested, and the R26 wording. Its non-comment lines are identical to r8's.
+- Dispositions: `tests/v5.4.2-17/review/review-findings-17-r{1..8}.md`.
+
+**Method.**
+1. Strict apply twice (`search_path ''`, function bodies checked) on a clone of the -16 build, TEMP revoked: clean.
+2. **battery-17: 276 PASS**; `isolation-17.sh` X1–X6; `races/rule-close-17.sh` RC1–RC7; `lawfiles-17.sh` W1–W5 (899 documents cross-checked against a standard validator, 0 disagreements).
+3. **mutations-17: 198 of 198 caught**, each at its named check (run on the pre-mirror database; the runner clones `tally`, so a rerun now needs a pre-17 base).
+4. Mirror.
+5. Image rebuilt, fresh volume: **zero error lines during init** (the ERROR lines after init are the batteries' own refusals), init file = tu.sql by md5.
+6. **Catalog parity, full identity including every comment:** `tests/v5.4.2-14/parity/catalog-identity.sql`, 10,435 lines, identical between the build and a database built from the -16 tu.sql with the patch applied (md5 `e2c35ff539dee4aa073e5ea900f2d0bd`). Counts (`tests/v5.4.2-13/parity/catalog-counts.sql`) also identical.
+7. **On the build** (`tests/ci.sh`, all pass): batteries 09 / 10 / 11 / 12 / 13 / 14 / 16 / 17, isolation-17, races -17 / -16 / -12, law files, evidence txn -13, tenant isolation invariants, core role invariants, rule table invariants. -17 re-applied over the build twice: clean. The `PENDING` list in `tests/ci.sh` is now empty.
+8. No rule-term schema or rule table is committed: the fixture area exists only inside the batteries' rolled-back transactions, so `assert_rule_table_invariants()` is vacuous on the build until -13 is migrated (residual R24).
 
 ## v5.4.2-16 — places and applicability: where a premise is, and what kind of utility serves it (rule-terms v2 §9, §12 step 1; Ryan 2026-10-06/07)
 `sql/v5.4.2-16-places-and-applicability.sql` (1,434 lines, md5 `eec3f3a6c0310f1f6505c48e07486a1a`), mirrored into tu.sql (26,049 → **27,331**, pure append: a 5-line banner and the 1,277-line body, header omitted; prefix and body byte-identical by `cmp`).
