@@ -4,6 +4,19 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-09 (end) — v5.4.2-17: round 6 (Opus, Fable, Codex all "ready"); r7 proposed, awaiting Ryan
+
+**What was done:**
+- Froze r6 and ran round 6 with all three reviewers: all **ready**, no blocking item. Codex's 12 probes run by me on a clone of frozen r6 (S1, S2 and N2 reproduced; the first pass missed them because I filtered NOTICE lines).
+- Triage: six groups (trigger-identity assertion including Opus's inheritance-child and rewrite-rule cases; unfilled legacy rows read as law; note dry-run; optional `strategy`; two untested trigger-name clauses; `governs` as `$ref` wording). Reviews and probes committed (`411bfd6`). Findings and the r7 plan are in HANDOFF.
+- No code changed after the r6 freeze. Ryan has not yet answered whether to build r7.
+
+**Lessons:** a launcher shell's "completed" notice is not the reviewer finishing (twice); probes that report through NOTICE need the notices shown; Codex's sandbox cannot reach Docker, so it writes probes and I run them.
+
+**Next:** Ryan's answer on r7, then build it test-first.
+
+---
+
 ## 2026-10-09 (later) — v5.4.2-17: round 5 (Opus, Fable, Codex all "ready") folded into r6; frozen
 
 **What was done:**

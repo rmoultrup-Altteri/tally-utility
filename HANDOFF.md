@@ -1,8 +1,26 @@
-# Handoff: v5.4.2-17 (rule-terms step 2) is frozen at r6; all three round-5 reviewers said "ready"; next, round 6 or Ryan's mirror approval
+# Handoff: v5.4.2-17 (rule-terms step 2) is frozen at r6; round 6 done (all three "ready"); Ryan to decide on r7
 
 **Generated**: 2026-10-09, end of session
-**Branch**: `main`, pushed. gas-billing-memory unchanged (`091c990`) as of 2026-10-07; fetch both before orienting.
-**Status**: r6 frozen (patch md5 `e56f35010b3697680cff673cf44cbd8e`, 3,256 lines; battery `f65867baaf103dd589c581520cd5228f`). Round 5 (Opus, Fable, Codex): all **ready**, no blocking item, seven should-fixes, all folded into r6 (`review-findings-17-r5.md`). Brief for a round 6: `tests/v5.4.2-17/review/review-brief-17-r6.md`. **Ask Ryan:** run round 6 with all three, or mirror r6 into `tu.sql` now. Codex's sandbox cannot reach Docker: it writes probe `.sql` files (`codex-r5-probes/`) and I run them.
+**Branch**: `main`, pushed (last commit `411bfd6`). gas-billing-memory unchanged (`091c990`) as of 2026-10-07; fetch both before orienting.
+**Status**: r6 frozen (patch md5 `e56f35010b3697680cff673cf44cbd8e`, 3,256 lines; battery `f65867baaf103dd589c581520cd5228f`). Round 6 (Opus, Fable, Codex): all **ready**, no blocking item, six should-fix groups (below). **Waiting on Ryan:** my recommendation is r7 (all six folded, each test written first and watched failing on r6), then the three reviewers check only the r6-to-r7 diff, then he approves the mirror. The alternatives I gave him: mirror r6 and carry these as residuals, or a full round 7. He has not answered.
+
+## Round 6 findings (reviews: `review-r6-opus.md`, `review-r6-fable.md`, `review-r6-codex.md`; Codex's probes in `codex-r6-probes/`, outputs appended to its review)
+
+1. **Trigger assertion identifies the template's triggers by name only** (Codex S2, Opus S1, Fable S1). Reproduced by Codex and Fable: `CREATE OR REPLACE TRIGGER rule_row_history … BEFORE DELETE` (or another function) passes `assert_rule_table_invariants()`, and an UPDATE of a law row then succeeds. Opus adds, **not yet reproduced by me**: an inheritance child of a law table returns its never-validated row from `rule_law_row_as_of`; a `DO INSTEAD NOTHING` rule passes. Fix: check `tgfoid`, `tgtype` (7/27/34) and no WHEN for each template trigger; refuse inheritance children and rewrite rules; exclude the template's triggers by identity, not name.
+2. **An unfilled legacy row on an adopting table (`terms IS NULL`) counts as law** (Fable S2; not yet reproduced by me): lookups, cites and the tariff check read it. r6's blank-key check can make such a row unfillable. Fix: lookups/cite/tariff refuse `terms IS NULL`; adopting registration runs `rule_key_check` and the span compare over existing rows (also Codex N2, Opus note).
+3. **Delegated dry-run covers only `{governs, citation}`** (Opus S2): a facet reading `$.note` registers, then the delegated document with a note is refused. Dry-run both.
+4. **`strategy` may be optional** (Fable S3): add `required ? 'strategy'` to the version clause.
+5. **Two trigger-name clauses untested** (Opus S3): dropping `COLLATE "C"` or the BEFORE bit survives. Add `rulerowa` (refused), `Zz_…` and an AFTER ROW late-named trigger (allowed).
+6. **`governs` cannot be a `$ref`** (Codex S1; Fable and Opus note it): decide README/message wording ("the discriminator is inline") rather than resolving it in the interpreter (touches branch selection in SQL and Python).
+Notes to record as residuals: a CHECK on a facet column and an unbound `$variable` in a facet path are outside the dry-run; the dry-run is the delegated half only (Codex N1); -13/-15 must make any column named by a facet nullable (facet name = column name); the invariant is vacuous until -13 is mirrored; "must admit" message vs the "exactly" rule.
+All three say -13 and -15 can use r6 as built (their rule-table triggers are `a_…`).
+
+## Resume Instructions (this session's)
+
+1. Fetch both repos. Read this file and `tests/v5.4.2-17/review/review-findings-17-r5.md` (the format for a findings record); write `review-findings-17-r6.md` the same way once r7 is built.
+2. Ask Ryan only if he has not answered the r7 question above. If he says go: write the failing tests first (inheritance child, rewrite rule, replaced trigger, unfilled legacy row, note dry-run, optional strategy, trigger names), confirm each fails on r6, fold, then `tests/ci.sh`, the full `mutations-17.py` (re-anchor any that move; run **all** after each patch edit), freeze r7 (`patch-17-frozen-r7.sql`, `battery-17-frozen-r7.sql`, `review-brief-17-r7.md` limited to the r6-to-r7 diff), commit.
+3. Review method: Opus and Fable as background agents (own database prefixes, never the mutation runner's default `m17*` names); Codex via `codex exec -s workspace-write` writing probe `.sql` files, which I run (see memory `codex-reviewer-node-path`). A "completed" notice for a `nohup … &` launcher is the shell, not the reviewer.
+4. Never edit the patch while reviewers test it; one revision per round; hash in every request. Mirror into `tu.sql` only on Ryan's approval (procedure in `sql/DEPLOY-VERIFICATION.md`, listed below under Not Yet Done).
 
 ## Goal
 
