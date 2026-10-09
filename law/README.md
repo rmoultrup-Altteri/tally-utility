@@ -64,7 +64,7 @@ rows:
 
 ### A document
 
-- **Strategies, not logic.** A decision point names a strategy and its version: `{"strategy": "flat", "version": 1, …}`. Any object with a `strategy` property (the property name is what makes it a strategy) requires a `version` that is an integer with `1 <= minimum <= maximum`, whether it is one branch of a union or the only strategy. The `strategy` itself is a string with a `const` (one name) or an `enum` (a closed set of names): a plain string would admit a name the core has no code for. The core resolves `(decision point, strategy, version)` to code (v2 §4). There are no expressions, conditions or formulas in a document.
+- **Strategies, not logic.** A decision point names a strategy and its version: `{"strategy": "flat", "version": 1, …}`. Any object with a `strategy` property (the property name is what makes it a strategy) requires `strategy` itself and a `version` that is an integer with `1 <= minimum <= maximum`, whether it is one branch of a union or the only strategy. The `strategy` itself is a string with a `const` (one name) or an `enum` (a closed set of names): a plain string would admit a name the core has no code for. The core resolves `(decision point, strategy, version)` to code (v2 §4). There are no expressions, conditions or formulas in a document.
 - **Component ids.** An `id` names a part a record can cite (`"id": "p1"`). It is unique within the document.
 - **Citations per section.** A citation goes where the provision applies, not only at the root.
 - **Delegated law.** Every law kind admits `{"governs": "delegated_to_utility", "citation": …}`: the law leaves the matter to the utility's own tariff. This is not the same as no law; with no law row, the database refuses (places finding 1).
@@ -79,7 +79,7 @@ A kind's schema is JSON Schema 2020-12, limited to the subset the database's val
 | Anywhere | `title`, `description`, `$comment` |
 | Root only | `$schema` (2020-12), `$id`, `$defs` |
 | A reference | `{"$ref": "#/$defs/<name>"}` and nothing else; never a chain of references |
-| A union | `{"oneOf": […]}` of object schemas, with exactly one property that every branch requires as a string `const` (the discriminator: `strategy`, `governs`) |
+| A union | `{"oneOf": […]}` of object schemas, with exactly one property that every branch requires as a string `const` (the discriminator: `strategy`, `governs`), written inline — a discriminator is never a `$ref` |
 | `object` | `properties`, `required`, `additionalProperties: false` (required) |
 | `array` | `items` (required), `minItems`, `maxItems`, `uniqueItems` |
 | `string` | `const` or `enum`, `minLength`, `maxLength`, and `pattern` from two only: `[A-Za-z0-9]` (contains a letter or digit) and `^[a-z][a-z0-9_]*$` (a code) |
@@ -95,7 +95,7 @@ A kind's schema is JSON Schema 2020-12, limited to the subset the database's val
                 "note": {"type": "string", "pattern": "[A-Za-z0-9]"}}}
 ```
 
-`note` is optional; a property may be written as a `$ref` to a definition of exactly that shape. Registration refuses any other shape of this branch (a `maxLength` on `governs` or `citation`, a required `note`, another keyword), because it could leave no document that validates; `title`, `description` and `$comment` are annotations and change nothing.
+`note` is optional; `citation` and `note` may be written as a `$ref` to a definition of exactly that shape, but `governs`, the discriminator, is written inline. Registration refuses any other shape of this branch (a `maxLength` on `governs` or `citation`, a required `note`, another keyword), because it could leave no document that validates; `title`, `description` and `$comment` are annotations and change nothing.
 
 **Versions** (v2 §11):
 - A version is registered once, numbered 1, 2, …, and never edited.
@@ -104,7 +104,7 @@ A kind's schema is JSON Schema 2020-12, limited to the subset the database's val
 
 ## Tables
 
-An area's law and tariff tables are registered with `rule_table_register()`, which adds the template's triggers (`rule_row_insert`, `rule_row_history`). PostgreSQL fires BEFORE ROW triggers in name order, so **any other BEFORE ROW trigger on a registered table is named to sort before `rule_row_history`** (an `a_…` name does): one that sorted after would run on a row the template had already validated and could rewrite it. Registration refuses such a trigger, and `assert_rule_table_invariants()` (run in CI) finds a later one. A law table's facet columns must also allow NULL and its facet paths must work on the standard delegated document, or the law leaving a matter to the utility could not be stored; registration dry-runs it.
+An area's law and tariff tables are registered with `rule_table_register()`, which adds the template's triggers (`rule_row_insert`, `rule_row_history`). PostgreSQL fires BEFORE ROW triggers in name order, so **any other BEFORE ROW trigger on a registered table is named to sort before `rule_row_history`** (an `a_…` name does): one that sorted after would run on a row the template had already validated and could rewrite it. Registration refuses such a trigger, and `assert_rule_table_invariants()` (run in CI) finds a later one. A law table's facet columns must also allow NULL and its facet paths must work on the standard delegated document, or the law leaving a matter to the utility could not be stored; registration dry-runs it, with and with no `note`. The template's three triggers stay exactly what registration made them (function, events, no `WHEN`, no column list, `ENABLE ALWAYS`); a registered table has no inheritance child and no rewrite rule; `assert_rule_table_invariants()` checks all of it. A table registered as having pre-convention rows holds only rows the fill can adopt (a non-blank key; spans that match their sets), and until a row's document is filled, lookups, citations and the tariff check refuse it as "not yet adopted".
 
 ## Seeding
 
