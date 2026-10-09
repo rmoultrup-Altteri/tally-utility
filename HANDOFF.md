@@ -1,8 +1,8 @@
-# Handoff: v5.4.2-17 (rule-terms step 2) is frozen at r5; next, review round 5, then Ryan approves the mirror
+# Handoff: v5.4.2-17 (rule-terms step 2) is frozen at r6; all three round-5 reviewers said "ready"; next, round 6 or Ryan's mirror approval
 
 **Generated**: 2026-10-09, end of session
 **Branch**: `main`, pushed. gas-billing-memory unchanged (`091c990`) as of 2026-10-07; fetch both before orienting.
-**Status**: r5 frozen (patch md5 `d20d453c0aaecadb79ffdc0852d8cb56`, 3,120 lines; battery `ea9bb460c10534fce95b9c5883e48904`). Codex reviewed r4 on 2026-10-09: **not yet** (B1, B2, S1-S3), all folded into r5. Next: a round-5 review (brief: `tests/v5.4.2-17/review/review-brief-17-r5.md`), by all three if possible. **Codex's sandbox could not reach Docker** in round 4 (`codex exec -s workspace-write` gave "permission denied" on the docker socket), so its probes were static; run its probes yourself, or give it a way in. Then ask Ryan to approve the mirror.
+**Status**: r6 frozen (patch md5 `e56f35010b3697680cff673cf44cbd8e`, 3,256 lines; battery `f65867baaf103dd589c581520cd5228f`). Round 5 (Opus, Fable, Codex): all **ready**, no blocking item, seven should-fixes, all folded into r6 (`review-findings-17-r5.md`). Brief for a round 6: `tests/v5.4.2-17/review/review-brief-17-r6.md`. **Ask Ryan:** run round 6 with all three, or mirror r6 into `tu.sql` now. Codex's sandbox cannot reach Docker: it writes probe `.sql` files (`codex-r5-probes/`) and I run them.
 
 ## Goal
 
@@ -11,6 +11,15 @@ Rule-terms v2 §12 step 2: the convention infrastructure, written once, so that 
 - the -15 rewrite (deposits).
 
 Both lead toward the C# core billing engine.
+
+## Round 5 and r6 (2026-10-09)
+
+All three reviewers: ready. Folded into r6, each with a test and a mutation (battery 247 checks, mutations 165/165, `tests/ci.sh` all pass, including the new `assert_rule_table_invariants()` step):
+- a law table's facets are dry-run on the standard delegated document (Opus S2); a strategy is a string with a const or enum (Opus S3); the delegated branch may use property `$ref`s (Fable S1);
+- no BEFORE ROW trigger may sort after `rule_row_history`; registration refuses it and CI asserts it (Fable S2);
+- a direct insert refuses a blank area key (Codex S1); published values and bounds refuse infinities (Codex S2);
+- the tests the r5 clauses lacked (Opus S1: R3h, R4s-R4v).
+Residuals R19-R21 record the notes. Method that worked: Codex writes probes, I run them (it cannot reach Docker); mutations re-anchored after each patch edit.
 
 ## Round 4 and r5 (2026-10-09)
 

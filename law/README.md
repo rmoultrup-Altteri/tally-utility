@@ -64,7 +64,7 @@ rows:
 
 ### A document
 
-- **Strategies, not logic.** A decision point names a strategy and its version: `{"strategy": "flat", "version": 1, …}`. Any object with a `strategy` property requires a `version` that is an integer with `1 <= minimum <= maximum`, whether it is one branch of a union or the only strategy. The core resolves `(decision point, strategy, version)` to code (v2 §4). There are no expressions, conditions or formulas in a document.
+- **Strategies, not logic.** A decision point names a strategy and its version: `{"strategy": "flat", "version": 1, …}`. Any object with a `strategy` property (the property name is what makes it a strategy) requires a `version` that is an integer with `1 <= minimum <= maximum`, whether it is one branch of a union or the only strategy. The `strategy` itself is a string with a `const` (one name) or an `enum` (a closed set of names): a plain string would admit a name the core has no code for. The core resolves `(decision point, strategy, version)` to code (v2 §4). There are no expressions, conditions or formulas in a document.
 - **Component ids.** An `id` names a part a record can cite (`"id": "p1"`). It is unique within the document.
 - **Citations per section.** A citation goes where the provision applies, not only at the root.
 - **Delegated law.** Every law kind admits `{"governs": "delegated_to_utility", "citation": …}`: the law leaves the matter to the utility's own tariff. This is not the same as no law; with no law row, the database refuses (places finding 1).
@@ -95,12 +95,16 @@ A kind's schema is JSON Schema 2020-12, limited to the subset the database's val
                 "note": {"type": "string", "pattern": "[A-Za-z0-9]"}}}
 ```
 
-`note` is optional. Registration refuses any other shape of this branch (a `maxLength` on `governs` or `citation`, a required `note`, another keyword), because it could leave no document that validates; `title`, `description` and `$comment` are annotations and change nothing.
+`note` is optional; a property may be written as a `$ref` to a definition of exactly that shape. Registration refuses any other shape of this branch (a `maxLength` on `governs` or `citation`, a required `note`, another keyword), because it could leave no document that validates; `title`, `description` and `$comment` are annotations and change nothing.
 
 **Versions** (v2 §11):
 - A version is registered once, numbered 1, 2, …, and never edited.
 - A new version is for a breaking shape change only. Additive optional fields, with a defined meaning when absent, do not need one.
 - A version is frozen (no new rows) rather than retired: rows that use it keep it forever, and the core keeps a reader for it.
+
+## Tables
+
+An area's law and tariff tables are registered with `rule_table_register()`, which adds the template's triggers (`rule_row_insert`, `rule_row_history`). PostgreSQL fires BEFORE ROW triggers in name order, so **any other BEFORE ROW trigger on a registered table is named to sort before `rule_row_history`** (an `a_…` name does): one that sorted after would run on a row the template had already validated and could rewrite it. Registration refuses such a trigger, and `assert_rule_table_invariants()` (run in CI) finds a later one. A law table's facet columns must also allow NULL and its facet paths must work on the standard delegated document, or the law leaving a matter to the utility could not be stored; registration dry-runs it.
 
 ## Seeding
 

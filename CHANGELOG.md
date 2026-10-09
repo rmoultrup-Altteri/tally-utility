@@ -4,6 +4,22 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-09 (later) — v5.4.2-17: round 5 (Opus, Fable, Codex all "ready") folded into r6; frozen
+
+**What was done:**
+- Launched round 5 on frozen r5 with all three reviewers. Opus, Fable and Codex all said **ready**, no blocking item; seven should-fixes. Codex's sandbox cannot reach Docker, so it wrote nine probes and I ran them: seven passed, two (blank area key, published infinities) reproduced its findings.
+- Folded all seven into **r6** (`review-findings-17-r5.md`): five tests for the untested r5 clauses; a facet dry-run of the standard delegated document at law-table registration and at a later version's first row; a strategy must have a const or enum; the delegated branch resolves property `$ref`s; no BEFORE ROW trigger may sort after the template's, with `assert_rule_table_invariants()` in the tail and CI; a direct insert refuses a blank area key; published values and bounds refuse infinities. Residuals R19-R21.
+- Tests: battery 230 to 247, mutations 147 to 165 (18 new; M88, M124, M141, M143 re-anchored), `tests/ci.sh` all pass with a new "rule table invariants" step.
+- Froze r6 (patch `e56f3501…`, battery `f65867ba…`); wrote `review-brief-17-r6.md`.
+
+**Lessons:**
+- A redundant guard is a mutation that cannot be caught: the `type` clause on a strategy (const/enum exist only under a string) was dropped, leaving one check.
+- Run every old mutation after a patch edit: four anchors had moved.
+
+**Next:** Ryan decides: round 6 with all three, or mirror r6 into `tu.sql` (procedure in `sql/DEPLOY-VERIFICATION.md`).
+
+---
+
 ## 2026-10-09 — v5.4.2-17: Codex's round-4 review ("not yet") folded into r5; frozen for round 5
 
 **What was done:**

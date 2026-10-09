@@ -18,8 +18,8 @@ tests/
                             #   fresh tally-pg). Clones `tally`; strict-applies (twice) patches not yet mirrored;
                             #   batteries -09..-14, -16, -17; -17's isolation, races and law files; -16 and -12 races;
                             #   -13's evidence script; the tenant-isolation invariants. Never writes `tally`.
-  v5.4.2-17/                # the rule-terms convention written once (DRAFT r5, 2026-10-09; Opus and Fable ready on r3; Codex's r4 "not yet" folded, round 5 to review)
-    battery-17.sql          # 230 checks, groups R V F T L U C A P I K G, on a fictional state's law (ZZ) from
+  v5.4.2-17/                # the rule-terms convention written once (DRAFT r6, 2026-10-09; round 5: Opus, Fable and Codex all ready; their should-fixes folded in r6)
+    battery-17.sql          # 247 checks, groups R V F T L U C A P I K G, on a fictional state's law (ZZ) from
                             #   law/fixtures/zz/ (fixture-zz.sql); every refusal must carry its own guard's phrase
     run-battery-17.sh       # copies law/ into the container, then runs the battery against <db>
     isolation-17.sh         # X1-X6: a facet after its schema's transaction; rows, citations, closes, freezes
@@ -28,7 +28,7 @@ tests/
                             #   in both orders; a tariff against a close and successor in flight; the second session seen waiting
     lawfiles-17.sh          # W1-W5: law files valid; seed SQL not drifted; seed twice + round trip; the database
                             #   validator agrees with jsonschema on 899 documents; the strict loader's refusals
-    mutations-17.py         # 147 mutations, each caught at its named check (battery, X, R, W or APPLY); clones
+    mutations-17.py         # 165 mutations, each caught at its named check (battery, X, R, W or APPLY); clones
                             #   `tally` (the -16 build) and revokes TEMP on every clone
   v5.4.2-15/                # deposits at parity: the deposit law leaves the database (DRAFT; round 2 revision 2026-10-02)
     battery-15.sql          # 104 checks, groups A Z B C D L E F W G; group Z stores a fictional state ZZ with
