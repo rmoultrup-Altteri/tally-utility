@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Money } from '@/components/ui/Money'
+import { AccountNumber } from '@/components/ui/RecordLink'
 import { StateBlock, StateFlag } from '@/components/ui/State'
 import type { Payment } from '@/schemas/models'
 import type { PaymentChannel, PaymentMethod } from '@/schemas/enums'
@@ -324,7 +325,7 @@ export function PaymentForm({
         />
         <div className="px-4 py-4 space-y-3">
           <p className="text-data text-ink-primary">
-            <Money value={receipt.amount} /> from <strong className="font-semibold">{c?.name}</strong> ({c?.number}) by{' '}
+            <Money value={receipt.amount} /> from <strong className="font-semibold">{c?.name}</strong> ({c ? <AccountNumber number={c.number} id={c.id} /> : null}) by{' '}
             {METHOD[receipt.payment_method].toLowerCase()}, {CHANNEL[receipt.channel].toLowerCase()}, on {date(receipt.payment_date)}.
           </p>
           <ul className="border-y border-rule-hair divide-y divide-rule-hair">
@@ -431,7 +432,7 @@ export function PaymentForm({
                   <Link href={`/customers/${customer.id}` as Route} className="text-h3 text-ink-primary hover:underline">
                     {customer.name}
                   </Link>
-                  <span className="ml-2 ident text-ink-tertiary">{customer.number}</span>
+                  <AccountNumber number={customer.number} id={customer.id} className="ml-2" />
                   <p className="text-micro text-ink-secondary">
                     {customer.street}, {customer.cityLine}
                   </p>

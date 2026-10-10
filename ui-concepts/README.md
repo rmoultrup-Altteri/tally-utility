@@ -38,6 +38,8 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/rates/pga` | PGA console — the bi-temporal lattice, late-filing exposure, filing discipline |
 | `/rates/sandbox` | Tariff sandbox — move a rate, rehearse it against a closed cycle's actual volumes |
 | `/customers/cus-0001` | Customer 360 with usage-vs-weather |
+| `/meters` | Every meter, set or in stock — filter by status, read type, route, size and what needs attention |
+| `/meters/mtr-0001` | The meter record — equipment, premise, factors, endpoint, testing, swap lineage and history |
 | `/settings` | Tenant settings — reached from the operator's name, top right |
 | `/settings/dunning` | Automatic dunning setup, with a working-day preview on a real bill |
 
@@ -178,6 +180,21 @@ and falls back to the parent screen when there is nothing behind it in the app.
 - **Bills:** only draft and held bills — none has been issued — and only the
   bill date, due date and hold reason. Issued bills show no Edit; their only
   correction is still void then rebill. Amounts and lines come from the run.
+
+**Inactivate** / **Reactivate**, beside Edit on an account and on a meter,
+changes status as a state event: a reason, an effective date, and a tick
+against each consequence (a balance or deposit still on the account, a meter
+serving an account, a read still in review). Inactivating an account can take
+its premise's meter with it. Only an active meter can be inactivated — setting
+or pulling one is a service order. Roles without Edit accounts see the button
+disabled.
+
+The Accounts and Meters lists open on **Active**, with a chip per status and
+**All**. An account counts as active while it is in service or in collections,
+or while any balance remains on it, so an inactivated account still owing money
+stays on the default list. A search on the default list looks across every
+status. Every account and meter number on every screen opens its record, unless
+the prototype doesn't model that record; those show as plain text.
 
 Edits overlay the fixtures in this browser (`lib/edits-store.ts`) with a log
 of who changed what and why; the header shows when the record was last edited.

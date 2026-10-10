@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { StateFlag } from '@/components/ui/State'
+import { AccountNumber, MeterNumber } from '@/components/ui/RecordLink'
 import { Table, HeadRow, Th, Row, Td } from '@/components/table/Table'
 import type { Cell, Column, ReportRow } from '@/fixtures/reports'
 import { count, dateShort, money, percent } from '@/lib/format'
@@ -131,6 +132,11 @@ function CellValue({ column, value, plain = false }: { column: Column; value: Ce
     case 'date':
       return <span className={`${ink('text-ink-secondary')} whitespace-nowrap`}>{dateShort(String(value))}</span>
     case 'ident':
+      /* An account or meter number opens its record — unless the whole cell is already the drilldown link. */
+      if (!plain && column.key === 'account')
+        return <AccountNumber number={String(value)} className="whitespace-nowrap" plainClassName="text-ink-secondary" />
+      if (!plain && column.key === 'meter')
+        return <MeterNumber number={String(value)} className="whitespace-nowrap" plainClassName="text-ink-secondary" />
       return <span className={`ident ${ink('text-ink-secondary')} whitespace-nowrap`}>{value}</span>
     case 'status':
       return <StateFlag tone={column.tones?.[String(value)] ?? 'draft'}>{value}</StateFlag>

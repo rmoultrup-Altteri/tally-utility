@@ -6,17 +6,22 @@ import { Button, Field, FieldGrid } from '@/components/ui/Panel'
 import { Money } from '@/components/ui/Money'
 import { StateBlock, StateFlag, humanize } from '@/components/ui/State'
 import { Dialog, EditButton, FormField, fieldClass } from '@/components/ui/Dialog'
+import { StatusButton, StatusChangeDialog, type Consequence } from '@/components/ui/StatusChange'
+import { ACCOUNT_INACTIVATE_REASONS, ACCOUNT_REACTIVATE_REASONS, accountTone } from '@/components/meters/status'
 import {
   CUSTOMER_REASONED,
+  changeStatus,
   saveCustomer,
   useCustomer,
+  useEdits,
   useLastEdit,
+  useLastStatusChange,
   type CustomerEdit,
 } from '@/lib/edits-store'
 import { asOf } from '@/fixtures/tenant'
 import { CustomerType, DisconnectProtectionType } from '@/schemas/enums'
-import { customerName, type Customer, type ServiceLocation } from '@/schemas/models'
-import { date, stamp } from '@/lib/format'
+import { customerName, type Customer, type Meter, type ServiceLocation } from '@/schemas/models'
+import { date, money, stamp } from '@/lib/format'
 
 /**
  * The parts of the account screen that show editable fields. They read the
@@ -24,10 +29,22 @@ import { date, stamp } from '@/lib/format'
  * everywhere on the page without a reload.
  */
 
-export function AccountHeader({ customer: base, actions }: { customer: Customer; actions: ReactNode }) {
+export function AccountHeader({
+  customer: base,
+  actions,
+  meter,
+  location,
+}: {
+  customer: Customer
+  actions: ReactNode
+  meter?: Meter
+  location?: ServiceLocation
+}) {
   const customer = useCustomer(base)
   const edited = useLastEdit('customer', base.id)
   const [open, setOpen] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
+  const verb = customer.status === 'inactive' ? 'Reactivate' : 'Inactivate'
   return (
     <>
       <PageHeader
@@ -48,11 +65,21 @@ export function AccountHeader({ customer: base, actions }: { customer: Customer;
         actions={
           <>
             {actions}
+            <StatusButton verb={verb} onClick={() => setStatusOpen(true)} />
             <EditButton onClick={() => setOpen(true)} />
           </>
         }
       />
       <EditAccount base={base} current={customer} open={open} onClose={() => setOpen(false)} />
+      <AccountStatusChange
+        base={base}
+        current={customer}
+        verb={verb}
+        meter={meter}
+        location={location}
+        open={statusOpen}
+        onClose={() => setStatusOpen(false)}
+      />
     </>
   )
 }
@@ -60,9 +87,21 @@ export function AccountHeader({ customer: base, actions }: { customer: Customer;
 /** Protections and holds come first. A CSR must never miss these. */
 export function AccountAlerts({ customer: base }: { customer: Customer }) {
   const customer = useCustomer(base)
-  if (!customer.do_not_disconnect && !customer.billing_hold) return null
+  const changed = useLastStatusChange('customer', base.id)
+  const inactive = customer.status === 'inactive'
+  if (!inactive && !customer.do_not_disconnect && !customer.billing_hold) return null
   return (
     <div className="px-5 py-3 border-b border-rule-hair bg-surface space-y-2">
+      {inactive ? (
+        <StateBlock tone="void">
+          <p className="text-data text-ink-primary">
+            <strong className="font-semibold">Inactive</strong>
+            {changed?.effective ? <> since {date(changed.effective)}</> : null}
+            {changed?.reason ? <> — {changed.reason}</> : null}. No bills are issued; payments still post
+            against any remaining balance.
+          </p>
+        </StateBlock>
+      ) : null}
       {customer.do_not_disconnect ? (
         <StateBlock tone="critical">
           <p className="text-data text-ink-primary">
@@ -89,7 +128,7 @@ export function AccountFields({ customer: base, location }: { customer: Customer
   return (
     <FieldGrid cols={4}>
       <Field label="Status">
-        <StateFlag tone={customer.status === 'active' ? 'approved' : 'failed'}>{humanize(customer.status)}</StateFlag>
+        <StateFlag tone={accountTone(customer.status)}>{humanize(customer.status)}</StateFlag>
       </Field>
       <Field label="Balance">
         <Money value={customer.balance} arrears={customer.status === 'collections'} />
@@ -120,6 +159,125 @@ export function AccountFields({ customer: base, location }: { customer: Customer
         {location?.franchise_city ?? 'None'}
       </Field>
     </FieldGrid>
+  )
+}
+
+/* ---- Inactivate / reactivate ----------------------------------------- */
+
+function AccountStatusChange({
+  base,
+  current,
+  verb,
+  meter: meterBase,
+  location,
+  open,
+  onClose,
+}: {
+  base: Customer
+  current: Customer
+  verb: 'Inactivate' | 'Reactivate'
+  meter?: Meter
+  location?: ServiceLocation
+  open: boolean
+  onClose: () => void
+}) {
+  const meterEdit = useEdits().meters[meterBase?.id ?? '']
+  const meter = meterBase ? { ...meterBase, ...meterEdit } : undefined
+  const changed = useLastStatusChange('customer', base.id)
+  const balance = Number(current.balance)
+  const deposit = Number(current.deposit_amount)
+
+  const consequences: Consequence[] = []
+  if (verb === 'Inactivate') {
+    if (balance > 0)
+      consequences.push({
+        id: 'balance',
+        tone: 'warning',
+        acknowledge: true,
+        text: (
+          <>
+            A balance of <strong className="font-semibold">{money(balance)}</strong> stays on the account.
+            Inactivating doesn’t bill it or write it off — issue the final bill, and anything left unpaid moves
+            through collections.
+          </>
+        ),
+      })
+    if (balance < 0)
+      consequences.push({
+        id: 'credit',
+        tone: 'warning',
+        acknowledge: true,
+        text: <>A credit of {money(-balance)} is owed to the customer and must be refunded.</>,
+      })
+    if (deposit > 0)
+      consequences.push({
+        id: 'deposit',
+        tone: 'warning',
+        acknowledge: true,
+        text: <>A deposit of {money(deposit)} is still held. Apply it to the final bill or refund it.</>,
+      })
+    if (current.status === 'collections')
+      consequences.push({
+        id: 'collections',
+        tone: 'warning',
+        acknowledge: true,
+        text: 'The account is in collections. Inactivating stops dunning notices; the debt stays on the account.',
+      })
+    if (current.do_not_disconnect)
+      consequences.push({
+        id: 'dnd',
+        tone: 'info',
+        text: 'The do-not-disconnect protection ends with the account. Confirm the customer asked to close it.',
+      })
+    consequences.push({
+      id: 'bills',
+      tone: 'info',
+      text: 'No bills are issued after the effective date. Bills, payments and the ledger stay on the account.',
+    })
+  } else {
+    consequences.push({
+      id: 'bills',
+      tone: 'info',
+      text: 'Billing resumes on the next run for the premise. Bills skipped while inactive are not back-billed.',
+    })
+  }
+
+  /* Offer the premise's meter only when it is in the status this change moves away from. */
+  const offerMeter = !!meter && meter.status === (verb === 'Inactivate' ? 'active' : 'inactive')
+  const extras = offerMeter
+    ? [
+        {
+          id: 'meter',
+          label: `Also ${verb.toLowerCase()} meter ${meter.meter_number}${location ? ` at ${location.address}` : ''}`,
+          hint:
+            verb === 'Inactivate'
+              ? 'Leaves the premise shut off until a new account starts service there.'
+              : 'Turns service back on at the premise from the same date.',
+        },
+      ]
+    : []
+
+  return (
+    <StatusChangeDialog
+      open={open}
+      onClose={onClose}
+      verb={verb}
+      title={`${verb} account`}
+      meta={
+        <>
+          <span className="ident">{base.customer_number}</span> · {customerName(current)}
+        </>
+      }
+      reasons={verb === 'Inactivate' ? ACCOUNT_INACTIVATE_REASONS : ACCOUNT_REACTIVATE_REASONS}
+      consequences={consequences}
+      extras={extras}
+      earliest={verb === 'Inactivate' ? current.move_in_date : (changed?.effective ?? null)}
+      onConfirm={(reason, effective, chosen) => {
+        const to = verb === 'Inactivate' ? 'inactive' : 'active'
+        changeStatus('customer', base, to, reason, effective)
+        if (meterBase && chosen.includes('meter')) changeStatus('meter', meterBase, to, reason, effective)
+      }}
+    />
   )
 }
 

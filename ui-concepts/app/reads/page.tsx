@@ -5,6 +5,7 @@ import { Rail, StateFlag, StateBlock, humanize } from '@/components/ui/State'
 import type { Tone } from '@/components/ui/State'
 import { Flags, readFlags } from '@/components/ui/Flags'
 import { Nil, Quantity, Variance } from '@/components/ui/Money'
+import { AccountNumber, MeterNumber } from '@/components/ui/RecordLink'
 import {
   Table,
   GroupRow,
@@ -153,14 +154,16 @@ export default function ReadValidationPage() {
                         <p className="text-data text-ink-primary truncate max-w-40">
                           {customerName(customer)}
                         </p>
-                        <p className="ident text-ink-tertiary">{customer.customer_number}</p>
+                        <p>
+                          <AccountNumber number={customer.customer_number} id={customer.id} />
+                        </p>
                       </>
                     ) : (
                       <Nil />
                     )}
                   </Td>
                   <Td>
-                    <span className="ident text-ink-secondary">{meter?.meter_number}</span>
+                    {meter ? <MeterNumber number={meter.meter_number} id={meter.id} /> : null}
                     <p className="text-micro text-ink-tertiary">{meter?.route_id}</p>
                   </Td>
                   <Td align="center">

@@ -7,8 +7,9 @@ import { customerName } from '@/schemas/models'
  * The account list — where "Accounts" lands before any one customer is open.
  *
  * One row per account at its current premise. Search covers the two things a
- * caller actually gives you, their name and their address; everything else is
- * a sort, not a filter.
+ * caller actually gives you, their name and their address, plus the account
+ * and meter numbers off a bill. Status is the one filter: it opens on active
+ * accounts, and a search looks across every status. Everything else is a sort.
  */
 export default function CustomersPage() {
   const rows: AccountRow[] = customers.map((c) => {
@@ -18,6 +19,8 @@ export default function CustomersPage() {
     return {
       id: c.id,
       customerNumber: c.customer_number,
+      status: c.status,
+      balance: c.balance,
       createdAt: c.created_at,
       ownerName: customerName(c),
       streetAddress: location?.address ?? null,

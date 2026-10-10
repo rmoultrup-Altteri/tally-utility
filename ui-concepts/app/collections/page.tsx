@@ -7,6 +7,7 @@ import { Collapsible } from '@/components/ui/Collapsible'
 import { Rail, StateBlock, StateFlag, humanize, type Tone } from '@/components/ui/State'
 import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
 import { Money } from '@/components/ui/Money'
+import { AccountNumber } from '@/components/ui/RecordLink'
 import { AgingReport, type CustomerClass, type OpenBill } from '@/components/collections/AgingReport'
 import { invoices } from '@/fixtures/billing'
 import { customerById, locationById } from '@/fixtures/accounts'
@@ -177,7 +178,7 @@ export default function CollectionsPage() {
                       <span className="text-micro text-ink-secondary">{stamp(e.at)}</span>
                     </Td>
                     <Td>
-                      <span className="ident text-ink-secondary">{e.account}</span>
+                      <AccountNumber number={e.account} plainClassName="text-ink-secondary" />
                     </Td>
                     <Td>{e.action}</Td>
                     <Td>
@@ -355,7 +356,9 @@ export default function CollectionsPage() {
                       </RailCell>
                       <Td>
                         <p className="text-data text-ink-primary">{s.name}</p>
-                        <p className="ident text-ink-tertiary">{s.accountNumber}</p>
+                        <p>
+                          <AccountNumber number={s.accountNumber} plainClassName="text-ink-tertiary" />
+                        </p>
                       </Td>
                       <Td>
                         <p className="text-data">{s.chapter}</p>
@@ -486,7 +489,7 @@ function WorklistLine({ row, category }: { row: WorklistRow; category: BypassCat
           <span className="text-data text-ink-primary">{row.name}</span>
         )}
         <p className="ident text-ink-tertiary">
-          {row.accountNumber} · {row.isResidential ? 'Residential' : 'Commercial'}
+          <AccountNumber number={row.accountNumber} id={row.customerId ?? undefined} /> · {row.isResidential ? 'Residential' : 'Commercial'}
           {row.priorDisconnects > 0 ? ` · ${row.priorDisconnects} prior` : ''}
         </p>
       </Td>

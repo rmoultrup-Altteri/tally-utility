@@ -38,6 +38,9 @@ const STATUS: Record<BillStatus, { label: string; tone: Tone; rank: number }> = 
   void: { label: 'Void', tone: 'void', rank: 6 },
 }
 
+/** Issued and not yet paid off. Draft and held bills were never sent; void ones no longer count. */
+const OPEN: BillStatus[] = ['current', 'past_due']
+
 type SortKey =
   | 'invoiceDate'
   | 'status'
@@ -145,9 +148,11 @@ export function BillsList({ rows: fixtureRows, asOf }: { rows: BillRow[]; asOf: 
       }),
     [fixtureRows, edits],
   )
-  const [preset, setPreset] = useState<Preset>('current')
+  /* The list opens on every open bill — issued and still owing, whatever month
+     it was billed in. Every filter stays free to change from there. */
+  const [preset, setPreset] = useState<Preset>('all')
   const [custom, setCustom] = useState<Range>(() => resolve('current', asOf, { from: null, to: null }))
-  const [statuses, setStatuses] = useState<BillStatus[]>([])
+  const [statuses, setStatuses] = useState<BillStatus[]>(OPEN)
   const [query, setQuery] = useState('')
   const { sort, toggle } = useSort<SortKey>({ key: 'invoiceDate', dir: 'descending' })
 

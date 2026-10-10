@@ -54,7 +54,7 @@ export const CAPABILITIES: { key: Capability; label: string; hint: string }[] = 
   { key: 'refund.issue', label: 'Issue refunds', hint: 'Refund a credit balance' },
   { key: 'adhoc.create', label: 'Add one-off charges', hint: 'Add a fee or charge to an account' },
   { key: 'adhoc.approve', label: 'Approve one-off charges', hint: 'Approve a charge someone else added' },
-  { key: 'customer.edit', label: 'Edit accounts', hint: 'Change account details and protections' },
+  { key: 'customer.edit', label: 'Edit accounts', hint: 'Change account details and protections, and inactivate or reactivate accounts and meters' },
   { key: 'import.commit', label: 'Commit imports', hint: 'Apply a staged import' },
 ]
 

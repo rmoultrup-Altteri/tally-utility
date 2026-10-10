@@ -2,10 +2,10 @@
 
 import { useSyncExternalStore } from 'react'
 import { activeUserName } from '@/lib/session'
-import type { Customer, Invoice } from '@/schemas/models'
+import type { Customer, Invoice, Meter } from '@/schemas/models'
 
 /**
- * Edits made to accounts and draft bills, until the API exists.
+ * Edits made to accounts, meters and draft bills, until the API exists.
  *
  * The same shape as the payments and imports stores: one module every screen
  * subscribes to, persisted to localStorage, never able to break a page if
@@ -46,26 +46,31 @@ export const CUSTOMER_REASONED = [
 /** What may change on a bill that has never been issued. Amounts and lines come from the run. */
 export const INVOICE_EDITABLE = ['invoice_date', 'due_date', 'hold_reason'] as const satisfies readonly (keyof Invoice)[]
 
-export type CustomerEdit = Partial<Pick<Customer, (typeof CUSTOMER_EDITABLE)[number]>>
+/** `status` is never in the edit form: it moves only through an inactivation or reactivation, with a reason. */
+export type CustomerEdit = Partial<Pick<Customer, (typeof CUSTOMER_EDITABLE)[number] | 'status'>>
+export type MeterEdit = Partial<Pick<Meter, 'status'>>
 export type InvoiceEdit = Partial<Pick<Invoice, (typeof INVOICE_EDITABLE)[number]>>
 
 export type EditEntry = {
   at: string
   by: string
-  entity: 'customer' | 'invoice'
+  entity: 'customer' | 'invoice' | 'meter'
   id: string
   changes: Record<string, { from: unknown; to: unknown }>
   reason: string | null
+  /** The service date a status change takes effect, which need not be the day it was recorded. */
+  effective?: string
 }
 
 export type Edits = {
   customers: Record<string, CustomerEdit>
   invoices: Record<string, InvoiceEdit>
+  meters: Record<string, MeterEdit>
   log: EditEntry[]
 }
 
 const KEY = 'tu-edits'
-export const EMPTY_EDITS: Edits = { customers: {}, invoices: {}, log: [] }
+export const EMPTY_EDITS: Edits = { customers: {}, invoices: {}, meters: {}, log: [] }
 
 let current: Edits = EMPTY_EDITS
 let hydrated = false
@@ -132,6 +137,12 @@ export function useCustomer(c: Customer): Customer {
   return edit ? { ...c, ...edit } : c
 }
 
+/** The meter as it stands after any status change made in this browser. */
+export function useMeter(m: Meter): Meter {
+  const edit = useEdits().meters[m.id]
+  return edit ? { ...m, ...edit } : m
+}
+
 /** The bill as it stands after any edits made in this browser. */
 export function useInvoice(i: Invoice): Invoice {
   const edit = useEdits().invoices[i.id]
@@ -181,4 +192,54 @@ export function saveInvoice(base: Invoice, next: InvoiceEdit): boolean {
     log: [...current.log, { at: new Date().toISOString(), by: activeUserName(), entity: 'invoice', id: base.id, changes, reason: null }],
   })
   return true
+}
+
+/**
+ * Inactivate or reactivate an account or a meter.
+ *
+ * A status change is a state event, not an edit: it always carries a reason
+ * and the service date it takes effect, and never rides along with other
+ * field changes. Returns false when the record is already in that status.
+ */
+export function changeStatus(
+  entity: 'customer' | 'meter',
+  base: Customer | Meter,
+  status: string,
+  reason: string,
+  effective: string,
+): boolean {
+  hydrate()
+  const store: Record<string, { status?: string }> = entity === 'customer' ? current.customers : current.meters
+  const was = store[base.id]?.status ?? base.status
+  if (was === status) return false
+  const next = { ...store, [base.id]: { ...store[base.id], status } }
+  write({
+    ...current,
+    ...(entity === 'customer'
+      ? { customers: next as Edits['customers'] }
+      : { meters: next as Edits['meters'] }),
+    log: [
+      ...current.log,
+      {
+        at: new Date().toISOString(),
+        by: activeUserName(),
+        entity,
+        id: base.id,
+        changes: { status: { from: was, to: status } },
+        reason,
+        effective,
+      },
+    ],
+  })
+  return true
+}
+
+/** The newest status change on a record, for the banner that explains it. */
+export function useLastStatusChange(entity: 'customer' | 'meter', id: string): EditEntry | null {
+  const log = useEdits().log
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i]
+    if (e.entity === entity && e.id === id && 'status' in e.changes) return e
+  }
+  return null
 }

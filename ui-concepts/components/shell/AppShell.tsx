@@ -8,6 +8,7 @@ import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
 import { ThemeControl } from '@/components/shell/ThemeControl'
 import { Favorites } from '@/components/shell/Favorites'
+import { TallyLogo } from '@/components/shell/TallyLogo'
 import { TenantLogo } from '@/components/shell/TenantLogo'
 import { UserMenu } from '@/components/shell/UserMenu'
 
@@ -31,10 +32,11 @@ type NavItem = { href: Route; label: string; badge?: 'open' }
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/', label: 'Exceptions', badge: 'open' },
-  { href: '/collections', label: 'Collections' },
   { href: '/customers' as Route, label: 'Accounts' },
+  { href: '/meters' as Route, label: 'Meters' },
   { href: '/invoices' as Route, label: 'Bills' },
   { href: '/payments' as Route, label: 'Payments' },
+  { href: '/collections', label: 'Collections' },
   { href: '/runs/run-2026-02-04' as Route, label: 'Billing run' },
   { href: '/rates', label: 'Rates & tariffs' },
   { href: '/reads', label: 'Read validation' },
@@ -74,7 +76,7 @@ function AsOfBand() {
     return (
       <div className="flex items-center justify-between gap-4 rounded-md border border-rule-hair bg-surface-ink px-4 py-2 text-ink-inverse">
         <div className="flex items-center gap-3">
-          <span className="text-h3 font-semibold tracking-tight">Tally Utility</span>
+          <TallyLogo />
           <span aria-hidden className="h-4 w-px bg-current opacity-30" />
           <span className="flex items-center gap-2">
             <TenantLogo name={tenant.name} />

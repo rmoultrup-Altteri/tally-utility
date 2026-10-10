@@ -3,6 +3,7 @@ import type { Route } from 'next'
 import { notFound } from 'next/navigation'
 import { AppShell } from '@/components/shell/AppShell'
 import { AccountAlerts, AccountFields, AccountHeader } from '@/components/accounts/AccountDetail'
+import { MeterLink } from '@/components/meters/MeterDetail'
 import { InvoiceDateText } from '@/components/bills/InvoiceEdit'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Rail, StateFlag, invoiceTone, humanize } from '@/components/ui/State'
@@ -80,6 +81,8 @@ export default async function CustomerPage({
     <AppShell current="Accounts">
       <AccountHeader
         customer={customer}
+        meter={meter}
+        location={location}
         actions={
           <>
             <Button>Log interaction</Button>
@@ -108,7 +111,7 @@ export default async function CustomerPage({
               <div className="px-4 py-4">
                 <FieldGrid cols={2}>
                   <Field label="Meter">
-                    <span className="ident">{meter?.meter_number ?? '—'}</span>
+                    {meter ? <MeterLink meter={meter} /> : '—'}
                   </Field>
                   <Field label="Read type">{humanize(meter?.read_type ?? '')}</Field>
                   <Field label="Multiplier">{meter?.multiplier ?? '—'}</Field>

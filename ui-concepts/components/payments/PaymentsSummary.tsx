@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { Panel, PanelHeader } from '@/components/ui/Panel'
 import { Money } from '@/components/ui/Money'
+import { AccountNumber } from '@/components/ui/RecordLink'
 import { StateFlag } from '@/components/ui/State'
 import { Table, Row, Td, TableFooter } from '@/components/table/Table'
 import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
@@ -203,7 +204,11 @@ function PaymentLine({
         ) : (
           '—'
         )}
-        <span className="block ident text-micro text-ink-tertiary">{customer?.number}</span>
+        {customer ? (
+          <span className="block text-micro">
+            <AccountNumber number={customer.number} id={customer.id} />
+          </span>
+        ) : null}
       </Td>
       <Td>
         {customer?.street ?? '—'}

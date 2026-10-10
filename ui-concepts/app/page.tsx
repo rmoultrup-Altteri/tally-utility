@@ -4,6 +4,7 @@ import { Panel, PanelHeader, Field, FieldGrid, Button, Key } from '@/components/
 import { Rail, StateFlag, StateBlock, severityTone, humanize } from '@/components/ui/State'
 import { Confidence } from '@/components/ui/Flags'
 import { Money } from '@/components/ui/Money'
+import { AccountNumber, MeterNumber } from '@/components/ui/RecordLink'
 import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
 import { ListStar } from '@/components/shell/Favorites'
 import { QueueFilterBar } from '@/components/queue/QueueFilters'
@@ -139,7 +140,9 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
                             <p className="text-data text-ink-primary truncate">
                               {customerName(customer)}
                             </p>
-                            <p className="ident text-ink-tertiary">{customer.customer_number}</p>
+                            <p>
+                              <AccountNumber number={customer.customer_number} id={customer.id} />
+                            </p>
                           </>
                         ) : (
                           <span className="text-ink-tertiary">—</span>
@@ -147,7 +150,7 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
                       </Td>
                       <Td>
                         {meter ? (
-                          <span className="ident text-ink-secondary">{meter.meter_number}</span>
+                          <MeterNumber number={meter.meter_number} id={meter.id} />
                         ) : (
                           <span className="text-ink-tertiary">—</span>
                         )}
@@ -221,7 +224,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
             )}
           </Field>
           <Field label="Meter">
-            {meter ? <span className="ident">{meter.meter_number}</span> : '—'}
+            {meter ? <MeterNumber number={meter.meter_number} id={meter.id} /> : '—'}
           </Field>
           <Field label="Amount at risk">
             {e.estimated_impact ? <Money value={e.estimated_impact} /> : '—'}

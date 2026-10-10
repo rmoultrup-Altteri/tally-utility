@@ -39,7 +39,9 @@ for (const l of serviceLinks) {
 }
 for (const c of customers) if (!serviceLinks.some((l) => l.customerId === c.id)) fail('links', c.id, 'customer has no service link')
 for (const loc of locations) if (!serviceLinks.some((l) => l.locationId === loc.id)) fail('links', loc.id, 'location is orphaned')
-for (const m of meters) if (!serviceLinks.some((l) => l.meterId === m.id)) fail('links', m.id, 'meter is orphaned')
+/* A meter in the warehouse or pulled from service legitimately serves no premise. */
+for (const m of meters)
+  if (m.status !== 'in_stock' && m.status !== 'removed' && !serviceLinks.some((l) => l.meterId === m.id)) fail('links', m.id, 'meter is orphaned')
 for (const r of readings) if (!meterById.get(r.meter_id)) fail('reads', r.id, 'reading points at a missing meter')
 for (const i of invoices) {
   if (!customerById.get(i.customer_id)) fail('invoices', i.id, 'invoice customer does not exist')

@@ -4,9 +4,13 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { Panel } from '@/components/ui/Panel'
+import { Chip, Group } from '@/components/ui/Chip'
+import { StateFlag, humanize } from '@/components/ui/State'
+import { accountTone } from '@/components/meters/status'
+import { AccountNumber, MeterNumber } from '@/components/ui/RecordLink'
 import { Table, Row, Td, TableFooter } from '@/components/table/Table'
 import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
-import { date } from '@/lib/format'
+import { count, date, money } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
 import { useImported } from '@/lib/imports-store'
 import { customerById, locations, meters } from '@/fixtures/accounts'
@@ -17,6 +21,10 @@ import type { ImportedData } from '@/lib/assistant/protocol'
 export type AccountRow = {
   id: string
   customerNumber: string
+  /** `customers.status`, after any inactivation made in this browser. */
+  status: string
+  /** `customers.balance`. An inactive account still owing (or owed) money lists as active. */
+  balance: string
   /** `customers.created_at` — when the account was opened, not the move-in date. */
   createdAt: string
   ownerName: string
@@ -39,7 +47,23 @@ const COLUMNS: SortColumn<SortKey>[] = [
   { key: 'amrId', label: 'AMR ID', width: '9rem' },
 ]
 
-/** The account list: search by name or address, sort on any column. */
+/**
+ * The status filter. "Active" is every account someone may still need to
+ * work: in service, in collections, or closed with money still on it either
+ * way. Each other chip is one stored status; All is every account.
+ */
+type StatusPick = 'active' | 'all' | string
+
+const isActive = (r: AccountRow) => r.status === 'active' || r.status === 'collections' || Number(r.balance) !== 0
+
+const matchesStatus = (r: AccountRow, pick: StatusPick) =>
+  pick === 'all' ? true : pick === 'active' ? isActive(r) : r.status === pick
+
+/**
+ * The account list. It opens on active accounts; a search looks across every
+ * status unless a single status has been picked, so a caller on an inactive
+ * account is found without changing the filter first.
+ */
 export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
   const imported = useImported()
   const edits = useEdits().customers
@@ -47,21 +71,33 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
     /* An account renamed in this browser lists under its edited name. */
     const named = fixtureRows.map((r) => {
       const base = customerById.get(r.id)
-      return base && edits[r.id] ? { ...r, ownerName: customerName({ ...base, ...edits[r.id] }) } : r
+      if (!base || !edits[r.id]) return r
+      const edited = { ...base, ...edits[r.id] }
+      return { ...r, ownerName: customerName(edited), status: edited.status }
     })
     return [...named, ...importedRows(imported)]
   }, [fixtureRows, imported, edits])
   const [query, setQuery] = useState('')
+  const [pick, setPick] = useState<StatusPick>('active')
+  /* Inactive always shows, so an account just inactivated is one click away. */
+  const others = [...new Set(['inactive', ...rows.map((r) => r.status)])].filter((s) => s !== 'active')
+  const searching = query.trim() !== ''
+  /* Typing a search widens the default view to every status. */
+  const effective: StatusPick = searching && pick === 'active' ? 'all' : pick
   const { sort, toggle } = useSort<SortKey>({ key: 'ownerName', dir: 'ascending' })
 
   const shown = useMemo(
     () =>
       sortRows(
-        rows.filter((r) => matchesSearch(query, [r.ownerName, r.streetAddress, r.cityLine])),
+        rows.filter(
+          (r) =>
+            matchesStatus(r, effective) &&
+            matchesSearch(query, [r.ownerName, r.customerNumber, r.streetAddress, r.cityLine, r.meterNumber, r.amrId]),
+        ),
         sort,
         (r, key) => r[key],
       ),
-    [rows, query, sort],
+    [rows, query, effective, sort],
   )
 
   return (
@@ -75,14 +111,20 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Owner name or street address…"
+          placeholder="Name, account, address or meter…"
           className="h-7 w-80 rounded-sm border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary placeholder:text-ink-muted"
         />
-        {query ? (
-          <span className="text-micro text-ink-tertiary">
-            {shown.length} of {rows.length} match
-          </span>
-        ) : null}
+        <Group label="Status">
+          {['active', ...others, 'all'].map((s) => (
+            <Chip key={s} on={pick === s} onClick={() => setPick(s)}>
+              {s === 'all' ? 'All' : humanize(s)}
+            </Chip>
+          ))}
+        </Group>
+        <span className="ml-auto text-micro text-ink-tertiary">
+          {searching && pick === 'active' ? 'Searching every status · ' : ''}
+          {count(shown.length)} of {count(rows.length)} accounts
+        </span>
       </div>
 
       <Table caption="Accounts">
@@ -104,8 +146,27 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
                     {r.ownerName}
                   </Link>
                 )}
-                <span className="block ident text-micro text-ink-tertiary">
-                  {r.customerNumber}
+                {r.status !== 'active' ? (
+                  <span className="ml-2 align-middle">
+                    <StateFlag
+                      tone={accountTone(r.status)}
+                      title={Number(r.balance) !== 0 ? `${money(r.balance)} still on the account` : undefined}
+                    >
+                      {humanize(r.status)}
+                      {r.status === 'collections' || Number(r.balance) === 0
+                        ? ''
+                        : Number(r.balance) > 0
+                          ? ' · balance due'
+                          : ' · credit due'}
+                    </StateFlag>
+                  </span>
+                ) : null}
+                <span className="block text-micro">
+                  {r.imported ? (
+                    <span className="ident text-ink-tertiary">{r.customerNumber}</span>
+                  ) : (
+                    <AccountNumber number={r.customerNumber} id={r.id} />
+                  )}
                   {r.imported ? (
                     <span className="font-sans text-exception-info-text" title="Imported through the assistant and kept in this browser until the API exists">
                       {' '}· imported
@@ -119,7 +180,7 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
                   <span className="block text-micro text-ink-tertiary">{r.cityLine}</span>
                 ) : null}
               </Td>
-              <Td className="ident">{r.meterNumber ?? '—'}</Td>
+              <Td>{r.meterNumber ? <MeterNumber number={r.meterNumber} plainClassName="text-ink-primary" /> : '—'}</Td>
               <Td className="ident" title={r.amrId ? undefined : 'Manually read — no radio endpoint'}>
                 {r.amrId ?? <span className="text-ink-muted">—</span>}
               </Td>
@@ -128,7 +189,7 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
           {shown.length === 0 ? (
             <Row>
               <Td colSpan={COLUMNS.length} className="py-6 text-center text-ink-tertiary">
-                No account matches “{query.trim()}”.
+                {query.trim() ? <>No account matches “{query.trim()}”.</> : 'No accounts match these filters.'}
               </Td>
             </Row>
           ) : null}
@@ -151,6 +212,8 @@ function importedRows(data: ImportedData): AccountRow[] {
     return {
       id: c.id,
       customerNumber: c.customer_number,
+      status: c.status,
+      balance: c.balance,
       createdAt: c.created_at,
       ownerName: customerName(c),
       streetAddress: location?.address ?? null,

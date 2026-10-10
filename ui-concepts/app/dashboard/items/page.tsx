@@ -3,6 +3,7 @@ import { ItemFilterBar } from '@/components/dashboard/ItemFilters'
 import { Rail, StateFlag } from '@/components/ui/State'
 import type { Tone } from '@/components/ui/State'
 import { Money } from '@/components/ui/Money'
+import { AccountNumber } from '@/components/ui/RecordLink'
 import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
 import { dashboardItems, TIERS, typesByTier } from '@/fixtures/dashboard-items'
 import type { Tier } from '@/fixtures/dashboard-items'
@@ -93,7 +94,9 @@ export default async function DashboardItemsPage({ searchParams }: PageProps<'/d
                   </Td>
                   <Td>
                     <p className="text-data text-ink-primary truncate">{item.accountName}</p>
-                    <p className="ident text-ink-tertiary">{item.accountNumber}</p>
+                    <p>
+                      <AccountNumber number={item.accountNumber} plainClassName="text-ink-tertiary" />
+                    </p>
                   </Td>
                   <Td>
                     <p className="text-micro text-ink-secondary">{item.source}</p>

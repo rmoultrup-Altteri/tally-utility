@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Route } from 'next'
+import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { BillDocument } from '@/components/bills/BillDocument'
@@ -7,6 +8,7 @@ import { EditInvoice, HoldNote, InvoiceEditedNote } from '@/components/bills/Inv
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { StateFlag, StateBlock, invoiceTone, humanize } from '@/components/ui/State'
 import { Money, Nil } from '@/components/ui/Money'
+import { MeterNumber } from '@/components/ui/RecordLink'
 import {
   invoiceById,
   invoices,
@@ -228,7 +230,13 @@ function Inspector({
             <Step
               label="× Meter multiplier"
               value={factor(gasLine.gas_meter_factor ?? '1')}
-              note={meter ? `meter ${meter.meter_number}` : undefined}
+              note={
+                meter ? (
+                  <>
+                    meter <MeterNumber number={meter.meter_number} id={meter.id} />
+                  </>
+                ) : undefined
+              }
             />
             <Step
               label="× BTU factor"
@@ -319,7 +327,7 @@ function Step({
 }: {
   label: string
   value: string
-  note?: string
+  note?: ReactNode
   emphasis?: boolean
 }) {
   return (
