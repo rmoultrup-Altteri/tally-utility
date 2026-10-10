@@ -18,8 +18,8 @@ export function Collapsible({
   children,
 }: {
   title: ReactNode
-  /** The number after the title — what this section is holding right now. */
-  n: number
+  /** The number after the title — what this section is holding right now. Omit for a section that holds detail rather than items. */
+  n?: number
   /** `alert` colours the count when it is something an operator must act on. */
   tone?: 'neutral' | 'alert'
   summary?: ReactNode
@@ -38,15 +38,17 @@ export function Collapsible({
           ▸
         </span>
         <h2 className="text-h3 text-ink-primary">{title}</h2>
-        <span
-          className={`ident rounded-full px-2 ${
-            tone === 'alert' && n > 0
-              ? 'bg-exception-critical-wash text-exception-critical-text'
-              : 'bg-surface-sunken text-ink-primary'
-          }`}
-        >
-          {n}
-        </span>
+        {n === undefined ? null : (
+          <span
+            className={`ident rounded-full px-2 ${
+              tone === 'alert' && n > 0
+                ? 'bg-exception-critical-wash text-exception-critical-text'
+                : 'bg-surface-sunken text-ink-primary'
+            }`}
+          >
+            {n}
+          </span>
+        )}
         {summary ? <span className="min-w-0 truncate text-micro text-ink-tertiary">{summary}</span> : null}
         <span className="ml-auto shrink-0 text-micro text-ink-secondary">
           <span className="group-open:hidden">Expand</span>

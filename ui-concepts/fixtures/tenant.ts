@@ -13,6 +13,11 @@ export const tenant = {
   jurisdiction: 'Railroad Commission of Texas',
   meters: 14_218,
   franchiseCities: ['Bryan', 'College Station', 'Navasota'],
+  phone: '(979) 555-0100',
+  /** The 24-hour gas emergency line. Never the billing office. */
+  emergencyPhone: '(979) 555-0199',
+  portalUrl: 'pay.brazosvalleygas.example',
+  website: 'brazosvalleygas.example.com',
 } as const
 
 export const currentUser = {

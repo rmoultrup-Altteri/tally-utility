@@ -1,14 +1,15 @@
 /**
  * The R-1 tariff, as arithmetic.
  *
- * Every other screen reads rates that were already applied. The sandbox has to
- * apply them itself, against a population, to answer the only question a rate
- * change actually raises: who pays more, who pays less, and by how much.
+ * Every other screen reads rates that were already applied. The rate case
+ * toolkit has to apply them itself, against a population, to answer the only
+ * question a rate change actually raises: who pays more, who pays less, and by
+ * how much. The January cycle below is that population.
  *
  * The card below reproduces INV-2026-02-004182 to the cent — 226.01 therms in,
  * $158.34 of charges and $7.12 of tax out. That equality is the calculator's
- * acceptance test: a sandbox whose baseline disagrees with the bills the system
- * already issued is worse than no sandbox at all.
+ * acceptance test: a rehearsal whose baseline disagrees with the bills the
+ * system already issued is worse than no rehearsal at all.
  */
 
 export type RateCard = {

@@ -14,7 +14,8 @@
  * - a `tenant_admin`-tier role always keeps Change settings, so the tenant
  *   can never lock itself out of its own configuration.
  *
- * Only `settings.edit` is enforced by these concepts so far. The rest are
+ * `settings.edit`, `communications.edit` and `outreach.send` are enforced by
+ * these concepts so far. The rest are
  * recorded and shown so the matrix reads as the real thing will.
  */
 
@@ -40,6 +41,8 @@ export type Capability =
   | 'adhoc.approve'
   | 'customer.edit'
   | 'import.commit'
+  | 'communications.edit'
+  | 'outreach.send'
 
 /** The platform catalog, in the order the matrix shows it. Not tenant-editable. */
 export const CAPABILITIES: { key: Capability; label: string; hint: string }[] = [
@@ -56,6 +59,8 @@ export const CAPABILITIES: { key: Capability; label: string; hint: string }[] = 
   { key: 'adhoc.approve', label: 'Approve one-off charges', hint: 'Approve a charge someone else added' },
   { key: 'customer.edit', label: 'Edit accounts', hint: 'Change account details and protections, and inactivate or reactivate accounts and meters' },
   { key: 'import.commit', label: 'Commit imports', hint: 'Apply a staged import' },
+  { key: 'communications.edit', label: 'Edit communications', hint: 'Change the wording of customer letters, emails and texts' },
+  { key: 'outreach.send', label: 'Send outreach', hint: 'Send high-bill heads-ups and other courtesy messages' },
 ]
 
 export const capabilityLabel = new Map(CAPABILITIES.map((c) => [c.key, c.label]))
@@ -86,9 +91,9 @@ export const DEFAULT_ROLES: TenantRole[] = [
     id: 'role-analyst',
     name: 'Billing analyst',
     tier: 'operator',
-    capabilities: ['settings.edit', 'billing_run.dry_run', 'rate.edit', 'read.approve', 'payment.post', 'adhoc.create', 'customer.edit', 'import.commit'],
+    capabilities: ['settings.edit', 'billing_run.dry_run', 'rate.edit', 'read.approve', 'payment.post', 'adhoc.create', 'customer.edit', 'import.commit', 'communications.edit', 'outreach.send'],
   },
-  { id: 'role-csr', name: 'Customer service rep', tier: 'operator', capabilities: ['payment.post', 'adhoc.create', 'customer.edit'] },
+  { id: 'role-csr', name: 'Customer service rep', tier: 'operator', capabilities: ['payment.post', 'adhoc.create', 'customer.edit', 'outreach.send'] },
   { id: 'role-auditor', name: 'Auditor', tier: 'viewer', capabilities: [] },
 ]
 

@@ -71,6 +71,11 @@ export default async function InvoicePage({
           <>
             <StateFlag tone={tone}>{humanize(invoice.status)}</StateFlag>
             <PayBill invoice={invoice} replacedById={replacedBy?.id ?? null} />
+            {invoice.status === 'void' ? null : (
+              <Link href={`/invoices/${invoice.id}/explain` as Route}>
+                <Button>Why it changed</Button>
+              </Link>
+            )}
             <Button>Print</Button>
             {invoice.status === 'void' ? null : isIssued(invoice) ? (
               <Link href={`/invoices/${invoice.id}/rebill`}>

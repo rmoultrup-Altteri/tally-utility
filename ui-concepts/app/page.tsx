@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Panel, PanelHeader, Field, FieldGrid, Button, Key } from '@/components/ui/Panel'
 import { Rail, StateFlag, StateBlock, severityTone, humanize } from '@/components/ui/State'
@@ -132,6 +133,17 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
                           {e.recurrence_count > 1
                             ? ` · ${ordinal(e.recurrence_count)} occurrence since ${date(e.first_detected_at)}`
                             : ''}
+                          {e.anomaly_type === 'high_usage' && e.customer_id ? (
+                            <>
+                              {' · '}
+                              <Link
+                                href={`/outreach?account=${e.customer_id}` as Route}
+                                className="text-accent-text hover:text-accent-text-hover underline"
+                              >
+                                Plan a heads-up
+                              </Link>
+                            </>
+                          ) : null}
                         </p>
                       </Td>
                       <Td>
@@ -244,6 +256,26 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
           ))}
         </dl>
       </div>
+
+      {e.anomaly_type === 'high_usage' && e.customer_id ? (
+        <div className="px-4 py-4 border-b border-rule-hair">
+          <p className="field-label mb-2">Tell the customer first</p>
+          <p className="text-micro text-ink-secondary leading-relaxed mb-2">
+            The bill is right but it will surprise them. A heads-up before it lands — with the reason in one line — heads off the
+            call.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/outreach?account=${e.customer_id}` as Route}>
+              <Button>Plan a heads-up</Button>
+            </Link>
+            {e.invoice_id ? (
+              <Link href={`/invoices/${e.invoice_id}/explain` as Route}>
+                <Button variant="quiet">Why the bill changed</Button>
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {e.suggested_action ? (
         <div className="px-4 py-4 border-b border-rule-hair">

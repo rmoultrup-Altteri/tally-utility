@@ -73,6 +73,8 @@ export default async function CustomerPage({
   const meter = link ? meterById.get(link.meterId) : undefined
   const read = readings.find((r) => r.meter_id === link?.meterId)
   const bills = invoices.filter((i) => i.customer_id === customer.id)
+  /* The newest live bill, for the explanation link. */
+  const latestBill = bills.find((i) => i.status !== 'void' && i.billing_period === 'Feb 2026') ?? bills.find((i) => i.status !== 'void' && i.billing_period === 'Jan 2026')
   const openOnAccount = exceptions.filter(
     (e) => e.customer_id === customer.id && e.status !== 'resolved',
   )
@@ -145,6 +147,13 @@ export default async function CustomerPage({
             <PanelHeader
               title="Usage and weather"
               meta="Billed therms against heating degree days · 13 bill periods"
+              actions={
+                latestBill ? (
+                  <Link href={`/invoices/${latestBill.id}/explain` as Route}>
+                    <Button>Why the latest bill changed</Button>
+                  </Link>
+                ) : null
+              }
             />
             <UsageChart />
           </Panel>

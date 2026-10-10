@@ -4,8 +4,14 @@ import { useCallback, useEffect, useRef, useState, type DragEvent, type Keyboard
 import { usePathname } from 'next/navigation'
 import { Markdown } from '@/components/assistant/Markdown'
 import { ImportCard, type ProposalState } from '@/components/assistant/ImportCard'
+import { TemplateEditCard, type TemplateProposalState } from '@/components/assistant/TemplateEditCard'
 import { applyProposal, getImported } from '@/lib/imports-store'
 import { getEdits } from '@/lib/edits-store'
+import { editedContent, saveTemplateVersion } from '@/lib/templates-store'
+import { activeUserName } from '@/lib/session'
+import { useAccess } from '@/lib/access'
+import { ASK_EVENT } from '@/lib/assistant/bus'
+import { templateById, CHANNEL_LABEL, LANG_LABEL } from '@/fixtures/templates'
 import { ENTITY_NOUN, type ActivityKind, type Attachment, type StreamEvent } from '@/lib/assistant/protocol'
 
 /**
@@ -18,7 +24,11 @@ import { ENTITY_NOUN, type ActivityKind, type Attachment, type StreamEvent } fro
  * there. It is also kept in sessionStorage, so a reload does not lose it.
  */
 
-type Part = { kind: 'text'; text: string } | { kind: 'activity'; activity: ActivityKind; label: string } | { kind: 'proposal'; id: string }
+type Part =
+  | { kind: 'text'; text: string }
+  | { kind: 'activity'; activity: ActivityKind; label: string }
+  | { kind: 'proposal'; id: string }
+  | { kind: 'template'; id: string }
 
 type Item =
   | { id: string; role: 'user'; text: string; attachments: string[] }
@@ -36,11 +46,12 @@ type Saved = {
   transcript: unknown[]
   files: Attachment[]
   proposals: Record<string, ProposalState>
+  templateEdits: Record<string, TemplateProposalState>
   notes: string[]
 }
 
 const KEY = 'tu-assistant'
-const EMPTY: Saved = { items: [], transcript: [], files: [], proposals: {}, notes: [] }
+const EMPTY: Saved = { items: [], transcript: [], files: [], proposals: {}, templateEdits: {}, notes: [] }
 
 const TABLE_TYPES = /\.(csv|tsv|txt|json)$/i
 const MAX_TABLE = 5 * 1024 * 1024
@@ -52,6 +63,25 @@ const SUGGESTIONS = [
   'What rates are in force on R-1?',
   'Import accounts from a spreadsheet',
 ]
+
+/** On a template, the useful questions are about that template. */
+function suggestionsFor(pathname: string): string[] {
+  const m = pathname.match(/^\/communications\/([a-z0-9-]+)/)
+  const t = m ? templateById.get(m[1]) : undefined
+  if (t)
+    return [
+      `Make the “${t.name}” template shorter and warmer`,
+      `Write the Spanish version of “${t.name}”`,
+      `Check “${t.name}” for anything a customer could misread`,
+    ]
+  if (pathname.startsWith('/communications'))
+    return [
+      'Which templates have no Spanish version?',
+      'Make every text message fit in one message',
+      'Which templates carry required text, and under what rule?',
+    ]
+  return SUGGESTIONS
+}
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
@@ -80,6 +110,8 @@ export function Assistant() {
   const input = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [restored, setRestored] = useState(false)
+  const { can } = useAccess()
+  const sendRef = useRef<(text: string) => void>(() => {})
 
   /* Restore after mount, so the server render and the first client render agree. */
   useEffect(() => {
@@ -104,6 +136,18 @@ export function Assistant() {
   useEffect(() => {
     if (open) input.current?.focus()
   }, [open])
+
+  /* A screen asked for something: open, and send it as if typed. */
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const text = (e as CustomEvent<{ text: string }>).detail?.text
+      if (!text) return
+      setOpen(true)
+      sendRef.current(text)
+    }
+    window.addEventListener(ASK_EVENT, onAsk)
+    return () => window.removeEventListener(ASK_EVENT, onAsk)
+  }, [])
 
   const patchLast = useCallback((fn: (a: Extract<Item, { role: 'assistant' }>) => Extract<Item, { role: 'assistant' }>) => {
     setState((s) => {
@@ -151,6 +195,7 @@ export function Assistant() {
           files: files.filter((f) => f.kind === 'table' || attachments.includes(f)),
           imported: getImported(),
           edits: { customers: getEdits().customers, invoices: getEdits().invoices },
+          templates: editedContent(),
         }),
       })
       if (!res.ok || !res.body) throw new Error(`The assistant is unavailable (${res.status}).`)
@@ -177,6 +222,9 @@ export function Assistant() {
     }
   }
 
+  /* The ask-event listener is registered once; it always reaches the latest send. */
+  sendRef.current = (text: string) => void send(text)
+
   function handle(e: StreamEvent) {
     switch (e.type) {
       case 'text':
@@ -197,6 +245,12 @@ export function Assistant() {
       case 'proposal':
         setState((s) => ({ ...s, proposals: { ...s.proposals, [e.proposal.id]: { proposal: e.proposal, status: 'staged' } } }))
         return patchLast((a) => ({ ...a, parts: [...a.parts, { kind: 'proposal', id: e.proposal.id }] }))
+      case 'template_proposal':
+        setState((s) => ({
+          ...s,
+          templateEdits: { ...s.templateEdits, [e.proposal.id]: { proposal: e.proposal, status: 'staged' } },
+        }))
+        return patchLast((a) => ({ ...a, parts: [...a.parts, { kind: 'template', id: e.proposal.id }] }))
       case 'transcript':
         return setState((s) => ({ ...s, transcript: e.messages }))
       case 'error':
@@ -225,6 +279,40 @@ export function Assistant() {
       ...s,
       proposals: { ...s.proposals, [id]: { ...p, status: 'discarded' } },
       notes: [...s.notes, `The operator discarded staged import ${id}.`],
+    }))
+  }
+
+  function applyTemplate(id: string) {
+    const t = state.templateEdits[id]
+    if (!t || t.status !== 'staged' || !can('communications.edit')) return
+    const p = t.proposal
+    saveTemplateVersion({
+      templateId: p.templateId,
+      channel: p.channel,
+      lang: p.lang,
+      before: p.before,
+      after: p.after,
+      reason: p.reason,
+      by: activeUserName(),
+      source: 'assistant',
+    })
+    setState((s) => ({
+      ...s,
+      templateEdits: { ...s.templateEdits, [id]: { ...t, status: 'applied' } },
+      notes: [
+        ...s.notes,
+        `The operator applied template edit ${id}: ${p.templateName}, ${CHANNEL_LABEL[p.channel].toLowerCase()} in ${LANG_LABEL[p.lang]}, is now a new version.`,
+      ],
+    }))
+  }
+
+  function discardTemplate(id: string) {
+    const t = state.templateEdits[id]
+    if (!t || t.status !== 'staged') return
+    setState((s) => ({
+      ...s,
+      templateEdits: { ...s.templateEdits, [id]: { ...t, status: 'discarded' } },
+      notes: [...s.notes, `The operator discarded template edit ${id}.`],
     }))
   }
 
@@ -275,6 +363,9 @@ export function Assistant() {
     setNotice(null)
   }
 
+  /* The customer portal preview is the customer's screen; staff tools stay off it. */
+  if (pathname.startsWith('/portal')) return null
+
   return (
     <>
       {open ? (
@@ -295,7 +386,7 @@ export function Assistant() {
           <header className="flex items-center justify-between gap-2 border-b border-rule-solid bg-surface-ink px-3 py-2 text-ink-inverse">
             <div className="min-w-0">
               <h2 className="text-h3">Assistant</h2>
-              <p className="text-micro opacity-70">Your account, the web, and imports</p>
+              <p className="text-micro opacity-70">Your account, the web, imports and templates</p>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -327,7 +418,7 @@ export function Assistant() {
                   meters, addresses or rates to import.
                 </p>
                 <ul className="space-y-1.5">
-                  {SUGGESTIONS.map((s) => (
+                  {suggestionsFor(pathname).map((s) => (
                     <li key={s}>
                       <button
                         type="button"
@@ -364,6 +455,16 @@ export function Assistant() {
                             <ActivityIcon kind={part.activity} />
                             <span className="truncate">{part.label}</span>
                           </p>
+                        ) : part.kind === 'template' ? (
+                          state.templateEdits?.[part.id] ? (
+                            <TemplateEditCard
+                              key={k}
+                              state={state.templateEdits[part.id]}
+                              canApply={can('communications.edit')}
+                              onApply={() => applyTemplate(part.id)}
+                              onDiscard={() => discardTemplate(part.id)}
+                            />
+                          ) : null
                         ) : state.proposals[part.id] ? (
                           <ImportCard
                             key={k}
@@ -543,6 +644,13 @@ function ActivityIcon({ kind }: { kind: ActivityKind }) {
       <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden className="shrink-0">
         <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.3" />
         <path d="M1.75 8h12.5M8 1.75c1.8 1.7 2.7 3.8 2.7 6.25S9.8 12.55 8 14.25C6.2 12.55 5.3 10.45 5.3 8S6.2 3.45 8 1.75z" stroke="currentColor" strokeWidth="1.3" />
+      </svg>
+    )
+  if (kind === 'template')
+    return (
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden className="shrink-0">
+        <path d="M2.5 4.5h11v8h-11z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+        <path d="M2.5 5l5.5 4 5.5-4" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
       </svg>
     )
   if (kind === 'import')

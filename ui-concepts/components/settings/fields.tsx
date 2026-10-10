@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { fieldClass } from '@/components/ui/Dialog'
 import { Chip } from '@/components/ui/Chip'
 import { StateBlock } from '@/components/ui/State'
-import { ThemeControl } from '@/components/shell/ThemeControl'
+import { DensityControl, ThemeControl } from '@/components/shell/ThemeControl'
 import { MONTHS, type Column, type Row, type SettingDef } from '@/fixtures/settings'
 import { money } from '@/lib/format'
 import type { SettingValue } from '@/lib/settings-store'
@@ -378,6 +378,8 @@ export function FieldControl({
   switch (def.kind) {
     case 'appearance':
       return <ThemeControl bare />
+    case 'density':
+      return <DensityControl bare />
     case 'toggle':
       return (
         <div className="flex items-center gap-2">

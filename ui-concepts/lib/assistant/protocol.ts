@@ -1,4 +1,5 @@
 import type { Customer, Invoice, Meter, RateItemVersion, ServiceLocation } from '@/schemas/models'
+import type { Channel, ChannelContent, Lang, TemplateContent } from '@/fixtures/templates'
 
 /**
  * The wire contract between the chat panel and `/api/assistant`.
@@ -76,6 +77,27 @@ export type ImportProposal = {
   warnings: ImportIssue[]
 }
 
+/* ---- Template edits -------------------------------------------------- */
+
+/**
+ * A staged change to one channel and language of a customer communication
+ * template. Like an import, the model proposes and the operator applies; an
+ * applied edit becomes a new template version marked as made with the
+ * assistant. Proposals that fail the template checks are refused at the
+ * server, so a card only ever offers something that could be saved.
+ */
+export type TemplateProposal = {
+  id: string
+  templateId: string
+  templateName: string
+  channel: Channel
+  lang: Lang
+  before: ChannelContent | null
+  after: ChannelContent
+  reason: string
+  warnings: string[]
+}
+
 /* ---- Attachments ----------------------------------------------------- */
 
 /** A file the operator dropped into the chat. Tables stay as text; PDFs go to the model whole. */
@@ -102,6 +124,8 @@ export type AssistantRequest = {
   imported: ImportedData
   /** Account and draft-bill edits made in this browser, overlaid on the records. */
   edits?: RecordEdits
+  /** Current content of every template edited in this browser, overlaid on the catalog. */
+  templates?: Record<string, TemplateContent>
 }
 
 export type RecordEdits = {
@@ -109,13 +133,14 @@ export type RecordEdits = {
   invoices: Record<string, Partial<Invoice>>
 }
 
-export type ActivityKind = 'web' | 'tenant' | 'import'
+export type ActivityKind = 'web' | 'tenant' | 'import' | 'template'
 
 export type StreamEvent =
   | { type: 'text'; text: string }
   | { type: 'activity'; kind: ActivityKind; label: string }
   | { type: 'sources'; sources: { title: string; url: string }[] }
   | { type: 'proposal'; proposal: ImportProposal }
+  | { type: 'template_proposal'; proposal: TemplateProposal }
   | { type: 'transcript'; messages: unknown[] }
   | { type: 'error'; message: string }
   | { type: 'done' }

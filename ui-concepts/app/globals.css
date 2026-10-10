@@ -21,6 +21,28 @@
     color-scheme: dark;
   }
 
+  /*
+   * Compact density. Every padding, gap and margin utility is a multiple of
+   * `--spacing`, so tightening the base closes up every screen at once and in
+   * proportion — no screen has to know density exists. The data and body type
+   * step down half a point with it; labels, headings and the printed bill do
+   * not, because those are read rather than scanned.
+   */
+  :root[data-density="compact"] {
+    --spacing: 3.25px;
+    --spacing-cell-x-compact: 8px;
+    --spacing-cell-y-compact: 5px;
+    --spacing-cell-x: 10px;
+    --spacing-cell-y: 7px;
+    --spacing-row-compact: 24px;
+    --spacing-row: 28px;
+    --spacing-row-comfy: 32px;
+    --text-data: 12.5px;
+    --text-data--line-height: 16px;
+    --text-body: 13px;
+    --text-body--line-height: 19px;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
   }

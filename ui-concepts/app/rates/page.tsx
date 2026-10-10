@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { StateBlock, StateFlag, humanize } from '@/components/ui/State'
@@ -85,8 +86,8 @@ export default function RatesPage() {
         meta={`${rateSchedules.map((s) => s.code).join(' · ')} · RRC tariff GUD-10928`}
         actions={
           <>
-            <Link href="/rates/sandbox">
-              <Button>Rehearse against last cycle</Button>
+            <Link href={'/rates/rate-case' as Route}>
+              <Button>Rate case toolkit</Button>
             </Link>
           </>
         }

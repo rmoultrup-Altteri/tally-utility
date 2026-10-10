@@ -65,6 +65,7 @@ export type SettingDef = Base &
     | { kind: 'list'; default: number[]; unit: string }
     | { kind: 'rows'; default: Row[]; columns: Column[]; fixedRows?: boolean; addLabel?: string; newRow?: Row }
     | { kind: 'appearance'; default: null }
+    | { kind: 'density'; default: null }
   )
 
 export type SettingGroup = {
@@ -1200,7 +1201,7 @@ export const SECTIONS: SettingSection[] = [
     key: 'personal',
     area: 'You',
     title: 'Your preferences',
-    summary: 'Appearance, start page and what you are emailed about',
+    summary: 'Appearance, density, start page and what you are emailed about',
     personal: true,
     groups: [
       {
@@ -1208,6 +1209,7 @@ export const SECTIONS: SettingSection[] = [
         note: 'These are yours alone and take effect at once.',
         settings: [
           { key: 'me.appearance', label: 'Appearance', kind: 'appearance', default: null },
+          { key: 'me.density', label: 'Density', kind: 'density', default: null },
           {
             key: 'me.start_page',
             label: 'Open to',

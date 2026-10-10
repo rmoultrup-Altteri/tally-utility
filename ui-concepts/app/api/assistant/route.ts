@@ -21,6 +21,7 @@ import {
   tenantView,
   type TenantView,
 } from '@/lib/assistant/tenant-data'
+import { getTemplate, listTemplates, proposeTemplateEdit, reportTemplateProposal } from '@/lib/assistant/template-tools'
 
 /**
  * The assistant behind the chat bubble.
@@ -49,6 +50,7 @@ What you can do:
 - Answer from the tenant's own records with the tenant tools. Never state a balance, rate, count or date about this tenant that a tool did not give you. If the data is not there, say so. Money and rates are exact decimal strings: quote them as given, and do arithmetic only through query_records' sum.
 - Search and read the web for anything outside the tenant: tariffs and filings at the Railroad Commission, gas price indices, weather, regulations, vendor documentation. Say where a fact came from and link the source.
 - Stage imports of accounts, customers, service addresses, meters and rate items from files the operator attaches or from rows they dictate. You map columns and call stage_import; the server validates every value against the schema. You cannot write records: the operator applies or discards each staged import from a card in the chat. Never say records were imported until a note tells you an import was applied.
+- Edit the utility's customer communication templates — every letter, email and text it sends. Read them with list_templates and get_template, then stage each change with propose_template_edit, one call per channel and language. Keep every merge field the message needs, and keep each {{required.…}} token exactly where it is: that text is prescribed by rule and is not yours to rewrite or restate. Write as the utility — plainly, warmly, without jargon. Spanish should read as natural Texas Spanish, not a literal translation. Texts should fit one message where they can. The operator applies or discards each staged edit from a card in the chat; never say a template changed until a note tells you an edit was applied. When the operator is viewing /communications/<id>, "this template" means that one.
 
 Rules the portal enforces and you should explain rather than work around: issued bills are immutable and are corrected only by void then rebill; reference data is close-then-insert, so a rate change is a new version with a change reason and an earlier version is never edited; nothing is deleted. Disconnect protections, billing holds and opening balances are not set by import.
 
@@ -92,6 +94,18 @@ const INPUTS = {
     valid_at: z.string().optional().describe('YYYY-MM-DD; defaults to the as-of date'),
   }),
   billing_overview: z.object({}),
+  list_templates: z.object({}),
+  get_template: z.object({
+    template: z.string().describe('Template id (e.g. high-bill-heads-up) or name'),
+  }),
+  propose_template_edit: z.object({
+    template: z.string().describe('Template id'),
+    channel: z.enum(['email', 'sms', 'letter']),
+    language: z.enum(['en', 'es']),
+    subject: z.string().optional().describe('Email subject or letter heading. Omit for sms, or to keep the current one.'),
+    body: z.string().describe('The full new body, with merge fields and required tokens in {{double braces}}. Paragraphs separated by a blank line.'),
+    reason: z.string().describe('One line on why — recorded on the version'),
+  }),
   stage_import: z.object({
     entity: z.enum(IMPORT_ENTITIES),
     attachment: z.string().optional().describe('Name of an attached table. Omit when passing rows.'),
@@ -111,6 +125,9 @@ const DESCRIPTIONS: Record<ToolName, string> = {
   query_records: 'List, filter, sort, count and total any record type in the tenant. Returns total_matching, the rows, and the field names. Use for questions like "how many commercial accounts", "unpaid bills over $500", "estimated reads this cycle".',
   list_rates: 'The rates in force on each schedule at a date, with any scheduled future versions. Every lookup resolves valid_at and recorded_at explicitly.',
   billing_overview: 'Portfolio figures: the current billing run, month-to-date revenue and collections, AR aged by invoice, open exception counts, the collections pipeline, and what has been imported.',
+  list_templates: 'Every customer communication template: id, name, category, what sends it, and which channels and languages exist.',
+  get_template: 'One template in full: current subject and body per channel and language, its required-text tokens with citations, the merge fields available, and the text-message rules.',
+  propose_template_edit: 'Stage a new version of one channel and language of a template for the operator to apply. Validated like the editor: unknown merge fields, a missing required token or an over-long text are refused with the reason. Does not save anything.',
   stage_import: 'Validate an import and present it to the operator to apply. Pass an attachment with column_map, or rows keyed by field. Returns counts, grouped errors and warnings. Does not write anything; the operator applies it.',
 }
 
@@ -152,6 +169,12 @@ function activityFor(name: string, input: Record<string, unknown>): StreamEvent 
       return { type: 'activity', kind: 'tenant', label: `Reading rates${input.schedule_code ? ` on ${input.schedule_code}` : ''}` }
     case 'billing_overview':
       return { type: 'activity', kind: 'tenant', label: 'Reading the billing overview' }
+    case 'list_templates':
+      return { type: 'activity', kind: 'template', label: 'Reading the template library' }
+    case 'get_template':
+      return { type: 'activity', kind: 'template', label: `Reading template ${input.template}` }
+    case 'propose_template_edit':
+      return { type: 'activity', kind: 'template', label: `Drafting ${input.template} · ${input.channel} · ${input.language}` }
     case 'stage_import':
       return { type: 'activity', kind: 'import', label: `Validating ${String(input.entity).replace(/_/g, ' ')}${input.attachment ? ` from ${input.attachment}` : ''}` }
     case 'web_search':
@@ -169,6 +192,7 @@ function runTool(
   view: TenantView,
   tables: Map<string, Table>,
   send: (e: StreamEvent) => void,
+  templates: AssistantRequest['templates'] = {},
 ): string {
   switch (name) {
     case 'search_tenant': {
@@ -189,6 +213,15 @@ function runTool(
     }
     case 'billing_overview':
       return JSON.stringify(billingOverview(view))
+    case 'list_templates':
+      return JSON.stringify(listTemplates(templates))
+    case 'get_template':
+      return JSON.stringify(getTemplate(templates, INPUTS.get_template.parse(input).template))
+    case 'propose_template_edit': {
+      const proposal = proposeTemplateEdit(templates, INPUTS.propose_template_edit.parse(input))
+      send({ type: 'template_proposal', proposal })
+      return reportTemplateProposal(proposal)
+    }
     case 'stage_import': {
       const proposal = stage(INPUTS.stage_import.parse(input), tables, view)
       send({ type: 'proposal', proposal })
@@ -351,7 +384,7 @@ export async function POST(request: Request) {
             }
             send(activityFor(name, parsed.data as Record<string, unknown>))
             try {
-              results.push({ type: 'tool_result', tool_use_id: call.id, content: clip(runTool(name, parsed.data, view, tables, send)) })
+              results.push({ type: 'tool_result', tool_use_id: call.id, content: clip(runTool(name, parsed.data, view, tables, send, req.templates)) })
             } catch (e) {
               results.push({ type: 'tool_result', tool_use_id: call.id, is_error: true, content: e instanceof Error ? e.message : String(e) })
             }

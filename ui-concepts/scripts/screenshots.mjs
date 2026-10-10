@@ -16,7 +16,12 @@ const pages = [
   ['payment-new', '/payments/new'],
   ['rates', '/rates'],
   ['pga', '/rates/pga'],
-  ['sandbox', '/rates/sandbox'],
+  ['rate-case', '/rates/rate-case'],
+  ['outreach', '/outreach'],
+  ['explain', '/invoices/inv-0001/explain'],
+  ['portal', '/portal/bills/inv-0001'],
+  ['communications', '/communications'],
+  ['template', '/communications/high-bill-heads-up'],
   ['accounts', '/customers'],
   ['customer', '/customers/cus-0001'],
 ]

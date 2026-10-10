@@ -1,12 +1,13 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import type { Route } from 'next'
 import type { ReactNode } from 'react'
 import { asOf, cycle, tenant } from '@/fixtures/tenant'
 import { blockingCount, openExceptions } from '@/fixtures/exceptions'
+import { outreachSummary } from '@/fixtures/outreach'
 import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
-import { ThemeControl } from '@/components/shell/ThemeControl'
+import { DensityControl, ThemeControl } from '@/components/shell/ThemeControl'
+import { SidebarNav, type NavGroup } from '@/components/shell/SidebarNav'
 import { Favorites } from '@/components/shell/Favorites'
 import { TallyLogo } from '@/components/shell/TallyLogo'
 import { TenantLogo } from '@/components/shell/TenantLogo'
@@ -27,23 +28,70 @@ import { UserMenu } from '@/components/shell/UserMenu'
  * is not, and the cycle the operator is standing in.
  */
 
-type NavItem = { href: Route; label: string; badge?: 'open' }
-
-const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/', label: 'Exceptions', badge: 'open' },
-  { href: '/customers' as Route, label: 'Accounts' },
-  { href: '/meters' as Route, label: 'Meters' },
-  { href: '/invoices' as Route, label: 'Bills' },
-  { href: '/payments' as Route, label: 'Payments' },
-  { href: '/collections', label: 'Collections' },
-  { href: '/runs/run-2026-02-04' as Route, label: 'Billing run' },
-  { href: '/rates', label: 'Rates & tariffs' },
-  { href: '/reads', label: 'Read validation' },
-  { href: '/rates/pga', label: 'PGA console' },
-  { href: '/rates/sandbox', label: 'Tariff sandbox' },
-  { href: '/reports' as Route, label: 'Reports' },
-]
+/**
+ * Navigation by job, not by table. The groups are the questions an operator
+ * arrives with: what needs doing today, who is this customer, where is the
+ * cycle, what are we charging, and where is the reference material.
+ */
+function navGroups(): NavGroup[] {
+  return [
+    {
+      key: 'today',
+      pinned: true,
+      label: 'Today',
+      items: [
+        { href: '/dashboard', label: 'Dashboard' },
+        {
+          href: '/',
+          label: 'Exceptions',
+          badge: { count: openExceptions.length, tone: 'critical', title: `${blockingCount} of these block delivery` },
+        },
+        {
+          href: '/outreach',
+          label: 'High-bill outreach',
+          badge: { count: outreachSummary.toContact, tone: 'warning', title: `${outreachSummary.toContact} customers to tell before bills post` },
+        },
+      ],
+    },
+    {
+      key: 'customers',
+      label: 'Customers',
+      items: [
+        { href: '/customers', label: 'Accounts' },
+        { href: '/meters', label: 'Meters' },
+        { href: '/payments', label: 'Payments' },
+        { href: '/collections', label: 'Collections' },
+      ],
+    },
+    {
+      key: 'billing',
+      label: 'Billing',
+      items: [
+        { href: '/invoices', label: 'Bills' },
+        { href: '/runs/run-2026-02-04', label: 'Billing run' },
+        { href: '/reads', label: 'Read validation' },
+      ],
+    },
+    {
+      key: 'rates',
+      label: 'Rates',
+      items: [
+        { href: '/rates', label: 'Rates & tariffs' },
+        { href: '/rates/pga', label: 'PGA console' },
+        { href: '/rates/rate-case', label: 'Rate case toolkit' },
+      ],
+    },
+    {
+      key: 'library',
+      label: 'Library',
+      items: [
+        { href: '/reports', label: 'Reports' },
+        /* Every message a customer receives — every screen above sends from it. */
+        { href: '/communications', label: 'Communications' },
+      ],
+    },
+  ]
+}
 
 export function AppShell({
   children,
@@ -119,34 +167,7 @@ function Sidebar({ current }: { current: string }) {
         </p>
       </div>
 
-      <ul className="flex-1 min-h-0 space-y-0.5 overflow-y-auto px-2 py-2">
-        {NAV.map((item) => {
-          const active = item.label === current
-          return (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={`flex items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-data transition-colors duration-fast ${
-                  active
-                    ? 'bg-accent-wash text-accent-text font-medium'
-                    : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink-primary'
-                }`}
-              >
-                <span>{item.label}</span>
-                {item.badge === 'open' && openExceptions.length > 0 ? (
-                  <span
-                    className="ident rounded-full bg-exception-critical-wash px-1.5 text-exception-critical-text"
-                    title={`${blockingCount} of these block delivery`}
-                  >
-                    {openExceptions.length}
-                  </span>
-                ) : null}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
+      <SidebarNav groups={navGroups()} current={current} />
 
       {/* The rail reads the query string to mark the active saved view, which
           would otherwise opt every prerendered page into client rendering.
@@ -155,8 +176,10 @@ function Sidebar({ current }: { current: string }) {
         <Favorites />
       </Suspense>
 
-      <div className="border-t border-rule-hair px-3 py-2.5">
-        <ThemeControl />
+      <div className="border-t border-rule-hair px-3 py-2.5 space-y-1.5">
+        <p className="field-label">Display</p>
+        <ThemeControl bare />
+        <DensityControl bare />
       </div>
     </nav>
   )

@@ -36,7 +36,12 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/collections` | Collections & disconnect worklist — bypass evaluation, stay exclusion, relight queue |
 | `/rates` | Rate versions and the bi-temporal timeline |
 | `/rates/pga` | PGA console — the bi-temporal lattice, late-filing exposure, filing discipline |
-| `/rates/sandbox` | Tariff sandbox — move a rate, rehearse it against a closed cycle's actual volumes |
+| `/rates/rate-case` | Rate case toolkit — revenue requirement, class allocation, solved rate design, bill impacts, filing schedules, implement. `/rates/sandbox` redirects here |
+| `/outreach` | High-bill outreach — tell customers before a jumped bill lands, with the reason in one line |
+| `/invoices/inv-0001/explain` | Why this bill changed — the CSR's explanation, English and Spanish, priced to the cent |
+| `/portal/bills/inv-0001` | The same explanation as the customer sees it in the portal, at phone width |
+| `/communications` | Every letter, email and text the utility sends, as versioned templates |
+| `/communications/high-bill-heads-up` | The template editor — words, live preview from a real account, required text, versions |
 | `/customers/cus-0001` | Customer 360 with usage-vs-weather |
 | `/meters` | Every meter, set or in stock — filter by status, read type, route, size and what needs attention |
 | `/meters/mtr-0001` | The meter record — equipment, premise, factors, endpoint, testing, swap lineage and history |
@@ -79,10 +84,36 @@ inversion.
 
 The switch has three states, because "follow the OS" and "pin it" are different
 needs: an analyst working a night close wants the machine to decide, one
-reading a bill against a printout wants it fixed. *System* is the absence of
-`data-theme` and needs no JavaScript at all; *Day* and *Night* pin the
-attribute, and a small inline script in the layout applies a stored pin before
-first paint so the other palette never flashes.
+reading a bill against a printout wants it fixed. *Day* is the default — the
+palette the design was drawn in, and the right first impression for daylight
+office users. *Auto* is the absence of `data-theme` and follows the OS with no
+JavaScript; *Night* pins the press palette. A small inline script in the layout
+applies the choice before first paint so the other palette never flashes.
+
+### Density
+
+Beside the theme, under **Display** at the foot of the sidebar (and in Your
+preferences), a second switch: *Comfortable* or *Compact*. Compact tightens the
+4px spacing base and steps the data and body type down half a point, and
+because every padding and gap utility is a multiple of `--spacing`, every screen
+closes up together without knowing density exists (`globals.css`). Analysts
+working a queue pick Compact; CSRs on a call usually do not.
+
+### Navigation and detail on demand
+
+The sidebar is five groups named for the job — Today, Customers, Billing,
+Rates, Library — rather than fifteen flat links. Today is always open; the other
+four are an accordion, so opening one folds whichever was open. Each page opens
+on the group that holds it, and a folded group still shows its badges
+(`components/shell/SidebarNav.tsx`).
+
+Screens lead with the decision and keep the supporting detail one click away:
+the bill explanation opens on the headline, the bridge chart and the talk track,
+with each cause in words and **Show the math** folded beneath; the outreach
+board shows its rules and five figures on a first visit and a single summary
+line after; its side panel folds the breakdown and reach details to one-line
+gists; rate design hides billing determinants until asked; and the template
+editor puts its 37 merge fields behind a searchable **Insert field** menu.
 
 **The bill is exempt.** A statement is a printed object, so the `stock` utility
 pins `color-scheme: light` inside the sheet: every token in that subtree
@@ -258,6 +289,76 @@ Cycle 04's real due date in working days around the Texas holiday calendar
 because a disconnect may not fall on the day before a weekend. The protection
 checks that run before every step are listed beneath, read-only.
 
+## Bill explanation
+
+**Why it changed** on a bill (and on the account's usage panel) opens the
+explanation: the bill against the same month last year or last month, split
+into weather, usage beyond the weather, gas cost, the weather adjustment, each
+base-rate change, and taxes. `lib/bill-explain.ts` does it by re-pricing the
+comparison bill one change at a time, line by line, rounded the way the biller
+writes lines, so the steps add to the real difference to the cent. It reads
+each bill's prices back off its own lines and reproduces all 87 issued bills in
+the fixtures exactly; if one ever did not, the gap would show as its own
+"rounding" step rather than vanish into another.
+
+The CSR view adds a talk track, the arithmetic and what to offer. The portal
+view (`/portal/bills/…`) is the customer's phone screen, in the utility's
+brand and the day palette, with an English/Spanish switch. The sentences are
+written in both languages side by side, not translated after the fact.
+
+## High-bill outreach
+
+The pre-mail queue already knows which draft bills jumped. The outreach board
+turns that into a heads-up before the bill is dated: each candidate's change is
+split by the same engine, the reason goes in one line, and the message comes
+from the **High-bill heads-up** template. A text goes only to a number with
+consent on file, inside quiet hours; protected and in-collections customers get
+a call with talking points instead; anyone with neither email nor consent gets
+the explanation printed on the bill. Everything over the threshold but not
+contacted is listed with its reason: an estimated read, a budget-billing
+account, an opt-out. Sends need the **Send outreach** capability and are kept
+in this browser (`lib/outreach-store.ts`). The high-usage exception in the
+queue links straight to the customer on the board.
+
+## Rate case toolkit
+
+Replaces the tariff sandbox. It carries a case end to end against RRC
+GUD-11042: the revenue requirement (Schedule A), billing determinants from the
+system's own volumes (the locked January cycle carried across the test year
+and scaled to every account), a class allocation slider, rate design with
+**Solve volumetric rates** / **Solve customer charge**, a proof of revenue
+within the residue of four-decimal rates, typical bills and the January
+distribution, the filing schedules A–E with a redlined tariff, the customer
+notice from the communications library (with the typical change filled in
+from the design), and the rate versions to stage for a second person's
+approval. Bills are priced with the same `priceAt` the explanation uses.
+
+## Communications
+
+Every message a customer receives lives in one catalog
+(`fixtures/templates.ts`), grouped Billing, Payments, Collections, Service,
+Safety and Regulatory, and linked from the bottom of the sidebar. Dunning,
+outreach, the bill explanation and the rate case all send from it, so a wording
+change is made once.
+
+The editor shows the words beside the customer's view, filled from a real
+account (pick any fixture customer) through the same engine. Merge fields
+insert at the cursor; anything not on the list is refused. Rule-prescribed
+text (`{{required.termination_rights}}`, the rate-case notice, the gas-leak
+steps) is shown with its citation and placed by a token that cannot be removed.
+Text messages show their real length, including the automatic opt-out line, and
+name the character that forces Unicode. Saving needs **Edit communications**
+and a reason, and appends a version (`lib/templates-store.ts`) — nothing is
+overwritten, and the history shows a word-level diff.
+
+The assistant can edit templates too. Its tools read the library and stage an
+edit, which the server validates with the same checks as the editor before it
+reaches the chat as a card with **Apply edit** and **Discard**. An applied edit
+becomes a version marked *with the assistant*, and the open editor picks it up
+(or, if you have an unsaved draft, says a newer version arrived). Buttons in the
+editor — Shorter, Warmer, Plainer, Check it, Write the Spanish — hand the
+request to the chat for you (`lib/assistant/bus.ts`).
+
 ## Assistant
 
 The bubble in the bottom-right corner of every screen opens a chat backed by
@@ -268,7 +369,7 @@ credentials on the server:
 echo ANTHROPIC_API_KEY=sk-ant-... > .env.local   # then restart pnpm dev
 ```
 
-It can do three things:
+It can do four things:
 
 - **Read the tenant's account** — search, an account in full, a bill with its
   lines, rates in force at a date, the billing overview, and a generic
@@ -282,6 +383,9 @@ It can do three things:
   coerces every value, validates it against the Zod schemas and rejects
   duplicates. Rate items are close-then-insert successions with a required
   change reason; a back-dated change is refused as a correction.
+- **Edit communication templates** — read the library and stage a new version
+  of one channel and language, refused with the reason if it drops required
+  text, uses an unknown merge field or runs a text past three messages.
 
 The model can propose an import, but it cannot apply one. Each staged import
 appears as a card with **Import** and **Discard**, the same trust boundary as
@@ -296,8 +400,14 @@ extended one back.
 ## Known gaps
 
 - Interactions are presentational. Nothing writes; buttons do not submit.
-  Payments taken, assistant imports and account and draft-bill edits are the
-  exceptions, and all are kept only in this browser.
+  Payments taken, assistant imports, account and draft-bill edits, template
+  versions and outreach sends are the exceptions, and all are kept only in
+  this browser.
+- Outreach candidates beyond the fixture accounts, and the general-service
+  population in the rate case, are seeded rather than drawn from records; their
+  figures are given, split the same way and summing to the cent.
+- The rate case's cost-of-service components are a settlement's black box: O&M
+  is the residual that makes them equal the settled requirement.
 - The assistant route has no authentication and trusts the transcript the
   browser sends. That is fine on localhost and not fine anywhere else.
 - Assistant imports of meters, premises and rate items are stored but not yet
