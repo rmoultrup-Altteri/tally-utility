@@ -16,8 +16,19 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 tests/
   ci.sh                     # EVERY check, as .github/workflows/ci.yml runs it (--build: image from postgres/Dockerfile,
                             #   fresh tally-pg). Clones `tally`; strict-applies (twice) patches not yet mirrored;
-                            #   batteries -09..-14, -16, -17; -17's isolation, races and law files; -16 and -12 races;
+                            #   batteries -09..-14, -16, -17, -18; -18's migration (while `tally` is pre-18); -17's isolation, races and law files; -16 and -12 races;
                             #   -13's evidence script; the tenant-isolation invariants. Never writes `tally`.
+  v5.4.2-18/                # backbilling at the rule-terms convention: the 16 Texas rows adopted in place (landed 2026-10-10; r6 frozen, mirrored)
+    battery-18.sql          # 108 checks, groups S M K D O H X L G, on the migrated table: the kind and its facet; the
+                            #   registration; the sixteen documents against expectations typed from the -13 seed; the
+                            #   document gate; overlap and applicability; history and the close floor over planted
+                            #   citations; the area's insert check; lookups; neighbours (a ZZ state's rows only prove the gate)
+    run-battery-18.sh       # runs battery-18 against <db> that has -18 applied
+    migration-18.py         # P1-P11 on clones of a PRE-18 base: the patch on the real data (documents built apart from the
+                            #   patch; identity unchanged), twice, with extra legacy rows, three aborts that leave the table
+                            #   untouched, and the adoption check on its own (23 single-key differences refused)
+    mutations-18.py        # 107 mutations, each caught at its named check (battery, F13 of battery-13, P-labels, or the
+                            #   patch's own refusal); needs a PRE-18 base (a database built from the -17 tu.sql: `tally` is post-18 now)
   v5.4.2-17/                # the rule-terms convention written once (DRAFT r6, 2026-10-09; round 5: Opus, Fable and Codex all ready; their should-fixes folded in r6)
     battery-17.sql          # 247 checks, groups R V F T L U C A P I K G, on a fictional state's law (ZZ) from
                             #   law/fixtures/zz/ (fixture-zz.sql); every refusal must carry its own guard's phrase

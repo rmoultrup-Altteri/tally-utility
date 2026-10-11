@@ -15,7 +15,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 
-# patch file : a table it creates (its marker)
+# patch file : a table it creates (its marker); a '!' before the marker means a table the
+# patch DROPS (the patch is pending while that table still exists)
 PENDING=(
 )
 BASE=ci_base
@@ -62,7 +63,9 @@ step() {  # $1 label, rest: the command
 clone "$BASE" tally || { echo "SETUP FAIL: clone"; exit 2; }
 for entry in ${PENDING[@]+"${PENDING[@]}"}; do
   patch=${entry%%:*}; marker=${entry##*:}
-  if [ "$(q tally -c "SELECT to_regclass('public.$marker') IS NULL")" = "t" ]; then
+  if [ "${marker#!}" != "$marker" ]; then test_pending="to_regclass('public.${marker#!}') IS NOT NULL"
+  else test_pending="to_regclass('public.$marker') IS NULL"; fi
+  if [ "$(q tally -c "SELECT $test_pending")" = "t" ]; then
     docker cp "$patch" tally-pg:/tmp/pending.sql
     for pass in 1 2; do
       step "strict apply $(basename "$patch") (pass $pass)" \
@@ -79,6 +82,12 @@ for n in 09 10 11 12 13 14 16; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
+step "battery v5.4.2-18" tests/v5.4.2-18/run-battery-18.sh "$BASE"
+# The migration runs on a PRE-18 base. -18 is mirrored, so `tally` is post-18 and this is skipped; to run it,
+# restore a pre-18 base first (a database built from the -17 tu.sql), then: python3 tests/v5.4.2-18/migration-18.py <base>.
+if [ "$(q tally -c "SELECT to_regclass('public.backbilling_rule_window_terms') IS NOT NULL")" = "t" ]; then
+  step "migration v5.4.2-18" python3 tests/v5.4.2-18/migration-18.py tally
+fi
 step "isolation v5.4.2-17" tests/v5.4.2-17/isolation-17.sh "$BASE" ci_iso17
 step "races v5.4.2-17" tests/v5.4.2-17/races/rule-close-17.sh "$BASE" ci_race17
 step "law files v5.4.2-17" tests/v5.4.2-17/lawfiles-17.sh "$BASE" ci_law17

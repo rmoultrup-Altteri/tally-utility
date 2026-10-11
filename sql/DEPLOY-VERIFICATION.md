@@ -1,6 +1,8 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16 + v5.4.2-17, verified 2026-10-09.** v5.4.2-15 (deposits) is a draft, not landed: it is being rebuilt on the rule-terms convention. After v5.4.2-17: **120 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **438 FKs** / **507 CHECKs** / **20 EXCLUDE** / **352 triggers** / **487 functions** / **670 indexes**. tu.sql **30,570 lines**, md5 `5ac8ed99179e7e0f80ba35f21cd0043b` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16 + v5.4.2-17 + v5.4.2-18, verified 2026-10-10.** v5.4.2-15 (deposits) is a draft, not landed: it is being rebuilt on the rule-terms convention. After v5.4.2-18: **117 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **436 FKs** / **497 CHECKs** / **20 EXCLUDE** / **349 triggers** / **487 functions** / **665 indexes**. tu.sql **31,380 lines**, md5 `b35302dcc0979c29b2c693dc569838c7` (the container init file matches by hash).
+
+**Previous: through v5.4.2-17, verified 2026-10-09.** After v5.4.2-17: **120 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **438 FKs** / **507 CHECKs** / **20 EXCLUDE** / **352 triggers** / **487 functions** / **670 indexes**. tu.sql **30,570 lines**, md5 `5ac8ed99179e7e0f80ba35f21cd0043b`.
 
 **Previous: through v5.4.2-16, verified 2026-10-07.** After v5.4.2-16: **109 tables** / **9 views** / **4 matviews** / **93 policies** / **92 FORCE-RLS** / **429 FKs** / **469 CHECKs** / **19 EXCLUDE** / **330 triggers** / **440 functions** / **652 indexes**. tu.sql **27,331 lines**, md5 `9c1d0813e64853cebcb5aaff519a4201`.
 
@@ -15,6 +17,34 @@
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 
 **Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+
+## v5.4.2-18 — backbilling at the rule-terms convention: the -13 rows adopted in place (rule-terms step 2; Ryan 2026-10-09; R10 delegation ruled "A" 2026-10-10; mirror approved by Ryan 2026-10-10)
+`sql/v5.4.2-18-backbilling-rule-terms.sql` (895 lines, md5 `baa6e72a0555c344473eb3b099c44fca`, the r6 freeze), mirrored into tu.sql (30,570 → **31,380**, pure append: a blank line, a 4-line banner and the 804-line body, header omitted; 810 insertions, 0 deletions; the body is byte-identical to the patch's by `cmp`).
+
+**What changes:**
+- **`backbilling_rules` is a registered law table on the convention.** Each of the 16 Texas rows keeps its id, key, dates, note and stamps and gains a document (kind `backbilling` v1, validated against the registered schema) that says exactly what its old columns and window terms said; the database compares each document with the old columns key by key before they go.
+- **Gone:** ten columns (outcomes, duty, straddles, delivery path, the two flags, enforcement scope, months, condition), the child table `backbilling_rule_window_terms`, and two vocabularies (`backbilling_window_term_kinds`, `backbilling_enforce_conditions`), with -13's history, record and overlap guards (the template's replace them). **Facet:** `anchor_basis` (from `$.anchor.strategy`).
+- **Delegation (R10, Ryan "A"):** the eight unprotected-class rows say 16 TAC 7.45 does not reach their class, so each becomes a delegation to the utility (no anchor, no limits), not "law, uncapped". A billing case for that class is refused until a backbilling tariff exists; unknown law is not permission. Open: the backbilling tariff table.
+- **Who the rows bind:** investor-owned and cooperative gas utilities running distribution systems; a municipal, propane or master-meter system finds no row.
+- **Priority** of a window term is any integer from 1 to 2147483647 (what -13's column held).
+- **Known cost (accepted by Ryan 2026-10-10):** the migration's first act is an ACCESS EXCLUSIVE lock on `backbilling_rules`, so a re-run of an already-applied patch also takes it before finding nothing to do, and readers queue behind it for the moment it holds it. Nothing is live.
+
+**Review:** six revisions, rounds with three reviewers (Opus, Fable, Codex):
+- round 1: Opus "not yet", Fable ready; rounds 2–3: Opus and Fable ready, subject to Ryan's R10 ruling;
+- round 4 (Codex's first): Opus and Fable ready, Codex "not yet" on two blocking items, **both reproduced before folding**: a legacy priority above 8 aborted adoption; a delegation's own anchor was cleared without being compared. A repeated legacy outcome also aborted adoption;
+- round 5: all three ready; Codex's one should-fix (a writer in flight could slip a delegation past the anchor pre-flight, **reproduced** by a model probe and by test P11, red on r5) folded in r6 as the table lock;
+- round 6: all three **ready**, no blocking item. Codex's and Fable's should-fix (P11 synchronised by sleeps) was folded into the test, not the patch.
+- Dispositions: `tests/v5.4.2-18/review/` (briefs r1–r6, one report per reviewer per round, Codex's probes).
+
+**Method.**
+1. Strict apply twice (`search_path ''`, function bodies checked) on a clone of the -17 build, TEMP revoked: clean.
+2. **battery-18: 108 PASS**; migration-18.py **P1–P11, all pass** (the sixteen real rows; twice; extra legacy rows; aborts that leave the table untouched; the adoption check on its own; priority 9; repeated outcomes; a differing delegation anchor; a concurrent writer observed holding its row while the patch waits on the lock).
+3. **mutations-18: 107 of 107 caught**, each at its named check (run on the pre-mirror database; the runner clones `tally`, so a rerun now needs a pre-18 base).
+4. Mirror.
+5. Image rebuilt, fresh volume: **zero error lines during init**; init file = tu.sql by md5.
+6. **Catalog parity, full identity including every comment:** `tests/v5.4.2-14/parity/catalog-identity.sql`, 10,356 lines, identical between the build and a clone of the -17 build with the patch applied (md5 `527326fbe66f60cec4ccc1748973b1e9`). Counts (`tests/v5.4.2-13/parity/catalog-counts.sql`) also identical. (The identity script's row count of the dropped window-terms table was removed.)
+7. **On the build** (`tests/ci.sh`): see the run below; the patch re-applied over the build twice: clean ("on the convention; the table-level invariants hold"), TEMP still false. `assert_rule_table_invariants()` is no longer vacuous: it checks `backbilling_rules`.
+8. `PENDING` in `tests/ci.sh` is empty; the migration step is skipped on a post-18 base.
 
 ## v5.4.2-17 — the rule-terms convention, written once (rule-terms v2 §12 step 2; Ryan 2026-10-06/07; mirror approved by Ryan 2026-10-09)
 `sql/v5.4.2-17-rule-terms-convention.sql` (3,459 lines, md5 `ed1b8298d22de9f5015a9007422eab19`, the r9 freeze), mirrored into tu.sql (27,331 → **30,570**, pure append: a blank line, a 5-line banner and the 3,233-line body, header omitted; prefix and body byte-identical by `cmp`).
