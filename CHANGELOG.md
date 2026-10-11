@@ -4,6 +4,29 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-10 — v5.4.2-18: Codex's r4 review folded (r5), the lock (r6); all three ready; MIRRORED into tu.sql (31,380 lines)
+
+**What was done:**
+- Resumed from a stale HANDOFF. Ryan's "A" = delegation for the eight unprotected Texas backbilling rows (R10), already built in r4.
+- **Codex r4 ("not yet", 2 blocking + 1 should-fix) reproduced on a clone, then fixed (r5):** a window-term priority above 8 (valid under -13) aborted adoption with `/windows/adverse/0/priority: must be at most 8`; a repeated legacy outcome (`['fast','fast']`) aborted with `items must be unique`; a delegated row's own anchor was cleared by the fill without a comparison (probe printed `REPRODUCED B2`). Fixes: schema priority cap removed; outcomes a set in the builder, the adoption check and the twin comparison; a migration pre-flight stops, naming the row, if a delegation's anchor differs from its protected twin's. Tests P8-P10 first (red), mutations M102-M106.
+- **Round 5:** Opus, Fable ready; Codex ready for a serialized migration. Its should-fix (a writer in flight could slip a delegation past the pre-flight) reproduced by its model probe 06 and by test P11 (red on r5: aborted late at the fingerprint with the wrong message). **r6:** `LOCK TABLE backbilling_rules IN ACCESS EXCLUSIVE MODE` first; priority capped at 2147483647 (Opus note); the HINT and a comment reworded; mutations M107, M108, M66 re-pointed.
+- **Round 6:** all three ready, no blocking item. Frozen r6: patch `baa6e72a…` (895 lines), battery `7adbcf31…` (108 PASS); 107/107 mutations; `tests/ci.sh` all pass.
+- **Mirror** (Ryan: "Mirror r6, mirror as is on the lock"): `tu.sql` 30,570 -> 31,380 lines, md5 `b35302dc…`, pure append (810 insertions, 0 deletions), body byte-identical by `cmp`; image rebuilt on a fresh volume, zero init errors; catalog identity 10,356 lines identical to a -17 clone with the patch applied (md5 `527326fb…`); counts 117 tables / 497 CHECKs / 349 triggers / 487 functions / 665 indexes; patch re-applied twice clean; `PENDING` emptied. `DEPLOY-VERIFICATION.md` -18 entry added. Commits `5f26697`, `9761827`, pushed (rebased over two remote `ui-concepts/` commits).
+- Test housekeeping: P11 synchronised by polling `pg_stat_activity` instead of sleeps (Codex and Fable's should-fix); `migration-18.py` cleans up via `atexit`; ~240 stale `m18_*` databases dropped; D40 now refuses 0 and accepts 9, D40c refuses 2147483648.
+
+**Failed approaches / mechanisms:**
+- P11 on `time.sleep`/`pg_sleep`: a slow writer start makes a correct patch fail, a slow pre-flight makes M107 pass for the wrong reason.
+- `writer.communicate()` after `stdin.close()`: `ValueError: I/O operation on closed file`, skipping cleanup and leaking databases.
+- D40b leaked a row (`pg_temp.does` keeps inserts) that collided with X13's exclusion constraint.
+
+**Decisions:** delegation over "law, uncapped" (unknown law is never permission); priority is an order, so any integer to the old column's limit; the anchor is compared in the migration because the fill clears it before the adoption check; lock first and accept the re-run cost (an already-applied re-run takes the lock before finding nothing to do; readers queue behind it; nothing is live).
+
+**Lessons:** a launcher's "completed" is not the reviewer finishing; a test that coordinates two sessions must observe the wait (lock) rather than assume it; Codex finds real races the other two miss and its probes must be run, not trusted.
+
+**Next:** the -15 deposits rewrite on the template (drop or justify the class-scoped rate, city classes); the backbilling tariff table (unprotected-class cases are refused until it exists); bump the GitHub Actions versions.
+
+---
+
 ## 2026-10-09 (final) — v5.4.2-17: r7, r8, r9 built and reviewed; MIRRORED into tu.sql (30,570 lines)
 
 **What was done:**
