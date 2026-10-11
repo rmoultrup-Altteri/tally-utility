@@ -1,0 +1,317 @@
+# Texas gas backbilling: the sixteen rows adopted in place by v5.4.2-18 from public.backbilling_rules
+# (v5.4.2-13; Kyle's rulings R-19 to R-39 on 16 TAC 7.45). One row per (customer class, cause).
+# Eight rows (class `protected`) are law; eight (class `unprotected`) are DELEGATIONS: their own note says
+# 16 TAC 7.45 does not reach the class, so the law leaves the matter to the utility's tariff (patch R10).
+# For a law row, `terms` says exactly what the old columns and window terms said, `source_note` is the -13 note
+# verbatim, and the document's `citation` is the lead clause of that note (before its first " — " or ";").
+# Window terms and qualifying outcomes are listed in byte order, so one law has one document.
+# Applicability: investor-owned and cooperative owners, distribution systems, either jurisdiction status.
+# Utilities Code 101.003(7) excludes a municipal corporation and LPG distribution (propane systems);
+# 7.45's preamble orders every gas distribution utility to carry the standards into incorporated areas
+# except where a city's lawful standards conflict (patch R8). Master-meter systems are out by default (R9).
+table: public.backbilling_rules
+kind: backbilling
+version: 1
+key: [customer_class, cause]
+schema: backbilling.v1.schema.json
+rows:
+  - name: protected_billing_constant_error
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: billing_constant_error
+    effective_from: "2004-07-12"
+    source_note: "R-39: no 7.45 billing cap; enforceable classification referred to counsel — never pending, per fail-toward-protection."
+    terms:
+      governs: law
+      citation: "R-39: no 7.45 billing cap"
+      anchor: {strategy: discovery_date, version: 1}
+      favourable_duty: permitted
+      adverse_straddle: include_whole
+      favourable_straddle: include_whole
+      delivery_path: unruled
+      requires_supervisor_evidence: false
+      units_invariant: false
+      enforcement: {strategy: never, version: 1}
+      windows: {adverse: [], favourable: []}
+  - name: protected_crossed_meters
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: crossed_meters
+    effective_from: "2004-07-12"
+    source_note: "R-39: no 7.45 billing cap; enforceable classification referred to counsel — never pending, per fail-toward-protection."
+    terms:
+      governs: law
+      citation: "R-39: no 7.45 billing cap"
+      anchor: {strategy: discovery_date, version: 1}
+      favourable_duty: permitted
+      adverse_straddle: include_whole
+      favourable_straddle: include_whole
+      delivery_path: unruled
+      requires_supervisor_evidence: false
+      units_invariant: false
+      enforcement: {strategy: never, version: 1}
+      windows: {adverse: [], favourable: []}
+  - name: protected_estimation_catchup
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: estimation_catchup
+    effective_from: "2004-07-12"
+    source_note: "No 7.45 billing cap on an estimation catch-up; (6)(C) governs estimation and (4)(E)(vii) enforcement, turning on whether the missed read was beyond the utility's control (R-30). R-21 rejected inheriting meter_error's six months here."
+    terms:
+      governs: law
+      citation: "No 7.45 billing cap on an estimation catch-up"
+      anchor: {strategy: discovery_date, version: 1}
+      favourable_duty: permitted
+      adverse_straddle: include_whole
+      favourable_straddle: include_whole
+      delivery_path: unruled
+      requires_supervisor_evidence: false
+      units_invariant: false
+      enforcement: {strategy: conditional, version: 1, condition: read_beyond_utility_control}
+      windows: {adverse: [], favourable: []}
+  - name: protected_meter_error
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: meter_error
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45(7)(B)(v)(I) — correction for the shorter of the last six months and the last test of the meter (R-34: the most recent completed test before the discovering test, any outcome); R-37(a) adds the meter's deployment start; a fast meter's refund back to that window is mandatory (R-37); a straddling adverse period is forfeited whole (R-32); corrected on a subsequent bill (R-33); (4)(E)(vi) bars disconnection for an underbilling due to faulty metering (F-1)."
+    terms:
+      governs: law
+      citation: "16 TAC 7.45(7)(B)(v)(I)"
+      anchor: {strategy: test_date, version: 1, qualifying_outcomes: [fast, slow]}
+      favourable_duty: mandatory
+      adverse_straddle: forfeit_whole
+      favourable_straddle: include_whole
+      delivery_path: adjustment
+      requires_supervisor_evidence: false
+      units_invariant: false
+      enforcement: {strategy: never, version: 1}
+      windows:
+        adverse:
+          - {kind: before_anchor, quantity: 6, unit: months}
+          - {kind: deployment_start}
+          - {kind: last_test_any_outcome}
+        favourable:
+          - {kind: before_anchor, quantity: 6, unit: months}
+          - {kind: deployment_start}
+          - {kind: last_test_any_outcome}
+  - name: protected_non_registering_meter
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: non_registering_meter
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45(7)(B)(v)(II) — a charge for units used but not metered for a period not to exceed three months (F-4); (4)(E)(vi) bars disconnection."
+    terms:
+      governs: law
+      citation: "16 TAC 7.45(7)(B)(v)(II)"
+      anchor: {strategy: test_date, version: 1, qualifying_outcomes: [non_registering]}
+      favourable_duty: permitted
+      adverse_straddle: forfeit_whole
+      favourable_straddle: include_whole
+      delivery_path: unruled
+      requires_supervisor_evidence: false
+      units_invariant: false
+      enforcement: {strategy: never, version: 1}
+      windows:
+        adverse:
+          - {kind: before_anchor, quantity: 3, unit: months}
+          - {kind: deployment_start}
+        favourable: []
+  - name: protected_rate_misapplication
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: rate_misapplication
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45(4)(E)(v) — no billing cap on correcting a misapplied rate; (3)(C)(iii) bounds enforcement at six months; correct units, wrong price (R-39); void and reissue (R-33)."
+    terms:
+      governs: law
+      citation: "16 TAC 7.45(4)(E)(v)"
+      anchor: {strategy: discovery_date, version: 1}
+      favourable_duty: permitted
+      adverse_straddle: include_whole
+      favourable_straddle: include_whole
+      delivery_path: reissue
+      requires_supervisor_evidence: false
+      units_invariant: true
+      enforcement: {strategy: months, version: 1, months: 6}
+      windows: {adverse: [], favourable: []}
+  - name: protected_tampering_bypass
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: tampering_bypass
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45(4)(D)(v) — tampering with or bypassing the meter sits outside the backbilling limits; the (4)(E)(vi) bar does not apply (R-39). Moving a case into this cause needs a supervisor and evidence (R-38 attachment 2)."
+    terms:
+      governs: law
+      citation: "16 TAC 7.45(4)(D)(v)"
+      anchor: {strategy: discovery_date, version: 1}
+      favourable_duty: permitted
+      adverse_straddle: include_whole
+      favourable_straddle: include_whole
+      delivery_path: unruled
+      requires_supervisor_evidence: true
+      units_invariant: false
+      enforcement: {strategy: uncapped, version: 1}
+      windows: {adverse: [], favourable: []}
+  - name: protected_unbilled_service
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    cause: unbilled_service
+    effective_from: "2004-07-12"
+    source_note: "R-39: no 7.45 billing cap; enforceable classification referred to counsel — never pending, per fail-toward-protection."
+    terms:
+      governs: law
+      citation: "R-39: no 7.45 billing cap"
+      anchor: {strategy: discovery_date, version: 1}
+      favourable_duty: permitted
+      adverse_straddle: include_whole
+      favourable_straddle: include_whole
+      delivery_path: unruled
+      requires_supervisor_evidence: false
+      units_invariant: false
+      enforcement: {strategy: never, version: 1}
+      windows: {adverse: [], favourable: []}
+  - name: unprotected_billing_constant_error
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: billing_constant_error
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_crossed_meters
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: crossed_meters
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_estimation_catchup
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: estimation_catchup
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_meter_error
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: meter_error
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_non_registering_meter
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: non_registering_meter
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_rate_misapplication
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: rate_misapplication
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_tampering_bypass
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: tampering_bypass
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+  - name: unprotected_unbilled_service
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    cause: unbilled_service
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."
+    terms:
+      governs: delegated_to_utility
+      citation: "16 TAC 7.45"
+      note: "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table."

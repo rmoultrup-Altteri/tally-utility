@@ -202,6 +202,28 @@ RESET ROLE;
 
 
 -- ============================================================ C. law tables
+-- v5.4.2-18: backbilling_rules is a law table on the rule-terms convention. Its
+-- content is a document; the checks on documents, the window terms and the
+-- row's applicability are battery-18's (S M K D O H X L). What stays here is
+-- what the correction records of -13 depend on: the application reads the law
+-- and writes none of it, a rule is closed and never edited, two rows for one
+-- key cannot be in force together, and the vocabularies are immutable.
+CREATE FUNCTION pg_temp.bbdoc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+  SELECT '{"governs": "law", "citation": "battery 13", "anchor": {"strategy": "discovery_date", "version": 1},
+           "favourable_duty": "permitted", "adverse_straddle": "include_whole", "favourable_straddle": "include_whole",
+           "delivery_path": "unruled", "requires_supervisor_evidence": false, "units_invariant": false,
+           "enforcement": {"strategy": "uncapped", "version": 1}, "windows": {"adverse": [], "favourable": []}}'::jsonb || p_over
+$$;
+-- bbins(state, service, class, cause, from, to, doc): a rule row, as the owner; every owner type, system kind and jurisdiction.
+CREATE FUNCTION pg_temp.bbins(p_state text, p_service text, p_class text, p_cause text, p_from date, p_to date, p_doc jsonb, p_note text DEFAULT 'battery 13 rule') RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE v_id uuid;
+BEGIN
+  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, effective_from, effective_to, source_note,
+                                        terms_kind, terms_version, terms_source)
+  VALUES (p_state, p_service, p_class, p_cause, p_from, p_to, p_note, 'backbilling', 1, p_doc::text) RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b1';
 SET ROLE tally_app;
 DO $$ DECLARE n int; BEGIN
@@ -219,18 +241,14 @@ DO $$ BEGIN
   RAISE EXCEPTION 'FAIL C2b: the application wrote a class';
 EXCEPTION WHEN insufficient_privilege THEN NULL; END $$;
 DO $$ BEGIN
-  UPDATE public.backbilling_rules SET enforce_scope = 'uncapped' WHERE id = pg_temp.r('protected', 'meter_error');
+  UPDATE public.backbilling_rules SET source_note = 'edited' WHERE id = pg_temp.r('protected', 'meter_error');
   RAISE EXCEPTION 'FAIL C2c: the application edited a rule';
-EXCEPTION WHEN insufficient_privilege THEN NULL; END $$;
-DO $$ BEGIN
-  DELETE FROM public.backbilling_rule_window_terms WHERE rule_id = pg_temp.r('protected', 'meter_error');
-  RAISE EXCEPTION 'FAIL C2d: the application deleted window terms';
 EXCEPTION WHEN insufficient_privilege THEN
-  RAISE NOTICE 'PASS C2: the application cannot write any of the four law tables'; END $$;
+  RAISE NOTICE 'PASS C2: the application cannot write the law tables'; END $$;
 RESET ROLE;
 -- Owner-level: law rows are closed, never edited or deleted.
 DO $$ BEGIN
-  UPDATE public.backbilling_rules SET enforce_scope = 'uncapped' WHERE id = pg_temp.r('protected', 'meter_error');
+  UPDATE public.backbilling_rules SET source_note = 'edited' WHERE id = pg_temp.r('protected', 'meter_error');
   RAISE EXCEPTION 'FAIL C3: the owner edited a law row';
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS C3: not even the owner edits a law row (evaluations cite it)'; END $$;
@@ -240,80 +258,31 @@ DO $$ BEGIN
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS C4: a law row is never deleted'; END $$;
 DO $$ BEGIN
-  UPDATE public.backbilling_rule_window_terms SET quantity = 12
-   WHERE rule_id = pg_temp.r('protected', 'meter_error') AND term_kind = 'before_anchor';
-  RAISE EXCEPTION 'FAIL C5: a window term changed';
-EXCEPTION WHEN restrict_violation THEN
-  RAISE NOTICE 'PASS C5: window terms never change'; END $$;
-DO $$ BEGIN
   UPDATE public.backbilling_rules SET effective_to = DATE '2030-01-01', source_note = 'edited'
    WHERE id = pg_temp.r('protected', 'crossed_meters');
   RAISE EXCEPTION 'FAIL C6: a close carried another change';
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS C6: closing a row changes nothing else'; END $$;
 DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, source_note)
-  VALUES ('TX', 'gas', 'protected', 'meter_error', 'test_date', ARRAY['fast','slow'], 'permitted', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'uncapped', DATE '2020-01-01', 'overlapping row');
+  PERFORM pg_temp.bbins('TX', 'gas', 'protected', 'meter_error', DATE '2020-01-01', NULL, pg_temp.bbdoc(), 'overlapping row');
   RAISE EXCEPTION 'FAIL C7: an overlapping rule row was accepted';
 EXCEPTION WHEN exclusion_violation THEN
   RAISE NOTICE 'PASS C7: two rows for one key cannot be in force on the same day'; END $$;
 DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, source_note)
-  VALUES ('TX', 'water', 'protected', 'meter_error', 'test_date', ARRAY['fast','slow'], 'permitted', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'uncapped', DATE '2020-01-01', 'TX water has no such class seeded');
+  PERFORM pg_temp.bbins('TX', 'water', 'protected', 'meter_error', DATE '2020-01-01', NULL, pg_temp.bbdoc(), 'TX water has no such class seeded');
   RAISE EXCEPTION 'FAIL C8: a rule for a class the state does not have was accepted';
 EXCEPTION WHEN foreign_key_violation THEN
   RAISE NOTICE 'PASS C8: a rule''s class must be one of that state''s classes for that service'; END $$;
 DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, source_note)
-  VALUES ('TX', 'gas', 'protected', 'no_such_cause', 'test_date', ARRAY['fast'], 'permitted', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'uncapped', DATE '2020-01-01', 'x');
+  PERFORM pg_temp.bbins('TX', 'gas', 'protected', 'no_such_cause', DATE '2020-01-01', NULL, pg_temp.bbdoc(), 'x');
   RAISE EXCEPTION 'FAIL C9: a rule for an unknown cause was accepted';
 EXCEPTION WHEN foreign_key_violation THEN
   RAISE NOTICE 'PASS C9: a rule''s cause must be a known cause'; END $$;
 DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, source_note)
-  VALUES ('TX', 'gas', 'protected', 'meter_error', 'test_date', ARRAY['fast','slow'], 'permitted', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'uncapped', DATE '1990-01-01', '   ');
+  PERFORM pg_temp.bbins('TX', 'gas', 'protected', 'meter_error', DATE '1990-01-01', DATE '1995-01-01', pg_temp.bbdoc(), '   ');
   RAISE EXCEPTION 'FAIL C10: an uncited rule was accepted';
 EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS C10: every law row cites its source'; END $$;
-DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, enforce_months, effective_from, source_note)
-  VALUES ('TX', 'gas', 'protected', 'meter_error', 'test_date', ARRAY['fast','slow'], 'permitted', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'never', 6, DATE '1990-01-01', 'stray month count');
-  RAISE EXCEPTION 'FAIL C11: a month count under a non-month scope was accepted';
-EXCEPTION WHEN check_violation THEN
-  RAISE NOTICE 'PASS C11: a month count appears exactly under enforce_scope = months'; END $$;
-DO $$ DECLARE v uuid; BEGIN
-  -- A throwaway historical row, so its terms are in its own transaction.
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, effective_to, source_note)
-  VALUES ('TX', 'gas', 'protected', 'crossed_meters', 'discovery_date', 'permitted', 'include_whole', 'include_whole',
-          'unruled', false, false, 'never', DATE '1990-01-01', DATE '1995-01-01', 'battery C12') RETURNING id INTO v;
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit)
-  VALUES (v, 'adverse', 'last_test_any_outcome', 6, 'months');
-  RAISE EXCEPTION 'FAIL C12: a quantity on a kind that takes none was accepted';
-EXCEPTION WHEN check_violation THEN
-  RAISE NOTICE 'PASS C12: a quantity and unit appear exactly on a term kind that takes one'; END $$;
-DO $$ BEGIN
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit)
-  VALUES (pg_temp.r('protected', 'rate_misapplication'), 'adverse', 'before_anchor', 6, 'months');
-  RAISE EXCEPTION 'FAIL C15: a window term was added to an existing rule row';
-EXCEPTION WHEN restrict_violation THEN
-  RAISE NOTICE 'PASS C15: window terms are written with their rule, never added to it later (not even by the owner)'; END $$;
 DO $$ BEGIN
   UPDATE public.backbilling_customer_classes SET source_note = 'rewritten' WHERE state_code = 'TX' AND class_code = 'protected';
   RAISE EXCEPTION 'FAIL C16a: a class''s citation was rewritten';
@@ -325,19 +294,13 @@ EXCEPTION WHEN restrict_violation THEN NULL; END $$;
 DO $$ BEGIN
   UPDATE public.backbilling_anchor_bases SET rests_on_test = false WHERE basis_code = 'test_date';
   RAISE EXCEPTION 'FAIL C16c: an anchor basis was changed';
-EXCEPTION WHEN restrict_violation THEN NULL; END $$;
-DO $$ BEGIN
-  UPDATE public.backbilling_window_term_kinds SET takes_quantity = true WHERE kind_code = 'deployment_start';
-  RAISE EXCEPTION 'FAIL C16d: a term kind was changed';
-EXCEPTION WHEN restrict_violation THEN NULL; END $$;
-DO $$ BEGIN
-  DELETE FROM public.backbilling_enforce_conditions WHERE condition_code = 'read_beyond_utility_control';
-  RAISE EXCEPTION 'FAIL C16e: an enforcement condition was deleted';
 EXCEPTION WHEN restrict_violation THEN
-  RAISE NOTICE 'PASS C16: classes, causes and the three vocabularies are never edited or deleted, not even by the owner'; END $$;
+  RAISE NOTICE 'PASS C16: classes, causes and anchor bases are never edited, not even by the owner'; END $$;
 DO $$ DECLARE v uuid := pg_temp.r('unprotected', 'crossed_meters'); BEGIN
   CREATE ROLE bat13_closer NOLOGIN;
   GRANT SELECT, UPDATE ON public.backbilling_rules TO bat13_closer;
+  GRANT SELECT ON public.rule_tables TO bat13_closer;
+  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO bat13_closer;
   SET LOCAL ROLE bat13_closer;
   UPDATE public.backbilling_rules SET effective_to = DATE '2099-01-01' WHERE id = v;
   RAISE EXCEPTION 'FAIL C19: a role row-level security narrows closed a law row';
@@ -345,35 +308,15 @@ EXCEPTION WHEN insufficient_privilege THEN
   IF SQLERRM NOT LIKE '%sees every tenant%' THEN RAISE EXCEPTION 'FAIL C19: refused for another reason: %', SQLERRM; END IF;
   RAISE NOTICE 'PASS C19: only a role that sees every tenant''s citations may close a law row'; END $$;
 DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, source_note)
-  VALUES ('TX', 'gas', 'protected', 'meter_error', 'test_date', NULL, 'permitted', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'uncapped', DATE '1990-01-01', 'test-anchored with no outcomes');
-  RAISE EXCEPTION 'FAIL C14: a test-anchored rule named no qualifying outcomes';
-EXCEPTION WHEN check_violation THEN NULL; END $$;
-DO $$ BEGIN
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, effective_to, source_note)
-  VALUES ('TX', 'gas', 'protected', 'crossed_meters', 'discovery_date', ARRAY['fast'], 'permitted', 'include_whole', 'include_whole',
-          'unruled', false, false, 'never', DATE '1990-01-01', DATE '1995-01-01', 'discovery rule naming outcomes');
-  RAISE EXCEPTION 'FAIL C14: a discovery rule named qualifying outcomes';
-EXCEPTION WHEN check_violation THEN
-  RAISE NOTICE 'PASS C14: a test-anchored rule names the test outcomes that make a finding its cause (R-39); a discovery rule names none'; END $$;
-DO $$ DECLARE t text; BEGIN
-  SELECT string_agg(direction || ':' || term_kind || coalesce(' ' || quantity || ' ' || unit, ''), ', ' ORDER BY direction, term_kind) INTO t
-    FROM public.backbilling_rule_window_terms WHERE rule_id = pg_temp.r('protected', 'meter_error');
-  IF t IS DISTINCT FROM 'adverse:before_anchor 6 months, adverse:deployment_start, adverse:last_test_any_outcome, favourable:before_anchor 6 months, favourable:deployment_start, favourable:last_test_any_outcome' THEN
-    RAISE EXCEPTION 'FAIL C13: meter_error terms are %', t;
-  END IF;
-  IF (SELECT favourable_duty FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> 'mandatory'
-     OR (SELECT adverse_straddle FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> 'forfeit_whole'
-     OR NOT (SELECT units_invariant FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'rate_misapplication'))
-     OR NOT (SELECT requires_supervisor_evidence FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'tampering_bypass'))
-     OR (SELECT enforce_months FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'rate_misapplication')) <> 6
-     OR (SELECT qualifying_test_outcomes FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> ARRAY['fast','slow']
-     OR (SELECT qualifying_test_outcomes FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'non_registering_meter')) <> ARRAY['non_registering'] THEN
+  IF (SELECT terms -> 'windows' -> 'adverse' FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error'))
+       <> '[{"kind": "before_anchor", "quantity": 6, "unit": "months"}, {"kind": "deployment_start"}, {"kind": "last_test_any_outcome"}]'::jsonb
+     OR (SELECT terms ->> 'favourable_duty' FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> 'mandatory'
+     OR (SELECT terms ->> 'adverse_straddle' FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> 'forfeit_whole'
+     OR NOT (SELECT (terms ->> 'units_invariant')::boolean FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'rate_misapplication'))
+     OR NOT (SELECT (terms ->> 'requires_supervisor_evidence')::boolean FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'tampering_bypass'))
+     OR (SELECT (terms -> 'enforcement' ->> 'months')::int FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'rate_misapplication')) <> 6
+     OR (SELECT terms -> 'anchor' -> 'qualifying_outcomes' FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'meter_error')) <> '["fast", "slow"]'::jsonb
+     OR (SELECT terms -> 'anchor' -> 'qualifying_outcomes' FROM public.backbilling_rules WHERE id = pg_temp.r('protected', 'non_registering_meter')) <> '["non_registering"]'::jsonb THEN
     RAISE EXCEPTION 'FAIL C13: a Texas attribute is not as ruled';
   END IF;
   RAISE NOTICE 'PASS C13: Texas meter_error qualifies on fast/slow, non_registering_meter on non_registering; meter_error = the later of 6 months, the last test and the deployment start, both directions; refund mandatory; straddle forfeited whole; rate misapplication keeps units, enforce 6 months; tampering gated';
@@ -381,66 +324,48 @@ END $$;
 
 
 -- ============================================================ Z. a second state
--- ZZ is fictional and deliberately unlike Texas: three classes, a new cause,
--- a 12-month adverse window bounded by half the time since the last test, a
--- 36-month refund reach, proration of straddling periods, a refund duty on a
--- cause Texas leaves permitted, and a conditional enforcement. Review P1 added
--- the shapes the reviewers found would not fit: "from when the error is known
--- to have begun, otherwise half the time since the last test, never more than
--- N months"; a notice-date anchor; a window in days; a new enforcement
--- condition; and a second service. No DDL.
+-- ZZ is fictional and deliberately unlike Texas: other classes and a second
+-- service, a new cause, a 12-month adverse window bounded by half the time since
+-- the last test, a 36-month refund reach, proration of straddling periods, a
+-- refund duty on a cause Texas leaves permitted, a window in days and one in
+-- billing periods, and a conditional enforcement. A notice-date anchor or a new
+-- enforcement condition is a NEW SCHEMA VERSION now (v5.4.2-18 R8), not a row.
 DO $$ DECLARE v_rule uuid; BEGIN
+  INSERT INTO public.places (kind_code, state_code, place_code, name, effective_from, source_note)
+  VALUES ('state', 'ZZ', 'ZZ', 'Zedland', DATE '1900-01-01', 'battery 13 fixture: a fictional state');
   INSERT INTO public.backbilling_causes (cause_code, description)
   VALUES ('customer_culpable_conduct', 'ZZ: the customer''s own conduct caused the under-billing.');
-  INSERT INTO public.backbilling_anchor_bases (basis_code, rests_on_test, description)
-  VALUES ('notice_date', false, 'ZZ: the date the customer was notified of the correction.');
-  INSERT INTO public.backbilling_enforce_conditions (condition_code, description)
-  VALUES ('customer_denied_access', 'ZZ: whether the customer denied the utility access to the meter.');
   INSERT INTO public.backbilling_customer_classes (state_code, service_type, class_code, description, source_note) VALUES
     ('ZZ', 'gas', 'residential',      'ZZ residential',      'ZZ Admin. Code 1.1 (fictional)'),
     ('ZZ', 'gas', 'small_business',   'ZZ small business',   'ZZ Admin. Code 1.2 (fictional)'),
     ('ZZ', 'gas', 'large_commercial', 'ZZ large commercial', 'ZZ Admin. Code 1.3 (fictional)'),
     ('ZZ', 'electric', 'residential', 'ZZ electric residential', 'ZZ Admin. Code 2.1 (fictional)');
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, enforce_months, enforce_condition, effective_from, source_note)
-  VALUES ('ZZ', 'gas', 'residential', 'meter_error', 'test_date', ARRAY['fast','slow'], 'mandatory', 'prorate_days', 'prorate_days',
-          'adjustment', false, false, 'conditional', NULL, 'read_beyond_utility_control', DATE '2020-01-01',
-          'ZZ Admin. Code 4.7 (fictional): from when the error is known to have begun, otherwise half the time since the last test, never more than 12 months; refunds 36 months; prorate.')
-  RETURNING id INTO v_rule;
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit, priority) VALUES
-    (v_rule, 'adverse',    'claimed_start',        NULL, NULL,     1),
-    (v_rule, 'adverse',    'half_since_last_test', NULL, NULL,     2),
-    (v_rule, 'adverse',    'before_anchor',        12,   'months', NULL),
-    (v_rule, 'favourable', 'before_anchor',        36,   'months', NULL);
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, enforce_condition, effective_from, source_note)
-  VALUES ('ZZ', 'gas', 'small_business', 'customer_culpable_conduct', 'notice_date', NULL, 'mandatory', 'include_whole', 'include_whole',
-          'reissue', true, false, 'conditional', 'customer_denied_access', DATE '2020-01-01', 'ZZ Admin. Code 4.9 (fictional): 90 days before notice.')
-  RETURNING id INTO v_rule;
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit) VALUES
-    (v_rule, 'adverse', 'before_anchor', 90, 'days');
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, effective_from, source_note)
-  VALUES ('ZZ', 'electric', 'residential', 'meter_error', 'test_date', ARRAY['fast','slow'], 'mandatory', 'include_whole', 'include_whole',
-          'adjustment', false, false, 'uncapped', DATE '2020-01-01', 'ZZ Admin. Code 5.1 (fictional): electric meters, two billing periods.')
-  RETURNING id INTO v_rule;
+  PERFORM pg_temp.bbins('ZZ', 'gas', 'residential', 'meter_error', DATE '2020-01-01', NULL, pg_temp.bbdoc(jsonb_build_object(
+      'citation', 'ZZ Admin. Code 4.7',
+      'anchor', '{"strategy": "test_date", "version": 1, "qualifying_outcomes": ["fast", "slow"]}'::jsonb,
+      'favourable_duty', 'mandatory', 'adverse_straddle', 'prorate_days', 'favourable_straddle', 'prorate_days', 'delivery_path', 'adjustment',
+      'enforcement', '{"strategy": "conditional", "version": 1, "condition": "read_beyond_utility_control"}'::jsonb,
+      'windows', '{"adverse": [{"kind": "before_anchor", "quantity": 12, "unit": "months"}, {"kind": "claimed_start", "priority": 1}, {"kind": "half_since_last_test", "priority": 2}],
+                   "favourable": [{"kind": "before_anchor", "quantity": 36, "unit": "months"}]}'::jsonb)),
+    'ZZ Admin. Code 4.7 (fictional): from when the error is known to have begun, otherwise half the time since the last test, never more than 12 months; refunds 36 months; prorate.');
+  PERFORM pg_temp.bbins('ZZ', 'gas', 'small_business', 'customer_culpable_conduct', DATE '2020-01-01', NULL, pg_temp.bbdoc(jsonb_build_object(
+      'citation', 'ZZ Admin. Code 4.9', 'favourable_duty', 'mandatory', 'delivery_path', 'reissue', 'requires_supervisor_evidence', true,
+      'windows', '{"adverse": [{"kind": "before_anchor", "quantity": 90, "unit": "days"}], "favourable": []}'::jsonb)),
+    'ZZ Admin. Code 4.9 (fictional): 90 days before discovery.');
+  v_rule := pg_temp.bbins('ZZ', 'electric', 'residential', 'meter_error', DATE '2020-01-01', NULL, pg_temp.bbdoc(jsonb_build_object(
+      'citation', 'ZZ Admin. Code 5.1',
+      'anchor', '{"strategy": "test_date", "version": 1, "qualifying_outcomes": ["fast", "slow"]}'::jsonb,
+      'favourable_duty', 'mandatory', 'delivery_path', 'adjustment',
+      'windows', '{"adverse": [{"kind": "before_anchor", "quantity": 2, "unit": "billing_periods"}], "favourable": []}'::jsonb)),
+    'ZZ Admin. Code 5.1 (fictional): electric meters, two billing periods.');
   INSERT INTO b13 VALUES ('zz_electric', v_rule);
-  INSERT INTO public.backbilling_rule_window_terms (rule_id, direction, term_kind, quantity, unit) VALUES
-    (v_rule, 'adverse', 'before_anchor', 2, 'billing_periods');
-  RAISE NOTICE 'PASS Z1: a second state is stored as rows, no DDL: other classes and services, a new cause, a notice-date anchor, "known onset, else half since the last test, never over 12 months", windows in days and billing periods, a 36-month refund reach, proration and two enforcement conditions';
+  RAISE NOTICE 'PASS Z1: a second state is stored as rows, no DDL: other classes and services, a new cause, "known onset, else half since the last test, never over 12 months", windows in days and billing periods, a 36-month refund reach, proration and a conditional enforcement';
 END $$;
 DO $$ DECLARE v_old uuid := pg_temp.r('protected', 'estimation_catchup'); v_new uuid; BEGIN
   -- A law change: close the Texas row and add its successor.
   UPDATE public.backbilling_rules SET effective_to = DATE '2027-01-01' WHERE id = v_old;
-  INSERT INTO public.backbilling_rules (state_code, service_type, customer_class, cause, anchor_basis, qualifying_test_outcomes, favourable_duty,
-     adverse_straddle, favourable_straddle, delivery_path, requires_supervisor_evidence, units_invariant,
-     enforce_scope, enforce_months, effective_from, source_note)
-  VALUES ('TX', 'gas', 'protected', 'estimation_catchup', 'discovery_date', NULL, 'permitted', 'include_whole', 'include_whole',
-          'unruled', false, false, 'months', 12, DATE '2027-01-01', 'hypothetical amendment, battery only')
-  RETURNING id INTO v_new;
+  v_new := pg_temp.bbins('TX', 'gas', 'protected', 'estimation_catchup', DATE '2027-01-01', NULL, pg_temp.bbdoc(jsonb_build_object(
+      'enforcement', '{"strategy": "months", "version": 1, "months": 12}'::jsonb)), 'hypothetical amendment, battery only');
   IF (SELECT effective_to FROM public.backbilling_rules WHERE id = v_old) <> DATE '2027-01-01' THEN
     RAISE EXCEPTION 'FAIL Z2: the close did not take';
   END IF;
@@ -452,9 +377,9 @@ END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b1';
 SET ROLE tally_app;
 DO $$ BEGIN
-  IF (SELECT count(*) FROM public.backbilling_rule_window_terms t
-        JOIN public.backbilling_rules b ON b.id = t.rule_id WHERE b.state_code = 'ZZ') <> 6 THEN
-    RAISE EXCEPTION 'FAIL Z3: the application cannot read ZZ''s terms';
+  IF (SELECT count(*) FROM public.backbilling_rules b WHERE b.state_code = 'ZZ') <> 3
+     OR (SELECT count(*) FROM public.backbilling_rules b WHERE b.state_code = 'ZZ' AND jsonb_array_length(b.terms -> 'windows' -> 'adverse') > 0) <> 3 THEN
+    RAISE EXCEPTION 'FAIL Z3: the application cannot read ZZ''s rules';
   END IF;
   RAISE NOTICE 'PASS Z3: the application reads ZZ''s rows exactly as Texas''s';
 END $$;
@@ -749,7 +674,7 @@ RESET ROLE;
 DO $$ BEGIN
   UPDATE public.backbilling_rules SET effective_to = DATE '2005-01-01' WHERE id = pg_temp.r('protected', 'meter_error');
   RAISE EXCEPTION 'FAIL F13: a cited rule row was closed before the dates it is cited for';
-EXCEPTION WHEN restrict_violation THEN
+EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS F13: a rule row is never closed on or before a date an evaluation or evidence row cites it for (not even by the owner)'; END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000013b1';
 SET ROLE tally_app;

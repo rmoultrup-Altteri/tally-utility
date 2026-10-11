@@ -1,0 +1,19 @@
+governs: law
+citation: A fictional chain of fallbacks
+anchor: {strategy: discovery_date, version: 1}
+favourable_duty: permitted
+adverse_straddle: prorate_days
+favourable_straddle: prorate_days
+delivery_path: unruled
+requires_supervisor_evidence: true
+units_invariant: false
+enforcement: {strategy: conditional, version: 1, condition: read_beyond_utility_control}
+windows:
+  adverse:
+    - {kind: before_anchor, quantity: 24, unit: months}
+    - {kind: claimed_start, priority: 1}
+    - {kind: half_since_last_test, priority: 2}
+  favourable:
+    - {kind: before_anchor, quantity: 90, unit: days, priority: 2}
+    - {kind: last_test_accurate, priority: 1}
+    - {kind: service_start}

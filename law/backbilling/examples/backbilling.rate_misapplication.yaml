@@ -1,0 +1,11 @@
+governs: law
+citation: 16 TAC 7.45(4)(E)(v)
+anchor: {strategy: discovery_date, version: 1}
+favourable_duty: permitted
+adverse_straddle: include_whole
+favourable_straddle: include_whole
+delivery_path: reissue
+requires_supervisor_evidence: false
+units_invariant: true
+enforcement: {strategy: months, version: 1, months: 6}
+windows: {adverse: [], favourable: []}

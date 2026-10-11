@@ -1,0 +1,19 @@
+governs: law
+citation: 16 TAC 7.45(7)(B)(v)(I)
+anchor: {strategy: test_date, version: 1, qualifying_outcomes: [fast, slow]}
+favourable_duty: mandatory
+adverse_straddle: forfeit_whole
+favourable_straddle: include_whole
+delivery_path: adjustment
+requires_supervisor_evidence: false
+units_invariant: false
+enforcement: {strategy: never, version: 1}
+windows:
+  adverse:
+    - {kind: before_anchor, quantity: 6, unit: months}
+    - {kind: deployment_start}
+    - {kind: last_test_any_outcome}
+  favourable:
+    - {kind: before_anchor, quantity: 6, unit: months}
+    - {kind: deployment_start}
+    - {kind: last_test_any_outcome}

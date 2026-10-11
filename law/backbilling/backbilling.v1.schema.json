@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/backbilling/backbilling.v1.schema.json",
+  "title": "Backbilling rule, version 1",
+  "description": "What a state's law says about correcting a past bill, for one customer class and one cause: what the correction counts back from, how far back it may reach in each direction, how a straddling period is treated, how the correction reaches a bill, and what collection may pursue. Written from public.backbilling_rules (v5.4.2-13) and its window-term child table, which this kind replaces. Every law kind also admits the document 'the law leaves this to the utility'.",
+  "oneOf": [
+    {"$ref": "#/$defs/law"},
+    {"$ref": "#/$defs/delegated"}
+  ],
+  "$defs": {
+    "citation": {"type": "string", "pattern": "[A-Za-z0-9]"},
+    "delegated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governs", "citation"],
+      "properties": {
+        "governs": {"type": "string", "const": "delegated_to_utility"},
+        "citation": {"type": "string", "pattern": "[A-Za-z0-9]"},
+        "note": {"type": "string", "pattern": "[A-Za-z0-9]"}
+      }
+    },
+    "law": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governs", "citation", "anchor", "favourable_duty", "adverse_straddle", "favourable_straddle", "delivery_path",
+                   "requires_supervisor_evidence", "units_invariant", "enforcement", "windows"],
+      "properties": {
+        "governs": {"type": "string", "const": "law"},
+        "citation": {"$ref": "#/$defs/citation"},
+        "anchor": {"oneOf": [{"$ref": "#/$defs/anchor_test_date"}, {"$ref": "#/$defs/anchor_discovery_date"}]},
+        "favourable_duty": {
+          "type": "string", "enum": ["mandatory", "permitted"],
+          "description": "Must the utility correct in the customer's favour back to the window (a duty), or may it (a permission)?"
+        },
+        "adverse_straddle": {"$ref": "#/$defs/straddle"},
+        "favourable_straddle": {"$ref": "#/$defs/straddle"},
+        "delivery_path": {
+          "type": "string", "enum": ["adjustment", "reissue", "unruled"],
+          "description": "How the correction reaches a bill. 'unruled' is honest: the law (or Kyle's OQ-1) has not settled it, and it is not a default."
+        },
+        "requires_supervisor_evidence": {
+          "type": "boolean",
+          "description": "Whether moving a case into this cause needs a supervisor and evidence (Texas: tampering_bypass, R-38 attachment 2). The core checks it."
+        },
+        "units_invariant": {
+          "type": "boolean",
+          "description": "Whether a correction under this cause leaves the billed units unchanged (correct units, wrong price)."
+        },
+        "enforcement": {"oneOf": [
+          {"$ref": "#/$defs/enforce_uncapped"}, {"$ref": "#/$defs/enforce_months"},
+          {"$ref": "#/$defs/enforce_never"}, {"$ref": "#/$defs/enforce_conditional"}]},
+        "windows": {"$ref": "#/$defs/windows"}
+      }
+    },
+    "straddle": {
+      "type": "string", "enum": ["forfeit_whole", "prorate_days", "include_whole"],
+      "description": "A billed period that begins before the window and ends inside it: forfeited whole, prorated by days, or included whole."
+    },
+    "anchor_test_date": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version", "qualifying_outcomes"],
+      "properties": {
+        "strategy": {"type": "string", "const": "test_date"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1},
+        "qualifying_outcomes": {
+          "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true,
+          "items": {"type": "string", "enum": ["fast", "slow", "non_registering"]},
+          "description": "The test outcomes that make a finding this cause (R-39: the outcome decides the cause)."
+        }
+      },
+      "description": "The date of the meter test that found the fault (backbilling_anchor_bases.test_date)."
+    },
+    "anchor_discovery_date": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version"],
+      "properties": {
+        "strategy": {"type": "string", "const": "discovery_date"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1}
+      },
+      "description": "The date the utility discovered the fault, with no test deciding it (backbilling_anchor_bases.discovery_date)."
+    },
+    "enforce_uncapped": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version"],
+      "properties": {
+        "strategy": {"type": "string", "const": "uncapped"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1}
+      },
+      "description": "Collection may pursue everything that was billed."
+    },
+    "enforce_months": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version", "months"],
+      "properties": {
+        "strategy": {"type": "string", "const": "months"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1},
+        "months": {"type": "integer", "minimum": 1}
+      },
+      "description": "Collection may pursue a bill no older than this many months."
+    },
+    "enforce_never": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version"],
+      "properties": {
+        "strategy": {"type": "string", "const": "never"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1}
+      },
+      "description": "Collection may not pursue the correction."
+    },
+    "enforce_conditional": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "version", "condition"],
+      "properties": {
+        "strategy": {"type": "string", "const": "conditional"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 1},
+        "condition": {
+          "type": "string", "enum": ["read_beyond_utility_control"],
+          "description": "read_beyond_utility_control: whether the missed or estimated read was beyond the utility's control (Texas R-30). Evaluated by the calculation core; a new condition is a new schema version plus a core change."
+        }
+      },
+      "description": "Collection may pursue the correction only when the named condition holds."
+    },
+    "windows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adverse", "favourable"],
+      "properties": {
+        "adverse": {"$ref": "#/$defs/window"},
+        "favourable": {"$ref": "#/$defs/window"}
+      },
+      "description": "How far back a correction may reach, per direction (adverse: the customer owes; favourable: the customer is owed). A direction with no terms is uncapped. HOW TERMS COMBINE: every term with no priority always applies; the terms WITH a priority form one fallback chain, of which only the first whose date is known (lowest priority number first) applies; the window starts at the LATEST of the applying dates. So 'the shorter of six months or the last test' is two unprioritised terms, and 'from when the error is known to have begun, otherwise half the time since the last test, never more than N months' is claimed_start priority 1, half_since_last_test priority 2 and before_anchor N months unprioritised. A kind appears at most once per direction, and a priority at most once per direction, and the terms are listed in order of kind (byte order), so one law has one document (the insert check)."
+    },
+    "window": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/term"}},
+    "priority": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+    "term": {"oneOf": [
+      {"$ref": "#/$defs/term_before_anchor"}, {"$ref": "#/$defs/term_last_test_any_outcome"},
+      {"$ref": "#/$defs/term_last_test_accurate"}, {"$ref": "#/$defs/term_half_since_last_test"},
+      {"$ref": "#/$defs/term_deployment_start"}, {"$ref": "#/$defs/term_service_start"},
+      {"$ref": "#/$defs/term_claimed_start"}]},
+    "term_before_anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "quantity", "unit"],
+      "properties": {
+        "kind": {"type": "string", "const": "before_anchor"},
+        "quantity": {"type": "integer", "minimum": 1},
+        "unit": {"type": "string", "enum": ["months", "days", "billing_periods"]},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "A quantity of months, days or billing periods back from the anchor."
+    },
+    "term_last_test_any_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "const": "last_test_any_outcome"},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "The most recent completed test of the meter before the anchor, whatever it found (Texas R-34)."
+    },
+    "term_last_test_accurate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "const": "last_test_accurate"},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "The most recent test before the anchor that found the meter within tolerance."
+    },
+    "term_half_since_last_test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "const": "half_since_last_test"},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "Half the time between the last test before the anchor and the anchor."
+    },
+    "term_deployment_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "const": "deployment_start"},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "When the meter went into service at the premise (R-37(a))."
+    },
+    "term_service_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "const": "service_start"},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "When the customer's service at the premise began."
+    },
+    "term_claimed_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "const": "claimed_start"},
+        "priority": {"$ref": "#/$defs/priority"}
+      },
+      "description": "When the fault is known to have begun, as the case records it (claimed_from). A term the core cannot resolve because the case records no such date is unknown, not zero."
+    }
+  }
+}
