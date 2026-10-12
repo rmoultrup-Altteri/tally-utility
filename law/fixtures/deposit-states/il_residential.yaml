@@ -1,0 +1,54 @@
+# FIXTURE, never seeded. Illinois residential (83 Ill. Adm. Code 280.40): a both-and trigger a payment arrangement entered before assessment cures, assessed within 45 days; a rate rounded to the nearest half percent; return 30 days after a disconnection for nonpayment.
+governs: law
+citation: 83 Ill. Adm. Code 280.40
+cap:
+  strategy: parts
+  version: 1
+  combinator: single
+  scope: per_deposit
+  parts:
+    - {id: c1, kind: fraction_of_annual_billing, divisor: 6}
+triggers:
+  - id: t1
+    trigger_code: late_and_past_due
+    condition:
+      kind: all_of
+      of:
+        - {kind: count, event: late_payment, at_least: 4, window: {unit: months, size: 12}, consecutive: false, exclude_disputed: false}
+        - {kind: count, event: past_due_over_30_days, at_least: 1, window: {unit: months, size: 12}, consecutive: false, exclude_disputed: true}
+    guards:
+      - {kind: cured_by, cure_code: deferred_payment_arrangement}
+      - {kind: assess_within_days, days: 45}
+waivers:
+  - {id: w1, waiver_class: low_income_certified, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: true, disqualified_by: {kind: none}}
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: il_one_year_treasury_last_week_of_november, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: none}
+  credit: {kind: annual}
+  stops_on: [refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: nearest, fraction: 0.005}
+return:
+  - id: r1
+    when: {reason: days_after_disconnection, days: 30}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+  - id: r2
+    when: {reason: entered_waiver_class, waiver_class: low_income_certified}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+instalments: []

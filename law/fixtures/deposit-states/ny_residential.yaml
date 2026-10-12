@@ -1,0 +1,28 @@
+# FIXTURE, never seeded. New York residential space-heating customer (16 NYCRR 11.12): twice the heating-season average monthly bill; a waiver for customers 62 and over that is lost on a termination for nonpayment in the past six months, and also releases a deposit already held.
+governs: law
+citation: 16 NYCRR 11.12
+cap:
+  strategy: parts
+  version: 1
+  combinator: single
+  scope: per_deposit
+  parts:
+    - {id: c1, kind: seasonal_average, multiple: 2, season: heating}
+triggers: []
+waivers:
+  - {id: w1, waiver_class: age_62_or_over, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: true, disqualified_by: {kind: condition, condition: {kind: count, event: termination_for_nonpayment, at_least: 1, window: {unit: months, size: 6}, consecutive: false, exclude_disputed: false}}}
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: ny_commission_deposit_rate, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: none}
+  credit: {kind: at_refund}
+  stops_on: [refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return: []
+instalments: []

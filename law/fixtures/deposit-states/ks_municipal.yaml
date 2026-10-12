@@ -1,0 +1,40 @@
+# FIXTURE, never seeded. Kansas (K.S.A. 12-822 binds municipal utilities; KCC Billing Standards): interest credited on January 1 unless the customer asks for cash; disputed bills ignored in the return count; a cap of two average months.
+governs: law
+citation: K.S.A. 12-822
+cap:
+  strategy: parts
+  version: 1
+  combinator: single
+  scope: per_deposit
+  parts:
+    - {id: c1, kind: months_of_billing, months: 2}
+triggers:
+  - id: t1
+    trigger_code: insufficient_funds_history
+    condition: {kind: count, event: nsf, at_least: 2, window: {unit: months, size: 12}, consecutive: false, exclude_disputed: false}
+    guards:
+      - {kind: notice_days, days: 5}
+waivers: []
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: ks_commission_deposit_rate, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: none}
+  credit: {kind: calendar_date, month: 1, day: 1, customer_may_elect_cash: true}
+  stops_on: [refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return:
+  - id: r1
+    when: {reason: clean_bill_history, count: 12, measure: bills, max_delinquencies: 2, lookback: {kind: whole_hold}, disqualifiers: [unpaid_over_30_days], exclude_disputed: true}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+instalments: []

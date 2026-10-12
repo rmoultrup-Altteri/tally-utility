@@ -1,0 +1,21 @@
+# Texas gas, 11 U.S.C. 366 adequate assurance: no 7.45 cap, no waiver reaches it, never returned on 7.45's triggers; cash interest as -06 accrued it.
+governs: law
+citation: 11 U.S.C. 366
+cap: {strategy: none, version: 1}
+triggers: []
+waivers: []
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: tx_deposit_interest_rate, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: actual_365
+  hold: {kind: minimum, days: 30, retroactive: true}
+  credit: {kind: at_refund}
+  stops_on: [refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return: []
+instalments: []

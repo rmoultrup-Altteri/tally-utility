@@ -1,0 +1,29 @@
+# FIXTURE, never seeded. Louisiana (La. R.S. 45:848): a flat statutory rate, a penalty rate after a refused demand, a return on demand. The Commission's cap and triggers were never located, so they are said to be unruled, not none.
+governs: law
+citation: La. R.S. 45:848
+cap: {strategy: unruled, version: 1}
+triggers: []
+waivers: []
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: fixed, rate: 0.05, binding: minimum}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: none}
+  credit: {kind: unruled}
+  stops_on: [refund]
+  forfeited_on: []
+  penalty: {kind: after_refused_demand, rate: 0.1}
+  rounding: {kind: none}
+return:
+  - id: r1
+    when: {reason: customer_demand}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+instalments: []

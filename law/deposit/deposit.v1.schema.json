@@ -1,0 +1,1849 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/deposit/deposit.v1.schema.json",
+  "title": "Deposit rule, version 1",
+  "description": "What a state's law says about customer security deposits for one customer class and one basis: the cap, the triggers for an additional deposit, which waivers reach it, whether and how the deposit earns interest, how it comes back, and any instalment schedule. Replaces the typed columns and child tables of the v5.4.2-15 draft. Every law kind also admits the document 'the law leaves this to the utility'. Out of version 1 on purpose, each refused rather than dropped: periodic recalculation of a deposit, instalments tied to bills, a sum cap or a cap add-on, guarantor caps, and municipal deposit funds (application/deposits-terms-v1-design-2026-10-12.md, section 4).",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/law"
+    },
+    {
+      "$ref": "#/$defs/delegated"
+    }
+  ],
+  "$defs": {
+    "citation": {
+      "type": "string",
+      "pattern": "[A-Za-z0-9]"
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "size"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "enum": [
+            "months",
+            "bills"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "A span counted in calendar months or in bills."
+    },
+    "instrument": {
+      "type": "string",
+      "enum": [
+        "cash",
+        "letter_of_credit",
+        "certificate_of_deposit",
+        "surety_bond",
+        "prepayment",
+        "guarantor",
+        "other_agreed"
+      ]
+    },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/instrument"
+      },
+      "minItems": 1,
+      "maxItems": 7,
+      "uniqueItems": true
+    },
+    "delegated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "governs",
+        "citation"
+      ],
+      "properties": {
+        "governs": {
+          "type": "string",
+          "const": "delegated_to_utility"
+        },
+        "citation": {
+          "type": "string",
+          "pattern": "[A-Za-z0-9]"
+        },
+        "note": {
+          "type": "string",
+          "pattern": "[A-Za-z0-9]"
+        }
+      }
+    },
+    "cap_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "none"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      },
+      "description": "The law sets no cap."
+    },
+    "cap_unruled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "unruled"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      },
+      "description": "The law may set a cap, but it is not known. Not the same as none: unknown law is not permission."
+    },
+    "cap_parts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "combinator",
+        "scope",
+        "parts"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "parts"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "combinator": {
+          "type": "string",
+          "enum": [
+            "single",
+            "lesser_of",
+            "greater_of"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "per_deposit",
+            "combined"
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cap_part"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        }
+      },
+      "description": "The cap is built from one or more parts. single: exactly one part. lesser_of / greater_of: two or more. per_deposit: each deposit within the cap; combined: the total held within it. That each kind appears at most once is the area's insert check."
+    },
+    "cap": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cap_none"
+        },
+        {
+          "$ref": "#/$defs/cap_unruled"
+        },
+        {
+          "$ref": "#/$defs/cap_parts"
+        }
+      ]
+    },
+    "cap_part": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/part_fraction"
+        },
+        {
+          "$ref": "#/$defs/part_months"
+        },
+        {
+          "$ref": "#/$defs/part_fixed"
+        },
+        {
+          "$ref": "#/$defs/part_highest"
+        },
+        {
+          "$ref": "#/$defs/part_seasonal"
+        }
+      ]
+    },
+    "part_fraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "divisor"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "fraction_of_annual_billing"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "divisor": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Estimated annual billing divided by the divisor (Texas residential gas: 6)."
+    },
+    "part_months": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "months"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "months_of_billing"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "months": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "This many months of estimated billing."
+    },
+    "part_fixed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "amount"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "fixed_amount"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "A fixed amount."
+    },
+    "part_highest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "count",
+        "window_months"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "highest_bills"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window_months": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The total of the customer's highest N bills over the window (Arkansas: the 2 highest in 12 months)."
+    },
+    "part_seasonal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "multiple",
+        "season"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "seasonal_average"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "multiple": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "season": {
+          "$ref": "#/$defs/code"
+        }
+      },
+      "description": "A multiple of the average monthly bill for a season (New York: twice the heating-season average)."
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cond_count"
+        },
+        {
+          "$ref": "#/$defs/cond_ratio"
+        },
+        {
+          "$ref": "#/$defs/cond_all"
+        },
+        {
+          "$ref": "#/$defs/cond_any"
+        }
+      ]
+    },
+    "cond_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "event",
+        "at_least",
+        "window",
+        "consecutive",
+        "exclude_disputed"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "count"
+        },
+        "event": {
+          "$ref": "#/$defs/code"
+        },
+        "at_least": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window": {
+          "$ref": "#/$defs/window"
+        },
+        "consecutive": {
+          "type": "boolean"
+        },
+        "exclude_disputed": {
+          "type": "boolean"
+        }
+      },
+      "description": "At least N of an event in a window. consecutive: the N must be in a row. exclude_disputed: disputed bills do not count. A delinquency definition is an event in the vocabulary (for example past_due_over_30_days)."
+    },
+    "cond_ratio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "measure",
+        "op",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ratio"
+        },
+        "measure": {
+          "type": "string",
+          "enum": [
+            "usage_to_estimate",
+            "final_bill_to_class_average"
+          ]
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "at_least",
+            "greater_than"
+          ]
+        },
+        "value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "A measured ratio compared with a value. The core supplies the measure."
+    },
+    "cond_all": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "of"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "all_of"
+        },
+        "of": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          },
+          "minItems": 2,
+          "maxItems": 6
+        }
+      },
+      "description": "Every one of the conditions holds."
+    },
+    "cond_any": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "of"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any_of"
+        },
+        "of": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          },
+          "minItems": 2,
+          "maxItems": 6
+        }
+      },
+      "description": "At least one of the conditions holds."
+    },
+    "guard": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/g_pay"
+        },
+        {
+          "$ref": "#/$defs/g_age"
+        },
+        {
+          "$ref": "#/$defs/g_move"
+        },
+        {
+          "$ref": "#/$defs/g_assess"
+        },
+        {
+          "$ref": "#/$defs/g_notice"
+        },
+        {
+          "$ref": "#/$defs/g_cure"
+        },
+        {
+          "$ref": "#/$defs/g_since"
+        }
+      ]
+    },
+    "g_pay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "payment_due_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Days the customer has to pay once required (Texas usage deposit: 2)."
+    },
+    "g_age": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "months"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "not_after_service_months"
+        },
+        "months": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The trigger cannot be used after this many months of service (Arkansas usage trigger: 12)."
+    },
+    "g_move": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "not_if_moved_within_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "No re-assessment when service moves to a new location within this many days."
+    },
+    "g_assess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "assess_within_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The deposit must be assessed within this many days of the event."
+    },
+    "g_notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "notice_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Written notice this many days before assessment."
+    },
+    "g_cure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "cure_code"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "cured_by"
+        },
+        "cure_code": {
+          "$ref": "#/$defs/code"
+        }
+      },
+      "description": "A customer action entered before assessment cancels the trigger (a kept payment arrangement)."
+    },
+    "g_since": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "event",
+        "years"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "not_after_cumulative_service_years_since"
+        },
+        "event": {
+          "$ref": "#/$defs/code"
+        },
+        "years": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The trigger lapses after this many years of cumulative service since the event."
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "trigger_code",
+        "condition",
+        "guards"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "trigger_code": {
+          "$ref": "#/$defs/code"
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        },
+        "guards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guard"
+          },
+          "maxItems": 6
+        }
+      },
+      "description": "An additional-deposit trigger the law allows: when the condition holds (and no guard stops it), a deposit may be required."
+    },
+    "applies_any": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any_trigger"
+        }
+      },
+      "description": "Reaches a deposit under any trigger."
+    },
+    "applies_trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "trigger_code"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "trigger"
+        },
+        "trigger_code": {
+          "$ref": "#/$defs/code"
+        }
+      },
+      "description": "Reaches a deposit under this trigger only."
+    },
+    "applies_to": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/applies_any"
+        },
+        {
+          "$ref": "#/$defs/applies_trigger"
+        }
+      ]
+    },
+    "effect_excuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "excuse"
+        }
+      },
+      "description": "The deposit is not required."
+    },
+    "effect_reduce": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "fraction"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "reduce"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        }
+      },
+      "description": "The deposit is reduced by this fraction."
+    },
+    "effect_defer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "defer"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The deposit is deferred by this many days."
+    },
+    "effect": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/effect_excuse"
+        },
+        {
+          "$ref": "#/$defs/effect_reduce"
+        },
+        {
+          "$ref": "#/$defs/effect_defer"
+        }
+      ]
+    },
+    "disq_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      },
+      "description": "The waiver has no disqualifier of its own."
+    },
+    "disq_condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "condition"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "condition"
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        }
+      },
+      "description": "The waiver is lost while this condition holds (New York: terminated for nonpayment in the past six months)."
+    },
+    "disqualified_by": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/disq_none"
+        },
+        {
+          "$ref": "#/$defs/disq_condition"
+        }
+      ]
+    },
+    "waiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "waiver_class",
+        "applies_to",
+        "effect",
+        "also_releases_held",
+        "disqualified_by"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "waiver_class": {
+          "$ref": "#/$defs/code"
+        },
+        "applies_to": {
+          "$ref": "#/$defs/applies_to"
+        },
+        "effect": {
+          "$ref": "#/$defs/effect"
+        },
+        "also_releases_held": {
+          "type": "boolean"
+        },
+        "disqualified_by": {
+          "$ref": "#/$defs/disqualified_by"
+        }
+      },
+      "description": "A waiver class that relieves a deposit under this rule. also_releases_held: a deposit already held is released too (New York: 'demand or hold')."
+    },
+    "interest_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "none"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      },
+      "description": "Deposits under this rule earn no interest."
+    },
+    "rate_published": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "binding",
+        "by_hold"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "published"
+        },
+        "name": {
+          "$ref": "#/$defs/code"
+        },
+        "binding": {
+          "type": "string",
+          "enum": [
+            "minimum",
+            "reference"
+          ]
+        },
+        "by_hold": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "up_to_months",
+              "name"
+            ],
+            "properties": {
+              "up_to_months": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "name": {
+                "$ref": "#/$defs/code"
+              }
+            }
+          },
+          "maxItems": 4
+        }
+      },
+      "description": "The rate is a named published value. by_hold: while the deposit has been held up to N months, use that named value instead. binding minimum: the utility's own rate may not go below it (decision 4); reference: it is only compared."
+    },
+    "rate_fixed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "rate",
+        "binding"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "fixed"
+        },
+        "rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "binding": {
+          "type": "string",
+          "enum": [
+            "minimum",
+            "reference"
+          ]
+        }
+      },
+      "description": "A rate the law states itself (Louisiana: 0.05)."
+    },
+    "rate_utility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "utility_sets"
+        }
+      },
+      "description": "The law leaves the rate to the utility."
+    },
+    "rate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/rate_published"
+        },
+        {
+          "$ref": "#/$defs/rate_fixed"
+        },
+        {
+          "$ref": "#/$defs/rate_utility"
+        }
+      ]
+    },
+    "method_simple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "simple"
+        }
+      }
+    },
+    "method_compound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "period"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "compound"
+        },
+        "period": {
+          "type": "string",
+          "enum": [
+            "monthly",
+            "annual"
+          ]
+        }
+      },
+      "description": "Compounded at the end of each period (PG&E: monthly)."
+    },
+    "method": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/method_simple"
+        },
+        {
+          "$ref": "#/$defs/method_compound"
+        }
+      ]
+    },
+    "hold_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      },
+      "description": "Interest runs from the posting date, however long the deposit is held."
+    },
+    "hold_minimum": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "retroactive"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "minimum"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retroactive": {
+          "type": "boolean"
+        }
+      },
+      "description": "No interest unless the deposit is held more than this many days. retroactive: past that, interest runs from posting (Texas: 30 days, retroactive)."
+    },
+    "hold": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hold_none"
+        },
+        {
+          "$ref": "#/$defs/hold_minimum"
+        }
+      ]
+    },
+    "credit_refund": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "at_refund"
+        }
+      }
+    },
+    "credit_annual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "annual"
+        }
+      }
+    },
+    "credit_bill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "on_bill"
+        }
+      }
+    },
+    "credit_date": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "month",
+        "day",
+        "customer_may_elect_cash"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "calendar_date"
+        },
+        "month": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "day": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 31
+        },
+        "customer_may_elect_cash": {
+          "type": "boolean"
+        }
+      },
+      "description": "Interest is credited on this calendar date (Kansas: January 1), and the customer may ask for cash instead."
+    },
+    "credit_unruled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "unruled"
+        }
+      },
+      "description": "The law does not say when interest is credited."
+    },
+    "credit": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/credit_refund"
+        },
+        {
+          "$ref": "#/$defs/credit_annual"
+        },
+        {
+          "$ref": "#/$defs/credit_bill"
+        },
+        {
+          "$ref": "#/$defs/credit_date"
+        },
+        {
+          "$ref": "#/$defs/credit_unruled"
+        }
+      ]
+    },
+    "penalty_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "penalty_demand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "rate"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "after_refused_demand"
+        },
+        "rate": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      },
+      "description": "A penalty rate on what is kept after the customer demands it back (Louisiana: 0.1)."
+    },
+    "penalty": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/penalty_none"
+        },
+        {
+          "$ref": "#/$defs/penalty_demand"
+        }
+      ]
+    },
+    "rounding_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "rounding_nearest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "fraction"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "nearest"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      },
+      "description": "The rate is rounded to the nearest fraction (Illinois: 0.005, a half percent)."
+    },
+    "rounding": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/rounding_none"
+        },
+        {
+          "$ref": "#/$defs/rounding_nearest"
+        }
+      ]
+    },
+    "interest_bearing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "instruments",
+        "rate",
+        "method",
+        "day_count",
+        "hold",
+        "credit",
+        "stops_on",
+        "forfeited_on",
+        "penalty",
+        "rounding"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "bearing"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "instruments": {
+          "$ref": "#/$defs/instruments"
+        },
+        "rate": {
+          "$ref": "#/$defs/rate"
+        },
+        "method": {
+          "$ref": "#/$defs/method"
+        },
+        "day_count": {
+          "type": "string",
+          "enum": [
+            "actual_365",
+            "actual_actual",
+            "thirty_360",
+            "unruled"
+          ]
+        },
+        "hold": {
+          "$ref": "#/$defs/hold"
+        },
+        "credit": {
+          "$ref": "#/$defs/credit"
+        },
+        "stops_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "refund",
+              "service_terminated",
+              "service_discontinued",
+              "good_faith_return_attempt"
+            ]
+          },
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "forfeited_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "disconnect_nonpayment"
+            ]
+          },
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "penalty": {
+          "$ref": "#/$defs/penalty"
+        },
+        "rounding": {
+          "$ref": "#/$defs/rounding"
+        }
+      },
+      "description": "Deposits of the listed instruments earn interest. Every part is written, so nothing is defaulted."
+    },
+    "interest": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/interest_none"
+        },
+        {
+          "$ref": "#/$defs/interest_bearing"
+        }
+      ]
+    },
+    "when_clean": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "count",
+        "measure",
+        "max_delinquencies",
+        "lookback",
+        "disqualifiers",
+        "exclude_disputed"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "clean_bill_history"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "measure": {
+          "type": "string",
+          "enum": [
+            "bills",
+            "months"
+          ]
+        },
+        "max_delinquencies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lookback": {
+          "$ref": "#/$defs/lookback"
+        },
+        "disqualifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "maxItems": 6,
+          "uniqueItems": true
+        },
+        "exclude_disputed": {
+          "type": "boolean"
+        }
+      },
+      "description": "After this many bills or months, with no more than the stated delinquencies, the deposit is returned."
+    },
+    "lookback_whole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "whole_hold"
+        }
+      },
+      "description": "Delinquencies are counted over the whole time the deposit was held."
+    },
+    "lookback_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "unit",
+        "size"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "window"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "months",
+            "bills"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Delinquencies are counted over this window."
+    },
+    "lookback": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/lookback_whole"
+        },
+        {
+          "$ref": "#/$defs/lookback_window"
+        }
+      ]
+    },
+    "when_closed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "account_closed"
+        }
+      },
+      "description": "The account closed, was final-billed or went inactive."
+    },
+    "when_held": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "months"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "hold_term_elapsed"
+        },
+        "months": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The deposit has been held this many months."
+    },
+    "when_demand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "customer_demand"
+        }
+      },
+      "description": "The customer asks for it back."
+    },
+    "when_disc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "days"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "days_after_disconnection"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "This many days after a disconnection for nonpayment."
+    },
+    "when_class": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "waiver_class"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "entered_waiver_class"
+        },
+        "waiver_class": {
+          "$ref": "#/$defs/code"
+        }
+      },
+      "description": "The customer entered a waiver class (Illinois: low-income certification)."
+    },
+    "when_excess_cap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "excess_over_cap"
+        }
+      },
+      "description": "Part of the deposit: the amount held above the cap now applying."
+    },
+    "when_excess_bill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "const": "excess_over_current_bill"
+        }
+      },
+      "description": "Part of the deposit: the amount above the current bill, on the customer's request."
+    },
+    "return_when": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/when_clean"
+        },
+        {
+          "$ref": "#/$defs/when_closed"
+        },
+        {
+          "$ref": "#/$defs/when_held"
+        },
+        {
+          "$ref": "#/$defs/when_demand"
+        },
+        {
+          "$ref": "#/$defs/when_disc"
+        },
+        {
+          "$ref": "#/$defs/when_class"
+        },
+        {
+          "$ref": "#/$defs/when_excess_cap"
+        },
+        {
+          "$ref": "#/$defs/when_excess_bill"
+        }
+      ]
+    },
+    "rcond_amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "amount"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "deposit_below_amount"
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "Only a deposit below this amount (Oklahoma: 20000)."
+    },
+    "rcond_years": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "years"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "service_years_at_least"
+        },
+        "years": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Only after this many years of continuous service at the location."
+    },
+    "return_condition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/rcond_amount"
+        },
+        {
+          "$ref": "#/$defs/rcond_years"
+        }
+      ]
+    },
+    "min_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "min_amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "amount"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "amount"
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "No refund below this amount."
+    },
+    "minimum_amount": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/min_none"
+        },
+        {
+          "$ref": "#/$defs/min_amount"
+        }
+      ]
+    },
+    "dead_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "dead_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The refund is due within this many days of the qualifying event."
+    },
+    "deadline": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/dead_none"
+        },
+        {
+          "$ref": "#/$defs/dead_days"
+        }
+      ]
+    },
+    "return_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "when",
+        "instruments",
+        "conditions",
+        "minimum_amount",
+        "deadline",
+        "hold_while",
+        "vests"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "when": {
+          "$ref": "#/$defs/return_when"
+        },
+        "instruments": {
+          "$ref": "#/$defs/instruments"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/return_condition"
+          },
+          "maxItems": 4
+        },
+        "minimum_amount": {
+          "$ref": "#/$defs/minimum_amount"
+        },
+        "deadline": {
+          "$ref": "#/$defs/deadline"
+        },
+        "hold_while": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "dispute_pending"
+            ]
+          },
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "vests": {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "unruled"
+          ]
+        }
+      },
+      "description": "A way the deposit comes back. vests: once due, it stays owed even if the customer falls behind (unruled when the law does not say)."
+    },
+    "instalment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fraction",
+        "days_after"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "days_after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "A fixed-schedule instalment: this fraction of the deposit, this many days after the determination. The fractions summing to 1 is the area's insert check. Instalments tied to bills are not in version 1."
+    },
+    "law": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "governs",
+        "citation",
+        "cap",
+        "triggers",
+        "waivers",
+        "interest",
+        "return",
+        "instalments"
+      ],
+      "properties": {
+        "governs": {
+          "type": "string",
+          "const": "law"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        },
+        "cap": {
+          "$ref": "#/$defs/cap"
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trigger"
+          },
+          "maxItems": 16
+        },
+        "waivers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/waiver"
+          },
+          "maxItems": 16
+        },
+        "interest": {
+          "$ref": "#/$defs/interest"
+        },
+        "return": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/return_rule"
+          },
+          "maxItems": 16
+        },
+        "instalments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/instalment"
+          },
+          "maxItems": 12
+        }
+      }
+    }
+  }
+}

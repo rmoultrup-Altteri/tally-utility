@@ -1,0 +1,57 @@
+# FIXTURE, never seeded. Oklahoma residential (OAC 165:45-11-1), from the survey: a trigger that is either-or over two counts; a rate that depends on how long the deposit is held; a dispute hold on refunds.
+governs: law
+citation: OAC 165:45-11-1
+cap:
+  strategy: parts
+  version: 1
+  combinator: single
+  scope: per_deposit
+  parts:
+    - {id: c1, kind: fraction_of_annual_billing, divisor: 6}
+triggers:
+  - id: t1
+    trigger_code: delinquency_history
+    condition:
+      kind: any_of
+      of:
+        - {kind: count, event: late_payment, at_least: 2, window: {unit: bills, size: 12}, consecutive: false, exclude_disputed: false}
+        - {kind: count, event: disconnection, at_least: 1, window: {unit: months, size: 12}, consecutive: false, exclude_disputed: false}
+    guards: []
+waivers:
+  - {id: w1, waiver_class: good_payment_history_12_in_18, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: false, disqualified_by: {kind: none}}
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate:
+    kind: published
+    name: ok_ten_year_treasury_average
+    binding: minimum
+    by_hold:
+      - {up_to_months: 12, name: ok_one_year_treasury_average}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: minimum, days: 30, retroactive: true}
+  credit: {kind: annual}
+  stops_on: [service_terminated, refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return:
+  - id: r1
+    when: {reason: clean_bill_history, count: 12, measure: months, max_delinquencies: 2, lookback: {kind: whole_hold}, disqualifiers: [disconnect_nonpayment], exclude_disputed: false}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: [dispute_pending]
+    vests: unruled
+  - id: r2
+    when: {reason: account_closed}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: days, days: 30}
+    hold_while: []
+    vests: unruled
+instalments: []

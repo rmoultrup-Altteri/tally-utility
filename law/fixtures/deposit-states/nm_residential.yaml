@@ -1,0 +1,40 @@
+# FIXTURE, never seeded. New Mexico residential (17.5.410.16-.20 NMAC): three final notices in a year as the trigger; a partial refund of the excess over the current bill, over $25.
+governs: law
+citation: 17.5.410 NMAC
+cap:
+  strategy: parts
+  version: 1
+  combinator: single
+  scope: per_deposit
+  parts:
+    - {id: c1, kind: fraction_of_annual_billing, divisor: 6}
+triggers:
+  - id: t1
+    trigger_code: final_notice_history
+    condition: {kind: count, event: final_notice, at_least: 3, window: {unit: months, size: 12}, consecutive: false, exclude_disputed: false}
+    guards: []
+waivers:
+  - {id: w1, waiver_class: liheap_qualified, applies_to: {kind: any_trigger}, effect: {kind: reduce, fraction: 0.5}, also_releases_held: false, disqualified_by: {kind: none}}
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: nm_five_year_treasury_note_rate, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: none}
+  credit: {kind: annual}
+  stops_on: [service_terminated, refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return:
+  - id: r1
+    when: {reason: excess_over_current_bill}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: amount, amount: 25}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+instalments: []

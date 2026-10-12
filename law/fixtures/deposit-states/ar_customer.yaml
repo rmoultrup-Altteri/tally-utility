@@ -1,0 +1,49 @@
+# FIXTURE, never seeded. Arkansas current customer (GSR 4.02): consecutive-or-count lateness; the usage trigger expires after 12 months of service; no re-assessment on a move within 90 days; a cap of the two highest bills in a year, combined.
+governs: law
+citation: Ark. Code R. 126.04.16-001, 4.02
+cap:
+  strategy: parts
+  version: 1
+  combinator: single
+  scope: combined
+  parts:
+    - {id: c1, kind: highest_bills, count: 2, window_months: 12}
+triggers:
+  - id: t1
+    trigger_code: late_payment_history
+    condition:
+      kind: any_of
+      of:
+        - {kind: count, event: late_payment, at_least: 2, window: {unit: bills, size: 2}, consecutive: true, exclude_disputed: false}
+        - {kind: count, event: late_payment, at_least: 3, window: {unit: months, size: 12}, consecutive: false, exclude_disputed: false}
+    guards:
+      - {kind: not_if_moved_within_days, days: 90}
+  - id: t2
+    trigger_code: usage_exceeds_estimate
+    condition: {kind: ratio, measure: usage_to_estimate, op: greater_than, value: 1}
+    guards:
+      - {kind: not_after_service_months, months: 12}
+waivers: []
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: ar_commission_deposit_rate, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: unruled
+  hold: {kind: none}
+  credit: {kind: annual}
+  stops_on: [refund, good_faith_return_attempt]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return:
+  - id: r1
+    when: {reason: clean_bill_history, count: 12, measure: months, max_delinquencies: 0, lookback: {kind: whole_hold}, disqualifiers: [], exclude_disputed: false}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+instalments: []
