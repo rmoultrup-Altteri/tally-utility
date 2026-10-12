@@ -21,7 +21,7 @@
 --   U  the utility's tariff record, and "never looser than the law"
 --
 -- Planned, not yet written (design doc section 9):
---   P  published values and the interest floor (decision 4)
+--   P  published values, the utility's rate, and the interest floor
 --   R  records cite what they were decided under; the return-due record
 --   H  history, grants, tenancy, the template's invariants over both tables
 -- The first run is meant to FAIL: nothing here exists until the patch does.
@@ -98,6 +98,12 @@ INSERT INTO public.deposit_waiver_classes (state_code, service_type, class_code,
   ('ZZ', 'gas', 'tariff',  false, true,  'the utility''s own waivers', 'battery fixture');
 INSERT INTO public.deposit_triggers (trigger_code, description) VALUES
   ('zz_late_history', 'battery trigger'), ('zz_nsf_history', 'battery trigger');
+
+-- The published values the ZZ documents name (platform-held: the battery, the owner, registers them).
+INSERT INTO public.rule_parameters (parameter_name, unit, scoped_by, value_min, value_max, description, source_note) VALUES
+  ('zz_deposit_rate', 'annual_rate_fraction', '{state_code}', 0, 1, 'battery published rate', 'battery fixture'),
+  ('zz_short',        'annual_rate_fraction', '{state_code}', 0, 1, 'battery published rate', 'battery fixture'),
+  ('zz_long',         'annual_rate_fraction', '{state_code}', 0, 1, 'battery published rate', 'battery fixture');
 
 -- doc(overrides): a valid ZZ document with fields replaced.
 CREATE FUNCTION pg_temp.doc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
@@ -387,6 +393,22 @@ CREATE FUNCTION pg_temp.tdoc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE s
            "triggers": [], "waivers": [], "instalments": []}'::jsonb || p_over
 $$;
 
+-- does_as(label, tenant, sql): the statement must succeed as that utility's operator (role tally_app, its user).
+CREATE FUNCTION pg_temp.does_as(p_label text, p_tenant text, p_sql text) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE v_msg text; v_user text;
+BEGIN
+  SELECT id::text INTO v_user FROM public.users WHERE tenant_id = p_tenant::uuid ORDER BY id LIMIT 1;
+  PERFORM set_config('app.user_id', v_user, true);
+  SET LOCAL ROLE tally_app;
+  EXECUTE p_sql;
+  RESET ROLE;
+  RAISE NOTICE 'PASS %', p_label;
+EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS v_msg = MESSAGE_TEXT;
+  RESET ROLE;
+  RAISE EXCEPTION 'FAIL %: %', p_label, v_msg;
+END $$;
 -- count_as(sql, role, user): how many rows a query returns to that role and user.
 CREATE FUNCTION pg_temp.count_as(p_sql text, p_role text, p_user text) RETURNS bigint LANGUAGE plpgsql AS $$
 DECLARE v bigint;
@@ -400,8 +422,7 @@ END $$;
 
 -- ============================================================ C. the utility's own deposit categories
 -- r6:begin categories
-SELECT pg_temp.does('C1: a city writes its own categories, each mapped to a law class',
-  pg_temp.cat_sql(:'t1', 'homeowner', 'residential'));
+SELECT pg_temp.does_as('C1: a city writes its own categories, each mapped to a law class', :'t1', pg_temp.cat_sql(:'t1', 'homeowner', 'residential'));
 SELECT pg_temp.run(pg_temp.cat_sql(:'t1', 'renter', 'residential'), 'tally_app', :'u1');
 SELECT pg_temp.run(pg_temp.cat_sql(:'t1', 'small_commercial', 'non_residential'), 'tally_app', :'u1');
 SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'residential', 'residential'), 'tally_app', :'u2');
@@ -435,8 +456,7 @@ SELECT pg_temp.ok('U1: deposit_tariffs is a registered tariff table on the depos
      FROM public.rule_tables WHERE table_name = 'public.deposit_tariffs'::regclass));
 SELECT pg_temp.ok('U2: the tariff key does not share a column name with the law key (the utility''s categories are not the law''s classes); the comparator chooses the law rows',
   NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = 'public.deposit_tariffs'::regclass AND NOT a.attisdropped AND a.attname IN ('customer_class', 'basis')));
-SELECT pg_temp.does('U3: a city writes a flat deposit for its homeowner category (its law row delegates: nothing to compare)',
-  pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc()));
+SELECT pg_temp.does_as('U3: a city writes a flat deposit for its homeowner category (its law row delegates: nothing to compare)', :'t1', pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc()));
 SELECT pg_temp.run(pg_temp.tar_sql(:'t1', 'renter', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 250}}')), 'tally_app', :'u1');
 SELECT pg_temp.refuses('U4: a tariff for a category the utility has not defined',
   pg_temp.tar_sql(:'t1', 'landlord', pg_temp.tdoc()), '23514', 'landlord', 'tally_app', :'u1');
@@ -444,7 +464,7 @@ SELECT pg_temp.refuses('U5: a tariff for another utility''s category (the catego
   pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc()), '42501', NULL, 'tally_app', :'u1');
 SELECT pg_temp.refuses('U6: two tariff records for one category over the same dates',
   pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 175}}')), '23P01', NULL, 'tally_app', :'u1');
-SELECT pg_temp.does('U7: … and a successor from a later date is fine after the first is closed',
+SELECT pg_temp.does_as('U7: … and a successor from a later date is fine after the first is closed', :'t1',
   format($q$UPDATE public.deposit_tariffs SET effective_to = DATE '2024-01-01' WHERE tenant_id = %L AND tariff_category = 'homeowner'$q$, :'t1'));
 SELECT pg_temp.run(pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 175}}'), DATE '2024-01-01'), 'tally_app', :'u1');
 SELECT pg_temp.ok('U8: the lookup finds the tariff in force for a category on a date, and none before the first',
@@ -463,39 +483,145 @@ SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'residential_senior', 'residential'), 
 SELECT pg_temp.refuses('N1: a deposit of three average months where the law caps it at two',
   pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 3, "of": "average", "minimum_amount": {"kind": "none"}}}')),
   '23514', 'looser than the law', 'tally_app', :'u2');
-SELECT pg_temp.does('N2: … two average months, the law''s own figure, is not looser',
-  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 2, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2020-01-01', DATE '2021-01-01'));
+SELECT pg_temp.does_as('N2: … two average months, the law''s own figure, is not looser', :'t2', pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 2, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2020-01-01', DATE '2021-01-01'));
 SELECT pg_temp.run(pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 1, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2021-01-01'), 'tally_app', :'u2');
 SELECT pg_temp.refuses('N3: a category is measured against the law class it maps to: three months for a senior sub-category of residential is held to the residential cap too',
   pg_temp.tar_sql(:'t2', 'residential_senior', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 3, "of": "average", "minimum_amount": {"kind": "none"}}}')),
   '23514', 'looser than the law', 'tally_app', :'u2');
-SELECT pg_temp.does('N4: a flat amount cannot be compared with a billing fraction when it is written; it is accepted (each deposit records the cap that applied and its own check holds it to it)',
-  pg_temp.tar_sql(:'t2', 'residential_senior', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 5000}}')));
+SELECT pg_temp.does_as('N4: a flat amount cannot be compared with a billing fraction when it is written; it is accepted (each deposit records the cap that applied and its own check holds it to it)', :'t2', pg_temp.tar_sql(:'t2', 'residential_senior', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 5000}}')));
 SELECT pg_temp.refuses('N5: a usage trigger that fires at one and a half times the estimate where the law waits for twice',
   pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [],
      "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 1.5}}]}'), DATE '2022-01-01', DATE '2023-01-01'),
   '23514', 'looser than the law', 'tally_app', :'u2');
-SELECT pg_temp.does('N6: … three times the estimate, with five days to pay, is stricter than the law and is accepted',
-  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 5}],
+SELECT pg_temp.does_as('N6: … three times the estimate, with five days to pay, is stricter than the law and is accepted', :'t2', pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 5}],
      "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2022-01-01', DATE '2023-01-01'));
 SELECT pg_temp.refuses('N7: … but one day to pay, where the law gives two, is looser',
   pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 1}],
      "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2023-01-01', DATE '2024-01-01'),
   '23514', 'looser than the law', 'tally_app', :'u2');
-SELECT pg_temp.does('N8: a trigger the law has no word on (a utility''s own NSF trigger) is the utility''s to set',
-  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "nsf", "guards": [],
+SELECT pg_temp.does_as('N8: a trigger the law has no word on (a utility''s own NSF trigger) is the utility''s to set', :'t2', pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "nsf", "guards": [],
      "condition": {"kind": "count", "event": "nsf", "at_least": 2, "window": {"unit": "months", "size": 12}, "consecutive": false, "exclude_disputed": false}}]}'), DATE '2024-01-01', DATE '2025-01-01'));
-SELECT pg_temp.does('N9: a utility''s own waiver ground, in its own name, is accepted (the law holds only the permission)',
-  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"waivers": [{"id": "w1", "ground": "military_deployment", "applies_to": {"kind": "any_trigger"},
+SELECT pg_temp.does_as('N9: a utility''s own waiver ground, in its own name, is accepted (the law holds only the permission)', :'t2', pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"waivers": [{"id": "w1", "ground": "military_deployment", "applies_to": {"kind": "any_trigger"},
      "effect": {"kind": "defer", "days": 90}, "also_releases_held": false, "disqualified_by": {"kind": "none"}}]}'), DATE '2025-01-01', DATE '2026-01-01'));
 SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'commercial', 'non_residential'), 'tally_app', :'u2');
-SELECT pg_temp.does('N10: a non-residential tariff of any months is accepted where the law sets no cap',
-  pg_temp.tar_sql(:'t2', 'commercial', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 6, "of": "highest", "minimum_amount": {"kind": "amount", "amount": 300}}}')));
+SELECT pg_temp.does_as('N10: a non-residential tariff of any months is accepted where the law sets no cap', :'t2', pg_temp.tar_sql(:'t2', 'commercial', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 6, "of": "highest", "minimum_amount": {"kind": "amount", "amount": 300}}}')));
 SELECT pg_temp.refuses('N11: a tariff for a utility with no service profile in that state and service (unknown law is not permission)',
   format($q$INSERT INTO public.deposit_tariffs (tenant_id, state_code, service_type, system_kind, tariff_category, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
             VALUES (%L, 'TX', 'water', 'distribution', 'residential', DATE '2020-01-01', 'x', 'deposit_tariff', 1, %L)$q$, :'t2', pg_temp.tdoc()::text),
   '23514', 'profile', 'tally_app', :'u2');
 SELECT pg_temp.does('N12: the template''s invariants hold over both rule tables', $q$SELECT public.assert_rule_table_invariants()$q$);
 -- r8:end never-looser
+
+
+-- ============================================================ P. published values, the utility's rate, the floor
+-- Decision 4: a state-set rate is a FLOOR the utility's own rate may not go below. The floor is read from the
+-- published value the law row names; a rate that would go below it is refused when written; no published value in
+-- force on the rate's date refuses it (unknown law is not permission); a city the law does not bind has no floor.
+-- The battery registers fictional published values (platform-held, so the owner writes them).
+INSERT INTO public.rule_parameter_values (parameter_name, state_code, service_type, effective_from, effective_to, value, source_note) VALUES
+  ('tx_deposit_interest_rate', 'TX', NULL, DATE '2020-01-01', DATE '2024-01-01', 0.02, 'battery fixture, not a real publication'),
+  ('tx_deposit_interest_rate', 'TX', NULL, DATE '2024-01-01', NULL,               0.04, 'battery fixture, not a real publication'),
+  ('zz_deposit_rate', 'ZZ', NULL, DATE '2020-01-01', NULL, 0.03, 'battery fixture'),
+  ('zz_short', 'ZZ', NULL, DATE '2020-01-01', NULL, 0.02, 'battery fixture'),
+  ('zz_long',  'ZZ', NULL, DATE '2020-01-01', NULL, 0.04, 'battery fixture');
+-- T3 runs a ZZ system: a household class whose law row names a fixed 5% floor, a business class whose law row names a rate only as a reference.
+INSERT INTO public.tenants (id, name, slug) VALUES ('00000000-0000-4000-8000-0000000015a3', 'T3 Zed Gas', 'bat15r-t3');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('00000000-0000-4000-8000-0000000015b3', '00000000-0000-4000-8000-0000000015a3', 'Op3', 'op3@bat15r.test', 'operator');
+\set u3 '00000000-0000-4000-8000-0000000015b3'
+\set t3 '00000000-0000-4000-8000-0000000015a3'
+SELECT pg_temp.run(format($q$
+  INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                               effective_from, evidence_reference, evidence_date)
+  VALUES (%L, 'gas', 'distribution', 'ZZ', 'investor_owned', true, DATE '2000-01-01', 'ZZ certificate bat15r', DATE '2000-01-01')$q$,
+  :'t3'), 'tally_app', :'u3');
+-- rate_sql(tenant, category, from, rate, state): a utility's own rate row (category NULL = every category).
+CREATE FUNCTION pg_temp.rate_sql(p_tenant text, p_cat text, p_from date, p_rate numeric, p_state text DEFAULT 'TX') RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT format($q$INSERT INTO public.deposit_interest_rates (tenant_id, state_code, service_type, tariff_category, effective_date, annual_rate, source_reference)
+                   VALUES (%L, %L, 'gas', %L, %L, %s, 'battery rate')$q$, p_tenant, p_state, p_cat, p_from, p_rate)
+$$;
+
+-- r9:begin published
+SELECT pg_temp.ok('P1: the Texas deposit rate is a registered published parameter: an annual fraction, scoped by state, between 0 and 1',
+  (SELECT unit = 'annual_rate_fraction' AND scoped_by = '{state_code}' AND value_min = 0 AND value_max = 1
+     FROM public.rule_parameters WHERE parameter_name = 'tx_deposit_interest_rate'));
+SELECT pg_temp.ok('P2: its value in force on a date is answered, and a date before the first publication has none (no fallback)',
+  public.rule_parameter_value_as_of('tx_deposit_interest_rate', 'TX', NULL, DATE '2022-06-01') = 0.02
+  AND public.rule_parameter_value_as_of('tx_deposit_interest_rate', 'TX', NULL, DATE '2025-06-01') = 0.04
+  AND public.rule_parameter_value_as_of('tx_deposit_interest_rate', 'TX', NULL, DATE '2019-06-01') IS NULL);
+SELECT pg_temp.refuses('P3: a utility cannot write a published value (platform-held)',
+  $q$INSERT INTO public.rule_parameter_values (parameter_name, state_code, effective_from, value, source_note) VALUES ('tx_deposit_interest_rate', 'TX', DATE '2030-01-01', 0, 'x')$q$,
+  '42501', NULL, 'tally_app');
+SELECT pg_temp.refuses('P4: a law row cannot name a published rate that is not registered',
+  pg_temp.ins_sql('household', 'tariff', pg_temp.doc('{"interest": {"strategy": "bearing", "version": 1, "instruments": ["cash"],
+      "rate": {"kind": "published", "name": "no_such_rate", "binding": "minimum", "by_hold": []}, "method": {"kind": "simple"}, "day_count": "actual_365",
+      "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"], "forfeited_on": [],
+      "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')), '23514', 'no_such_rate');
+SELECT pg_temp.refuses('P5: … or one in its by-hold list',
+  pg_temp.ins_sql('household', 'tariff', pg_temp.doc('{"interest": {"strategy": "bearing", "version": 1, "instruments": ["cash"],
+      "rate": {"kind": "published", "name": "zz_deposit_rate", "binding": "minimum", "by_hold": [{"up_to_months": 12, "name": "no_such_rate"}]},
+      "method": {"kind": "simple"}, "day_count": "actual_365", "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"],
+      "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')), '23514', 'no_such_rate');
+SELECT pg_temp.ok('P6: the utility''s rate table carries the state, the service and an optional category (decision 1), and one rate per key and date',
+  (SELECT count(*) = 3 FROM pg_attribute a WHERE a.attrelid = 'public.deposit_interest_rates'::regclass AND NOT a.attisdropped
+      AND a.attname IN ('state_code', 'service_type', 'tariff_category'))
+  AND NOT (SELECT a.attnotnull FROM pg_attribute a WHERE a.attrelid = 'public.deposit_interest_rates'::regclass AND a.attname = 'tariff_category'));
+-- r9:end published
+
+-- ============================================================ the floor
+-- r10:begin floor
+SELECT pg_temp.refuses('F1: a Texas investor-owned utility''s rate below the published rate in force on its date (2% in 2020)',
+  pg_temp.rate_sql(:'t2', NULL, DATE '2020-06-01', 0.01), '23514', 'below the floor', 'tally_app', :'u2');
+SELECT pg_temp.does_as('F2: … a rate equal to the floor is accepted', :'t2', pg_temp.rate_sql(:'t2', NULL, DATE '2020-06-01', 0.02));
+SELECT pg_temp.refuses('F3: the floor in force on the row''s own date is the one that counts: 2% is below the 4% published from 2024',
+  pg_temp.rate_sql(:'t2', NULL, DATE '2024-06-01', 0.02), '23514', 'below the floor', 'tally_app', :'u2');
+SELECT pg_temp.run(pg_temp.rate_sql(:'t2', NULL, DATE '2024-06-01', 0.05), 'tally_app', :'u2');
+SELECT pg_temp.refuses('F4: a rate dated before any publication of the floor (unknown law is not permission)',
+  pg_temp.rate_sql(:'t2', NULL, DATE '2019-06-01', 0.10), '23514', 'no published value', 'tally_app', :'u2');
+SELECT pg_temp.does('F5: a new publication that rises above a utility''s rate is not refused: the law wins and the core audits (a later law change is a finding, never a refusal of the law)',
+  $q$INSERT INTO public.rule_parameter_values (parameter_name, state_code, effective_from, value, source_note) VALUES ('tx_deposit_interest_rate', 'TX', DATE '2030-01-01', 0.09, 'battery fixture')$q$);
+-- the city: the law row delegates, so there is no floor
+SELECT pg_temp.does_as('F6: a city-owned system, whose law row delegates, may pay any rate, even none', :'t1',
+  pg_temp.rate_sql(:'t1', NULL, DATE '2020-06-01', 0));
+-- A ZZ utility with finer classes: retail names a fixed 5% as a floor; wholesale names a rate only as a reference;
+-- bulk names a rate that depends on how long the deposit is held (the floor is the highest of its names).
+INSERT INTO public.deposit_customer_classes (state_code, service_type, class_code, description, source_note) VALUES
+  ('ZZ', 'gas', 'retail', 'battery class', 'battery fixture'), ('ZZ', 'gas', 'wholesale', 'battery class', 'battery fixture'),
+  ('ZZ', 'gas', 'bulk', 'battery class', 'battery fixture');
+SELECT pg_temp.run(pg_temp.ins_sql('retail', 'credit_evaluation', pg_temp.doc('{"interest": {"strategy": "bearing", "version": 1, "instruments": ["cash"],
+   "rate": {"kind": "fixed", "rate": 0.05, "binding": "minimum"}, "method": {"kind": "simple"}, "day_count": "actual_365", "hold": {"kind": "none"},
+   "credit": {"kind": "at_refund"}, "stops_on": ["refund"], "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')));
+SELECT pg_temp.run(pg_temp.ins_sql('wholesale', 'credit_evaluation', pg_temp.doc('{"interest": {"strategy": "bearing", "version": 1, "instruments": ["cash"],
+   "rate": {"kind": "published", "name": "zz_long", "binding": "reference", "by_hold": []}, "method": {"kind": "simple"}, "day_count": "actual_365",
+   "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"], "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')));
+SELECT pg_temp.run(pg_temp.ins_sql('bulk', 'credit_evaluation', pg_temp.doc('{"interest": {"strategy": "bearing", "version": 1, "instruments": ["cash"],
+   "rate": {"kind": "published", "name": "zz_long", "binding": "minimum", "by_hold": [{"up_to_months": 12, "name": "zz_short"}]},
+   "method": {"kind": "simple"}, "day_count": "actual_365", "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"],
+   "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')));
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'home', 'household', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'shop', 'retail', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'depot', 'wholesale', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'warehouse', 'bulk', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.refuses('F7: a fixed statutory rate is a floor: 3% for a retail category where the law states 5%',
+  pg_temp.rate_sql(:'t3', 'shop', DATE '2021-01-01', 0.03, 'ZZ'), '23514', 'below the floor', 'tally_app', :'u3');
+SELECT pg_temp.does_as('F7b: … 5% is accepted', :'t3', pg_temp.rate_sql(:'t3', 'shop', DATE '2021-01-01', 0.05, 'ZZ'));
+SELECT pg_temp.does_as('F8: a rate the law names only as a reference has no floor: 1% for a wholesale category', :'t3', pg_temp.rate_sql(:'t3', 'depot', DATE '2021-01-01', 0.01, 'ZZ'));
+SELECT pg_temp.refuses('F9: where the law''s rate depends on how long the deposit is held, the floor is the highest of its names (4%, not 2%)',
+  pg_temp.rate_sql(:'t3', 'warehouse', DATE '2021-01-01', 0.03, 'ZZ'), '23514', 'below the floor', 'tally_app', :'u3');
+SELECT pg_temp.does_as('F9b: … 4% is accepted', :'t3', pg_temp.rate_sql(:'t3', 'warehouse', DATE '2021-01-01', 0.04, 'ZZ'));
+SELECT pg_temp.does_as('F10: a category is held to its own law class only: a household category is held to 3%, not to retail''s 5%', :'t3', pg_temp.rate_sql(:'t3', 'home', DATE '2021-01-01', 0.03, 'ZZ'));
+SELECT pg_temp.refuses('F11: a rate for every category must clear every class''s floor: 4.5% is below retail''s 5%',
+  pg_temp.rate_sql(:'t3', NULL, DATE '2022-01-01', 0.045, 'ZZ'), '23514', 'below the floor', 'tally_app', :'u3');
+SELECT pg_temp.does_as('F11b: … 5% clears them all', :'t3', pg_temp.rate_sql(:'t3', NULL, DATE '2022-01-01', 0.05, 'ZZ'));
+SELECT pg_temp.refuses('F12: one rate per utility, state, service, category and date',
+  pg_temp.rate_sql(:'t3', NULL, DATE '2022-01-01', 0.06, 'ZZ'), '23505', NULL, 'tally_app', :'u3');
+SELECT pg_temp.refuses('F13: a rate for a category the utility has not defined',
+  pg_temp.rate_sql(:'t3', 'kiosk', DATE '2022-01-01', 0.06, 'ZZ'), '23514', 'kiosk', 'tally_app', :'u3');
+SELECT pg_temp.ok('F14: the lookup returns the category''s own rate over the every-category one on a date, and refuses when none is in force (no fallback)',
+  public.deposit_interest_rate_row_as_of(:'t3', 'ZZ', 'gas', 'shop', DATE '2022-06-01') = (
+    SELECT id FROM public.deposit_interest_rates WHERE tenant_id = :'t3' AND tariff_category = 'shop' AND effective_date = DATE '2021-01-01'));
+SELECT pg_temp.refuses('F15: … and none before the first',
+  format($q$SELECT public.deposit_interest_rate_row_as_of(%L, 'ZZ', 'gas', 'shop', DATE '2019-06-01')$q$, :'t3'), 'P0002', 'no deposit interest rate');
+-- r10:end floor
 
 ROLLBACK;
