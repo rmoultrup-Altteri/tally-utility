@@ -21,9 +21,9 @@
 --   N  never looser than the law
 --   P  published values, and the interest floor (F)
 --   R  a deposit cites the law row and the tariff row it was decided under
+--   A  an interest accrual cites the utility's rate row and the law row it used
 --
--- Planned, not yet written (design doc section 9): accruals citing the
--- utility's rate row; the return-due record; chronology and partial returns;
+-- Planned, not yet written (design doc section 9): the return-due record; chronology and partial returns;
 -- H, history, grants, tenancy and the template's invariants over both tables.
 -- The first run is meant to FAIL: nothing here exists until the patch does.
 -- ============================================================================
@@ -657,12 +657,13 @@ CREATE FUNCTION pg_temp.dep_sql(p_over jsonb DEFAULT '{}') RETURNS text LANGUAGE
   SELECT format($q$INSERT INTO public.deposits (tenant_id, customer_id, basis, trigger_basis, instrument, principal, posted_on,
                      state_code, service_type, system_kind, customer_class, tariff_category, rule_id, tariff_id, decided_by,
                      cap_amount, cap_source, cap_component, cap_basis_amount, trigger_source, trigger_component, trigger_observed, received_at_posting)
-                   VALUES (%s, %s, %s, %s, 'cash', %s, %s, 'TX', 'gas', 'distribution', %s, %s, %s, %s, 'core-battery-1',
+                   VALUES (%s, %s, %s, %s, 'cash', %s, %s, %s, 'gas', %s, %s, %s, %s, %s, 'core-battery-1',
                            %s, %s, %s, %s, %s, %s, %s, %s)$q$,
     pg_temp.ov(p_over, 'tenant', quote_literal('00000000-0000-4000-8000-0000000015a2')),
     pg_temp.ov(p_over, 'customer', quote_literal('00000000-0000-4000-8000-0000000015c2')),
     pg_temp.ov(p_over, 'basis', quote_literal('credit_evaluation')), pg_temp.ov(p_over, 'trigger_basis', 'NULL'),
     pg_temp.ov(p_over, 'principal', '100.00'), pg_temp.ov(p_over, 'posted', quote_literal('2026-01-15')),
+    pg_temp.ov(p_over, 'state', quote_literal('TX')), pg_temp.ov(p_over, 'system', quote_literal('distribution')),
     pg_temp.ov(p_over, 'class', quote_literal('residential')), pg_temp.ov(p_over, 'category', 'NULL'),
     pg_temp.ov(p_over, 'rule', quote_literal(pg_temp.law(coalesce(p_over ->> 'class', 'residential'), coalesce(p_over ->> 'basis', 'credit_evaluation'), 'investor_owned'))),
     pg_temp.ov(p_over, 'tariff', 'NULL'),
@@ -756,5 +757,97 @@ SELECT pg_temp.refuses('R25: the law row a deposit cites cannot be closed on or 
 SELECT pg_temp.refuses('R26: nor the tariff row the city''s deposit cites',
   format($q$UPDATE public.deposit_tariffs SET effective_to = DATE '2026-01-15' WHERE id = %L$q$, pg_temp.tar(:'t1', 'homeowner')), '23514', 'cited', 'tally_app', :'u1');
 -- r14:end deposit-frozen
+
+
+-- ============================================================ A. an accrual cites the rate row and the law row it used
+-- An interest accrual records its period, the rate applied, the principal it was earned on, the utility's rate row and
+-- the law row it used, and the core version. WHICH rate row, whether interest is owed and how much are the core's; the
+-- database holds the record coherent: the rate row is this utility's own for the deposit's state, service and category
+-- (or for every category), in effect by the period's start, at the rate cited; the law row is the deposit's own or one
+-- of its key in force over the period; the period has ended and holds no money that was leaving.
+-- A second T2 rate (6% from 2026-02-15) and a category rate, written before any accrual (a settled accrual is never re-rated).
+SELECT pg_temp.does_as('A0: rate rows the accruals will cite and refuse', :'t2',
+  pg_temp.rate_sql(:'t2', NULL, DATE '2026-02-15', 0.06));
+SELECT pg_temp.run(pg_temp.rate_sql(:'t2', 'residential_senior', DATE '2025-01-01', 0.06), 'tally_app', :'u2');
+-- a ZZ customer and deposit, for the later-rule cases
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000015c4', '00000000-0000-4000-8000-0000000015a3', 'B15R-C4', 'residential');
+\set c4 '00000000-0000-4000-8000-0000000015c4'
+CREATE FUNCTION pg_temp.zz_law(p_class text, p_on date) RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND service_type = 'gas' AND customer_class = p_class AND basis = 'credit_evaluation'
+     AND daterange(effective_from, effective_to, '[)') @> p_on
+$$;
+SELECT pg_temp.does_as('A0b: a ZZ deposit under the household rule', :'t3',
+  pg_temp.dep_sql(jsonb_build_object('tenant', :'t3', 'customer', :'c4', 'state', 'ZZ', 'system', 'distribution', 'class', 'household',
+     'rule', pg_temp.zz_law('household', DATE '2026-01-15'))));
+-- acc_sql(overrides): by default a 28-day accrual in February 2026 on the T2 deposit of 100.00, at the 5% row of 2024-06-01, under its own law row.
+CREATE FUNCTION pg_temp.acc_sql(p_over jsonb DEFAULT '{}') RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT format($q$INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, period_start, period_end,
+                                                      rate_applied, principal_basis, rate_id, rule_id, calculated_by, source)
+                   VALUES (%s, %s, 'interest_accrued', %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system')$q$,
+    pg_temp.ov(p_over, 'tenant', quote_literal('00000000-0000-4000-8000-0000000015a2')),
+    pg_temp.ov(p_over, 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L AND basis = ''credit_evaluation'')', '00000000-0000-4000-8000-0000000015c2')),
+    pg_temp.ov(p_over, 'amount', '0.38'), pg_temp.ov(p_over, 'effective', quote_literal('2026-03-01')),
+    pg_temp.ov(p_over, 'start', quote_literal('2026-02-01')), pg_temp.ov(p_over, 'end', quote_literal('2026-02-28')),
+    pg_temp.ov(p_over, 'rate', '0.05'), pg_temp.ov(p_over, 'basis', '100.00'),
+    pg_temp.ov(p_over, 'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2024-06-01'')', '00000000-0000-4000-8000-0000000015a2')),
+    pg_temp.ov(p_over, 'rule', quote_literal(pg_temp.law('residential', 'credit_evaluation', 'investor_owned'))),
+    pg_temp.ov(p_over, 'by', quote_literal('core-battery-1')))
+$$;
+
+-- r15:begin accrual
+SELECT pg_temp.does_as('A1: an accrual cites the utility''s rate row in effect by the period''s start, at its rate, and the deposit''s own law row', :'t2', pg_temp.acc_sql());
+SELECT pg_temp.refuses('A2: a rate applied that is not the cited row''s rate',
+  pg_temp.acc_sql('{"rate": "0.04", "start": "2026-03-01", "end": "2026-03-31", "effective": "2026-04-01"}'), '23514', 'is not the cited row', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A3: another utility''s rate row (not visible to this one)',
+  pg_temp.acc_sql(jsonb_build_object('start', '2026-03-01', 'end', '2026-03-31', 'effective', '2026-04-01',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND effective_date = DATE ''2020-06-01'')', :'t1'))), '23514', 'rate row', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A4: a rate row for a category the deposit is not in: the deposit has none, the row is the senior category''s',
+  pg_temp.acc_sql(jsonb_build_object('start', '2026-03-01', 'end', '2026-03-31', 'effective', '2026-04-01', 'rate', '0.06',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category = ''residential_senior'')', :'t2'))), '23514', 'rate row', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A5: a rate row that takes effect after the period starts (6% from 2026-02-15, the period from 2026-02-01)',
+  pg_temp.acc_sql(jsonb_build_object('start', '2026-03-01', 'end', '2026-03-31', 'effective', '2026-04-01', 'rate', '0.06',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND effective_date = DATE ''2026-02-15'')', :'t2'))), '23514', 'takes effect', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A6: a law row of another class: the non-residential row cited for a residential deposit',
+  pg_temp.acc_sql(jsonb_build_object('start', '2026-03-01', 'end', '2026-03-31', 'effective', '2026-04-01',
+     'rule', pg_temp.law('non_residential', 'credit_evaluation', 'investor_owned'))), '23514', 'neither the rule the deposit was decided under', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A7: an accrual with no rate row cited',
+  pg_temp.acc_sql('{"start": "2026-03-01", "end": "2026-03-31", "effective": "2026-04-01", "rate_id": null}'), '23514', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('A8: … or no law row, or no core version',
+  pg_temp.acc_sql('{"start": "2026-03-01", "end": "2026-03-31", "effective": "2026-04-01", "by": " "}'), '23514', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('A9: earned on more than was held: 150.00 on a deposit of 100.00',
+  pg_temp.acc_sql('{"start": "2026-03-01", "end": "2026-03-31", "effective": "2026-04-01", "basis": "150.00"}'), '23514', 'held', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A10: a period that has not ended (the future)',
+  pg_temp.acc_sql('{"start": "2999-01-01", "end": "2999-01-31", "effective": "2999-02-01"}'), '23514', 'must have ended', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A11: recorded on or before the day the period ends',
+  pg_temp.acc_sql('{"start": "2026-03-01", "end": "2026-03-31", "effective": "2026-03-31"}'), '23514', 'after the period', 'tally_app', :'u2');
+SELECT pg_temp.refuses('A12: a period that overlaps one already accrued',
+  pg_temp.acc_sql('{"start": "2026-02-15", "end": "2026-03-15", "effective": "2026-03-16"}'), '23P01', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('A13: an accrual before the deposit was posted',
+  pg_temp.acc_sql('{"start": "2026-01-01", "end": "2026-01-10", "effective": "2026-01-11"}'), '23514', NULL, 'tally_app', :'u2');
+-- r15:end accrual
+
+-- r16:begin accrual-later-rule
+-- B1: a later record may cite the deposit's own law row, or one of its key in force over the dates it covers.
+SELECT pg_temp.does('A14: ZZ''s household rule is closed on 2026-04-01 and succeeded by a new row (a law change is a close and a successor)',
+  format($q$UPDATE public.deposit_rules SET effective_to = DATE '2026-04-01' WHERE id = %L$q$, pg_temp.zz_law('household', DATE '2026-01-15')));
+SELECT pg_temp.does('A14b: … the successor',
+  pg_temp.ins_sql('household', 'credit_evaluation', pg_temp.doc('{"citation": "ZZ 1.2"}'), DATE '2026-04-01'));
+SELECT pg_temp.does_as('A15: an accrual in April cites the successor: the deposit''s key, in force over the period', :'t3',
+  pg_temp.acc_sql(jsonb_build_object('tenant', :'t3', 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L)', :'c4'),
+     'start', '2026-04-05', 'end', '2026-04-20', 'effective', '2026-04-21', 'rate', '0.05', 'amount', '0.20',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
+     'rule', pg_temp.zz_law('household', DATE '2026-04-05'))));
+SELECT pg_temp.refuses('A16: … but not a rule of another class in force then',
+  pg_temp.acc_sql(jsonb_build_object('tenant', :'t3', 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L)', :'c4'),
+     'start', '2026-05-05', 'end', '2026-05-20', 'effective', '2026-05-21', 'rate', '0.05',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
+     'rule', pg_temp.zz_law('business', DATE '2026-05-05'))), '23514', 'neither the rule the deposit was decided under', 'tally_app', :'u3');
+SELECT pg_temp.does_as('A17: an accrual in March still cites the closed row the deposit was decided under', :'t3',
+  pg_temp.acc_sql(jsonb_build_object('tenant', :'t3', 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L)', :'c4'),
+     'start', '2026-03-05', 'end', '2026-03-20', 'effective', '2026-03-21', 'rate', '0.05', 'amount', '0.20',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
+     'rule', (SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'household' AND basis = 'credit_evaluation' AND effective_to = DATE '2026-04-01'))));
+-- r16:end accrual-later-rule
 
 ROLLBACK;
