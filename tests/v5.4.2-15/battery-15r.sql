@@ -22,9 +22,12 @@
 --   P  published values, and the interest floor (F)
 --   R  a deposit cites the law row and the tariff row it was decided under
 --   A  an interest accrual cites the utility's rate row and the law row it used
+--   V  the return-due record: a due row, its evidence, withdrawals and corrections, the refund that settles it
+--   Q  partial returns; the chronology of money handed back and interest earned
+--   H  history, grants, tenancy, and the template's invariants over both tables
 --
--- Planned, not yet written (design doc section 9): the return-due record; chronology and partial returns;
--- H, history, grants, tenancy and the template's invariants over both tables.
+-- Not here: evidence written outside its due row's transaction (needs two transactions), and the migration itself
+-- (migration-15r.py, on clones of the -18 build).
 -- The first run is meant to FAIL: nothing here exists until the patch does.
 -- ============================================================================
 \set ON_ERROR_STOP 1
@@ -188,9 +191,9 @@ SELECT pg_temp.ok('M4: the template''s three triggers stand on it, enabled alway
       AND tgname = ANY (ARRAY['rule_row_insert', 'rule_row_history', 'rule_row_no_truncate']) AND tgenabled = 'A'));
 SELECT pg_temp.does('M5: the template''s invariants hold over the registered table', $q$SELECT public.assert_rule_table_invariants()$q$);
 SELECT pg_temp.ok('M6: the -06 Texas deposit law is gone from the database (the core evaluates it): its functions and view',
-  to_regprocedure('public.deposit_accrual_amount(uuid,date,date,numeric)') IS NULL
+  to_regprocedure('public.deposit_accrual_amount(numeric,numeric,date,date)') IS NULL
   AND to_regprocedure('public.deposit_interest_rate_as_of(uuid,date)') IS NULL
-  AND to_regprocedure('public.deposit_refund_trigger_state(uuid,date)') IS NULL
+  AND to_regprocedure('public.deposit_refund_trigger_state(uuid)') IS NULL
   AND to_regclass('public.deposits_refund_due') IS NULL);
 -- r2:end table
 
@@ -651,17 +654,22 @@ $$;
 CREATE FUNCTION pg_temp.ov(p_over jsonb, p_key text, p_default text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
   SELECT CASE WHEN p_over ? p_key THEN CASE WHEN jsonb_typeof(p_over -> p_key) = 'null' THEN 'NULL' ELSE quote_literal(p_over ->> p_key) END ELSE p_default END
 $$;
+-- rv(overrides, key, default): like ov, but an override is a raw SQL expression (a subquery), not a literal.
+CREATE FUNCTION pg_temp.rv(p_over jsonb, p_key text, p_default text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE WHEN p_over ? p_key THEN CASE WHEN jsonb_typeof(p_over -> p_key) = 'null' THEN 'NULL' ELSE p_over ->> p_key END ELSE p_default END
+$$;
 -- dep_sql(overrides): by default a Texas investor-owned residential cash deposit of 100.00 on the credit-evaluation basis,
 -- decided under the statute's cap of one-sixth of annual billing 1200.00 (200.00), the part c1.
 CREATE FUNCTION pg_temp.dep_sql(p_over jsonb DEFAULT '{}') RETURNS text LANGUAGE sql STABLE AS $$
-  SELECT format($q$INSERT INTO public.deposits (tenant_id, customer_id, basis, trigger_basis, instrument, principal, posted_on,
+  SELECT format($q$INSERT INTO public.deposits (tenant_id, customer_id, basis, trigger_basis, instrument, instrument_reference, principal, posted_on,
                      state_code, service_type, system_kind, customer_class, tariff_category, rule_id, tariff_id, decided_by,
                      cap_amount, cap_source, cap_component, cap_basis_amount, trigger_source, trigger_component, trigger_observed, received_at_posting)
-                   VALUES (%s, %s, %s, %s, 'cash', %s, %s, %s, 'gas', %s, %s, %s, %s, %s, 'core-battery-1',
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'gas', %s, %s, %s, %s, %s, 'core-battery-1',
                            %s, %s, %s, %s, %s, %s, %s, %s)$q$,
     pg_temp.ov(p_over, 'tenant', quote_literal('00000000-0000-4000-8000-0000000015a2')),
     pg_temp.ov(p_over, 'customer', quote_literal('00000000-0000-4000-8000-0000000015c2')),
     pg_temp.ov(p_over, 'basis', quote_literal('credit_evaluation')), pg_temp.ov(p_over, 'trigger_basis', 'NULL'),
+    pg_temp.ov(p_over, 'instrument', quote_literal('cash')), pg_temp.ov(p_over, 'instrument_reference', 'NULL'),
     pg_temp.ov(p_over, 'principal', '100.00'), pg_temp.ov(p_over, 'posted', quote_literal('2026-01-15')),
     pg_temp.ov(p_over, 'state', quote_literal('TX')), pg_temp.ov(p_over, 'system', quote_literal('distribution')),
     pg_temp.ov(p_over, 'class', quote_literal('residential')), pg_temp.ov(p_over, 'category', 'NULL'),
@@ -786,11 +794,11 @@ CREATE FUNCTION pg_temp.acc_sql(p_over jsonb DEFAULT '{}') RETURNS text LANGUAGE
                                                       rate_applied, principal_basis, rate_id, rule_id, calculated_by, source)
                    VALUES (%s, %s, 'interest_accrued', %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system')$q$,
     pg_temp.ov(p_over, 'tenant', quote_literal('00000000-0000-4000-8000-0000000015a2')),
-    pg_temp.ov(p_over, 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L AND basis = ''credit_evaluation'')', '00000000-0000-4000-8000-0000000015c2')),
+    pg_temp.rv(p_over, 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L AND basis = ''credit_evaluation'')', '00000000-0000-4000-8000-0000000015c2')),
     pg_temp.ov(p_over, 'amount', '0.38'), pg_temp.ov(p_over, 'effective', quote_literal('2026-03-01')),
     pg_temp.ov(p_over, 'start', quote_literal('2026-02-01')), pg_temp.ov(p_over, 'end', quote_literal('2026-02-28')),
     pg_temp.ov(p_over, 'rate', '0.05'), pg_temp.ov(p_over, 'basis', '100.00'),
-    pg_temp.ov(p_over, 'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2024-06-01'')', '00000000-0000-4000-8000-0000000015a2')),
+    pg_temp.rv(p_over, 'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2024-06-01'')', '00000000-0000-4000-8000-0000000015a2')),
     pg_temp.ov(p_over, 'rule', quote_literal(pg_temp.law('residential', 'credit_evaluation', 'investor_owned'))),
     pg_temp.ov(p_over, 'by', quote_literal('core-battery-1')))
 $$;
@@ -838,6 +846,8 @@ SELECT pg_temp.does_as('A15: an accrual in April cites the successor: the deposi
      'start', '2026-04-05', 'end', '2026-04-20', 'effective', '2026-04-21', 'rate', '0.05', 'amount', '0.20',
      'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
      'rule', pg_temp.zz_law('household', DATE '2026-04-05'))));
+SELECT pg_temp.does('A15b: ZZ has a business rule too, so the next case cites a real row of another class',
+  pg_temp.ins_sql('business', 'credit_evaluation', pg_temp.doc('{"citation": "ZZ 2.1"}'), DATE '2020-01-01'));
 SELECT pg_temp.refuses('A16: … but not a rule of another class in force then',
   pg_temp.acc_sql(jsonb_build_object('tenant', :'t3', 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L)', :'c4'),
      'start', '2026-05-05', 'end', '2026-05-20', 'effective', '2026-05-21', 'rate', '0.05',
@@ -849,5 +859,420 @@ SELECT pg_temp.does_as('A17: an accrual in March still cites the closed row the 
      'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
      'rule', (SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'household' AND basis = 'credit_evaluation' AND effective_to = DATE '2026-04-01'))));
 -- r16:end accrual-later-rule
+
+
+-- ============================================================ V. the return-due record
+-- WRITTEN BY THE CORE when a deposit's mandatory return falls due: once, when the answer changes, never per check. A due
+-- row cites the law row (the deposit's own, or one of its key in force on the due date); each of its evidence rows names a
+-- return rule of that document (return_component) whose reason it is, and what it rests on: a bill with the core's
+-- classification of it, the customer's change of state, or the deposit itself. A row found wrong is withdrawn by a separate
+-- row and a corrected answer names the row it supersedes. The database keeps the record coherent; whether a return is owed,
+-- which bills count and how is the core's, from the document.
+--
+-- The patch keeps from the first draft the vocabulary columns that say what a reason rests on (deposit_return_reasons.
+-- evidence_kind 'invoice' / 'state_event' / 'deposit', qualifying_statuses, partial). Which reasons a due row may carry,
+-- and for which instruments, now come from the cited document's return rules, not from typed columns on the rule.
+-- Not here: "evidence only in its due row's transaction" needs two transactions (a later script, as -15's evidence-txn).
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000015c5', '00000000-0000-4000-8000-0000000015a2', 'B15R-C5', 'residential'),
+  ('00000000-0000-4000-8000-0000000015c6', '00000000-0000-4000-8000-0000000015a2', 'B15R-C6', 'commercial'),
+  ('00000000-0000-4000-8000-0000000015c7', '00000000-0000-4000-8000-0000000015a3', 'B15R-C7', 'residential'),
+  ('00000000-0000-4000-8000-0000000015c9', '00000000-0000-4000-8000-0000000015a2', 'B15R-C9', 'residential');
+\set c5 '00000000-0000-4000-8000-0000000015c5'
+\set c6 '00000000-0000-4000-8000-0000000015c6'
+\set c7 '00000000-0000-4000-8000-0000000015c7'
+\set c9 '00000000-0000-4000-8000-0000000015c9'
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  ('00000000-0000-4000-8000-000000159002', :'t2', :'c9', 'L9', '9 Main', 'Austin', 'TX', '78702'),
+  ('00000000-0000-4000-8000-000000159006', :'t2', :'c6', 'L6', '6 Main', 'Austin', 'TX', '78706');
+INSERT INTO public.billing_runs (id, tenant_id, run_number, billing_period, period_start, period_end) VALUES
+  ('00000000-0000-4000-8000-0000000015f1', :'t2', 'R-B15R', '2026-01', DATE '2025-11-01', DATE '2026-12-31');
+-- Bills (drafts are enough to cite): c2 one before the deposit was posted (2026-01-15) and two after, c6 one.
+INSERT INTO public.invoices (id, tenant_id, invoice_number, billing_run_id, customer_id, location_id, invoice_type,
+                             invoice_date, billing_period, period_start, period_end, due_date, amount_due) VALUES
+  ('00000000-0000-4000-8000-0000000015e0', :'t2', 'B15R-I0', '00000000-0000-4000-8000-0000000015f1', :'c9', '00000000-0000-4000-8000-000000159002', 'regular', DATE '2025-12-01', '2025-11', DATE '2025-11-01', DATE '2025-11-30', DATE '2025-12-21', 50),
+  ('00000000-0000-4000-8000-0000000015e1', :'t2', 'B15R-I1', '00000000-0000-4000-8000-0000000015f1', :'c9', '00000000-0000-4000-8000-000000159002', 'regular', DATE '2026-03-01', '2026-02', DATE '2026-02-01', DATE '2026-02-28', DATE '2026-03-21', 50),
+  ('00000000-0000-4000-8000-0000000015e2', :'t2', 'B15R-I2', '00000000-0000-4000-8000-0000000015f1', :'c9', '00000000-0000-4000-8000-000000159002', 'regular', DATE '2026-04-01', '2026-03', DATE '2026-03-01', DATE '2026-03-31', DATE '2026-04-21', 50),
+  ('00000000-0000-4000-8000-0000000015e6', :'t2', 'B15R-I6', '00000000-0000-4000-8000-0000000015f1', :'c6', '00000000-0000-4000-8000-000000159006', 'regular', DATE '2026-04-01', '2026-03', DATE '2026-03-01', DATE '2026-03-31', DATE '2026-04-21', 50);
+\set i0 '00000000-0000-4000-8000-0000000015e0'
+\set i1 '00000000-0000-4000-8000-0000000015e1'
+\set i2 '00000000-0000-4000-8000-0000000015e2'
+\set i6 '00000000-0000-4000-8000-0000000015e6'
+
+GRANT SELECT ON b15r TO tally_app;
+-- did(key): the id of a named deposit.
+CREATE FUNCTION pg_temp.did(p_k text) RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT id FROM b15r WHERE k = p_k $$;
+-- stev(customer, status): the customer's state change to that status.
+CREATE FUNCTION pg_temp.stev(p_cust text, p_status text) RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT id FROM public.customer_state_events WHERE customer_id = p_cust::uuid AND to_status = p_status ORDER BY seq DESC LIMIT 1
+$$;
+-- mk(key, tenant, overrides): a deposit written as the utility's operator and kept under a name.
+CREATE FUNCTION pg_temp.mk(p_k text, p_tenant text, p_over jsonb DEFAULT '{}') RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE v_msg text; v_user text; v_id uuid;
+BEGIN
+  SELECT id::text INTO v_user FROM public.users WHERE tenant_id = p_tenant::uuid ORDER BY id LIMIT 1;
+  PERFORM set_config('app.user_id', v_user, true);
+  SET LOCAL ROLE tally_app;
+  EXECUTE pg_temp.dep_sql(jsonb_build_object('tenant', p_tenant) || p_over) || ' RETURNING id' INTO v_id;
+  RESET ROLE;
+  INSERT INTO b15r (k, id) VALUES (p_k, v_id);
+  RAISE NOTICE 'PASS (fixture) deposit %', p_k;
+EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS v_msg = MESSAGE_TEXT;
+  RESET ROLE;
+  RAISE EXCEPTION 'FAIL fixture deposit %: %', p_k, v_msg;
+END $$;
+-- write_due(id, deposit, due date, overrides, evidence): a due row and its evidence in one transaction, the constraint
+-- checked at the end. Overrides: rule, amount, supersedes. Evidence: a JSON list of {reason, component, invoice, class, event, rests}.
+CREATE FUNCTION pg_temp.write_due(p_id uuid, p_dep uuid, p_on date, p_over jsonb, p_evidence jsonb) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE e jsonb;
+BEGIN
+  SET CONSTRAINTS ALL DEFERRED;
+  INSERT INTO public.deposit_return_due (id, tenant_id, deposit_id, rule_id, due_on, amount, supersedes_due_id, inputs, inputs_fingerprint, calculated_by)
+  SELECT p_id, d.tenant_id, d.id, coalesce((p_over ->> 'rule')::uuid, d.rule_id), p_on, (p_over ->> 'amount')::numeric, (p_over ->> 'supersedes')::uuid,
+         '{"bills": 12}', 'fp-' || left(p_id::text, 8), 'core-battery-1'
+    FROM public.deposits d WHERE d.id = p_dep;
+  FOR e IN SELECT * FROM jsonb_array_elements(p_evidence) LOOP
+    INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, customer_state_event_id, rests_on_deposit)
+    SELECT r.tenant_id, r.id, e ->> 'reason', e ->> 'component', (e ->> 'invoice')::uuid, e ->> 'class', (e ->> 'event')::uuid, coalesce((e ->> 'rests')::boolean, false)
+      FROM public.deposit_return_due r WHERE r.id = p_id;
+  END LOOP;
+  SET CONSTRAINTS ALL IMMEDIATE;
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.write_due(uuid, uuid, date, jsonb, jsonb) TO tally_app;
+-- wd_sql(...): the statement that calls write_due.
+CREATE FUNCTION pg_temp.wd_sql(p_id text, p_dep uuid, p_on text, p_over jsonb, p_evidence jsonb) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT format('SELECT pg_temp.write_due(%L::uuid, %L::uuid, %L::date, %L::jsonb, %L::jsonb)', p_id, p_dep, p_on, p_over::text, p_evidence::text)
+$$;
+-- bill(reason, component, invoice): one evidence entry resting on a bill the core judged clean.
+CREATE FUNCTION pg_temp.bill(p_invoice text, p_component text DEFAULT 'r1', p_reason text DEFAULT 'clean_bill_history') RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+  SELECT jsonb_build_object('reason', p_reason, 'component', p_component, 'invoice', p_invoice, 'class', 'clean')
+$$;
+-- ev_sql(deposit, type, amount, on, due row, reason): a deposit event.
+CREATE FUNCTION pg_temp.ev_sql(p_dep uuid, p_type text, p_amount numeric, p_on date, p_due text DEFAULT NULL, p_reason text DEFAULT NULL) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT format($q$INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, return_due_id, reason)
+                   SELECT d.tenant_id, d.id, %L::text, %s::numeric, %L::date, %L::uuid, %L::text FROM public.deposits d WHERE d.id = %L$q$, p_type, p_amount, p_on, p_due, p_reason, p_dep)
+$$;
+\set d1 '00000000-0000-4000-8000-0000000015d1'
+\set d2 '00000000-0000-4000-8000-0000000015d2'
+\set d3 '00000000-0000-4000-8000-0000000015d3'
+\set d4 '00000000-0000-4000-8000-0000000015d4'
+\set x1 '00000000-0000-4000-8000-0000000015d8'
+\set x2 '00000000-0000-4000-8000-0000000015d9'
+\set x3 '00000000-0000-4000-8000-0000000015da'
+
+-- The deposits the scenarios use (T2): rr and rtar are c9's, on the credit-evaluation and tariff bases; r366 and
+-- rlc sit under law rows with no return rule that reaches them (366 has none; Texas returns cash only).
+SELECT pg_temp.mk('rr', :'t2', jsonb_build_object('customer', :'c9'));
+SELECT pg_temp.mk('rtar', :'t2', jsonb_build_object('customer', :'c9', 'basis', 'tariff', 'principal', '60.00'));
+SELECT pg_temp.mk('r366', :'t2', jsonb_build_object('customer', :'c5', 'basis', 'adequate_assurance_366', 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null));
+SELECT pg_temp.mk('rlc', :'t2', jsonb_build_object('customer', :'c6', 'class', 'non_residential', 'instrument', 'letter_of_credit', 'instrument_reference', 'LC-15R',
+   'principal', '900.00', 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null));
+
+UPDATE public.customers SET status = 'final_billed', status_reason = 'moved out' WHERE id = :'c9';
+UPDATE public.customers SET status = 'final_billed', status_reason = 'moved out' WHERE id = :'c6';
+
+-- r17:begin return-due
+SELECT pg_temp.does_as('V1: the core records that a return fell due: the deposit, the day, the law row, and evidence naming the return rule it rests on (two clean bills, after posting and by the due date)',
+  :'t2', pg_temp.wd_sql(:'d1', pg_temp.did('rr'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1'), pg_temp.bill(:'i2'))));
+SELECT pg_temp.ok('V1b: it is stamped with the operator and listed as owed, with its reason and what is left to return',
+  (SELECT r.created_by = :'u2'::uuid AND r.recorded_txid IS NOT NULL FROM public.deposit_return_due r WHERE r.id = :'d1')
+  AND (SELECT o.reasons = ARRAY['clean_bill_history'] AND o.remainder = 100 AND o.deposit_id = pg_temp.did('rr') FROM public.deposits_return_owed o WHERE o.due_id = :'d1'));
+SELECT pg_temp.refuses('V2: a due row with no evidence is refused when the transaction ends',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', '[]'), '23514', 'records no evidence', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V3: at most one live due row per deposit: the answer has not changed',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rr'), '2026-04-02', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23505', 'already has a live due row', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V4: a deposit whose law row has no return rule (11 U.S.C. 366) cannot fall due',
+  pg_temp.wd_sql(:'d2', pg_temp.did('r366'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'no return rule', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V5: nor an instrument the document''s return rules do not cover (Texas returns cash; this is a letter of credit)',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rlc'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i6'))), '23514', 'no return rule', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V6: a due row cites the deposit''s own law row, or one of its key in force on the due date: not another basis',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', jsonb_build_object('rule', pg_temp.law('residential', 'credit_evaluation', 'investor_owned')),
+    jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'neither the rule the deposit was decided under', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V7: a return is not due before the deposit was posted',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-01-01', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'precedes the posting date', 'tally_app', :'u2');
+
+-- Each case is built so that only the guard it names can refuse it (rtar has no live due row; a good entry is a clean bill under r1).
+SELECT pg_temp.refuses('V8: evidence names the reason of the return rule it cites: time held is not r1''s reason',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'hold_term_elapsed', 'component', 'r1', 'rests', true))),
+  '23514', 'return rule r1', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V9: … nor a return rule the document does not have',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1', 'r9'))), '23514', 'r9', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V10: a reason rests on records of its own kind: a bill is no evidence of a closure',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1', 'r2', 'account_closed'))), '23514', 'rests on', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V11: … nor a change of state evidence of bills',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'clean_bill_history', 'component', 'r1',
+     'event', pg_temp.stev(:'c9', 'active')))), '23514', 'rests on', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V12: a bill is the deposit''s customer''s own: c6''s bill is no evidence on c2''s deposit',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i6'))), '23514', 'bill of the deposit''s customer', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V13: … and dated from the posting of the deposit: a bill from December is not',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i0'))), '23514', 'bill of the deposit''s customer', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V14: … and on or before the day the return fell due: the April bill is no evidence of a return due in March',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-03-15', '{}', jsonb_build_array(pg_temp.bill(:'i2'))), '23514', 'bill of the deposit''s customer', 'tally_app', :'u2');
+
+-- The database stamps a change of state now (this battery is run on a day long after the March bills), so a closure is
+-- evidence of a return due on or after that day.
+SELECT pg_temp.refuses('V15: closure evidence is a change to a status the reason names: becoming active is no closure',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-11-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+     'event', pg_temp.stev(:'c9', 'active')))), '23514', 'is not a change of the deposit''s customer to', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V16: … and is the deposit''s own customer''s: c6''s closure on c2''s deposit',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-11-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+     'event', pg_temp.stev(:'c6', 'final_billed')))), '23514', 'is not a change of the deposit''s customer to', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V17: … dated on or before the due date: a closure stamped today is no evidence of a return due last April',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+     'event', pg_temp.stev(:'c9', 'final_billed')))), '23514', 'is not a change of the deposit''s customer to', 'tally_app', :'u2');
+
+SELECT pg_temp.refuses('V18: a withdrawal states its reason',
+  format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, '   ')$q$, :'t2', :'d1'), '23514', 'reason', 'tally_app', :'u2');
+SELECT pg_temp.does_as('V19: a due row found wrong is withdrawn, once, with the reason, and leaves the owed list', :'t2',
+  format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason, calculated_by) VALUES (%L, %L, 'payment on B15R-I2 reversed (NSF)', 'core-battery-1')$q$, :'t2', :'d1'));
+SELECT pg_temp.ok('V19b: it is no longer owed, and its withdrawal is stamped with the operator',
+  NOT EXISTS (SELECT 1 FROM public.deposits_return_owed WHERE due_id = :'d1')
+  AND (SELECT created_by = :'u2'::uuid FROM public.deposit_return_due_withdrawals WHERE due_id = :'d1'));
+SELECT pg_temp.refuses('V20: … not twice',
+  format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, 'again')$q$, :'t2', :'d1'), '23505', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('V21: a refund cannot cite a withdrawn due row',
+  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE '2026-04-05', :'d1'), '23514', 'withdrawn', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V22: a corrected answer may supersede only a withdrawn row of the same deposit: rtar''s row naming rr''s',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', jsonb_build_object('supersedes', :'d1'), jsonb_build_array(pg_temp.bill(:'i1'))),
+  '23514', 'may supersede only a withdrawn due row of the same deposit', 'tally_app', :'u2');
+-- the corrected answer: c2 has closed, and the bills are clean: one row, two reasons, each naming its own return rule
+SELECT pg_temp.does_as('V23: the corrected answer names the row it supersedes and carries both reasons at once', :'t2',
+  pg_temp.wd_sql(:'d3', pg_temp.did('rr'), '2026-11-01', jsonb_build_object('supersedes', :'d1'),
+    jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2', 'event', pg_temp.stev(:'c9', 'final_billed')), pg_temp.bill(:'i1'))));
+SELECT pg_temp.ok('V23b: it is owed with both reasons',
+  (SELECT reasons = ARRAY['account_closed', 'clean_bill_history'] AND deposit_status = 'held' FROM public.deposits_return_owed WHERE due_id = :'d3'));
+-- a withdrawn row is superseded once (rtar is c2's too: x1 is withdrawn, x2 supersedes it and is withdrawn, x3 would supersede x1 again)
+SELECT pg_temp.run(pg_temp.wd_sql(:'x1', pg_temp.did('rtar'), '2026-11-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+   'event', pg_temp.stev(:'c9', 'final_billed')))), 'tally_app', :'u2');
+SELECT pg_temp.run(format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, 'battery: x1 wrong')$q$, :'t2', :'x1'), 'tally_app', :'u2');
+SELECT pg_temp.run(pg_temp.wd_sql(:'x2', pg_temp.did('rtar'), '2026-11-01', jsonb_build_object('supersedes', :'x1'), jsonb_build_array(jsonb_build_object('reason', 'account_closed',
+   'component', 'r2', 'event', pg_temp.stev(:'c9', 'final_billed')))), 'tally_app', :'u2');
+SELECT pg_temp.run(format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, 'battery: x2 wrong too')$q$, :'t2', :'x2'), 'tally_app', :'u2');
+SELECT pg_temp.refuses('V24: a withdrawn row is superseded once: x1 already is',
+  pg_temp.wd_sql(:'x3', pg_temp.did('rtar'), '2026-11-01', jsonb_build_object('supersedes', :'x1'), jsonb_build_array(jsonb_build_object('reason', 'account_closed',
+     'component', 'r2', 'event', pg_temp.stev(:'c9', 'final_billed')))), '23505', NULL, 'tally_app', :'u2');
+
+SELECT pg_temp.refuses('V25: a return cites only its own deposit''s due row',
+  pg_temp.ev_sql(pg_temp.did('rtar'), 'refund_initiated', 60, DATE '2026-11-02', :'d3'), '23514', 'own deposit', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V26: a refund settling a due row cannot be dated before it fell due',
+  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE '2026-10-30', :'d3'), '23514', 'fell due', 'tally_app', :'u2');
+SELECT pg_temp.does_as('V27: … on or after it, it settles the row: the list drops it', :'t2',
+  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE '2026-11-01', :'d3'));
+SELECT pg_temp.ok('V27b: it is no longer owed', NOT EXISTS (SELECT 1 FROM public.deposits_return_owed WHERE deposit_id = pg_temp.did('rr')));
+SELECT pg_temp.refuses('V28: no due row follows a return that has started',
+  pg_temp.wd_sql(:'d4', pg_temp.did('rr'), '2026-11-02', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'return has started', 'tally_app', :'u2');
+
+SELECT pg_temp.refuses('V29: the application cannot edit a due row',
+  format($q$UPDATE public.deposit_return_due SET due_on = DATE '2026-06-01' WHERE id = %L$q$, :'d3'), '42501', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('V30: nor delete a withdrawal',
+  format($q$DELETE FROM public.deposit_return_due_withdrawals WHERE due_id = %L$q$, :'d1'), '42501', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('V31: the owner cannot edit a due row either (append-only)',
+  format($q$UPDATE public.deposit_return_due SET due_on = DATE '2026-06-01' WHERE id = %L$q$, :'d3'), '23001');
+SELECT pg_temp.refuses('V32: … nor delete its evidence',
+  format($q$DELETE FROM public.deposit_return_due_evidence WHERE due_id = %L$q$, :'d3'), '23001');
+-- r17:end return-due
+
+-- ============================================================ Q. partial returns
+-- ZZ returns a deposit after twelve months held, and returns the part above the cap now applying (a partial return: a due
+-- row with an amount, whose reason is a partial one). Texas has no such rule.
+INSERT INTO public.deposit_customer_classes (state_code, service_type, class_code, description, source_note) VALUES
+  ('ZZ', 'gas', 'returns', 'battery class', 'battery fixture');
+SELECT pg_temp.run(pg_temp.ins_sql('returns', 'credit_evaluation', pg_temp.doc('{"return": [
+   {"id": "r1", "when": {"reason": "hold_term_elapsed", "months": 12}, "instruments": ["cash"], "conditions": [], "minimum_amount": {"kind": "none"},
+    "deadline": {"kind": "none"}, "hold_while": [], "vests": "unruled"},
+   {"id": "r2", "when": {"reason": "excess_over_cap"}, "instruments": ["cash"], "conditions": [], "minimum_amount": {"kind": "none"},
+    "deadline": {"kind": "none"}, "hold_while": [], "vests": "unruled"}]}')));
+SELECT pg_temp.mk('zx', :'t3', jsonb_build_object('customer', :'c7', 'state', 'ZZ', 'class', 'returns', 'posted', '2025-03-01', 'principal', '200.00',
+   'rule', (SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'returns' AND basis = 'credit_evaluation')));
+\set d5 '00000000-0000-4000-8000-0000000015d5'
+\set d6 '00000000-0000-4000-8000-0000000015d6'
+\set d7 '00000000-0000-4000-8000-0000000015d7'
+-- r23:begin partial
+SELECT pg_temp.refuses('Q1: a partial return is due only under a document that returns an excess over the cap: Texas does not',
+  pg_temp.wd_sql(:'d5', pg_temp.did('rtar'), '2026-04-01', '{"amount": 10}', jsonb_build_array(jsonb_build_object('reason', 'excess_over_cap', 'component', 'r1', 'rests', true))),
+  '23514', 'excess', 'tally_app', :'u2');
+SELECT pg_temp.refuses('Q2: … and the amount leaves something held: returning all of it is a return of the whole',
+  pg_temp.wd_sql(:'d5', pg_temp.did('zx'), '2026-04-01', '{"amount": 200}', jsonb_build_array(jsonb_build_object('reason', 'excess_over_cap', 'component', 'r2', 'rests', true))),
+  '23514', 'leaves nothing held', 'tally_app', :'u3');
+SELECT pg_temp.refuses('Q3: a whole-return reason is no evidence on a due row with an amount',
+  pg_temp.wd_sql(:'d5', pg_temp.did('zx'), '2026-04-01', '{"amount": 50}', jsonb_build_array(jsonb_build_object('reason', 'hold_term_elapsed', 'component', 'r1', 'rests', true))),
+  '23514', 'whole', 'tally_app', :'u3');
+SELECT pg_temp.refuses('Q4: … nor a partial reason on a due row for the whole remainder',
+  pg_temp.wd_sql(:'d5', pg_temp.did('zx'), '2026-04-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'excess_over_cap', 'component', 'r2', 'rests', true))),
+  '23514', 'part of a deposit', 'tally_app', :'u3');
+SELECT pg_temp.does_as('Q5: a partial return due: 50 of the 200 held, on the reason that the part above the cap is returned', :'t3',
+  pg_temp.wd_sql(:'d5', pg_temp.did('zx'), '2026-04-01', '{"amount": 50}', jsonb_build_array(jsonb_build_object('reason', 'excess_over_cap', 'component', 'r2', 'rests', true))));
+SELECT pg_temp.ok('Q5b: it is listed with its amount',
+  EXISTS (SELECT 1 FROM public.deposits_return_owed WHERE due_id = :'d5' AND amount_due = 50 AND reasons = ARRAY['excess_over_cap']));
+SELECT pg_temp.refuses('Q6: a refund does not settle a partial row',
+  pg_temp.ev_sql(pg_temp.did('zx'), 'refund_initiated', 200, DATE '2026-04-02', :'d5'), '23514', 'partial', 'tally_app', :'u3');
+SELECT pg_temp.refuses('Q7: … nor does a partial return of another amount',
+  pg_temp.ev_sql(pg_temp.did('zx'), 'principal_returned', 20, DATE '2026-04-02', :'d5'), '23514', 'amount', 'tally_app', :'u3');
+SELECT pg_temp.does_as('Q8: … exactly its amount does: it is then no longer owed or live', :'t3',
+  pg_temp.ev_sql(pg_temp.did('zx'), 'principal_returned', 50, DATE '2026-04-02', :'d5'));
+SELECT pg_temp.ok('Q8b: the deposit holds 150 and is still held, and the settled partial row is gone from the list',
+  (SELECT remainder = 150 FROM public.deposit_balance(pg_temp.did('zx'))) AND (SELECT status = 'held' FROM public.deposits WHERE id = pg_temp.did('zx'))
+  AND NOT EXISTS (SELECT 1 FROM public.deposits_return_owed WHERE due_id = :'d5'));
+SELECT pg_temp.does_as('Q9: once settled it is no longer live: the deposit may fall due again, now for the whole remainder on time held', :'t3',
+  pg_temp.wd_sql(:'d6', pg_temp.did('zx'), '2026-06-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'hold_term_elapsed', 'component', 'r1', 'rests', true))));
+SELECT pg_temp.refuses('Q10: a partial return does not settle a whole-return row',
+  pg_temp.ev_sql(pg_temp.did('zx'), 'principal_returned', 50, DATE '2026-06-02', :'d6'), '23514', 'whole', 'tally_app', :'u3');
+-- r23:end partial
+
+-- ============================================================ Q. chronology of money and interest
+-- Money handed back on a day cannot have earned interest after it, whichever record is written first. Deposit pp: c6, tariff
+-- basis, non-residential, 200.00, posted 2026-01-01; the 5% rate row of 2024-06-01 applies.
+SELECT pg_temp.mk('pp', :'t2', jsonb_build_object('customer', :'c6', 'class', 'non_residential', 'basis', 'tariff', 'posted', '2026-01-01', 'principal', '200.00',
+   'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null));
+-- ac_sql(deposit, from, to, recorded, basis, amount, law row): an accrual on a named deposit, citing the utility's rate row in
+-- effect at the period's start (5% from 2024-06-01; 6% from 2026-02-15) and its law row.
+CREATE FUNCTION pg_temp.ac_sql(p_dep uuid, p_from text, p_to text, p_recorded text, p_basis numeric, p_amount numeric, p_law uuid) RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT pg_temp.acc_sql(jsonb_build_object('deposit', format('(SELECT %L::uuid)', p_dep), 'start', p_from, 'end', p_to, 'effective', p_recorded,
+     'basis', p_basis::text, 'amount', p_amount::text, 'rule', p_law,
+     'rate', CASE WHEN p_from::date >= DATE '2026-02-15' THEN '0.06' ELSE '0.05' END,
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE %L)',
+                       '00000000-0000-4000-8000-0000000015a2', CASE WHEN p_from::date >= DATE '2026-02-15' THEN '2026-02-15' ELSE '2024-06-01' END)))
+$$;
+-- r24:begin chronology
+-- r24:needs r10
+SELECT pg_temp.does_as('Q11: interest accrues on the whole 200 through January, recorded the day after the period', :'t2',
+  pg_temp.ac_sql(pg_temp.did('pp'), '2026-01-01', '2026-01-31', '2026-02-01', 200, 0.85, pg_temp.law('non_residential', 'tariff', 'investor_owned', DATE '2026-01-01')));
+SELECT pg_temp.refuses('Q12: a return dated inside a period already accrued: money handed back on the 15th earned nothing after it',
+  pg_temp.ev_sql(pg_temp.did('pp'), 'principal_returned', 50, DATE '2026-01-15'), '23514', 'accrued', 'tally_app', :'u2');
+SELECT pg_temp.refuses('Q13: … nor a refund started inside it',
+  pg_temp.ev_sql(pg_temp.did('pp'), 'refund_initiated', 200, DATE '2026-01-20'), '23514', 'accrued', 'tally_app', :'u2');
+SELECT pg_temp.does_as('Q14: a return after the accrued period is fine: 50 of the 200 goes back, the rest is held', :'t2',
+  pg_temp.ev_sql(pg_temp.did('pp'), 'principal_returned', 50, DATE '2026-02-10'));
+SELECT pg_temp.ok('Q14b: 150 remains and the deposit is still held',
+  (SELECT remainder = 150 FROM public.deposit_balance(pg_temp.did('pp'))) AND (SELECT status = 'held' FROM public.deposits WHERE id = pg_temp.did('pp')));
+SELECT pg_temp.refuses('Q15: returning all of what remains is a refund, not a partial return',
+  pg_temp.ev_sql(pg_temp.did('pp'), 'principal_returned', 150, DATE '2026-02-11'), '23514', 'refund', 'tally_app', :'u2');
+SELECT pg_temp.refuses('Q16: an accrual cannot span a partial return written before it: February runs through the 10th',
+  pg_temp.ac_sql(pg_temp.did('pp'), '2026-02-01', '2026-02-28', '2026-03-01', 150, 0.60, pg_temp.law('non_residential', 'tariff', 'investor_owned', DATE '2026-01-01')), '23514', 'return', 'tally_app', :'u2');
+SELECT pg_temp.refuses('Q17: … nor earn on more than was held through the period: 200 after 50 went back',
+  pg_temp.ac_sql(pg_temp.did('pp'), '2026-02-11', '2026-02-28', '2026-03-01', 200, 0.49, pg_temp.law('non_residential', 'tariff', 'investor_owned', DATE '2026-01-01')), '23514', 'held', 'tally_app', :'u2');
+SELECT pg_temp.does_as('Q18: the accrual from the day after the return, on the 150 then held', :'t2',
+  pg_temp.ac_sql(pg_temp.did('pp'), '2026-02-11', '2026-02-28', '2026-03-01', 150, 0.37, pg_temp.law('non_residential', 'tariff', 'investor_owned', DATE '2026-01-01')));
+SELECT pg_temp.refuses('Q19: interest is credited only once earned: not on the last day of the period it was earned in',
+  format($q$INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
+            SELECT d.tenant_id, d.id, 'interest_credited', 0.37, DATE '2026-02-28' FROM public.deposits d WHERE d.id = %L$q$, pg_temp.did('pp')), '23514', 'earned', 'tally_app', :'u2');
+SELECT pg_temp.does_as('Q20: … the day after it is', :'t2',
+  format($q$INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
+            SELECT d.tenant_id, d.id, 'interest_credited', 0.37, DATE '2026-03-01' FROM public.deposits d WHERE d.id = %L$q$, pg_temp.did('pp')));
+SELECT pg_temp.does_as('Q21: the remainder is applied to the customer''s balance on 2026-03-05: nothing is left held', :'t2',
+  pg_temp.ev_sql(pg_temp.did('pp'), 'applied_to_balance', 150, DATE '2026-03-05'));
+SELECT pg_temp.refuses('Q22: no accrual for a period after the principal was used up',
+  pg_temp.ac_sql(pg_temp.did('pp'), '2026-03-06', '2026-03-31', '2026-04-01', 150, 0.51, pg_temp.law('non_residential', 'tariff', 'investor_owned', DATE '2026-01-01')), '23514', 'held', 'tally_app', :'u2');
+-- A refund started on 2026-05-01: an accrual written after it may not reach that day, though the principal is still held.
+SELECT pg_temp.mk('q', :'t2', jsonb_build_object('customer', :'c5', 'basis', 'tariff', 'posted', '2026-01-01', 'principal', '100.00'));
+SELECT pg_temp.does_as('Q23: a refund of 100 starts on 2026-05-01', :'t2', pg_temp.ev_sql(pg_temp.did('q'), 'refund_initiated', 100, DATE '2026-05-01'));
+SELECT pg_temp.does_as('Q24: interest through April, recorded after the refund started, is fine', :'t2',
+  pg_temp.ac_sql(pg_temp.did('q'), '2026-03-01', '2026-04-30', '2026-05-02', 100, 0.82, pg_temp.law('residential', 'tariff', 'investor_owned', DATE '2026-01-01')));
+SELECT pg_temp.refuses('Q25: … but a period reaching the day the refund started is not',
+  pg_temp.ac_sql(pg_temp.did('q'), '2026-05-01', '2026-05-31', '2026-06-01', 100, 0.41, pg_temp.law('residential', 'tariff', 'investor_owned', DATE '2026-01-01')),
+  '23514', 'refund', 'tally_app', :'u2');
+-- r24:end chronology
+
+-- ============================================================ H. history, grants, tenancy
+-- r25:begin history
+SELECT pg_temp.refuses('H1: a law row is never edited: not its note',
+  $q$UPDATE public.deposit_rules SET source_note = 'edited' WHERE state_code = 'ZZ' AND customer_class = 'retail'$q$, '23001', 'never edited');
+SELECT pg_temp.refuses('H2: … nor its document',
+  $q$UPDATE public.deposit_rules SET terms_source = replace(terms_source, '"ZZ 1.1"', '"ZZ 9.9"') WHERE state_code = 'ZZ' AND customer_class = 'retail'$q$, '23001', 'never edited');
+SELECT pg_temp.refuses('H3: … nor who it binds',
+  $q$UPDATE public.deposit_rules SET owner_types = '{municipal}' WHERE state_code = 'ZZ' AND customer_class = 'retail'$q$, '23001', 'never edited');
+SELECT pg_temp.refuses('H4: a law row is never deleted',
+  $q$DELETE FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'retail'$q$, '23001', 'never deleted');
+SELECT pg_temp.refuses('H5: the table is never truncated',
+  $q$TRUNCATE public.deposit_rules CASCADE$q$, '23001');
+SELECT pg_temp.does('H6: a close is the one edit: the end date, once',
+  $q$UPDATE public.deposit_rules SET effective_to = DATE '2040-01-01' WHERE state_code = 'ZZ' AND customer_class = 'retail'$q$);
+SELECT pg_temp.ok('H6b: … stamped with the closer and the time',
+  (SELECT closed_at IS NOT NULL AND closed_by = session_user AND effective_to = DATE '2040-01-01' FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'retail'));
+SELECT pg_temp.refuses('H7: a second close',
+  $q$UPDATE public.deposit_rules SET effective_to = DATE '2041-01-01' WHERE state_code = 'ZZ' AND customer_class = 'retail'$q$, '23001', 'never edited');
+SELECT pg_temp.refuses('H8: a utility cannot write the law',
+  pg_temp.ins_sql('household', 'tariff', pg_temp.doc()), '42501', 'permission denied', 'tally_app', :'u3');
+SELECT pg_temp.refuses('H9: … nor close it',
+  $q$UPDATE public.deposit_rules SET effective_to = DATE '2050-01-01' WHERE state_code = 'TX'$q$, '42501', 'permission denied', 'tally_app', :'u2');
+SELECT pg_temp.refuses('H10: … nor write a vocabulary or a published value',
+  $q$INSERT INTO public.deposit_triggers (trigger_code, description) VALUES ('x_trigger', 'x')$q$, '42501', 'permission denied', 'tally_app', :'u2');
+SELECT pg_temp.ok('H11: tally_app and tally_core read the law, the vocabularies and the published values, and write none of them',
+  (SELECT bool_and(has_table_privilege('tally_app', t, 'SELECT') AND has_table_privilege('tally_core', t, 'SELECT')
+                   AND NOT has_table_privilege('tally_app', t, 'INSERT, UPDATE, DELETE, TRUNCATE')
+                   AND NOT has_table_privilege('tally_core', t, 'INSERT, UPDATE, DELETE, TRUNCATE'))
+     FROM unnest(ARRAY['public.deposit_rules', 'public.deposit_bases', 'public.deposit_triggers', 'public.deposit_customer_classes',
+                       'public.deposit_waiver_classes', 'public.deposit_return_reasons', 'public.deposit_refund_disqualifiers']) t));
+SELECT pg_temp.ok('H12: the close floor of a law row nothing cites is nothing',
+  public.deposit_rule_close_floor((SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'wholesale')) IS NULL);
+-- rr''s law row is cited by its posting (2026-01-15), the accrual of A1, its two due rows (2026-04-01, 2026-11-01) and its refund (2026-11-01)
+SELECT pg_temp.ok('H13: a law row is held in force through the latest date a record cites it for: a deposit''s posting, an accrual''s period end, a due row''s day, a return''s day',
+  public.deposit_rule_close_floor(pg_temp.law('residential', 'credit_evaluation', 'investor_owned')) = DATE '2026-11-01');
+SELECT pg_temp.refuses('H14: a close on that day is refused, naming the date a citing record needs',
+  format($q$UPDATE public.deposit_rules SET effective_to = DATE '2026-11-01' WHERE id = %L$q$, pg_temp.law('residential', 'credit_evaluation', 'investor_owned')),
+  '23514', 'a citing record needs it in force on 2026-11-01');
+SELECT pg_temp.does('H15: the day after is fine',
+  format($q$UPDATE public.deposit_rules SET effective_to = DATE '2026-11-02' WHERE id = %L$q$, pg_temp.law('residential', 'credit_evaluation', 'investor_owned')));
+-- the utility's tariff
+SELECT pg_temp.refuses('H16: a tariff row is never edited, by its utility or the owner',
+  $q$UPDATE public.deposit_tariffs SET tariff_reference = 'edited' WHERE tariff_category = 'homeowner'$q$, '23001', 'never edited');
+SELECT pg_temp.refuses('H17: … never deleted',
+  $q$DELETE FROM public.deposit_tariffs WHERE tariff_category = 'homeowner'$q$, '23001', 'never deleted');
+SELECT pg_temp.refuses('H18: … never truncated',
+  $q$TRUNCATE public.deposit_tariffs CASCADE$q$, '23001');
+-- changed(sql, user): how many rows a statement changes for that utility's operator (0 if the privilege is missing).
+CREATE FUNCTION pg_temp.changed(p_sql text, p_user text) RETURNS bigint LANGUAGE plpgsql AS $$
+DECLARE n bigint;
+BEGIN
+  PERFORM set_config('app.user_id', p_user, true);
+  SET LOCAL ROLE tally_app;
+  BEGIN
+    EXECUTE p_sql;
+    GET DIAGNOSTICS n = ROW_COUNT;
+  EXCEPTION WHEN insufficient_privilege THEN
+    n := 0;
+  END;
+  RESET ROLE;
+  RETURN n;
+END $$;
+SELECT pg_temp.ok('H19: a utility cannot close another utility''s tariff row: it does not see it, so nothing changes',
+  pg_temp.changed(format($q$UPDATE public.deposit_tariffs SET effective_to = DATE '2060-01-01' WHERE id = %L$q$, pg_temp.tar(:'t1', 'homeowner', DATE '2026-01-15')), :'u2') = 0);
+-- r25:end history
+
+-- r26:begin tenancy
+SELECT pg_temp.ok('H20: each utility reads its own deposit records and no other''s: T2 holds due rows, evidence and withdrawals; T1 sees none of them',
+  (SELECT bool_and(pg_temp.count_as(format('SELECT 1 FROM public.%I', t), 'tally_app', :'u2') > 0 AND pg_temp.count_as(format('SELECT 1 FROM public.%I', t), 'tally_app', :'u1') = 0)
+     FROM unnest(ARRAY['deposit_return_due', 'deposit_return_due_evidence', 'deposit_return_due_withdrawals']) t));
+SELECT pg_temp.ok('H20b: the owed list is each utility''s own: T3 has a return owed (zx, still live) and T1 and T2 see none of it',
+  pg_temp.count_as('SELECT 1 FROM public.deposits_return_owed', 'tally_app', :'u3') > 0
+  AND pg_temp.count_as('SELECT 1 FROM public.deposits_return_owed', 'tally_app', :'u2') = 0
+  AND pg_temp.count_as('SELECT 1 FROM public.deposits_return_owed', 'tally_app', :'u1') = 0);
+SELECT pg_temp.ok('H21: … a utility''s own categories, tariff and rates are its own: T3 sees none of T2''s, T2 none of T3''s',
+  pg_temp.count_as(format($q$SELECT 1 FROM public.deposit_tariffs WHERE tenant_id = %L$q$, :'t2'), 'tally_app', :'u3') = 0
+  AND pg_temp.count_as(format($q$SELECT 1 FROM public.deposit_interest_rates WHERE tenant_id = %L$q$, :'t2'), 'tally_app', :'u3') = 0
+  AND pg_temp.count_as(format($q$SELECT 1 FROM public.deposit_utility_categories WHERE tenant_id = %L$q$, :'t3'), 'tally_app', :'u2') = 0);
+SELECT pg_temp.ok('H22: the law is the platform''s and every utility reads it',
+  pg_temp.count_as('SELECT 1 FROM public.deposit_rules', 'tally_app', :'u1') > 0 AND pg_temp.count_as('SELECT 1 FROM public.deposit_rules', 'tally_app', :'u3') > 0);
+SELECT pg_temp.refuses('H23: a utility cannot withdraw another utility''s due row: it does not see it',
+  format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, 'cross-tenant')$q$, :'t1', :'d3'), '23503', 'not found', 'tally_app', :'u1');
+SELECT pg_temp.refuses('H24: … nor write a tariff row in another utility''s name',
+  pg_temp.tar_sql(:'t2', 'renter', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 99}}'), DATE '2031-01-01'), '42501', 'row-level security', 'tally_app', :'u1');
+SELECT pg_temp.ok('H25: the owed list is read-only to the application',
+  has_table_privilege('tally_app', 'public.deposits_return_owed', 'SELECT') AND NOT has_table_privilege('tally_app', 'public.deposits_return_owed', 'INSERT, UPDATE, DELETE'));
+-- r26:end tenancy
+
+-- r27:begin invariants
+SELECT pg_temp.ok('H26: both tables are registered with the rule-terms template: the law table on the deposit kind, the utility''s table on the deposit_tariff kind and measured against it',
+  (SELECT count(*) = 2 FROM public.rule_tables WHERE table_name IN ('public.deposit_rules'::regclass, 'public.deposit_tariffs'::regclass)
+      AND ((rule_role = 'law' AND terms_kind = 'deposit') OR (rule_role = 'tariff' AND terms_kind = 'deposit_tariff' AND law_table = 'public.deposit_rules'::regclass AND compare_function IS NOT NULL))));
+SELECT pg_temp.does('H27: the template''s invariants hold over both', $q$SELECT public.assert_rule_table_invariants()$q$);
+SELECT pg_temp.does('H28: tenant isolation holds over the new tables and views (AC-32)', $q$SELECT public.assert_tenant_isolation_invariants()$q$);
+SELECT pg_temp.ok('H29: the table comments say the core decides, not the database',
+  obj_description('public.deposit_rules'::regclass, 'pg_class') ~ 'core' AND obj_description('public.deposits'::regclass, 'pg_class') ~ 'core');
+-- r27:end invariants
 
 ROLLBACK;
