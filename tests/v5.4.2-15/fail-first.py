@@ -12,6 +12,7 @@ on a line of its own inside it; the runner keeps those blocks as well.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -56,6 +57,9 @@ def main() -> int:
         text = r.stdout + r.stderr
         labels = re.findall(r"pg_temp\.(?:refuses|does|ok|does_as)\('(\w+):", block)
         print(f"{n}:")
+        if os.environ.get("FF_SHOW"):
+            for line in [l for l in text.splitlines() if "ERROR" in l][:3]:
+                print("     !", line[:230])
         for lab in labels:
             if re.search(rf"PASS {lab}:", text):
                 print(f"   {lab}: passes")

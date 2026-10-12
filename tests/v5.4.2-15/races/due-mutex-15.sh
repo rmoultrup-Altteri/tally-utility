@@ -13,13 +13,13 @@
 #   R5  A records an accrual and holds; B's backdated rate waits on the rate
 #       lock, then is refused when A commits (review r1 A2).
 #   R6  a rate inserted under REPEATABLE READ is refused (review r1 A2).
-#   R7  A records a waiver determination citing a tariff ground and holds;
-#       B's close of the ground before that date waits on A's share lock,
-#       then counts A and is refused (review r2 I5).
-#   R8  a ground closed under REPEATABLE READ is refused (review r2 I5).
-#   R9  A records a deposit citing a tariff trigger threshold and holds; B's
-#       close of the threshold before its posting waits, then is refused.
-#   R10 a tariff threshold closed under REPEATABLE READ is refused.
+#   R7  A records a deposit citing the Texas law row and holds; B's close of
+#       the row from before its posting waits on A's share lock, then counts
+#       A's deposit in the floor and is refused (the template's handshake).
+#   R8  a law row closed under REPEATABLE READ is refused.
+#   R9  A records a deposit citing the utility's tariff row and holds; B's close
+#       of the tariff row before that posting waits, then is refused.
+#   R10 a tariff row closed under REPEATABLE READ is refused.
 # Runs against a THROWAWAY clone (it commits rows).
 #   usage: due-mutex-15.sh <db>      (default: s15)
 set -uo pipefail
@@ -38,7 +38,6 @@ D3=00000000-0000-4000-8000-000000001503
 D4=00000000-0000-4000-8000-000000001504
 D5=00000000-0000-4000-8000-000000001505
 DUE4=00000000-0000-4000-8000-0000000015a4
-G=00000000-0000-4000-8000-0000000015a5
 TH=00000000-0000-4000-8000-0000000015a6
 
 "${PSQL[@]}" <<SQL >/dev/null
@@ -52,27 +51,33 @@ INSERT INTO public.billing_runs (id, tenant_id, run_number, billing_period, peri
 INSERT INTO public.invoices (id, tenant_id, invoice_number, billing_run_id, customer_id, location_id, invoice_type,
        invoice_date, billing_period, period_start, period_end, due_date, amount_due)
   VALUES ('$I', '$T', 'RACE-1', '$R', '$C', '$L', 'regular', DATE '2026-04-01', '2026-03', DATE '2026-03-01', DATE '2026-03-31', DATE '2026-04-21', 50);
-INSERT INTO public.deposits (id, tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type,
-                             customer_class, rule_id, cap_amount, cap_basis_kind, cap_basis_amount, cap_source, decided_by)
-SELECT d.id, '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-02-01', 'TX', 'gas', 'residential', r.id,
-       100, 'fraction_of_annual_billing', 600, 'statute', 'core-test'
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                             effective_from, evidence_reference, evidence_date)
+  VALUES ('$T', 'gas', 'distribution', 'TX', 'investor_owned', true, DATE '2000-01-01', 'RRC certificate race15', DATE '2000-01-01');
+INSERT INTO public.rule_parameter_values (parameter_name, state_code, effective_from, value, source_note)
+  VALUES ('tx_deposit_interest_rate', 'TX', DATE '2019-01-01', 0.02, 'race fixture, not a real publication');
+INSERT INTO public.deposits (id, tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type, system_kind,
+                             customer_class, rule_id, cap_amount, cap_source, cap_component, cap_basis_amount, decided_by)
+SELECT d.id, '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-02-01', 'TX', 'gas', 'distribution', 'residential', r.id,
+       100, 'statute', 'c1', 600, 'core-test'
   FROM (VALUES ('$D1'::uuid), ('$D2'::uuid), ('$D3'::uuid), ('$D4'::uuid), ('$D5'::uuid)) AS d(id),
        (SELECT id FROM public.deposit_rules WHERE state_code = 'TX' AND service_type = 'gas' AND customer_class = 'residential'
-           AND basis = 'credit_evaluation' AND effective_to IS NULL) r;
+           AND basis = 'credit_evaluation' AND effective_to IS NULL AND owner_types @> ARRAY['investor_owned']) r;
 INSERT INTO public.deposit_interest_rates (tenant_id, state_code, service_type, effective_date, annual_rate)
   VALUES ('$T', 'TX', 'gas', DATE '2020-01-01', 0.03);
--- For R7-R9: a tariff waiver ground and a tariff NSF threshold of the utility's.
-INSERT INTO public.deposit_tariff_waiver_grounds (id, tenant_id, state_code, service_type, ground_code, description, tariff_reference, effect, effective_from)
-  VALUES ('$G', '$T', 'TX', 'gas', 'medical_hardship', 'Medical hardship.', 'Race tariff 4.1', 'excuse', DATE '2026-01-01');
-INSERT INTO public.deposit_tariff_trigger_thresholds (id, tenant_id, state_code, service_type, trigger_code, measure, min_count, window_months, tariff_reference, effective_from)
-  VALUES ('$TH', '$T', 'TX', 'gas', 'nsf', 'event_count', 2, 12, 'Race tariff 9.1', DATE '2026-01-01');
+-- For R9-R10: a category of the utility's and a tariff row for it.
+INSERT INTO public.deposit_utility_categories (tenant_id, state_code, service_type, category_code, law_class, description)
+  VALUES ('$T', 'TX', 'gas', 'residential', 'residential', 'race category');
+INSERT INTO public.deposit_tariffs (id, tenant_id, state_code, service_type, system_kind, tariff_category, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
+  VALUES ('$TH', '$T', 'TX', 'gas', 'distribution', 'residential', DATE '2026-01-01', 'Race tariff 4.1', 'deposit_tariff', 1,
+          '{"citation": "Race tariff 4.1", "amount": {"strategy": "fixed", "version": 1, "amount": 100}, "triggers": [], "waivers": [], "instalments": []}');
 -- D4 carries a live due row (committed), for R4.
 BEGIN;
 SET CONSTRAINTS ALL DEFERRED;
 INSERT INTO public.deposit_return_due (id, tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
 SELECT '$DUE4', '$T', d.id, d.rule_id, DATE '2026-04-02', '{}', 'fp', 'core-test' FROM public.deposits d WHERE d.id = '$D4';
-INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, invoice_id, classification)
-VALUES ('$T', '$DUE4', 'clean_bill_history', '$I', 'clean');
+INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification)
+VALUES ('$T', '$DUE4', 'clean_bill_history', 'r1', '$I', 'clean');
 COMMIT;
 SQL
 
@@ -83,8 +88,8 @@ SET LOCAL app.user_id = '$U';
 SET ROLE tally_app;
 INSERT INTO public.deposit_return_due (id, tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
 SELECT '$1', '$T', d.id, d.rule_id, DATE '2026-04-02', '{}', 'fp', 'core-test' FROM public.deposits d WHERE d.id = '$2';
-INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, invoice_id, classification)
-VALUES ('$T', '$1', 'clean_bill_history', '$I', 'clean');
+INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification)
+VALUES ('$T', '$1', 'clean_bill_history', 'r1', '$I', 'clean');
 SELECT pg_sleep($3);
 COMMIT;
 SQL
@@ -206,59 +211,55 @@ if grep -q "only under READ COMMITTED" <<<"$OUT"; then
 else
   echo "FAIL R6: $OUT"; fail=1
 fi
-# R7: A determines a waiver on the ground (May 1) and holds; B closes the ground from Apr 1.
+# R7: A takes a deposit citing the Texas law row (posted May 1) and holds; B closes the row from Apr 1.
+LAWROW="(SELECT id FROM public.deposit_rules WHERE state_code = 'TX' AND service_type = 'gas' AND customer_class = 'residential' AND basis = 'credit_evaluation' AND effective_to IS NULL AND owner_types @> ARRAY['investor_owned'])"
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 BEGIN;
 SET LOCAL app.user_id = '$U';
 SET ROLE tally_app;
-INSERT INTO public.deposit_waiver_determinations (tenant_id, customer_id, state_code, service_type, waiver_class, determined_on, determined_by, tariff_ground_id)
-VALUES ('$T', '$C', 'TX', 'gas', 'tariff', DATE '2026-05-01', '$U', '$G');
+INSERT INTO public.deposits (tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type, system_kind,
+                             customer_class, rule_id, cap_amount, cap_source, cap_component, cap_basis_amount, decided_by)
+SELECT '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-05-01', 'TX', 'gas', 'distribution', 'residential', r.id,
+       100, 'statute', 'c1', 600, 'core-test' FROM $LAWROW r;
 SELECT pg_sleep(3);
 COMMIT;
 SQL
 sleep 1
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN;
-SET LOCAL app.user_id = '$U';
-SET ROLE tally_app;
-UPDATE public.deposit_tariff_waiver_grounds SET effective_to = DATE '2026-04-01' WHERE id = '$G';
+UPDATE public.deposit_rules SET effective_to = DATE '2026-04-01' WHERE id = $LAWROW;
 COMMIT;
 SQL
 )
 wait
-if grep -q "a determination cites it for 2026-05-01" <<<"$OUT"; then
-  echo "PASS R7: a ground closed while a determination citing it is in flight waits on its share lock, then counts it and is refused"
+if grep -q "a citing record needs it in force on 2026-05-01" <<<"$OUT"; then
+  echo "PASS R7: a law row closed while a deposit citing it is in flight waits on its share lock, then counts it and is refused"
 else
   echo "FAIL R7: B said: $OUT (A: $(cat "$A_OUT"))"; fail=1
 fi
 
-# R8: a ground closed under REPEATABLE READ.
+# R8: a law row closed under REPEATABLE READ.
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ;
-SET LOCAL app.user_id = '$U';
-SET ROLE tally_app;
-UPDATE public.deposit_tariff_waiver_grounds SET effective_to = DATE '2027-01-01' WHERE id = '$G';
+UPDATE public.deposit_rules SET effective_to = DATE '2040-01-01' WHERE id = $LAWROW;
 COMMIT;
 SQL
 )
-if grep -q "a close runs only under READ COMMITTED" <<<"$OUT"; then
-  echo "PASS R8: a tariff ground is closed only under READ COMMITTED (its count could otherwise read a snapshot from before the wait)"
+if grep -q "runs only under READ COMMITTED" <<<"$OUT"; then
+  echo "PASS R8: a law row is closed only under READ COMMITTED"
 else
   echo "FAIL R8: $OUT"; fail=1
 fi
 
-# R9: A takes an NSF deposit citing the tariff threshold (posted May 1) and holds; B closes the threshold from Apr 1.
+# R9: A takes a deposit citing the utility's tariff row (posted May 1) and holds; B closes the tariff row from Apr 1.
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 BEGIN;
 SET LOCAL app.user_id = '$U';
 SET ROLE tally_app;
-INSERT INTO public.deposits (tenant_id, customer_id, basis, trigger_basis, instrument, principal, posted_on, state_code, service_type,
-                             customer_class, rule_id, cap_amount, cap_basis_kind, cap_basis_amount, cap_source, decided_by,
-                             trigger_threshold_source, trigger_tariff_threshold_id, trigger_observed)
-SELECT '$T', '$C', 'additional_trigger', 'nsf', 'cash', 100, DATE '2026-05-01', 'TX', 'gas', 'residential', r.id,
-       100, 'fraction_of_annual_billing', 600, 'statute', 'core-test', 'tariff', '$TH', 2
-  FROM public.deposit_rules r WHERE r.state_code = 'TX' AND r.service_type = 'gas' AND r.customer_class = 'residential'
-   AND r.basis = 'additional_trigger' AND r.effective_to IS NULL;
+INSERT INTO public.deposits (tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type, system_kind,
+                             customer_class, tariff_category, rule_id, tariff_id, cap_amount, cap_source, decided_by)
+SELECT '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-05-01', 'TX', 'gas', 'distribution', 'residential', 'residential', r.id, '$TH',
+       100, 'tariff', 'core-test' FROM $LAWROW r;
 SELECT pg_sleep(3);
 COMMIT;
 SQL
@@ -267,27 +268,27 @@ OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN;
 SET LOCAL app.user_id = '$U';
 SET ROLE tally_app;
-UPDATE public.deposit_tariff_trigger_thresholds SET effective_to = DATE '2026-04-01' WHERE id = '$TH';
+UPDATE public.deposit_tariffs SET effective_to = DATE '2026-04-01' WHERE id = '$TH';
 COMMIT;
 SQL
 )
 wait
-if grep -q "a deposit cites it for 2026-05-01" <<<"$OUT"; then
-  echo "PASS R9: a tariff threshold closed while a deposit citing it is in flight waits on its share lock, then counts it and is refused"
+if grep -q "a citing record needs it in force on 2026-05-01" <<<"$OUT"; then
+  echo "PASS R9: a tariff row closed while a deposit citing it is in flight waits on its share lock, then counts it and is refused"
 else
   echo "FAIL R9: B said: $OUT (A: $(cat "$A_OUT"))"; fail=1
 fi
-# R10: a threshold closed under REPEATABLE READ.
+# R10: a tariff row closed under REPEATABLE READ.
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ;
 SET LOCAL app.user_id = '$U';
 SET ROLE tally_app;
-UPDATE public.deposit_tariff_trigger_thresholds SET effective_to = DATE '2027-01-01' WHERE id = '$TH';
+UPDATE public.deposit_tariffs SET effective_to = DATE '2027-01-01' WHERE id = '$TH';
 COMMIT;
 SQL
 )
-if grep -q "a close runs only under READ COMMITTED" <<<"$OUT"; then
-  echo "PASS R10: a tariff threshold is closed only under READ COMMITTED"
+if grep -q "runs only under READ COMMITTED" <<<"$OUT"; then
+  echo "PASS R10: a tariff row is closed only under READ COMMITTED"
 else
   echo "FAIL R10: $OUT"; fail=1
 fi

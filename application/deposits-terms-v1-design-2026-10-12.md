@@ -109,7 +109,7 @@ Not yet tested: facet checks against vocabularies, component ids, and the 64-lev
 
 ## 8. The document format as the test fixtures fix it (2026-10-12)
 
-The fixtures under `law/deposit/examples/` and `law/fixtures/deposit-states/` are the contract the schema file is written to; `tests/v5.4.2-15/terms-15.py` fails until `law/deposit/deposit.v1.schema.json` matches them. Differences from the sketch in sections 2 and 3:
+The fixtures under `law/deposit/examples/` and `law/fixtures/deposit-states/examples/` are the contract the schema file is written to; `tests/v5.4.2-15/terms-15.py` fails until `law/deposit/deposit.v1.schema.json` matches them. Differences from the sketch in sections 2 and 3:
 
 - A ratio condition is `{kind: ratio, measure, op: at_least | greater_than, value}` (Arkansas's usage trigger is "more than the estimate", not "at least 1.01 times").
 - A count condition is `{kind: count, event, at_least, window: {unit: months | bills, size}, consecutive, exclude_disputed}`. A delinquency definition is an event in the vocabulary (for example `past_due_over_30_days`), not a separate construct.

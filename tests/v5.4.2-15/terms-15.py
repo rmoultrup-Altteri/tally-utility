@@ -34,7 +34,7 @@ import lawc  # noqa: E402
 SCHEMA = ROOT / "law" / "deposit" / "deposit.v1.schema.json"
 TARIFF_SCHEMA = ROOT / "law" / "deposit" / "deposit_tariff.v1.schema.json"
 EXAMPLES = ROOT / "law" / "deposit" / "examples"
-VALID_DOCS = sorted(EXAMPLES.glob("deposit.*.yaml")) + sorted((ROOT / "law" / "fixtures" / "deposit-states").glob("*.yaml"))
+VALID_DOCS = sorted(EXAMPLES.glob("deposit.*.yaml")) + sorted((ROOT / "law" / "fixtures" / "deposit-states" / "examples").glob("*.yaml"))
 TARIFF_DOCS = sorted(EXAMPLES.glob("deposit_tariff.*.yaml"))
 
 COMMON_RETURN = {"instruments": ["cash"], "conditions": [], "minimum_amount": {"kind": "none"},
