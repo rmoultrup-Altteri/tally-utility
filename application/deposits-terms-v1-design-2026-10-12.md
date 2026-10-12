@@ -118,3 +118,19 @@ The fixtures under `law/deposit/examples/` and `law/fixtures/deposit-states/` ar
 - A return rule is `{id, when: {reason: ...}, instruments, conditions, minimum_amount, deadline, hold_while, vests}`; the reason-specific fields sit inside `when`. `clean_bill_history` carries `exclude_disputed`.
 - "The law does not say" is spelled `unruled` where the schema allows it: a cap (`strategy: unruled`), a day count, an interest credit. It is never `none` and never absent. Louisiana's fixture uses it because the Commission's rule was not located.
 - A rate is `{kind: published, name, binding, by_hold}`, `{kind: fixed, rate, binding}` or `{kind: utility_sets}`; `binding` is `minimum` or `reference` and is always written (decision 4).
+
+## 9. The database tests (started 2026-10-12)
+
+`tests/v5.4.2-15/battery-15r.sql` is the rewrite's battery, replacing `battery-15.sql` (the first draft's). It is written before the patch and fails first; its blocks are marked `-- rN:begin NAME` so a fail-first runner can run each alone. The first slice is the law side:
+
+| Group | What it proves |
+|---|---|
+| S | The `deposit` v1 kind is registered with its four facets (trigger codes, waiver classes, return reasons, cap part ids); the vocabularies exist and hold every code the schema and the Texas rows name; the first draft's child tables are not in the database. |
+| M | `deposit_rules` is a registered law table keyed by class and basis; the draft's typed content columns and the -06 Texas law (functions and view) are gone; the template's invariants hold. |
+| K | The eight investor-owned Texas rows hold exactly the documents -06's truth table gives; a city-owned system gets eight delegations, so its deposit policy is its own tariff. |
+| D | The schema's refusals reach the table (including each out-of-scope shape and a rate that does not say whether it binds). |
+| X | The area's insert check: each cap part kind once, in order; a single cap has one part, a lesser-of two or more; instalments add up to 1, in day order; a trigger code, waiver class or return reason the vocabulary lacks is refused; a waiver cannot reach a trigger the document lacks; one trigger and one return rule per code. |
+
+Still to write: P (published values and the interest floor), U (the utility's tariff record and "never looser than the law"), R (records cite what they were decided under; the return-due record), H (history, grants, tenancy), and the migration-time tests.
+
+An open design point for U, to put to Ryan before those tests are written: the utility's tariff is keyed on the utility's own customer classes. A city's classes are not the law's, so the tariff's class column must not share a name with the law table's (the template compares only shared key columns), and the deposit comparator must say which law classes a tariff class corresponds to.
