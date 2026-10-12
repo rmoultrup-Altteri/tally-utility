@@ -4,6 +4,32 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-12 — the deposits rewrite (-15): five decisions, design pass, deposit and tariff schemas, and the law/utility/record tests (all written before the patch)
+
+**What was done:**
+- Resumed from the -18 HANDOFF; Ryan asked what the -15 rewrite is, then had its open questions raised one at a time in plain language (new working rule, memory `one-decision-at-a-time-plain-language`). Five decisions recorded in memory `deposits-rewrite-decisions`: (1) customer type stays on the utility's own interest rate, not the published one; (2) the utility's deposit rules are one tariff record per category; (3) v1 scope (flexible condition tree and interest-method union in; 6 shapes out, written down); (4) a state-set interest rate is a floor the utility's rate may not go below; (5) a utility defines its own deposit categories, each mapped to one law class.
+- **Research by sub-agents (Sonnet 5.5):** Florida gas rule 25-7.083 (2% minimum, 3% for qualifying nonresidential kept past 23 months; text via Cornell mirror, official text and municipal coverage unverified) and city deposit practice (Winona, Brenham, Canton, Fairview, Temple go finer than residential/commercial; Oracle CC&B supports utility-defined deposit classes; Tyler, Harris, CentralSquare etc. unverified).
+- **Design pass** `application/deposits-terms-v1-design-2026-10-12.md`: 29 survey gaps, 23 held by v1, 6 refused on purpose. Validator check against the live `rule_terms_*` functions: a recursive condition tree via `$ref` works (12 levels tested, cap 64 document levels); "both or neither" pairs and effects must be unions; enum or const on numbers, `anyOf`, `format`, other patterns and null are refused.
+- **Schemas and fixtures:** `law/deposit/deposit.v1.schema.json` (91 defs), `deposit_tariff.v1.schema.json` (38 defs; adds an `amount` section: none / fixed / months of average or highest bill with a minimum / case by case), 5 Texas + 4 tariff examples, 7 other-state fixtures (never seeded).
+- **`tests/v5.4.2-15/terms-15.py`:** green; both validators agree on 34,594 law and 1,456 tariff documents, 37 must-refuse cases (each out-of-scope shape included) refused with their reasons.
+- **`tests/v5.4.2-15/battery-15r.sql`** (853 lines, about 145 checks, red by design: first error `relation "public.deposit_customer_classes" does not exist`). Groups S, M, K, D, X (law side); C, U, N (categories, tariff table, never looser than the law); P and F (published values, the interest floor); R (a deposit cites the law row and the tariff row); A (an accrual cites the rate row and the law row; a successor row after a law change is citable).
+- Commits `238b2c9`, `121f884`, `6140bcd`, `d15c406`, `f1e80da`, `fc91672`, `0a5ce5e`, all pushed to main. No `sql/` change.
+
+**Failed approaches / mechanisms:**
+- macOS has no `timeout`: `(eval):10: command not found: timeout`, exit 127, the test run never started.
+- A bulk replace of `"fraction": 0.5` in the runner also rewrote the non-canonical-number case so it matched nothing and reported a false "was not refused"; the case now asserts its edit applied.
+- Floats in the runner: `lawc.LawError: cannot serialise float` (use `Decimal`).
+- `INSERT ... SELECT 'literal'` does not coerce text to numeric; `INSERT ... VALUES` does.
+- Overlapping tariff dates in group N would have failed on the exclusion constraint rather than the guard under test; fixed to one tariff at a time.
+
+**Decisions and why:** see the five above. Also: a flat tariff amount is not compared with a billing-fraction cap when written (not comparable; each deposit's own recorded cap check holds it); a trigger or waiver ground the law is silent on is the utility's own; the tariff key column must not share a name with the law key (the template compares shared key columns only), and the category's mapped law class picks the law rows to compare and the row a deposit cites.
+
+**Lessons:** read the reference implementation (-18, the ZZ fixture) before inventing interfaces; research-agent output is data, not truth (Florida's text is a mirror, municipal reach an inference); one decision per message, in plain words, was the working mode Ryan wanted.
+
+**Next:** the return-due record tests (adapt the old group F and N), group H and migration tests, a fail-first runner for `battery-15r`, then the patch (rewrite of `sql/v5.4.2-15-deposits-law-to-core.sql`), mutations, three reviewers, freeze, mirror on approval. Carried over: the backbilling tariff table; GitHub Actions version bump; verify Florida's official text before loading any Florida row.
+
+---
+
 ## 2026-10-10 — v5.4.2-18: Codex's r4 review folded (r5), the lock (r6); all three ready; MIRRORED into tu.sql (31,380 lines)
 
 **What was done:**
