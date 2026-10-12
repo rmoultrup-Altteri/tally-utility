@@ -1,0 +1,46 @@
+# Texas gas, NON-residential, the additional-deposit basis: no statutory cap (Kyle question K1), the usage trigger (7.45(5)(C)(ii)); otherwise as residential.
+governs: law
+citation: 16 TAC 7.45
+cap: {strategy: none, version: 1}
+triggers:
+  - id: t1
+    trigger_code: usage_doubled
+    condition: {kind: ratio, measure: usage_to_estimate, op: at_least, value: 2}
+    guards:
+      - {kind: payment_due_days, days: 2}
+waivers:
+  - {id: w1, waiver_class: family_violence_certified, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: false, disqualified_by: {kind: none}}
+  - {id: w2, waiver_class: age_65_no_balance, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: false, disqualified_by: {kind: none}}
+  - {id: w3, waiver_class: good_payment_history, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: false, disqualified_by: {kind: none}}
+  - {id: w4, waiver_class: tariff, applies_to: {kind: any_trigger}, effect: {kind: excuse}, also_releases_held: false, disqualified_by: {kind: none}}
+interest:
+  strategy: bearing
+  version: 1
+  instruments: [cash]
+  rate: {kind: published, name: tx_deposit_interest_rate, binding: minimum, by_hold: []}
+  method: {kind: simple}
+  day_count: actual_365
+  hold: {kind: minimum, days: 30, retroactive: true}
+  credit: {kind: at_refund}
+  stops_on: [refund]
+  forfeited_on: []
+  penalty: {kind: none}
+  rounding: {kind: none}
+return:
+  - id: r1
+    when: {reason: clean_bill_history, count: 12, measure: bills, max_delinquencies: 2, lookback: {kind: whole_hold}, disqualifiers: [disconnect_nonpayment], exclude_disputed: false}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+  - id: r2
+    when: {reason: account_closed}
+    instruments: [cash]
+    conditions: []
+    minimum_amount: {kind: none}
+    deadline: {kind: none}
+    hold_while: []
+    vests: unruled
+instalments: []

@@ -1,4 +1,4 @@
-# Texas gas, NON-residential, every 7.45 basis: no statutory cap (Kyle question K1); otherwise as residential.
+# Texas gas, NON-residential, the credit-evaluation and tariff bases: no statutory cap (Kyle question K1); otherwise as residential.
 governs: law
 citation: 16 TAC 7.45
 cap: {strategy: none, version: 1}

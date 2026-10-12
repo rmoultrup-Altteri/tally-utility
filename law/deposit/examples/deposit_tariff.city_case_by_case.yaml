@@ -1,0 +1,6 @@
+# A city-owned system that sets commercial deposits for each customer from history (after Winona).
+citation: City utility deposit schedule, commercial
+amount: {strategy: case_by_case, version: 1}
+triggers: []
+waivers: []
+instalments: []

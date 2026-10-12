@@ -1,0 +1,769 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "citation",
+    "amount",
+    "triggers",
+    "waivers",
+    "instalments"
+  ],
+  "properties": {
+    "citation": {
+      "$ref": "#/$defs/citation"
+    },
+    "amount": {
+      "$ref": "#/$defs/amount"
+    },
+    "triggers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trigger"
+      },
+      "maxItems": 16
+    },
+    "waivers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tariff_waiver"
+      },
+      "maxItems": 16
+    },
+    "instalments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/instalment"
+      },
+      "maxItems": 12
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/deposit/deposit_tariff.v1.schema.json",
+  "title": "Deposit tariff, version 1",
+  "description": "A utility's own deposit policy for one of its customer categories: the amount it requires, the triggers it adds, the grounds on which it waives, and any instalment schedule. Compared with the law by the area's comparator on every write (never looser than the law); for a city-owned system whose law row delegates, there is nothing to compare. Not in version 1: recalculation, bill-anchored instalments, guarantor limits, deposit funds (application/deposits-terms-v1-design-2026-10-12.md, section 4).",
+  "$defs": {
+    "citation": {
+      "type": "string",
+      "pattern": "[A-Za-z0-9]"
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cond_count"
+        },
+        {
+          "$ref": "#/$defs/cond_ratio"
+        },
+        {
+          "$ref": "#/$defs/cond_all"
+        },
+        {
+          "$ref": "#/$defs/cond_any"
+        }
+      ]
+    },
+    "cond_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "event",
+        "at_least",
+        "window",
+        "consecutive",
+        "exclude_disputed"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "count"
+        },
+        "event": {
+          "$ref": "#/$defs/code"
+        },
+        "at_least": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window": {
+          "$ref": "#/$defs/window"
+        },
+        "consecutive": {
+          "type": "boolean"
+        },
+        "exclude_disputed": {
+          "type": "boolean"
+        }
+      },
+      "description": "At least N of an event in a window. consecutive: the N must be in a row. exclude_disputed: disputed bills do not count. A delinquency definition is an event in the vocabulary (for example past_due_over_30_days)."
+    },
+    "cond_ratio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "measure",
+        "op",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ratio"
+        },
+        "measure": {
+          "type": "string",
+          "enum": [
+            "usage_to_estimate",
+            "final_bill_to_class_average"
+          ]
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "at_least",
+            "greater_than"
+          ]
+        },
+        "value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "A measured ratio compared with a value. The core supplies the measure."
+    },
+    "cond_all": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "of"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "all_of"
+        },
+        "of": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          },
+          "minItems": 2,
+          "maxItems": 6
+        }
+      },
+      "description": "Every one of the conditions holds."
+    },
+    "cond_any": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "of"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any_of"
+        },
+        "of": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          },
+          "minItems": 2,
+          "maxItems": 6
+        }
+      },
+      "description": "At least one of the conditions holds."
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "size"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "enum": [
+            "months",
+            "bills"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "A span counted in calendar months or in bills."
+    },
+    "guard": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/g_pay"
+        },
+        {
+          "$ref": "#/$defs/g_age"
+        },
+        {
+          "$ref": "#/$defs/g_move"
+        },
+        {
+          "$ref": "#/$defs/g_assess"
+        },
+        {
+          "$ref": "#/$defs/g_notice"
+        },
+        {
+          "$ref": "#/$defs/g_cure"
+        },
+        {
+          "$ref": "#/$defs/g_since"
+        }
+      ]
+    },
+    "g_pay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "payment_due_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Days the customer has to pay once required (Texas usage deposit: 2)."
+    },
+    "g_age": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "months"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "not_after_service_months"
+        },
+        "months": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The trigger cannot be used after this many months of service (Arkansas usage trigger: 12)."
+    },
+    "g_move": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "not_if_moved_within_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "No re-assessment when service moves to a new location within this many days."
+    },
+    "g_assess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "assess_within_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The deposit must be assessed within this many days of the event."
+    },
+    "g_notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "notice_days"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "Written notice this many days before assessment."
+    },
+    "g_cure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "cure_code"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "cured_by"
+        },
+        "cure_code": {
+          "$ref": "#/$defs/code"
+        }
+      },
+      "description": "A customer action entered before assessment cancels the trigger (a kept payment arrangement)."
+    },
+    "g_since": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "event",
+        "years"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "not_after_cumulative_service_years_since"
+        },
+        "event": {
+          "$ref": "#/$defs/code"
+        },
+        "years": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The trigger lapses after this many years of cumulative service since the event."
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "trigger_code",
+        "condition",
+        "guards"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "trigger_code": {
+          "$ref": "#/$defs/code"
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        },
+        "guards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/guard"
+          },
+          "maxItems": 6
+        }
+      },
+      "description": "An additional-deposit trigger the law allows: when the condition holds (and no guard stops it), a deposit may be required."
+    },
+    "applies_to": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/applies_any"
+        },
+        {
+          "$ref": "#/$defs/applies_trigger"
+        }
+      ]
+    },
+    "applies_any": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any_trigger"
+        }
+      },
+      "description": "Reaches a deposit under any trigger."
+    },
+    "applies_trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "trigger_code"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "trigger"
+        },
+        "trigger_code": {
+          "$ref": "#/$defs/code"
+        }
+      },
+      "description": "Reaches a deposit under this trigger only."
+    },
+    "effect": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/effect_excuse"
+        },
+        {
+          "$ref": "#/$defs/effect_reduce"
+        },
+        {
+          "$ref": "#/$defs/effect_defer"
+        }
+      ]
+    },
+    "effect_excuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "excuse"
+        }
+      },
+      "description": "The deposit is not required."
+    },
+    "effect_reduce": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "fraction"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "reduce"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        }
+      },
+      "description": "The deposit is reduced by this fraction."
+    },
+    "effect_defer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "defer"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "The deposit is deferred by this many days."
+    },
+    "disqualified_by": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/disq_none"
+        },
+        {
+          "$ref": "#/$defs/disq_condition"
+        }
+      ]
+    },
+    "disq_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      },
+      "description": "The waiver has no disqualifier of its own."
+    },
+    "disq_condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "condition"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "condition"
+        },
+        "condition": {
+          "$ref": "#/$defs/condition"
+        }
+      },
+      "description": "The waiver is lost while this condition holds (New York: terminated for nonpayment in the past six months)."
+    },
+    "instalment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fraction",
+        "days_after"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "days_after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "A fixed-schedule instalment: this fraction of the deposit, this many days after the determination. The fractions summing to 1 is the area's insert check. Instalments tied to bills are not in version 1."
+    },
+    "amount_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "none"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      },
+      "description": "The tariff states no required amount of its own: the law's cap, or the core's decision, governs."
+    },
+    "amount_fixed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "amount"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "fixed"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "A flat deposit (Brenham: homeowner 150, renter 250, landlord 300)."
+    },
+    "amount_months": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "months",
+        "of",
+        "minimum_amount"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "months_of_billing"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "months": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "of": {
+          "type": "string",
+          "enum": [
+            "average",
+            "highest"
+          ]
+        },
+        "minimum_amount": {
+          "$ref": "#/$defs/minimum_amount"
+        }
+      },
+      "description": "This many months of the customer's average or highest monthly bill, not less than the minimum (Brenham commercial: twice the highest monthly bill, minimum 300)."
+    },
+    "amount_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "case_by_case"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      },
+      "description": "The utility sets the amount for each customer from the customer's history (Winona commercial)."
+    },
+    "amount": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/amount_none"
+        },
+        {
+          "$ref": "#/$defs/amount_fixed"
+        },
+        {
+          "$ref": "#/$defs/amount_months"
+        },
+        {
+          "$ref": "#/$defs/amount_case"
+        }
+      ]
+    },
+    "min_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "min_amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "amount"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "amount"
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "description": "No refund below this amount."
+    },
+    "minimum_amount": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/min_none"
+        },
+        {
+          "$ref": "#/$defs/min_amount"
+        }
+      ]
+    },
+    "tariff_waiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ground",
+        "applies_to",
+        "effect",
+        "also_releases_held",
+        "disqualified_by"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "ground": {
+          "$ref": "#/$defs/code"
+        },
+        "applies_to": {
+          "$ref": "#/$defs/applies_to"
+        },
+        "effect": {
+          "$ref": "#/$defs/effect"
+        },
+        "also_releases_held": {
+          "type": "boolean"
+        },
+        "disqualified_by": {
+          "$ref": "#/$defs/disqualified_by"
+        }
+      },
+      "description": "A ground on which the utility's own tariff waives a deposit, in the utility's own name for it. The law only grants the permission (a waiver class that is tariff-defined)."
+    }
+  }
+}

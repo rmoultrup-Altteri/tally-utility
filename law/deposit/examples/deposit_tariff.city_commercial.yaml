@@ -1,0 +1,11 @@
+# A city-owned system's commercial category: twice the highest monthly bill, not less than 300 (after Brenham).
+citation: City utility deposit schedule, commercial
+amount:
+  strategy: months_of_billing
+  version: 1
+  months: 2
+  of: highest
+  minimum_amount: {kind: amount, amount: 300}
+triggers: []
+waivers: []
+instalments: []

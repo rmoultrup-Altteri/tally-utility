@@ -32,8 +32,10 @@ sys.path.insert(0, str(ROOT / "tools" / "law"))
 import lawc  # noqa: E402
 
 SCHEMA = ROOT / "law" / "deposit" / "deposit.v1.schema.json"
-VALID_DOCS = sorted((ROOT / "law" / "deposit" / "examples").glob("*.yaml")) + \
-             sorted((ROOT / "law" / "fixtures" / "deposit-states").glob("*.yaml"))
+TARIFF_SCHEMA = ROOT / "law" / "deposit" / "deposit_tariff.v1.schema.json"
+EXAMPLES = ROOT / "law" / "deposit" / "examples"
+VALID_DOCS = sorted(EXAMPLES.glob("deposit.*.yaml")) + sorted((ROOT / "law" / "fixtures" / "deposit-states").glob("*.yaml"))
+TARIFF_DOCS = sorted(EXAMPLES.glob("deposit_tariff.*.yaml"))
 
 COMMON_RETURN = {"instruments": ["cash"], "conditions": [], "minimum_amount": {"kind": "none"},
                  "deadline": {"kind": "none"}, "hold_while": [], "vests": "unruled"}
@@ -55,8 +57,8 @@ BASE = {
 }
 
 
-def edit(fn):
-    d = copy.deepcopy(BASE)
+def edit(fn, base=None):
+    d = copy.deepcopy(BASE if base is None else base)
     fn(d)
     return d
 
@@ -111,7 +113,31 @@ REFUSE = [
     # ids and numbers
     ("a repeated component id", setv(["instalments", 1, "id"], "i1"), "component ids must be unique"),
 ]
-NON_CANONICAL = ("a non-canonical number", '{"governs":"law"}', None)
+TARIFF_BASE = {
+    "citation": "Gas tariff, deposits",
+    "amount": {"strategy": "months_of_billing", "version": 1, "months": 1, "of": "average", "minimum_amount": {"kind": "none"}},
+    "triggers": [], "waivers": [
+        {"id": "w1", "ground": "military_deployment", "applies_to": {"kind": "any_trigger"}, "effect": {"kind": "excuse"},
+         "also_releases_held": False, "disqualified_by": {"kind": "none"}}],
+    "instalments": [{"id": "i1", "fraction": Decimal("0.5"), "days_after": 0}, {"id": "i2", "fraction": Decimal("0.5"), "days_after": 30}],
+}
+TARIFF_REFUSE = [
+    ("tariff: a law-style cap section", setv(["cap"], {"strategy": "none", "version": 1}), "/cap: unknown key"),
+    ("tariff: a missing amount", drop(["amount"]), "/amount: required"),
+    ("tariff: a fixed amount with no figure", setv(["amount"], {"strategy": "fixed", "version": 1}), "/amount/amount: required"),
+    ("tariff: a fixed amount of zero", setv(["amount"], {"strategy": "fixed", "version": 1, "amount": 0}), "/amount/amount"),
+    ("tariff: an amount strategy that does not exist", setv(["amount"], {"strategy": "sliding", "version": 1}), "/amount/strategy"),
+    ("tariff: months of billing with no basis", setv(["amount"], {"strategy": "months_of_billing", "version": 1, "months": 2,
+        "minimum_amount": {"kind": "none"}}), "/amount/of: required"),
+    ("tariff: months of billing on a basis that is not average or highest", setv(["amount"], {"strategy": "months_of_billing", "version": 1,
+        "months": 2, "of": "median", "minimum_amount": {"kind": "none"}}), "/amount/of"),
+    ("tariff: a case-by-case amount with a stray figure", setv(["amount"], {"strategy": "case_by_case", "version": 1, "amount": 100}), "/amount/amount: unknown key"),
+    ("tariff: a waiver named by a law class (the tariff names its own ground)", setv(["waivers", 0, "waiver_class"], "age_65_no_balance"), "/waivers/0/waiver_class: unknown key"),
+    ("tariff: a waiver with no ground", drop(["waivers", 0, "ground"]), "/waivers/0/ground: required"),
+    ("tariff: a recalculation section (out of version 1)", setv(["recalculation"], {"every_years": 3}), "/recalculation: unknown key"),
+    ("tariff: instalments tied to bills", setv(["instalments", 0, "anchor"], "next_bill"), "/instalments/0/anchor: unknown key"),
+    ("tariff: a repeated component id", setv(["instalments", 1, "id"], "i1"), "component ids must be unique"),
+]
 
 
 def sql_errors(schema: dict, doc_text: str, ids: bool = True) -> list[str]:
@@ -121,69 +147,71 @@ def sql_errors(schema: dict, doc_text: str, ids: bool = True) -> list[str]:
     return [l for l in out.splitlines() if l.strip()]
 
 
-def main() -> int:
-    fails = 0
+class Result:
+    def __init__(self) -> None:
+        self.fails = 0
 
-    def ok(tag: str, msg: str) -> None:
+    def ok(self, tag: str, msg: str) -> None:
         print(f"PASS {tag}: {msg}")
 
-    def bad(tag: str, msg: str) -> None:
-        nonlocal fails
-        fails += 1
+    def bad(self, tag: str, msg: str) -> None:
+        self.fails += 1
         print(f"FAIL {tag}: {msg}")
 
-    if not SCHEMA.exists():
-        bad("T0", f"{SCHEMA.relative_to(ROOT)} does not exist (expected until the schema is written)")
-        print(f"{fails} failure(s)")
-        return 1
-    ok("T0", "the schema file exists")
-    schema = lawc.load_json(SCHEMA)
 
+def check_kind(res: Result, label: str, schema_path: Path, docs_paths: list[Path], base: dict, refuse: list) -> None:
+    if not schema_path.exists():
+        res.bad(f"{label} T0", f"{schema_path.relative_to(ROOT)} does not exist (expected until the schema is written)")
+        return
+    res.ok(f"{label} T0", "the schema file exists")
+    schema = lawc.load_json(schema_path)
     errs = lawc.run_sql(f"SELECT array_to_string(public.rule_terms_schema_errors({lawc.sql_literal(lawc.dumps(schema))}::jsonb), E'\\n');\n").strip()
     if errs:
-        bad("T1", f"the validator refuses the schema:\n{errs}")
-        print(f"{fails} failure(s)")
-        return 1
-    ok("T1", "the validator accepts the schema")
+        res.bad(f"{label} T1", f"the validator refuses the schema:\n{errs}")
+        return
+    res.ok(f"{label} T1", "the validator accepts the schema")
 
-    docs = []
-    for p in VALID_DOCS:
-        d = lawc.typed(schema, schema, lawc.load_yaml(p), "") if p.suffix == ".yaml" else lawc.load_json(p)
+    docs, before = [], res.fails
+    for p in docs_paths:
+        d = lawc.typed(schema, schema, lawc.load_yaml(p), "")
         problems = lawc.reference_errors(schema, d)
         if problems:
-            bad("T2", f"{p.relative_to(ROOT)} is not valid: {problems[:3]}")
+            res.bad(f"{label} T2", f"{p.relative_to(ROOT)} is not valid: {problems[:3]}")
         docs.append(d)
-    if not fails:
-        if lawc.crosscheck(SCHEMA, docs) == 0:
-            ok("T2", f"{len(docs)} example and fixture documents valid; both validators agree on all of them and their mutations")
+    if res.fails == before:
+        if lawc.crosscheck(schema_path, docs) == 0:
+            res.ok(f"{label} T2", f"{len(docs)} documents valid; both validators agree on all of them and their mutations")
         else:
-            bad("T2", "the database validator and the standard validator disagree")
+            res.bad(f"{label} T2", "the database validator and the standard validator disagree")
 
-    for name, fn, expect in REFUSE:
-        doc = edit(fn)
-        text = lawc.dumps(doc)
+    for name, fn, expect in refuse:
+        doc = edit(fn, base)
         ref = lawc.reference_errors(schema, doc)
-        db = sql_errors(schema, text)
+        db = sql_errors(schema, lawc.dumps(doc))
         if not ref:
-            bad("T3", f"{name}: the standard validator ACCEPTED it")
+            res.bad(f"{label} T3", f"{name}: the standard validator ACCEPTED it")
         elif not db:
-            bad("T3", f"{name}: the database validator ACCEPTED it")
+            res.bad(f"{label} T3", f"{name}: the database validator ACCEPTED it")
         elif not any(expect in line for line in db):
-            bad("T3", f"{name}: refused, but not for {expect!r}: {db[:2]}")
+            res.bad(f"{label} T3", f"{name}: refused, but not for {expect!r}: {db[:2]}")
         else:
-            ok("T3", f"{name}: refused ({expect})")
+            res.ok(f"{label} T3", f"{name}: refused ({expect})")
 
     # the numbers rule is the database's own (a standard validator does not know it)
-    text = lawc.dumps(BASE).replace('"fraction":0.5', '"fraction":0.50', 1)
+    text = lawc.dumps(base).replace('"fraction":0.5', '"fraction":0.50', 1)
     assert '"fraction":0.50' in text, "the non-canonical number case did not change the document"
-    db = sql_errors(schema, text)
-    if any("canonically" in l for l in db):
-        ok("T3", "a non-canonical number: refused (written canonically)")
+    if any("canonically" in l for l in sql_errors(schema, text)):
+        res.ok(f"{label} T3", "a non-canonical number: refused (written canonically)")
     else:
-        bad("T3", f"a non-canonical number was not refused: {db[:2]}")
+        res.bad(f"{label} T3", "a non-canonical number was not refused")
 
-    print(f"{fails} failure(s)")
-    return 1 if fails else 0
+
+def main() -> int:
+    res = Result()
+    check_kind(res, "law", SCHEMA, VALID_DOCS, BASE, REFUSE)
+    check_kind(res, "tariff", TARIFF_SCHEMA, TARIFF_DOCS, TARIFF_BASE, TARIFF_REFUSE)
+    print(f"{res.fails} failure(s)")
+    return 1 if res.fails else 0
 
 
 if __name__ == "__main__":

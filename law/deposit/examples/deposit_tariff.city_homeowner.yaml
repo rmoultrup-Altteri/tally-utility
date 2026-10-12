@@ -1,0 +1,6 @@
+# A city-owned system's own policy for its "homeowner" category: a flat deposit (after Brenham's published schedule).
+citation: City utility deposit schedule, homeowner
+amount: {strategy: fixed, version: 1, amount: 150}
+triggers: []
+waivers: []
+instalments: []

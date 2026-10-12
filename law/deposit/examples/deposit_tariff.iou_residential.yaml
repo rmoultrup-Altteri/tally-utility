@@ -1,0 +1,14 @@
+# An investor-owned system's residential tariff: stricter than the law's cap, a trigger of its own, a waiver ground of its own, a fixed instalment schedule.
+citation: Gas tariff, deposits, residential
+amount: {strategy: months_of_billing, version: 1, months: 1, of: average, minimum_amount: {kind: none}}
+triggers:
+  - id: t1
+    trigger_code: usage_doubled
+    condition: {kind: ratio, measure: usage_to_estimate, op: at_least, value: 3}
+    guards:
+      - {kind: payment_due_days, days: 5}
+waivers:
+  - {id: w1, ground: military_deployment, applies_to: {kind: any_trigger}, effect: {kind: defer, days: 90}, also_releases_held: false, disqualified_by: {kind: none}}
+instalments:
+  - {id: i1, fraction: 0.5, days_after: 0}
+  - {id: i2, fraction: 0.5, days_after: 30}
