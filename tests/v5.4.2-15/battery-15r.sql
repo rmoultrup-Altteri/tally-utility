@@ -17,10 +17,11 @@
 --   K  the Texas rows say what -06 enforced (and the city rows delegate)
 --   D  the document gate (the schema's refusals reach the table)
 --   X  the area's insert check
+--   C  the utility's own deposit categories, each mapped to a law class
+--   U  the utility's tariff record, and "never looser than the law"
 --
 -- Planned, not yet written (design doc section 9):
 --   P  published values and the interest floor (decision 4)
---   U  the utility's tariff record and "never looser than the law"
 --   R  records cite what they were decided under; the return-due record
 --   H  history, grants, tenancy, the template's invariants over both tables
 -- The first run is meant to FAIL: nothing here exists until the patch does.
@@ -339,5 +340,162 @@ SELECT pg_temp.refuses('X13: rate-by-hold thresholds not strictly ascending',
       "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')),
   '23514', 'by_hold');
 -- r5:end insert-check
+
+
+-- ============================================================ utility fixtures
+-- T1 runs a city-owned Texas gas system (the law delegates), T2 an investor-owned one (16 TAC 7.45 binds it).
+INSERT INTO public.tenants (id, name, slug) VALUES
+  ('00000000-0000-4000-8000-0000000015a1', 'T1 City Gas', 'bat15r-t1'),
+  ('00000000-0000-4000-8000-0000000015a2', 'T2 Gasco', 'bat15r-t2');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('00000000-0000-4000-8000-0000000015b1', '00000000-0000-4000-8000-0000000015a1', 'Op1', 'op1@bat15r.test', 'operator'),
+  ('00000000-0000-4000-8000-0000000015b2', '00000000-0000-4000-8000-0000000015a2', 'Op2', 'op2@bat15r.test', 'operator');
+\set u1 '00000000-0000-4000-8000-0000000015b1'
+\set u2 '00000000-0000-4000-8000-0000000015b2'
+\set t1 '00000000-0000-4000-8000-0000000015a1'
+\set t2 '00000000-0000-4000-8000-0000000015a2'
+INSERT INTO b15r SELECT 'tx', id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX';
+INSERT INTO public.places (kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+VALUES ('municipality', 'TX', 'BAT15CITY', 'Battery City', (SELECT id FROM b15r WHERE k = 'tx'), DATE '1950-01-01', 'battery fixture');
+INSERT INTO b15r SELECT 'city', id FROM public.places WHERE kind_code = 'municipality' AND place_code = 'BAT15CITY';
+SELECT pg_temp.run(format($q$
+  INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                               owning_place_id, effective_from, evidence_reference, evidence_date)
+  VALUES (%L, 'gas', 'distribution', 'TX', 'municipal', false, %L, DATE '2000-01-01', 'Battery City charter', DATE '2000-01-01')$q$,
+  :'t1', (SELECT id FROM b15r WHERE k = 'city')), 'tally_app', :'u1');
+SELECT pg_temp.run(format($q$
+  INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                               effective_from, evidence_reference, evidence_date)
+  VALUES (%L, 'gas', 'distribution', 'TX', 'investor_owned', true, DATE '2000-01-01', 'RRC certificate bat15r', DATE '2000-01-01')$q$,
+  :'t2'), 'tally_app', :'u2');
+-- cat_sql(tenant, category, law class): a utility's own category, mapped to a law class.
+CREATE FUNCTION pg_temp.cat_sql(p_tenant text, p_cat text, p_law text, p_state text DEFAULT 'TX') RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT format($q$INSERT INTO public.deposit_utility_categories (tenant_id, state_code, service_type, category_code, law_class, description)
+                   VALUES (%L, %L, 'gas', %L, %L, 'battery category')$q$, p_tenant, p_state, p_cat, p_law)
+$$;
+-- tar_sql(tenant, system kind, category, tariff document, from, to): a tariff record in the utility's own category.
+CREATE FUNCTION pg_temp.tar_sql(p_tenant text, p_cat text, p_doc jsonb, p_from date DEFAULT DATE '2020-01-01', p_to date DEFAULT NULL) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT format($q$INSERT INTO public.deposit_tariffs (tenant_id, state_code, service_type, system_kind, tariff_category, effective_from, effective_to,
+                                                       tariff_reference, terms_kind, terms_version, terms_source)
+                   VALUES (%L, 'TX', 'gas', 'distribution', %L, %L, %L, 'battery tariff', 'deposit_tariff', 1, %L)$q$,
+                p_tenant, p_cat, p_from, p_to, p_doc::text)
+$$;
+-- tdoc(overrides): a valid tariff document with fields replaced.
+CREATE FUNCTION pg_temp.tdoc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
+  SELECT '{"citation": "Battery tariff, deposits", "amount": {"strategy": "fixed", "version": 1, "amount": 150},
+           "triggers": [], "waivers": [], "instalments": []}'::jsonb || p_over
+$$;
+
+-- count_as(sql, role, user): how many rows a query returns to that role and user.
+CREATE FUNCTION pg_temp.count_as(p_sql text, p_role text, p_user text) RETURNS bigint LANGUAGE plpgsql AS $$
+DECLARE v bigint;
+BEGIN
+  PERFORM set_config('app.user_id', p_user, true);
+  EXECUTE format('SET LOCAL ROLE %I', p_role);
+  EXECUTE format('SELECT count(*) FROM (%s) q', p_sql) INTO v;
+  RESET ROLE;
+  RETURN v;
+END $$;
+
+-- ============================================================ C. the utility's own deposit categories
+-- r6:begin categories
+SELECT pg_temp.does('C1: a city writes its own categories, each mapped to a law class',
+  pg_temp.cat_sql(:'t1', 'homeowner', 'residential'));
+SELECT pg_temp.run(pg_temp.cat_sql(:'t1', 'renter', 'residential'), 'tally_app', :'u1');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t1', 'small_commercial', 'non_residential'), 'tally_app', :'u1');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'residential', 'residential'), 'tally_app', :'u2');
+SELECT pg_temp.ok('C2: the category table is tenant-owned under row security: a utility sees its own categories only',
+  (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid = 'public.deposit_utility_categories'::regclass)
+  AND has_table_privilege('tally_app', 'public.deposit_utility_categories', 'INSERT'));
+SELECT pg_temp.refuses('C3: a category mapped to a law class the state and service do not have',
+  pg_temp.cat_sql(:'t1', 'church', 'religious'), '23503', 'deposit_utility_categories_law_class_fkey', 'tally_app', :'u1');
+SELECT pg_temp.refuses('C4: a category written for another utility (row security)',
+  pg_temp.cat_sql(:'t2', 'sneaky', 'residential'), '42501', NULL, 'tally_app', :'u1');
+SELECT pg_temp.refuses('C5: the same category twice for one utility, state and service',
+  pg_temp.cat_sql(:'t1', 'renter', 'residential'), '23505', NULL, 'tally_app', :'u1');
+SELECT pg_temp.refuses('C6: a category code that is not a code (blank, capitals, spaces)',
+  pg_temp.cat_sql(:'t1', 'Home Owner', 'residential'), '23514', NULL, 'tally_app', :'u1');
+SELECT pg_temp.refuses('C7: a category''s law class is never changed: tariffs and deposits cite it',
+  format($q$UPDATE public.deposit_utility_categories SET law_class = 'non_residential' WHERE tenant_id = %L AND category_code = 'renter'$q$, :'t1'),
+  '23001', 'never edited', 'tally_app', :'u1');
+SELECT pg_temp.refuses('C8: … and is never deleted',
+  format($q$DELETE FROM public.deposit_utility_categories WHERE tenant_id = %L AND category_code = 'renter'$q$, :'t1'),
+  '23001', 'never deleted', 'tally_app', :'u1');
+SELECT pg_temp.ok('C9: each utility sees its own categories and not another''s',
+  pg_temp.count_as('SELECT 1 FROM public.deposit_utility_categories', 'tally_app', :'u1') = 3
+  AND pg_temp.count_as('SELECT 1 FROM public.deposit_utility_categories', 'tally_app', :'u2') = 1);
+-- r6:end categories
+
+-- ============================================================ U. the utility's tariff record
+-- r7:begin tariff
+SELECT pg_temp.ok('U1: deposit_tariffs is a registered tariff table on the deposit_tariff kind, keyed by the utility''s own category, measured against deposit_rules',
+  (SELECT rule_role = 'tariff' AND terms_kind = 'deposit_tariff' AND area_key = '{tariff_category}' AND law_table = 'public.deposit_rules'::regclass
+          AND compare_function IS NOT NULL AND NOT adopts_legacy_rows
+     FROM public.rule_tables WHERE table_name = 'public.deposit_tariffs'::regclass));
+SELECT pg_temp.ok('U2: the tariff key does not share a column name with the law key (the utility''s categories are not the law''s classes); the comparator chooses the law rows',
+  NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = 'public.deposit_tariffs'::regclass AND NOT a.attisdropped AND a.attname IN ('customer_class', 'basis')));
+SELECT pg_temp.does('U3: a city writes a flat deposit for its homeowner category (its law row delegates: nothing to compare)',
+  pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc()));
+SELECT pg_temp.run(pg_temp.tar_sql(:'t1', 'renter', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 250}}')), 'tally_app', :'u1');
+SELECT pg_temp.refuses('U4: a tariff for a category the utility has not defined',
+  pg_temp.tar_sql(:'t1', 'landlord', pg_temp.tdoc()), '23514', 'landlord', 'tally_app', :'u1');
+SELECT pg_temp.refuses('U5: a tariff for another utility''s category (the category is the writer''s own)',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc()), '42501', NULL, 'tally_app', :'u1');
+SELECT pg_temp.refuses('U6: two tariff records for one category over the same dates',
+  pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 175}}')), '23P01', NULL, 'tally_app', :'u1');
+SELECT pg_temp.does('U7: … and a successor from a later date is fine after the first is closed',
+  format($q$UPDATE public.deposit_tariffs SET effective_to = DATE '2024-01-01' WHERE tenant_id = %L AND tariff_category = 'homeowner'$q$, :'t1'));
+SELECT pg_temp.run(pg_temp.tar_sql(:'t1', 'homeowner', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 175}}'), DATE '2024-01-01'), 'tally_app', :'u1');
+SELECT pg_temp.ok('U8: the lookup finds the tariff in force for a category on a date, and none before the first',
+  public.rule_tariff_row_as_of('public.deposit_tariffs', :'t1', 'gas', 'distribution', 'TX', '{"tariff_category": "homeowner"}', DATE '2025-06-01')
+    IS DISTINCT FROM public.rule_tariff_row_as_of('public.deposit_tariffs', :'t1', 'gas', 'distribution', 'TX', '{"tariff_category": "homeowner"}', DATE '2022-06-01')
+  AND public.rule_tariff_row_as_of('public.deposit_tariffs', :'t1', 'gas', 'distribution', 'TX', '{"tariff_category": "homeowner"}', DATE '2019-06-01') IS NULL);
+SELECT pg_temp.refuses('U9: a tariff record is never edited (its document is what deposits cited)',
+  format($q$UPDATE public.deposit_tariffs SET terms_source = %L WHERE tenant_id = %L AND tariff_category = 'renter'$q$, pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 1}}')::text, :'t1'),
+  '23001', NULL, 'tally_app', :'u1');
+-- r7:end tariff
+
+-- ============================================================ N. never looser than the law
+-- The investor-owned utility's residential law cap is one-sixth of annual billing: two average months.
+-- r8:begin never-looser
+SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'residential_senior', 'residential'), 'tally_app', :'u2');
+SELECT pg_temp.refuses('N1: a deposit of three average months where the law caps it at two',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 3, "of": "average", "minimum_amount": {"kind": "none"}}}')),
+  '23514', 'looser than the law', 'tally_app', :'u2');
+SELECT pg_temp.does('N2: … two average months, the law''s own figure, is not looser',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 2, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2020-01-01', DATE '2021-01-01'));
+SELECT pg_temp.run(pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 1, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2021-01-01'), 'tally_app', :'u2');
+SELECT pg_temp.refuses('N3: a category is measured against the law class it maps to: three months for a senior sub-category of residential is held to the residential cap too',
+  pg_temp.tar_sql(:'t2', 'residential_senior', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 3, "of": "average", "minimum_amount": {"kind": "none"}}}')),
+  '23514', 'looser than the law', 'tally_app', :'u2');
+SELECT pg_temp.does('N4: a flat amount cannot be compared with a billing fraction when it is written; it is accepted (each deposit records the cap that applied and its own check holds it to it)',
+  pg_temp.tar_sql(:'t2', 'residential_senior', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 5000}}')));
+SELECT pg_temp.refuses('N5: a usage trigger that fires at one and a half times the estimate where the law waits for twice',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 1.5}}]}'), DATE '2022-01-01', DATE '2023-01-01'),
+  '23514', 'looser than the law', 'tally_app', :'u2');
+SELECT pg_temp.does('N6: … three times the estimate, with five days to pay, is stricter than the law and is accepted',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 5}],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2022-01-01', DATE '2023-01-01'));
+SELECT pg_temp.refuses('N7: … but one day to pay, where the law gives two, is looser',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 1}],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2023-01-01', DATE '2024-01-01'),
+  '23514', 'looser than the law', 'tally_app', :'u2');
+SELECT pg_temp.does('N8: a trigger the law has no word on (a utility''s own NSF trigger) is the utility''s to set',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "nsf", "guards": [],
+     "condition": {"kind": "count", "event": "nsf", "at_least": 2, "window": {"unit": "months", "size": 12}, "consecutive": false, "exclude_disputed": false}}]}'), DATE '2024-01-01', DATE '2025-01-01'));
+SELECT pg_temp.does('N9: a utility''s own waiver ground, in its own name, is accepted (the law holds only the permission)',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"waivers": [{"id": "w1", "ground": "military_deployment", "applies_to": {"kind": "any_trigger"},
+     "effect": {"kind": "defer", "days": 90}, "also_releases_held": false, "disqualified_by": {"kind": "none"}}]}'), DATE '2025-01-01', DATE '2026-01-01'));
+SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'commercial', 'non_residential'), 'tally_app', :'u2');
+SELECT pg_temp.does('N10: a non-residential tariff of any months is accepted where the law sets no cap',
+  pg_temp.tar_sql(:'t2', 'commercial', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 6, "of": "highest", "minimum_amount": {"kind": "amount", "amount": 300}}}')));
+SELECT pg_temp.refuses('N11: a tariff for a utility with no service profile in that state and service (unknown law is not permission)',
+  format($q$INSERT INTO public.deposit_tariffs (tenant_id, state_code, service_type, system_kind, tariff_category, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
+            VALUES (%L, 'TX', 'water', 'distribution', 'residential', DATE '2020-01-01', 'x', 'deposit_tariff', 1, %L)$q$, :'t2', pg_temp.tdoc()::text),
+  '23514', 'profile', 'tally_app', :'u2');
+SELECT pg_temp.does('N12: the template''s invariants hold over both rule tables', $q$SELECT public.assert_rule_table_invariants()$q$);
+-- r8:end never-looser
 
 ROLLBACK;
