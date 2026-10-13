@@ -105,6 +105,8 @@ def report(label: str, ok: bool, detail: str = "") -> None:
         fails += 1
 
 
+# the two columns the patch drops (the first draft of -15 did too): allowed to vanish only while empty
+DROPPED_COLUMNS = {"refund_eligibility_on", "cap_basis_annual_billing"}
 OLD_TABLES = ["deposits", "deposit_events", "deposit_interest_rates", "deposit_waiver_determinations"]
 DUMP = "SELECT coalesce(jsonb_object_agg(t, rows), '{}') FROM (" + " UNION ALL ".join(
     f"SELECT '{t}' AS t, coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id), '[]') AS rows FROM public.{t} x" for t in OLD_TABLES) + ") q"
@@ -159,8 +161,11 @@ def unchanged(db: str, dump: dict, label: str) -> None:
                 bad.append(f"{t} {row['id']} vanished")
                 continue
             for k, v in row.items():
-                if now.get(k) != v:
-                    bad.append(f"{t} {row['id']}: {k} {v!r} -> {now.get(k)!r}")
+                if k not in now:
+                    if k not in DROPPED_COLUMNS or v is not None:
+                        bad.append(f"{t} {row['id']}: {k} ({v!r}) was removed")
+                elif now[k] != v:
+                    bad.append(f"{t} {row['id']}: {k} {v!r} -> {now[k]!r}")
     report(label, not bad, "; ".join(bad[:3]))
 
 
@@ -204,7 +209,7 @@ r = psql("m15_a", f"""INSERT INTO public.deposit_events (tenant_id, deposit_id, 
 report("P1e: … and returns with one", r.returncode == 0, r.stderr.strip()[-200:])
 r = psql("m15_a", f"""INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, period_start, period_end, rate_applied, principal_basis, calculated_by)
                      VALUES ('{T1}', '{DEP2}', 'interest_accrued', 0.2, DATE '2026-02-01', DATE '2026-01-01', DATE '2026-01-31', 0.05, 500, 'core-m15')""", check=False, role="tally_app", user=U1)
-report("P1f: no interest accrues on a carried deposit here (it cites no law row and no rate row)", r.returncode != 0, "an accrual on a carried deposit was accepted")
+report("P1f: no interest accrues on a carried deposit here (it cites no law row and no rate row), and the refusal says why", r.returncode != 0 and "carried legacy deposit" in r.stderr, r.stderr.strip()[-200:] or "an accrual on a carried deposit was accepted")
 
 snap = "SELECT md5(" + " || ".join(f"coalesce((SELECT string_agg(to_jsonb(x)::text, '|' ORDER BY x.id) FROM public.{t} x), '')" for t in OLD_TABLES + ["deposit_rules"]) + ")"
 snap_a = one("m15_a", snap)
