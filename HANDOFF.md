@@ -1,8 +1,8 @@
 # Handoff: the deposits rewrite (-15) — patch written and frozen at round 5; Opus and Fable READY, Codex still to review
 
-**Generated**: 2026-10-12 (evening)
-**Branch**: `main`, pushed. Last code commit `7d66a09` (its message says "round 4" but it holds the round-5 freeze: `patch-15r-frozen-r5.sql`, `battery-15r-frozen-r5.sql`, `review-brief-15r-r5.md`). The `opus-r5.md` / `fable-r5.md` reports are committed with this wrap-up. gas-billing-memory was not re-fetched this session; fetch both repos before orienting.
-**Status**: Waiting on Codex (usage limit lifts **Oct 13, 2026 12:59 AM**). Nothing mirrored. `tu.sql` is still the -18 build (31,380 lines).
+**Generated**: 2026-10-13
+**Branch**: `main`, pushed. Round 8 is frozen and committed (`a12b5c9`; patch md5 `2dc8f61cda3bc6958ca42737d317a629`, battery md5 `8a0c6c4548ab0560ffb0698c13b4da96`, 356 checks, 175 mutations). Reports `opus-r8.md`, `fable-r8.md`, `codex-r8.md` are committed with the wrap-up.
+**Status**: **Opus, Fable and Codex all READY on frozen r8.** Nothing mirrored. `tu.sql` is still the -18 build. Waiting on Ryan: approval to mirror.
 
 ## Goal
 Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sql` onto the rule-terms convention (-17 template, -18 worked example): law is a document per (state, service, owner types, class, basis); the utility has its own categories and one tariff per category; every record cites the law row and, when one applied, the tariff row.
@@ -14,11 +14,16 @@ Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sq
 - [x] Round 5 frozen: patch md5 `fb44ecc041cb2f6004171dd3723962bb`, battery md5 `1c93db1658445380739edd198b0e3543`. **Opus READY, Fable READY** (both verified hashes, clean strict apply, 334/334, M167 caught at R53).
 
 ## Not Yet Done
-- [ ] **Codex review of the whole round-5 revision** (it has reviewed nothing since round 2; its round-3 "not yet" was fixed in r4). Brief: `tests/v5.4.2-15/review/review-brief-15r-r5.md` (says: whole patch, start from `codex-r3.md`). Output `tests/v5.4.2-15/review/codex-r5.md`.
-- [ ] If Codex finds anything: one revision, new freeze, new hashes in every request, Opus/Fable delta check.
-- [ ] Then ask Ryan whether to mirror into `tu.sql`. On approval: rewrite AC-24/25 in `APPLICATION-CONTRACTS.md` (residual R12); add the -15 entry to `sql/DEPLOY-VERIFICATION.md` (same recipe as the -18 entry); update `CHANGELOG.md` and this file.
-- [ ] Ask Ryan to confirm decision 1 below (Fable has asked three rounds running).
+- [ ] Ask Ryan whether to mirror `sql/v5.4.2-15-deposits-law-to-core.sql` into `tu.sql` (one decision per message, plain language). Then: rewrite AC-24/25 in `APPLICATION-CONTRACTS.md` (residual R12); add the -15 entry to `sql/DEPLOY-VERIFICATION.md` (recipe as the -18 entry); update `CHANGELOG.md`.
+- [ ] Ask Ryan to confirm decision 1 (a deposit's own closed law row stays citable after its close) — one line at mirror time is enough (Fable).
+- [ ] Optional, non-blocking, from round 8: Codex — extend V28b/c to terminal refunds/releases; Opus N1 — a one-statement due row + notice + uncited `refunded` is refused where two statements are accepted (fail-closed; rule could become "none cites NEW.id"); Fable — a live due row beside an uncited notice in two statements is accepted (core convention), a cited due row may still be withdrawn; a zero refund can close a deposit with unpaid instalments (core's call).
 - [ ] Carried over: backbilling tariff table; GitHub Actions version bump; verify Florida's official text (25-7.083) before loading any Florida row.
+
+## Rounds 6-8 (2026-10-13), what each fixed
+- r6: Codex r5 B1 — a later-dated instalment funded an earlier return; dated-principal timeline guard at the end of `enforce_deposit_event`; stale comments.
+- r7: Opus r6 B1 — status checks lag inside a multi-row INSERT (AFTER ROW projection); refund state now read from events; refund not dated before its notice.
+- r8: all three on r7 — the return-due BEFORE check lags too; new AFTER INSERT trigger `z_enforce_deposit_return_due_not_started`. Lesson: a BEFORE ROW check cannot see the other parts of a writable WITH; judge it after the statement.
+- Reviewers: Codex has no Docker (read-only reviews); Opus/Fable run as named agents `opus-r6` / `fable-r6` (SendMessage); old agent ids are gone.
 
 ## Failed Approaches (Don't Repeat These)
 - **`timeout` in shell probes**: macOS has none → `(eval):1: command not found: timeout`, exit 127, the run never starts → run the command directly, or poll a log file.
@@ -38,7 +43,7 @@ Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sq
 | A deposit with no category may skip every tariff (Opus r5 note N1) | Which category an account belongs to is the core's call; the statutory cap still holds. If closed later: require a category when the utility defined one for that state/service/class |
 
 ## Current State
-**Working**: patch applies strictly; 334/334; 166/166 mutations; migration, races, evidence-transaction checks.
+**Working**: patch applies strictly; 356/356; 175/175 mutations; migration, races, evidence-transaction checks.
 **Broken**: nothing known.
 **Uncommitted changes**: none after the wrap-up commit.
 
@@ -53,14 +58,10 @@ docker exec tally-pg psql -U tally -d <you>15 -c "REVOKE TEMP ON DATABASE <you>1
 Codex: `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C ~/code/tally-utility -o tests/v5.4.2-15/review/codex-r5.md -` with the brief on stdin.
 
 ## Resume Instructions
-1. `git fetch` both repos (tally-utility, gas-billing-memory); check `git status` is clean.
-   - Expected: nothing new on Kyle's side; if there is, read it before anything else.
-2. After 12:59 AM Oct 13 run the Codex probe: `echo "Reply ok." | codex exec -s read-only -o /tmp/p.md -` (nvm v24.15.0 on PATH).
-   - Expected: `ok`. If "usage limit" again, wait; do not skip Codex.
-3. Launch Codex on the frozen r5 (brief above); check md5s of the frozen files first (`md5 -q`).
-   - Expected: a verdict in `codex-r5.md`. Reports truncate at about 4 KB: ask for several short messages.
-4. Ready, no blockers: tell Ryan all three have seen the frozen r5, raise decision 1 in plain language (one decision per message), and ask for approval to mirror.
-5. Not yet: one revision, re-run battery (`tests/v5.4.2-15/run-battery-15r.sh`), mutations, fail-first, migration; freeze r6; delta checks by Opus (agent `a372dcf4bc8702b08`) and Fable (`a53f732c86f5f6717`) if still resumable, otherwise new agents.
+1. `git fetch` both repos (tally-utility, gas-billing-memory); check `git status` is clean. Kyle may have pushed rulings.
+2. Tell Ryan all three reviewers are READY on the frozen r8 and ask, in plain language and as the only question, whether to mirror -15 into `tu.sql`.
+3. On yes: mirror (patch as frozen r8, md5 above), AC-24/25 rewrite, DEPLOY-VERIFICATION entry, CHANGELOG; then ask decision 1 in one line.
+4. On no / changes: one revision, re-run battery, mutations, fail-first, migration, races; freeze r9; all three re-review.
 
 ## Warnings
 - Never edit the patch while reviewers test; one revision per round, hashes in every request.
