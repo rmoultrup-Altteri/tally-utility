@@ -9,11 +9,9 @@ import { TableFooter } from '@/components/table/Table'
 import { ColumnTable, type ColumnDef, type ColumnRow } from '@/components/table/Columns'
 import { Money } from '@/components/ui/Money'
 import { AccountNumber } from '@/components/ui/RecordLink'
-import { AgingReport, type CustomerClass, type OpenBill } from '@/components/collections/AgingReport'
-import { invoices } from '@/fixtures/billing'
-import { customerById, locationById } from '@/fixtures/accounts'
-import { customerName, isIssued } from '@/schemas/models'
-import type { CustomerType } from '@/schemas/enums'
+import { Panel, PanelHeader } from '@/components/ui/Panel'
+import { ReportTable } from '@/components/reports/ReportTable'
+import { reportById } from '@/fixtures/reports'
 import {
   BYPASSES,
   auditTrail,
@@ -88,45 +86,12 @@ const CATEGORY_TONE: Record<BypassCategory | 'eligible', Tone> = {
   absolute: 'critical',
 }
 
-const CLASS_OF: Record<CustomerType, CustomerClass> = {
-  residential: 'Residential',
-  commercial: 'Commercial',
-  small_commercial: 'Commercial',
-  large_commercial: 'Commercial',
-  industrial: 'Commercial',
-  wholesale: 'Commercial',
-  government: 'Government',
-}
-
-const daysBetween = (a: string, b: string) =>
-  Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000)
-
 /**
- * What is actually receivable: issued, not void, money still owing. A draft or
- * held bill has not been sent, so nobody owes it yet.
+ * Receivables here are the same figures as the dashboard strip and the AR
+ * aging report — one source, one set of buckets, one set of customer types —
+ * so nobody reconciles two totals for the same book.
  */
-function openBills(): OpenBill[] {
-  return invoices
-    .filter((i) => isIssued(i) && i.status !== 'void' && i.status !== 'write_off' && Number(i.balance) > 0)
-    .map((i) => {
-      const customer = customerById.get(i.customer_id)
-      return {
-        id: i.id,
-        invoiceNumber: i.invoice_number,
-        customerId: i.customer_id,
-        customerNumber: customer?.customer_number ?? null,
-        customerName: customer ? customerName(customer) : '—',
-        customerClass: customer ? CLASS_OF[customer.customer_type] : 'Residential',
-        streetAddress: locationById.get(i.location_id)?.address ?? null,
-        invoiceDate: i.invoice_date,
-        dueDate: i.due_date,
-        daysPastDue: daysBetween(i.due_date, asOf.validAt),
-        amountDue: i.amount_due,
-        amountPaid: i.amount_paid,
-        balance: i.balance,
-      }
-    })
-}
+const arReport = reportById.get('ar_aging')!
 
 export default function CollectionsPage() {
   const rows = worklist.map((row) => ({ row, verdict: evaluate(row) }))
@@ -155,7 +120,29 @@ export default function CollectionsPage() {
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
           {/* ==== What is owed, and how old it is ==== */}
-          <AgingReport bills={openBills()} asOf={asOf.validAt} />
+          <Panel>
+            <PanelHeader
+              title="Accounts receivable"
+              meta={`Aged by invoice · ${arReport.period} · click a line for its invoices`}
+              actions={
+                <Link href="/reports/ar_aging" className="text-micro text-accent-text hover:text-accent-text-hover underline">
+                  Open the AR aging report
+                </Link>
+              }
+            />
+            <ReportTable
+              caption="Accounts receivable aging by customer type"
+              columns={arReport.columns}
+              rows={arReport.rows}
+              hrefFor={(i) => `/reports/ar_aging/${i}`}
+            />
+            <div className="border-t border-rule-hair px-4 py-2.5">
+              <p className="text-micro text-ink-tertiary">
+                The same figures as the dashboard and the AR aging report. Each line opens its open
+                invoices, and they sum back to the line.
+              </p>
+            </div>
+          </Panel>
 
           {/* ==== Subpoena-ready means the rationale is on the record ==== */}
           <Collapsible

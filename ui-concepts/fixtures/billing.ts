@@ -25,7 +25,7 @@ export const currentRun: BillingRun = {
   status: 'review',
   total_locations: 3412,
   total_invoices: 3398,
-  total_amount: '412884.19',
+  total_amount: '418207.36',
   total_exceptions: 14,
   total_estimated_reads: 47,
   started_at: '2026-02-15T04:00:12-06:00',
@@ -1045,7 +1045,7 @@ export const revenue = {
   billedPriorMonthSameDay: '398120.44',
   collected: '361447.02',
   collectedPriorMonthSameDay: '372889.51',
-  windowLabel: 'Calendar month to date · 1–15 Feb 2026',
+  windowLabel: 'Calendar month to date · 1–16 Feb 2026 · posted runs',
 }
 
 /**

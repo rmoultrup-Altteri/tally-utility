@@ -91,6 +91,9 @@ export default async function CustomerPage({
             <Link href={`/payments/new?customer=${customer.id}` as Route}>
               <Button>Take payment</Button>
             </Link>
+            <Link href={`/transfers/new?customer=${customer.id}` as Route}>
+              <Button>Transfer service</Button>
+            </Link>
             <Button variant="primary">New service order</Button>
           </>
         }

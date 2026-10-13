@@ -43,11 +43,21 @@ const ACRONYMS: Record<string, string> = {
 }
 
 /**
+ * Stored values whose literal reading says something untrue on screen. The
+ * exemption watch fires thirty days before a certificate lapses, so most of
+ * what it raises has not expired yet.
+ */
+const LABELS: Record<string, string> = {
+  tax_exemption_expired: 'Tax exemption expiring',
+}
+
+/**
  * Turn a stored snake_case value into a label, respecting industry acronyms.
  * `amr` becomes AMR, not Amr.
  */
 export function label(value: string | null | undefined): string {
   if (!value) return ''
+  if (LABELS[value]) return LABELS[value]
   if (ACRONYMS[value]) return ACRONYMS[value]
   return value
     .split('_')

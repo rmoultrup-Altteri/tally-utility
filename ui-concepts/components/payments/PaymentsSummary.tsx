@@ -153,7 +153,7 @@ export function PaymentsSummary({
 
   const tiles: { key: Choice; label: string; meaning: string; list: Payment[] }[] = [
     ...STATUS_ORDER.map((s) => ({ key: s as Choice, label: STATUS[s].label, meaning: STATUS[s].meaning, list: all.filter((p) => p.status === s) })),
-    { key: 'all', label: 'All payments', meaning: 'Every status', list: all },
+    { key: 'all', label: 'All payments', meaning: 'Every status · the total leaves out voided entries, which never counted', list: all },
   ]
 
   const shown = useMemo(() => {
@@ -204,7 +204,8 @@ export function PaymentsSummary({
         <div className="grid grid-cols-2 gap-px bg-rule-hair sm:grid-cols-4 xl:grid-cols-7">
           {tiles.map((t) => {
             const on = pick === t.key
-            const total = t.list.reduce((a, p) => a + cents(p.amount), 0)
+            /* A voided entry was cancelled at entry and never counted, so the all-status total leaves it out. */
+            const total = t.list.filter((p) => t.key !== 'all' || p.status !== 'voided').reduce((a, p) => a + cents(p.amount), 0)
             return (
               <div key={t.key} className={`px-4 py-3 ${on ? 'bg-accent-wash' : 'bg-surface-raised'} ${t.key === 'all' ? 'xl:border-l xl:border-rule-solid' : ''}`}>
                 <p className="field-label">{t.label}</p>

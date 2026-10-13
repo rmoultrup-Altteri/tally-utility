@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { asOf, cycle, tenant } from '@/fixtures/tenant'
 import { blockingCount, openExceptions } from '@/fixtures/exceptions'
 import { outreachSummary } from '@/fixtures/outreach'
+import { transfersNeedingAttention } from '@/lib/transfers'
 import { date } from '@/lib/format'
 import { QuickFind } from '@/components/shell/QuickFind'
 import { DensityControl, ThemeControl } from '@/components/shell/ThemeControl'
@@ -45,6 +46,11 @@ function navGroups(): NavGroup[] {
           href: '/',
           label: 'Exceptions',
           badge: { count: openExceptions.length, tone: 'critical', title: `${blockingCount} of these block delivery` },
+        },
+        {
+          href: '/transfers',
+          label: 'Transfers',
+          badge: { count: transfersNeedingAttention(), tone: 'warning', title: 'Transfers of service blocked or waiting on a review' },
         },
       ],
     },

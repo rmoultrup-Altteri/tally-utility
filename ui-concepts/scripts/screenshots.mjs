@@ -12,6 +12,8 @@ const pages = [
   ['rebill', '/invoices/inv-0003/rebill'],
   ['diff', '/invoices/inv-0004/diff'],
   ['collections', '/collections'],
+  ['transfers', '/transfers'],
+  ['transfer-new', '/transfers/new?customer=cus-0002'],
   ['payments', '/payments'],
   ['payment-new', '/payments/new'],
   ['rates', '/rates'],

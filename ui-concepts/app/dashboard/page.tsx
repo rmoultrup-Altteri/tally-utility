@@ -2,13 +2,16 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
-import { Rail, StateFlag } from '@/components/ui/State'
+import { StateBlock, StateFlag, toneRail } from '@/components/ui/State'
 import type { Tone } from '@/components/ui/State'
 import { Money } from '@/components/ui/Money'
-import { arAging, portlets, rateCard, revenue } from '@/fixtures/billing'
+import { arAging, currentRun, portlets, rateCard, revenue } from '@/fixtures/billing'
+import { blockingCount, openExceptions } from '@/fixtures/exceptions'
+import { evaluate, worklist } from '@/fixtures/collections'
+import { transfersNeedingAttention } from '@/lib/transfers'
 import type { PortletRow, RateCardRow } from '@/fixtures/billing'
-import { cycle, tenant } from '@/fixtures/tenant'
-import { count, money, rateInUnit } from '@/lib/format'
+import { asOf, cycle, tenant } from '@/fixtures/tenant'
+import { count, date, money, rateInUnit, stamp } from '@/lib/format'
 import { rateUnitLabel } from '@/lib/vocabulary'
 
 /**
@@ -38,7 +41,7 @@ export default function DashboardPage() {
         title="Billing operations"
         meta={
           <>
-            {tenant.name} · {count(tenant.meters)} meters · {cycle.label} in flight
+            {tenant.name} · {count(tenant.meters)} meters · as of {stamp(asOf.recordedAt)}
           </>
         }
         actions={<Button>Configure portlets</Button>}
@@ -46,6 +49,7 @@ export default function DashboardPage() {
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
+          <CycleStatus />
           {/* T8-4 — placement by item type, six rows plus a "+N more". */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {portlets.map((p) => (
@@ -72,7 +76,10 @@ export default function DashboardPage() {
                   ))}
                   {p.more > 0 ? (
                     <li className="px-4 py-1.5">
-                      <Link href="/" className="text-micro text-accent-text hover:text-accent-text-hover underline">
+                      <Link
+                        href={`/dashboard/items?tier=${p.tier}` as Route}
+                        className="text-micro text-accent-text hover:text-accent-text-hover underline"
+                      >
                         +{p.more} more types
                       </Link>
                     </li>
@@ -86,12 +93,12 @@ export default function DashboardPage() {
             {/* T8-5 — two figures, a prior-month comparator, and no ratio. */}
             <Panel>
               <PanelHeader title="Revenue" meta={revenue.windowLabel} />
-              <div className="grid grid-cols-2 divide-x divide-rule-solid">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-rule-solid">
                 <RevenueFigure
                   label="Billed, net of voids"
                   value={revenue.billedNetOfVoids}
                   prior={revenue.billedPriorMonthSameDay}
-                  note="Voids subtract at their void date, so closed months never restate."
+                  note={`Posted runs only — ${currentRun.run_number} counts once it posts. Voids subtract at their void date, so closed months never restate.`}
                 />
                 <RevenueFigure
                   label="Collected"
@@ -111,38 +118,44 @@ export default function DashboardPage() {
 
             {/* T8-6 / T8-7 — aged by invoice; buckets must sum to the drilldowns. */}
             <Panel>
-              <PanelHeader title="Accounts receivable" meta="Aged by invoice · click a bucket to drill in" />
-              <div className="grid grid-cols-4 divide-x divide-rule-solid">
-                {arAging.map((b) => {
-                  const flagged = b.bucket === '90+ days'
-                  return (
-                    <Link
-                      key={b.bucket}
-                      href="/"
-                      className={`block px-3 py-3 transition-colors duration-fast hover:bg-surface-sunken ${
-                        flagged ? 'bg-exception-critical-wash' : ''
-                      }`}
-                    >
-                      <p className="field-label">{b.bucket}</p>
-                      <p
-                        className={`text-h2 mt-1 figures ${
-                          flagged ? 'text-exception-critical-text' : 'text-ink-primary'
+              <PanelHeader
+                title="Accounts receivable"
+                meta={`Aged by invoice · ${money(String(arAging.reduce((a, b) => a + Number(b.amount), 0)))} open`}
+              />
+              <div className="@container">
+                <div className="grid grid-cols-2 @[30rem]:grid-cols-4 gap-px bg-rule-hair">
+                  {arAging.map((b) => {
+                    const flagged = b.bucket === '90+ days'
+                    return (
+                      <Link
+                        key={b.bucket}
+                        href="/reports/ar_aging"
+                        title={`Open the AR aging report — ${b.bucket} by customer type, each line drilling to its invoices`}
+                        className={`block min-w-0 px-3 py-3 transition-colors duration-fast hover:bg-surface-sunken ${
+                          flagged ? 'bg-exception-critical-wash' : 'bg-surface-raised'
                         }`}
                       >
-                        {money(b.amount)}
-                      </p>
-                      <p className="text-micro text-ink-tertiary mt-0.5">
-                        {count(b.accounts)} accounts
-                      </p>
-                    </Link>
-                  )
-                })}
+                        <p className="field-label">{b.bucket}</p>
+                        <p
+                          className={`text-h3 @[36rem]:text-h2 mt-1 figures whitespace-nowrap ${
+                            flagged ? 'text-exception-critical-text' : 'text-ink-primary'
+                          }`}
+                        >
+                          {money(b.amount)}
+                        </p>
+                        <p className="text-micro text-ink-tertiary mt-0.5">
+                          {count(b.accounts)} accounts
+                        </p>
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
               <div className="border-t border-rule-hair px-4 py-2.5">
                 <p className="text-micro text-ink-tertiary">
-                  A customer with unpaid bills of different ages appears in more than one bucket, and
-                  the drilldown says so. Each list sums back to its bucket — that reconciliation is
-                  the acceptance test.
+                  A customer with unpaid bills of different ages appears in more than one bucket. Each
+                  bucket opens the AR aging report, where every line drills to its invoices and sums
+                  back to it — the same figures Collections shows.
                 </p>
               </div>
             </Panel>
@@ -152,22 +165,14 @@ export default function DashboardPage() {
           <Panel>
             <PanelHeader
               title="Tariff rate card"
-              meta={`As billed on ${rateCard.lastPostedRun}`}
+              meta={`${rateCard.scheduleCode} · ${rateCard.scheduleName} · as billed on ${rateCard.lastPostedRun}`}
               actions={
-                <>
-                  <select
-                    aria-label="Rate schedule"
-                    className="h-7 rounded-sm border border-rule-solid bg-surface-raised px-2 text-data text-ink-primary"
-                    defaultValue={rateCard.scheduleCode}
-                  >
-                    <option value="R-1">R-1 · Residential Firm Gas Service</option>
-                    <option value="G-1">G-1 · General Service — Small Commercial</option>
-                    <option value="G-2">G-2 · General Service — Large Commercial</option>
-                  </select>
-                  <Link href="/rates">
-                    <Button>Full rate card</Button>
-                  </Link>
-                </>
+                <Link
+                  href="/rates"
+                  className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule-solid bg-surface-raised text-data font-medium text-ink-primary hover:bg-surface-sunken hover:border-rule-heavy transition-colors duration-fast"
+                >
+                  Full rate card
+                </Link>
               }
             />
             <div className="overflow-x-auto">
@@ -208,6 +213,53 @@ export default function DashboardPage() {
   )
 }
 
+/**
+ * What stands between today and the cycle closing, each linked to where it is
+ * worked. Not a portlet — the portlets below count items by type; this says
+ * whether the run can post and what else is waiting on a person.
+ */
+function CycleStatus() {
+  const eligible = worklist.filter((w) => evaluate(w).eligible).length
+  const transfers = transfersNeedingAttention()
+  const blocked = blockingCount > 0
+  const items: { label: string; value: string; href: string; tone: Tone }[] = [
+    {
+      label: `${currentRun.run_number} · ${STATE_WORD[currentRun.status] ?? currentRun.status}`,
+      value: blocked ? `${blockingCount} exceptions block posting` : 'Clear to post',
+      href: '/',
+      tone: blocked ? 'critical' : 'cleared',
+    },
+    { label: 'Open exceptions', value: `${openExceptions.length} on the queue`, href: '/', tone: 'info' },
+    { label: 'Transfers of service', value: transfers ? `${transfers} need a decision` : 'None waiting', href: '/transfers', tone: transfers ? 'warning' : 'cleared' },
+    { label: 'Disconnects', value: `${eligible} eligible today`, href: '/collections', tone: 'info' },
+  ]
+  return (
+    <StateBlock tone={blocked ? 'warning' : 'cleared'} className="!px-0 !py-0">
+      <div className="flex flex-wrap items-stretch">
+        <div className="px-4 py-2.5 min-w-[12rem]">
+          <p className="field-label">{cycle.label} · {cycle.periodLabel}</p>
+          <p className="text-data text-ink-primary mt-0.5">Bills dated {date(cycle.billDate)}</p>
+        </div>
+        {items.map((i) => (
+          <Link
+            key={i.label}
+            href={i.href as Route}
+            className="flex-1 min-w-[11rem] border-l border-rule-hair px-4 py-2.5 hover:bg-surface-raised/60 transition-colors duration-fast"
+          >
+            <p className="field-label">{i.label}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-data text-ink-primary">
+              <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${toneRail(i.tone)}`} />
+              {i.value}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </StateBlock>
+  )
+}
+
+const STATE_WORD: Record<string, string> = { review: 'in review', in_progress: 'running', approved: 'approved', posted: 'posted' }
+
 function railFor(tier: string): string {
   return tier === 'Critical'
     ? 'bg-exception-critical-rail'
@@ -245,10 +297,11 @@ function RevenueFigure({
   note: string
 }) {
   const delta = Number(value) - Number(prior)
+  /* The figure steps down a size when its half of the panel is narrow, rather than spilling over the rule. */
   return (
-    <div className="px-4 py-3">
+    <div className="@container min-w-0 px-4 py-3">
       <p className="field-label">{label}</p>
-      <p className="text-figure mt-1 figures text-ink-primary">{money(value)}</p>
+      <p className="text-h1 @[15rem]:text-figure mt-1 figures text-ink-primary whitespace-nowrap">{money(value)}</p>
       <p className="text-micro text-ink-tertiary mt-0.5">
         {delta >= 0 ? '▲' : '▼'} {money(String(Math.abs(delta)))} vs prior month, same day
       </p>

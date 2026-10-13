@@ -69,9 +69,9 @@ export const conditionsToday: Condition[] = [
 ]
 
 /** The instant the engine last evaluated every account against the above. */
-export const evaluatedAt = '2026-02-14T05:30:00-06:00'
+export const evaluatedAt = '2026-02-17T05:30:00-06:00'
 /** When the forecast currently clears the threshold again. */
-export const holdClearsOn = '2026-02-17'
+export const holdClearsOn = '2026-02-18'
 
 /* ---- Bypass conditions ------------------------------------------------ */
 
@@ -87,6 +87,7 @@ export type BypassCode =
   | 'scra_protection'
   | 'designee_not_notified'
   | 'notice_immature'
+  | 'notice_not_served'
 
 /**
  * `absolute` conditions are prohibitions on all collections activity, not
@@ -177,6 +178,13 @@ export const BYPASSES: Record<BypassCode, Bypass> = {
     category: 'process',
     citation: '16 TAC §7.460(b)',
   },
+  notice_not_served: {
+    code: 'notice_not_served',
+    label: 'No disconnect notice served',
+    short: 'No notice',
+    category: 'process',
+    citation: '16 TAC §7.460(b)',
+  },
   temperature_hold: {
     code: 'temperature_hold',
     label: 'Temperature hold in force',
@@ -215,18 +223,17 @@ export type WorklistRow = {
 export const worklist: WorklistRow[] = [
   {
     id: 'wl-01',
-    customerId: 'cus-0007',
-    accountNumber: '200-140558',
-    name: 'Kettle & Crumb Bakery',
+    accountNumber: '200-162210',
+    name: 'Lone Star Tire & Lube',
     isResidential: false,
-    address: '311 S Main St',
+    address: '1712 S Texas Ave',
     city: 'Bryan',
-    balance: '489.31',
-    pastDueDays: 38,
+    balance: '1306.45',
+    pastDueDays: 43,
     stage: 'shutoff_scheduled',
     lastNotice: { type: 'Formal disconnect notice', sentAt: '2026-02-02', channel: 'Certified mail' },
     bypasses: [],
-    deposit: '600.00',
+    deposit: '0.00',
     priorDisconnects: 1,
     nextAction: 'Dispatch disconnect order',
   },
@@ -281,7 +288,7 @@ export const worklist: WorklistRow[] = [
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
       {
         code: 'payment_pending',
-        detail: '$180.00 posted 2026-02-13 by ACH. Clears 2026-02-17; balance falls to $111.40.',
+        detail: '$180.00 posted 2026-02-13 by ACH. Clears 2026-02-18; balance falls to $111.40.',
       },
     ],
     deposit: '0.00',
@@ -296,16 +303,17 @@ export const worklist: WorklistRow[] = [
     isResidential: true,
     address: '1418 Ashburn St',
     city: 'Bryan',
-    balance: '318.44',
-    pastDueDays: 47,
-    stage: 'shutoff_warning',
-    lastNotice: { type: 'Past-due notice', sentAt: '2026-02-04', channel: 'Mail' },
+    balance: '92.43',
+    pastDueDays: 12,
+    stage: 'reminder_sent',
+    lastNotice: { type: 'Reminder', sentAt: '2026-02-10', channel: 'Email' },
     bypasses: [
       {
         code: 'medical_certificate',
         detail: 'Oxygen concentrator. Certified by Dr. A. Reyes, St Joseph Health.',
         expires: '2026-04-30',
       },
+      { code: 'notice_not_served', detail: 'Reminder only. No disconnect notice has been served.' },
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
     ],
     deposit: '0.00',
@@ -318,10 +326,10 @@ export const worklist: WorklistRow[] = [
     accountNumber: '100-290118',
     name: 'Fry, Wendell',
     isResidential: true,
-    address: '1502 Groesbeck St',
+    address: '714 W 26th St',
     city: 'Bryan',
-    balance: '604.19',
-    pastDueDays: 96,
+    balance: '430.18',
+    pastDueDays: 104,
     stage: 'collections',
     lastNotice: { type: 'Agency placement notice', sentAt: '2026-01-26', channel: 'Mail' },
     bypasses: [
@@ -330,6 +338,7 @@ export const worklist: WorklistRow[] = [
         detail: 'Brazos Valley Community Action pledged $300.00 on 2026-02-09. Remittance not received.',
         expires: '2026-03-11',
       },
+      { code: 'notice_not_served', detail: 'Placed with the agency. No disconnect notice has been served this cycle.' },
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
     ],
     deposit: '0.00',
@@ -353,6 +362,7 @@ export const worklist: WorklistRow[] = [
         detail: 'Active-duty orders on file, deployed 2025-11-04. Interest capped at 6%.',
         expires: '2026-11-04',
       },
+      { code: 'notice_not_served', detail: 'Past-due notice only. No disconnect notice has been served.' },
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
     ],
     deposit: '0.00',
@@ -371,6 +381,7 @@ export const worklist: WorklistRow[] = [
     lastNotice: { type: 'Past-due notice', sentAt: '2026-02-05', channel: 'Mail' },
     bypasses: [
       { code: 'senior_grace', detail: 'Age 74. Extended grace granted 2026-01-15.', expires: '2026-03-15' },
+      { code: 'notice_not_served', detail: 'Past-due notice only. No disconnect notice has been served.' },
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
     ],
     deposit: '0.00',
@@ -392,6 +403,7 @@ export const worklist: WorklistRow[] = [
         code: 'dpa_good_standing',
         detail: '9-month arrangement, 4 instalments paid, next due 2026-02-20. No missed payments.',
       },
+      { code: 'notice_not_served', detail: 'On an arrangement. No disconnect notice has been served.' },
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
     ],
     deposit: '0.00',
@@ -403,18 +415,22 @@ export const worklist: WorklistRow[] = [
     accountNumber: '200-114027',
     name: 'Brazos Linen Service',
     isResidential: false,
-    address: '2905 Finfeather Rd',
+    address: '3300 Finfeather Rd',
     city: 'Bryan',
-    balance: '11842.67',
-    disputed: '4180.00',
-    pastDueDays: 62,
+    balance: '2253.77',
+    disputed: '1164.96',
+    pastDueDays: 43,
     stage: 'shutoff_scheduled',
     lastNotice: { type: 'Formal disconnect notice', sentAt: '2026-01-29', channel: 'Certified mail' },
     bypasses: [
       {
         code: 'formal_dispute',
         detail:
-          'Dispute filed 2026-02-06 over $4,180.00 of demand charges. Disconnect is barred while the disputed amount is at issue; the undisputed $7,662.67 remains collectible by other means.',
+          'Dispute filed 2026-02-06 over the January bill ($1,164.96): the customer says the meter over-registered. Disconnect is barred while it is at issue; the undisputed December bill ($1,088.81) remains collectible.',
+      },
+      {
+        code: 'payment_pending',
+        detail: '$1,088.81 posted 2026-02-14 by ACH against the December bill. Clears 2026-02-19 and cures the undisputed balance.',
       },
     ],
     deposit: '4200.00',
@@ -470,14 +486,21 @@ export const worklist: WorklistRow[] = [
     isResidential: true,
     address: '907 Fairview Ave',
     city: 'Bryan',
-    balance: '96.10',
-    pastDueDays: 22,
+    balance: '109.10',
+    pastDueDays: 12,
     stage: 'reminder_sent',
-    lastNotice: { type: 'Reminder', sentAt: '2026-02-08', channel: 'Email' },
-    bypasses: [{ code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' }],
+    lastNotice: { type: 'Reminder', sentAt: '2026-02-10', channel: 'Email' },
+    bypasses: [
+      {
+        code: 'payment_pending',
+        detail: '$109.10 posted 2026-02-13 by ACH. Clears 2026-02-18 and pays the January bill in full.',
+      },
+      { code: 'notice_not_served', detail: 'Reminder only. No disconnect notice has been served.' },
+      { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
+    ],
     deposit: '150.00',
     priorDisconnects: 0,
-    nextAction: 'Past-due notice due today',
+    nextAction: 'Refund the $150.00 deposit — it is overdue, and one late bill does not forfeit it',
   },
 ]
 
@@ -586,8 +609,8 @@ export const reconnectQueue: ReconnectRow[] = [
     name: 'Ibarra, Soledad',
     address: '2811 Kent St, Bryan',
     disconnectedAt: '2026-02-11T14:05:00-06:00',
-    paidAt: '2026-02-13T16:40:00-06:00',
-    slaDueAt: '2026-02-14T16:40:00-06:00',
+    paidAt: '2026-02-16T16:40:00-06:00',
+    slaDueAt: '2026-02-17T16:40:00-06:00',
     priority: 'medical',
     priorityReason: 'Nebuliser on file; certification lodged after disconnect',
     fee: '65.00',
@@ -601,8 +624,8 @@ export const reconnectQueue: ReconnectRow[] = [
     name: 'Whitfield, Aaron',
     address: '515 Bittle Ln, Bryan',
     disconnectedAt: '2026-02-12T10:22:00-06:00',
-    paidAt: '2026-02-14T07:55:00-06:00',
-    slaDueAt: '2026-02-15T07:55:00-06:00',
+    paidAt: '2026-02-17T07:55:00-06:00',
+    slaDueAt: '2026-02-18T07:55:00-06:00',
     priority: 'temperature',
     priorityReason: 'Forecast 26°F overnight; no alternative heat reported',
     fee: '65.00',
@@ -616,8 +639,8 @@ export const reconnectQueue: ReconnectRow[] = [
     name: 'Cornerstone Auto Body',
     address: '1204 Wallis Rd, Bryan',
     disconnectedAt: '2026-02-09T09:10:00-06:00',
-    paidAt: '2026-02-13T11:02:00-06:00',
-    slaDueAt: '2026-02-15T11:02:00-06:00',
+    paidAt: '2026-02-16T11:02:00-06:00',
+    slaDueAt: '2026-02-18T11:02:00-06:00',
     priority: 'standard',
     priorityReason: 'Commercial, 48-hour SLA',
     fee: '145.00',
@@ -656,7 +679,7 @@ export const auditTrail: AuditEntry[] = [
   },
   {
     id: 'au-02',
-    at: '2026-02-14T05:30:04-06:00',
+    at: '2026-02-17T05:30:04-06:00',
     account: '100-304512',
     action: 'Disconnect eligibility withheld',
     rationale: 'ACH payment of $180.00 posted 2026-02-13 has not cleared the settlement window.',

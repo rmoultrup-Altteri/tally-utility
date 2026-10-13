@@ -35,10 +35,14 @@ export const currentUser = {
  * database knew it. Both are explicit because every date-effective lookup in
  * the schema requires the pair and refuses to default to now() (AC-15).
  * `isToday` false must change the appearance of the entire app.
+ *
+ * Tuesday morning after the cycle closed: the run finished overnight on
+ * Sunday, Monday was Presidents' Day, and the bills are dated today. Every
+ * stamp in the fixtures falls at or before this instant (the audit checks it).
  */
 export const asOf = {
-  validAt: '2026-02-14',
-  recordedAt: '2026-02-14T09:12:00-06:00',
+  validAt: '2026-02-17',
+  recordedAt: '2026-02-17T09:12:00-06:00',
   isToday: true,
 } as const
 

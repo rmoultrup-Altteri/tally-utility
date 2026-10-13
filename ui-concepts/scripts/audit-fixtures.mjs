@@ -22,6 +22,7 @@ import { LISTS, applyFilters, isFiltered } from '../lib/views.ts'
 import { baseline as sandboxBaseline, billFor, currentCard } from '../fixtures/tariff.ts'
 import { payments } from '../fixtures/payments.ts'
 import { asOf } from '../fixtures/tenant.ts'
+import { transfers, transferPremises, transferPremiseById } from '../fixtures/transfers.ts'
 
 const findings = []
 const fail = (area, id, msg) => findings.push({ area, id, msg })
@@ -249,7 +250,103 @@ for (const s of stayedAccounts) {
   if (d !== 20) fail('collections', s.id, `§366(b) deadline is ${d} days after the petition, not 20`)
 }
 
+/* ---- One balance per customer ------------------------------------------
+   A customer's balance is what their issued bills still ask for. A draft or
+   held bill has not been issued, so it owes nothing yet; a void owes nothing
+   ever. Every screen that states a balance or an age reads it from here. */
+const issued = (i) => i.status !== 'draft' && i.status !== 'held' && i.status !== 'void'
+const openIssued = (customerId) => invoices.filter((i) => i.customer_id === customerId && issued(i) && n(i.balance) > 0)
+for (const c of customers) {
+  const owed = openIssued(c.id).reduce((a, i) => a + n(i.balance), 0)
+  if (!exact(owed, n(c.balance))) fail('balances', c.id, `issued bills leave ${owed.toFixed(2)} open but the account balance says ${c.balance}`)
+}
+for (const w of worklist) {
+  if (w.lastNotice && w.lastNotice.sentAt > asOf.validAt) fail('collections', w.id, `last notice ${w.lastNotice.sentAt} is after the as-of date`)
+  /* Field work needs a formal notice served at least ten days before today;
+     anything short of that has to be named as a condition on the row. */
+  const formal = w.lastNotice?.type === 'Formal disconnect notice'
+  const matured = formal && daysBetween(w.lastNotice.sentAt, asOf.validAt) >= 10
+  if (!matured && !w.bypasses.some((b) => b.code === 'notice_immature' || b.code === 'notice_not_served'))
+    fail('collections', w.id, 'no matured disconnect notice, and no notice condition says so')
+  if (!w.customerId) continue
+  const c = customerById.get(w.customerId)
+  if (!c) continue
+  if (!exact(n(w.balance), n(c.balance))) fail('collections', w.id, `worklist balance ${w.balance} but the account says ${c.balance}`)
+  const link = serviceLinks.find((l) => l.customerId === c.id)
+  const loc = link && locationById.get(link.locationId)
+  if (loc && (w.address !== loc.address || w.city !== loc.city)) fail('collections', w.id, `worklist address ${w.address}, ${w.city} but the premise is ${loc.address}, ${loc.city}`)
+  const open = openIssued(c.id)
+  if (!open.length) { fail('collections', w.id, 'on the worklist with no open issued bill'); continue }
+  const oldest = open.map((i) => i.due_date).sort()[0]
+  const age = daysBetween(oldest, asOf.validAt)
+  if (age !== w.pastDueDays) fail('collections', w.id, `oldest open bill fell due ${oldest}, ${age} days ago, but the row says ${w.pastDueDays}d`)
+  if (w.lastNotice && w.lastNotice.sentAt <= oldest) fail('collections', w.id, `notice ${w.lastNotice.sentAt} sent on or before the bill fell due ${oldest}`)
+}
+/* A meter's estimate streak ends at its latest actual read. */
+for (const m of meters) {
+  const latest = readings.filter((r) => r.meter_id === m.id).sort((a, b) => b.reading_date.localeCompare(a.reading_date))[0]
+  if (latest && !latest.is_estimated && m.consecutive_estimate_count !== 0)
+    fail('reads', m.id, `latest read ${latest.reading_date} is actual but the meter says ${m.consecutive_estimate_count} estimates in a row`)
+}
+
+/* ---- Nothing recorded after now ----------------------------------------
+   The as-of coordinate is "now" for the whole app. A detection, a run, a
+   filing or a payment stamped later than it is data from the future. */
+{
+  const now = Date.parse(asOf.recordedAt)
+  const stamps = [
+    ...exceptions.flatMap((e) => [[`exception ${e.id}`, e.detected_at], [`exception ${e.id} first`, e.first_detected_at]]),
+    ...runs.flatMap((r) => [[`run ${r.id} started`, r.started_at], [`run ${r.id} posted`, r.posted_at], [`run ${r.id} recorded`, r.recorded_at]]),
+    ...invoices.flatMap((i) => [[`invoice ${i.id} issued`, i.first_issued_at], [`invoice ${i.id} voided`, i.voided_at], [`invoice ${i.id} held`, i.held_at]]),
+    ...allVersions.map((v) => [`rate ${v.id}`, v.recorded_from]),
+    ...reconnectQueue.flatMap((r) => [[`reconnect ${r.id} paid`, r.paidAt], [`reconnect ${r.id} disconnected`, r.disconnectedAt]]),
+  ]
+  for (const [what, at] of stamps) if (at && Date.parse(at) > now) fail('clock', what, `stamped ${at}, after the as-of instant ${asOf.recordedAt}`)
+  for (const r of reconnectQueue) if (Date.parse(r.slaDueAt) < now) fail('clock', r.id, `reconnect SLA ${r.slaDueAt} already passed — the queue says none are past SLA`)
+}
+
+/* ---- Transfers of service --------------------------------------------- */
+for (const t of transfers) {
+  const m = t.mover
+  if (!transferPremiseById.get(t.toPremiseId)) fail('transfers', t.id, `moves to unknown premise ${t.toPremiseId}`)
+  if (m.customerId) {
+    const c = customerById.get(m.customerId)
+    if (!c) { fail('transfers', t.id, 'points at a missing customer'); continue }
+    if (c.customer_number !== m.accountNumber) fail('transfers', t.id, `account ${m.accountNumber} but the customer is ${c.customer_number}`)
+    if (!exact(n(c.balance), n(m.balance))) fail('transfers', t.id, `mover balance ${m.balance} but the account says ${c.balance}`)
+    if (!exact(n(c.deposit_amount), n(m.deposit))) fail('transfers', t.id, `mover deposit ${m.deposit} but the account says ${c.deposit_amount}`)
+    const link = serviceLinks.find((l) => l.customerId === c.id)
+    const loc = link && locationById.get(link.locationId)
+    if (loc && (loc.address !== m.from.address || loc.location_number !== m.from.premiseNumber)) fail('transfers', t.id, `moves from ${m.from.address} but the account's premise is ${loc.address}`)
+    if (link && m.from.meterId !== link.meterId) fail('transfers', t.id, `old meter ${m.from.meterId} is not the premise's meter ${link.meterId}`)
+  }
+  const w = worklist.find((x) => x.accountNumber === m.accountNumber)
+  if (w && (!exact(n(w.balance), n(m.balance)) || w.pastDueDays !== m.pastDueDays))
+    fail('transfers', t.id, `mover owes ${m.balance}, ${m.pastDueDays}d but the worklist says ${w.balance}, ${w.pastDueDays}d`)
+  for (const [what, at] of [['requested', t.requestedAt], ['final read', t.finalRead.takenAt], ['turn-on', t.turnOn.completedAt], ['completed', t.completedAt]])
+    if (at && Date.parse(at) > Date.parse(asOf.recordedAt)) fail('clock', `${t.id} ${what}`, `stamped ${at}, after the as-of instant`)
+  if (t.finalRead.takenAt && t.finalRead.takenAt.slice(0, 10) !== t.stopDate) fail('transfers', t.id, 'final read taken on a day other than the stop date')
+  if (t.completedAt && !t.finalInvoice) fail('transfers', t.id, 'completed without a final bill')
+}
+{
+  const open = transfers.filter((t) => !t.completedAt)
+  for (const p of transferPremises) {
+    const claims = open.filter((t) => t.toPremiseId === p.id)
+    if (claims.length > 1) fail('transfers', p.id, `claimed by ${claims.map((t) => t.number).join(' and ')}`)
+  }
+  /* A finished move leaves the customer holding service at the new premise. */
+  for (const t of transfers.filter((x) => x.completedAt || x.turnOn.completedAt)) {
+    const occ = transferPremiseById.get(t.toPremiseId)?.occupant
+    if (occ && (occ.kind !== 'customer' || occ.accountNumber !== t.mover.accountNumber))
+      fail('transfers', t.id, `moved in, but ${t.toPremiseId} still shows ${occ.kind === 'customer' ? occ.name : occ.kind} on service`)
+  }
+}
+
 /* ---- Dashboard aggregates ---------------------------------------------- */
+/* Billed month to date counts posted runs only. */
+for (const r of runs)
+  if (!r.posted_at && !r.is_dry_run && exact(n(r.total_amount), n(revenue.billedNetOfVoids)))
+    fail('dashboard', 'revenue', `billed month to date equals ${r.run_number}, which has not posted`)
 const arTotal = arAging.reduce((a, b) => a + n(b.amount), 0)
 if (arTotal <= 0) fail('dashboard', 'arAging', 'AR buckets do not total a positive figure')
 for (const p of portlets) if (p.more < 0) fail('dashboard', p.tier, 'negative overflow count')

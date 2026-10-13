@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react'
 import { tenant } from '@/fixtures/tenant'
-import type { Invoice, InvoiceLine } from '@/schemas/models'
+import { isIssued, type Invoice, type InvoiceLine } from '@/schemas/models'
 import { date, days, money, rateInUnit } from '@/lib/format'
 import { useInvoice } from '@/lib/edits-store'
 /** The printed object. Print units, serif, accounting rules, white stock. */
@@ -59,7 +59,10 @@ export function BillDocument({
             Statement
           </p>
           <p className="ident text-[11pt] mt-0.5">{invoice.invoice_number}</p>
-          <p className="text-[9pt] opacity-70 mt-1">Issued {date(invoice.invoice_date)}</p>
+          <p className="text-[9pt] opacity-70 mt-1">
+            {isIssued(invoice) ? 'Issued' : 'Bill date'} {date(invoice.invoice_date)}
+            {isIssued(invoice) ? null : ' · not yet issued'}
+          </p>
         </div>
       </header>
 

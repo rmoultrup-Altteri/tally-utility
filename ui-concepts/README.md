@@ -25,6 +25,8 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 |---|---|
 | `/dashboard` | Billing operations dashboard, built to the locked T8 rulings |
 | `/` | Pre-mail exception queue — the home surface |
+| `/transfers` | Transfers of service — the tab beside the exception queue: blocked and in-review moves first, each with the rule that stopped it |
+| `/transfers/new` | Book a transfer while the customer is on the line, with the checks running beside the form |
 | `/reads` | Read validation grid, 20 columns in 6 groups |
 | `/runs/run-2026-02-04` | Billing run cockpit with the post gate |
 | `/runs/run-2026-02-sbx` | The same, as a dry run |
@@ -193,6 +195,46 @@ and eyeballing screenshots will not find it.
 The checks are mutation-tested rather than assumed: breaking a cent, a
 multiplier, a day count, a version chain or a narrative total each produce a
 finding. A check that has never failed is not evidence of anything.
+
+A billing manager's walkthrough found the second class: one customer showing
+three different balances on three screens. So the audit also holds:
+
+- **One balance per customer.** An account's balance is what its issued bills
+  still ask for; a draft or held bill owes nothing yet. The collections row,
+  the payment screen, the account page and any transfer all read that number,
+  with the same past-due age from the oldest open bill.
+- **One AR picture.** Collections shows the same aged receivables as the
+  dashboard and the AR aging report, from the same rows.
+- **No field work without a matured notice.** A worklist row with no formal
+  disconnect notice served at least ten days ago must say so as a condition.
+- **Nothing stamped after now.** Every detection, run, filing, payment and
+  transfer is at or before the as-of instant (Tue Feb 17, 2026, 9:12 AM).
+- **Billed month to date counts posted runs only.**
+
+## Transfers of service
+
+**Transfers**, under Exceptions in the sidebar and as a tab beside the
+pre-mail queue, moves a customer from one premise to another without closing
+their account: a final read and final bill at the old premise, a turn-on at
+the new one, and the balance, deposit and any payment arrangement carried
+across. For gas the start is a truck roll: a locked-off meter is turned on,
+the line pressure-tested and every pilot relit with an adult home.
+
+One rule set (`lib/transfers.ts`) evaluates the recorded transfers and a new
+request alike, so the tab and the form never disagree. A check **blocks** (an
+open exception on the final read, someone else still on service at the new
+premise, a premise already claimed by another transfer, a turn-on on a weekend
+or holiday, nobody home for the relight), asks for **review** (past-due money
+moving across, a protection to re-verify at the new address, a customer read,
+overlapping service) or is simply noted (a previous occupant's debt, which is
+never asked of the incoming customer; the franchise city and cycle at the new
+premise).
+
+**New transfer** (or **Transfer service** on an account) keys the move in
+while the customer is on the line, with the checks running beside the form and
+a prorated estimate of the final bill. Booking needs **Edit accounts**; a
+transfer with anything to review waits on the tab for a sign-off. Transfers
+booked here are kept in this browser (`lib/transfers-store.ts`).
 
 ## Back and edit
 
@@ -419,7 +461,7 @@ extended one back.
 - Assistant imports of meters, premises and rate items are stored but not yet
   shown on the Rates or account screens; the assistant itself can see them.
 - Excel files must be saved as CSV before attaching.
-- The AR bucket drilldown lists are not built.
+- The AR buckets open the AR aging report, which drills by customer type; a list per age bucket is not built.
 - Collections rules are Texas-specific (16 TAC §7.460 forecast rule, no
   calendar moratorium). A real deployment parameterises these per jurisdiction;
   the fixture hard-codes one state.

@@ -108,7 +108,8 @@ export function AccountAlerts({ customer: base }: { customer: Customer }) {
             <strong className="font-semibold">Do not disconnect.</strong>{' '}
             {humanize(customer.disconnect_protection_type ?? '')} on file
             {customer.disconnect_protection_expiry ? <>, expires {date(customer.disconnect_protection_expiry)}</> : null}.
-            Collections activity on this account is suspended until then.
+            No disconnection until then. Reminders and notices may continue where the rule allows
+            them.
           </p>
         </StateBlock>
       ) : null}

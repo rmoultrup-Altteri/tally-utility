@@ -21,7 +21,7 @@ export const MERGE_FIELDS: MergeField[] = [
   { key: 'customer.first_name', group: 'Customer', label: 'First name', sample: 'Marisol' },
   { key: 'customer.name', group: 'Customer', label: 'Full name', sample: 'Marisol Herrera' },
   { key: 'account.number', group: 'Customer', label: 'Account number', sample: '100-248193' },
-  { key: 'account.balance', group: 'Customer', label: 'Account balance', sample: '$318.44' },
+  { key: 'account.balance', group: 'Customer', label: 'Account balance', sample: '$92.43' },
   { key: 'service.address', group: 'Customer', label: 'Service address', sample: '1418 Ashburn St, Bryan' },
   { key: 'bill.number', group: 'Bill', label: 'Bill number', sample: 'INV-2026-02-004182' },
   { key: 'bill.period', group: 'Bill', label: 'Bill period', sample: 'February' },

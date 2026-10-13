@@ -11,6 +11,7 @@ import { TableFooter } from '@/components/table/Table'
 import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { ListStar } from '@/components/shell/Favorites'
 import { QueueFilterBar } from '@/components/queue/QueueFilters'
+import { WorkTabs } from '@/components/queue/WorkTabs'
 import { applyFilters, describeFilters, isFiltered, parseFilters } from '@/lib/views'
 import { currentUser } from '@/fixtures/tenant'
 import { byConsequence, openExceptions, exceptions, blockingCount } from '@/fixtures/exceptions'
@@ -157,6 +158,8 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
           </>
         }
       />
+
+      <WorkTabs current="exceptions" />
 
       <div className="px-5 py-3 border-b border-rule-solid bg-surface">
         <StateBlock tone="critical">

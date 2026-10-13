@@ -28,7 +28,7 @@ export const customers: Customer[] = [
     is_tax_exempt: false,
     move_in_date: '2019-08-02',
     deposit_amount: '0.00',
-    balance: '318.44',
+    balance: '92.43',
     created_at: '2019-07-29T15:12:40Z',
   },
   {
@@ -49,7 +49,7 @@ export const customers: Customer[] = [
     is_tax_exempt: false,
     move_in_date: '2023-03-17',
     deposit_amount: '150.00',
-    balance: '96.10',
+    balance: '109.10',
     created_at: '2023-03-14T14:03:11Z',
   },
   {
@@ -70,7 +70,7 @@ export const customers: Customer[] = [
     is_tax_exempt: false,
     move_in_date: '2011-05-01',
     deposit_amount: '4200.00',
-    balance: '11842.67',
+    balance: '2253.77',
     created_at: '2011-04-18T16:45:02Z',
   },
   {
@@ -108,11 +108,11 @@ export const customers: Customer[] = [
     disconnect_protection_type: null,
     disconnect_protection_expiry: null,
     billing_hold: true,
-    billing_hold_reason: 'Move-out read disputed — do not bill pending field recheck',
+    billing_hold_reason: 'Third estimate in a row behind a locked gate — hold for an actual read',
     is_tax_exempt: false,
     move_in_date: '2021-11-08',
     deposit_amount: '0.00',
-    balance: '42.88',
+    balance: '138.72',
     created_at: '2021-11-03T19:08:33Z',
   },
   {
@@ -133,7 +133,7 @@ export const customers: Customer[] = [
     is_tax_exempt: false,
     move_in_date: '2016-02-20',
     deposit_amount: '0.00',
-    balance: '604.19',
+    balance: '430.18',
     created_at: '2016-02-16T15:51:26Z',
   },
   {
@@ -154,7 +154,7 @@ export const customers: Customer[] = [
     is_tax_exempt: false,
     move_in_date: '2022-06-11',
     deposit_amount: '600.00',
-    balance: '489.31',
+    balance: '0.00',
     created_at: '2022-06-06T17:34:09Z',
   },
   {
@@ -287,7 +287,7 @@ export const meters: Meter[] = [
     route_id: 'RT-14',
     route_sequence: 212,
     status: 'active',
-    consecutive_estimate_count: 2,
+    consecutive_estimate_count: 0,
   },
   {
     id: 'mtr-0002',

@@ -1,7 +1,8 @@
 import type { Tone } from '@/components/ui/State'
 import type { ReportKey } from '@/lib/views'
 import { arAging, revenue } from '@/fixtures/billing'
-import { tenant } from '@/fixtures/tenant'
+import { asOf, tenant } from '@/fixtures/tenant'
+import { date } from '@/lib/format'
 
 /**
  * Sample reports.
@@ -168,18 +169,19 @@ const agingByType = (() => {
   return rows.map((r) => ({ ...r, total: sum([r.current, r.d30, r.d60, r.d90]) }))
 })()
 const arTotal = sum(arAging.map((b) => b.amount))
+const asOfLabel = `As of ${date(asOf.validAt)}`
 
 const plans = [
   { account: '100-287365', name: 'Hollis, Duane', start: '2025-10-20', of: 9, paid: 4, inst: '148.81', status: 'On track', next: '2026-02-20' },
   { account: '100-262118', name: 'Okafor, Grace', start: '2025-09-05', of: 6, paid: 5, inst: '96.40', status: 'On track', next: '2026-03-05' },
   { account: '100-271904', name: 'Delgado, Rosa', start: '2025-12-01', of: 12, paid: 2, inst: '61.25', status: 'On track', next: '2026-03-01' },
-  { account: '200-118842', name: 'Riverside Diner', start: '2025-08-15', of: 10, paid: 5, inst: '412.00', status: 'Missed 1', next: '2026-02-15' },
+  { account: '200-118842', name: 'Riverside Diner', start: '2025-08-15', of: 10, paid: 5, inst: '412.00', status: 'Missed 1', next: '2026-03-15' },
   { account: '100-254410', name: 'Pruitt, Samuel', start: '2025-11-10', of: 6, paid: 3, inst: '118.73', status: 'On track', next: '2026-03-10' },
   { account: '100-239877', name: 'Whitfield, Linda', start: '2025-05-01', of: 8, paid: 8, inst: '75.00', status: 'Completed', next: null },
   { account: '100-280551', name: 'Brennan, Thomas', start: '2025-10-01', of: 9, paid: 2, inst: '134.50', status: 'Defaulted', next: null },
   { account: '100-266741', name: 'Nguyen, Elena', start: '2026-01-12', of: 6, paid: 1, inst: '88.16', status: 'On track', next: '2026-03-12' },
-  { account: '200-140558', name: 'Navasota Feed & Seed', start: '2025-11-20', of: 12, paid: 3, inst: '640.00', status: 'Missed 1', next: '2026-02-20' },
-  { account: '100-248877', name: 'Castillo, Maria', start: '2025-12-15', of: 4, paid: 2, inst: '102.30', status: 'On track', next: '2026-02-15' },
+  { account: '200-140592', name: 'Navasota Feed & Seed', start: '2025-11-20', of: 12, paid: 3, inst: '640.00', status: 'Missed 1', next: '2026-02-20' },
+  { account: '100-248877', name: 'Castillo, Maria', start: '2025-12-15', of: 4, paid: 3, inst: '102.30', status: 'On track', next: '2026-03-15' },
 ].map((p) => {
   /* Instalments fall due monthly from the start date. An active plan's start
      is set back from its next due date, so the instalments already due are
@@ -256,7 +258,7 @@ const deposits = Array.from({ length: 17 }, (_, i) => {
   const amount = pick(['75.00', '100.00', '150.00', '225.00', '400.00'], i * 3)
   const paidYear = 2024 + (i % 3 === 0 ? 0 : 1)
   const paidOn = `${paidYear}-${String(1 + ((i * 5) % 12)).padStart(2, '0')}-${String(3 + ((i * 7) % 24)).padStart(2, '0')}`
-  const years = (Date.parse('2026-02-14') - Date.parse(paidOn)) / (365.25 * 86400000)
+  const years = (Date.parse(asOf.validAt) - Date.parse(paidOn)) / (365.25 * 86400000)
   const interest = times(Number(amount), DEPOSIT_RATE * years)
   const overdue = Math.max(0, Math.round((years - 1) * 365.25) - 30)
   return {
@@ -363,7 +365,7 @@ export const reports: Report[] = [
     title: 'AR aging',
     category: 'Receivables',
     description: 'Open receivables aged by invoice, split by customer type.',
-    period: 'As of Feb 14, 2026',
+    period: asOfLabel,
     source: 'Open invoices, aged from each invoice’s due date',
     summary: [
       { label: 'Total receivables', value: usd(arTotal) },
@@ -390,7 +392,7 @@ export const reports: Report[] = [
     title: 'Payment plans and progress',
     category: 'Receivables',
     description: 'Customers on deferred payment arrangements, instalments paid and what remains.',
-    period: 'As of Feb 14, 2026',
+    period: asOfLabel,
     source: 'Payment arrangements and the payments applied against them',
     summary: [
       { label: 'Active plans', value: String(plans.filter((p) => p.status !== 'Completed' && p.status !== 'Defaulted').length) },
@@ -616,7 +618,7 @@ export const reports: Report[] = [
     title: 'Deposit refunds',
     category: 'Deposits',
     description: 'Customer deposits that have earned a refund, with interest owed.',
-    period: 'As of Feb 14, 2026',
+    period: asOfLabel,
     source: 'Deposits held, payment history and the deposit interest rate',
     summary: [
       { label: 'Refunds due', value: String(deposits.length) },
@@ -987,7 +989,7 @@ const drills: Record<ReportKey, DrillFn> = {
     )
     return {
       title: `${row.type} — open invoices`,
-      subtitle: 'As of Feb 14, 2026',
+      subtitle: asOfLabel,
       ties: [
         { label: 'Open invoices', value: lines(n, 'invoices') },
         { label: 'Line total', value: usd(row.total) },
@@ -1257,8 +1259,8 @@ const drills: Record<ReportKey, DrillFn> = {
     const segments = [2024, 2025, 2026]
       .map((y) => {
         const from = Math.max(Date.parse(paidOn), Date.parse(`${y}-01-01`))
-        const to = Math.min(Date.parse('2026-02-14'), Date.parse(`${y}-12-31`))
-        return { y, days: Math.max(0, Math.round((to - from) / 86400000)), end: y === 2026 ? '2026-02-14' : `${y}-12-31` }
+        const to = Math.min(Date.parse(asOf.validAt), Date.parse(`${y}-12-31`))
+        return { y, days: Math.max(0, Math.round((to - from) / 86400000)), end: y === 2026 ? asOf.validAt : `${y}-12-31` }
       })
       .filter((s) => s.days > 0)
     const interest = allocate(cents(row.interest), segments.map((s) => s.days)).map(dollars)
