@@ -272,6 +272,12 @@ MUTATIONS: list[tuple[str, str, str, Callable[[str], str]]] = [
     ("M168", "an application or partial return may exceed what had arrived by its day", "I9", off("IF NEW.amount > v_least THEN")),
     ("M169", "the timeline guard looks at the movement's own day only, not the later days already recorded", "I13", rep("AND e.effective_on > NEW.effective_on) x;", "AND false) x;")),
     ("M170", "a refund, release or refund notice may be dated before a receipt already recorded", "I15", rep("        IF EXISTS (SELECT 1 FROM public.deposit_events e\n                    WHERE e.deposit_id = d.id AND e.effective_on > NEW.effective_on\n", "        IF false AND EXISTS (SELECT 1 FROM public.deposit_events e\n                    WHERE e.deposit_id = d.id AND e.effective_on > NEW.effective_on\n")),
+    ("M171", "the refund-date rule looks at receipts only, not at an application or return already recorded", "I24", rep("AND e.event_type IN ('posted', 'instalment_received', 'applied_to_balance', 'principal_returned')) THEN", "AND e.event_type IN ('posted', 'instalment_received')) THEN")),
+    ("M172", "what a deposit has been through is read from the lagging status, so a second row of one statement passes (closed)", "I17", rep("IF v_closed IS NOT NULL THEN", "IF d.status IN ('refunded', 'released') THEN")),
+    ("M173", "… and a refund pending, read from the status, so a notice and an instalment in one statement pass", "I21", rep("""        IF v_notice IS NOT NULL THEN
+            RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — nothing more is received""", """        IF d.status = 'refund_pending' THEN
+            RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — nothing more is received""")),
+    ("M174", "a refund may be dated before its own refund notice", "I19", off("IF v_notice IS NOT NULL AND NEW.effective_on < v_notice THEN")),
     # (the min / max of a lesser-of / greater-of is not a mutation: version 1 allows one part that converts, so there is one figure to take)
 ]
 

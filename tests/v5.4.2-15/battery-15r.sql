@@ -1384,6 +1384,35 @@ SELECT pg_temp.refuses('I15: a refund notice dated 10 Feb, before the 14 Feb rec
   pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'refund_initiated', 87.50, DATE '2026-02-10'), '23514', 'precedes a receipt', 'tally_app', :'u1');
 SELECT pg_temp.does_as('I16: … dated on the day of the last movement, it is accepted', :'t1',
   pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'refund_initiated', 87.50, DATE '2026-02-14'));
+-- The status is a projection that lags inside one statement: what a deposit has been through is read from its events.
+CREATE FUNCTION pg_temp.ev2_sql(p_dep uuid, p_t1 text, p_a1 numeric, p_d1 date, p_t2 text, p_a2 numeric, p_d2 date) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT format($q$INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
+                   SELECT d.tenant_id, d.id, v.t, v.a, v.o FROM public.deposits d,
+                     (VALUES (%L::text, %s::numeric, %L::date, 1), (%L::text, %s::numeric, %L::date, 2)) AS v(t, a, o, n) WHERE d.id = %L ORDER BY v.n$q$,
+                 p_t1, p_a1, p_d1, p_t2, p_a2, p_d2, p_dep)
+$$;
+SELECT pg_temp.refuses('I17: two refunds of the remainder written in ONE statement pay it out twice (the second sees the first)',
+  pg_temp.ev2_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 AND basis = 'credit_evaluation' ORDER BY created_at LIMIT 1), 'refunded', 87.50, DATE '2026-02-14', 'refunded', 87.50, DATE '2026-02-15'), '23514', 'no further events', 'tally_app', :'u1');
+SELECT pg_temp.refuses('I18: … nor a refund and then a partial return in one statement',
+  pg_temp.ev2_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 AND basis = 'credit_evaluation' ORDER BY created_at LIMIT 1), 'refunded', 87.50, DATE '2026-02-14', 'principal_returned', 0.01, DATE '2026-02-15'), '23514', 'no further events', 'tally_app', :'u1');
+SELECT pg_temp.refuses('I19: a refund dated 10 Feb, before its own refund notice of 14 Feb (the payment is not dated before its notice)',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 AND basis = 'credit_evaluation' ORDER BY created_at LIMIT 1), 'refunded', 87.50, DATE '2026-02-10'), '23514', 'precedes the refund notice', 'tally_app', :'u1');
+SELECT pg_temp.does_as('I20: a second deposit in instalments (87.50 at posting, 87.50 due 14 Feb) is accepted', :'t1',
+  pg_temp.dw_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'), 'category', 'installer',
+     'tariff', pg_temp.tar(:'t1', 'installer'), 'principal', '175.00', 'cap', '175.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', null, 'received', '87.50', 'posted', quote_literal('2026-03-01')),
+     '{87.50}', '{2026-03-31}'));
+SELECT pg_temp.refuses('I21: a refund notice for 87.50 and, in the same statement, the instalment that makes it 175 (the notice would be short of the remainder)',
+  pg_temp.ev2_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND posted_on = DATE '2026-03-01'), 'refund_initiated', 87.50, DATE '2026-03-05', 'instalment_received', 87.50, DATE '2026-03-31'), '23514', 'a refund is pending', 'tally_app', :'u1');
+SELECT pg_temp.refuses('I22: … nor a refund notice and a partial return in the same statement',
+  pg_temp.ev2_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND posted_on = DATE '2026-03-01'), 'refund_initiated', 87.50, DATE '2026-03-05', 'principal_returned', 50, DATE '2026-03-05'), '23514', 'a refund is pending', 'tally_app', :'u1');
+-- The refund-date rule also holds against an application or a return already recorded, with no receipt after it.
+SELECT pg_temp.does_as('I23: the second deposit''s instalment arrives on 31 Mar', :'t1',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND posted_on = DATE '2026-03-01'), 'instalment_received', 87.50, DATE '2026-03-31'));
+SELECT pg_temp.does_as('I23b: … and 10 is applied to the balance on 1 Apr', :'t1',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND posted_on = DATE '2026-03-01'), 'applied_to_balance', 10, DATE '2026-04-01'));
+SELECT pg_temp.refuses('I24: a refund notice for the 165 left, dated 31 Mar (on the last receipt, before the application recorded for 1 Apr)',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND posted_on = DATE '2026-03-01'), 'refund_initiated', 165, DATE '2026-03-31'), '23514', 'precedes a receipt, application or return', 'tally_app', :'u1');
 -- r29:end instalments
 
 CREATE FUNCTION pg_temp.zz_rule(p_class text, p_basis text DEFAULT 'credit_evaluation') RETURNS text LANGUAGE sql STABLE AS $$

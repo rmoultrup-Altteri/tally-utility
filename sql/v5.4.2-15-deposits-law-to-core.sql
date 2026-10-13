@@ -4972,11 +4972,20 @@ DECLARE
     v_last_type text;
     v_earned numeric;
     v_least numeric;
+    v_closed text;
+    v_notice date;
 BEGIN
     SELECT * INTO d FROM public.deposits x WHERE x.id = NEW.deposit_id FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION USING MESSAGE = format('deposit event rejected: deposit %s not found (or not visible)', NEW.deposit_id), ERRCODE = 'foreign_key_violation';
     END IF;
+    -- What the deposit's history says, read from its events and not from the projected status: the projection is an AFTER
+    -- ROW trigger and so lags inside a multi-row INSERT, where a later row would pass a status check that an earlier row of
+    -- the same statement has already made false (a BEFORE ROW query does see those rows).
+    SELECT e.event_type INTO v_closed FROM public.deposit_events e
+     WHERE e.deposit_id = d.id AND e.event_type IN ('refunded', 'released') LIMIT 1;
+    SELECT min(e.effective_on) INTO v_notice FROM public.deposit_events e
+     WHERE e.deposit_id = d.id AND e.event_type = 'refund_initiated';
     IF d.tenant_id <> NEW.tenant_id THEN
         RAISE EXCEPTION USING MESSAGE = 'deposit event rejected: tenant_id must equal the deposit''s', ERRCODE = 'check_violation';
     END IF;
@@ -4985,8 +4994,8 @@ BEGIN
     END IF;
     PERFORM public.assert_same_tenant_user(NEW.created_by, NEW.tenant_id, 'created_by');
     NEW.created_at := now();
-    IF d.status IN ('refunded', 'released') THEN
-        RAISE EXCEPTION USING MESSAGE = format('deposit %s is %s: no further events (post a new deposit if one is required again)', d.id, d.status), ERRCODE = 'check_violation';
+    IF v_closed IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format('deposit %s is %s: no further events (post a new deposit if one is required again)', d.id, v_closed), ERRCODE = 'check_violation';
     END IF;
     IF NEW.effective_on < d.posted_on THEN
         RAISE EXCEPTION USING MESSAGE = format('deposit event rejected: effective_on %s precedes posted_on %s', NEW.effective_on, d.posted_on), ERRCODE = 'check_violation';
@@ -5050,7 +5059,7 @@ BEGIN
             RAISE EXCEPTION USING MESSAGE = 'deposit event rejected: the posted event is written by the database when the deposit is inserted', ERRCODE = 'check_violation';
         END IF;
     WHEN 'instalment_received' THEN
-        IF d.status = 'refund_pending' THEN
+        IF v_notice IS NOT NULL THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — nothing more is received (v5.4.2-15)', d.id), ERRCODE = 'check_violation';
         END IF;
         IF NEW.amount <= 0 OR NEW.amount > d.principal - coalesce((SELECT sum(e.amount) FROM public.deposit_events e
@@ -5060,7 +5069,7 @@ BEGIN
                 ERRCODE = 'check_violation';
         END IF;
     WHEN 'applied_to_balance' THEN
-        IF d.status = 'refund_pending' THEN
+        IF v_notice IS NOT NULL THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — the remainder is committed to the customer; record the refund (or a new deposit)', d.id), ERRCODE = 'check_violation';
         END IF;
         IF NEW.amount <= 0 OR NEW.amount > b.remainder THEN
@@ -5140,7 +5149,7 @@ BEGIN
         END IF;
     WHEN 'principal_returned' THEN
         -- Part of the principal goes back; the rest stays held.
-        IF d.status = 'refund_pending' THEN
+        IF v_notice IS NOT NULL THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — the remainder is committed to the customer', d.id), ERRCODE = 'check_violation';
         END IF;
         IF NEW.amount <= 0 OR NEW.amount >= b.remainder THEN
@@ -5149,7 +5158,7 @@ BEGIN
                 ERRCODE = 'check_violation';
         END IF;
     WHEN 'refund_initiated' THEN
-        IF d.status = 'refund_pending' THEN
+        IF v_notice IS NOT NULL THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is already pending', d.id), ERRCODE = 'check_violation';
         END IF;
         IF NEW.amount <> b.remainder THEN
@@ -5161,6 +5170,11 @@ BEGIN
         END IF;
         IF NEW.event_type = 'released' AND d.instrument = 'cash' THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s is cash: cash is refunded, not released', d.id), ERRCODE = 'check_violation';
+        END IF;
+        IF v_notice IS NOT NULL AND NEW.effective_on < v_notice THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit %s: a %s effective %s precedes the refund notice of %s — the payment is not dated before its notice (v5.4.2-15)', d.id, NEW.event_type, NEW.effective_on, v_notice),
+                ERRCODE = 'check_violation';
         END IF;
         IF NEW.amount <> b.remainder THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: the %s amount must be the remainder %s (apply to balance first; interest is a separate movement; a fully applied deposit is settled by a zero refund)', d.id, NEW.event_type, b.remainder), ERRCODE = 'check_violation';
