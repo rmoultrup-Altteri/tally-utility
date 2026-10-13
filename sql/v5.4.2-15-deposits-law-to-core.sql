@@ -54,37 +54,45 @@
 --   deposit, any waiver determination or any utility rate row, rather than
 --   invent the law row, state and service the core never recorded. -06's
 --   legacy_unknown deposits are carried unchanged: they cite no law row.
---   A second run finds the tables registered, says so, and changes nothing.
+--   A second run finds the tables there, says so, and skips the whole patch.
 --   Applied by a role that sees every tenant (superuser or BYPASSRLS), under
 --   READ COMMITTED.
 -- ============================================================================
 
+-- A second application finds the tables there and skips the whole patch (psql's \if): nothing is re-installed, so a
+-- later patch's version of a function is never overwritten by this one.
+SELECT to_regclass('public.deposit_rules') IS NOT NULL AND to_regclass('public.deposit_tariffs') IS NOT NULL AS already \gset
+\if :already
+DO $$ BEGIN RAISE NOTICE 'v5.4.2-15: deposit_rules is already on the rule-terms convention; nothing to do'; END $$;
+\else
 BEGIN;
 
-
 -- ----------------------------------------------------------------------------
--- 1. Precondition, and the re-run
+-- 1. Precondition
 -- ----------------------------------------------------------------------------
 DO $$
 DECLARE
     v_dep  bigint;
     v_wvr  bigint;
     v_rate bigint;
+    v_acc  bigint;
 BEGIN
     IF to_regclass('public.rule_tables') IS NULL OR to_regprocedure('public.rule_table_register(regclass,text,text,text[],text[],regprocedure,regprocedure,regclass,regprocedure,regprocedure)') IS NULL THEN
         RAISE EXCEPTION 'v5.4.2-15 needs the rule-terms template of v5.4.2-17 and -18 applied first'
             USING ERRCODE = 'object_not_in_prerequisite_state';
     END IF;
-    IF EXISTS (SELECT 1 FROM public.rule_tables WHERE table_name = to_regclass('public.deposit_rules')) THEN
-        RAISE NOTICE 'v5.4.2-15: deposit_rules is already on the rule-terms convention; nothing to do';
-        RETURN;
+    -- The counts below are only true for a role that sees every tenant.
+    IF NOT coalesce((SELECT r.rolsuper OR r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user), false) THEN
+        RAISE EXCEPTION 'v5.4.2-15 is applied by a role that sees every tenant (superuser or BYPASSRLS): its precondition counts rows under row security otherwise'
+            USING ERRCODE = 'insufficient_privilege';
     END IF;
     SELECT count(*) INTO v_dep FROM public.deposits d WHERE d.basis <> 'legacy_unknown';
     SELECT count(*) INTO v_wvr FROM public.deposit_waiver_determinations;
     SELECT count(*) INTO v_rate FROM public.deposit_interest_rates;
-    IF v_dep + v_wvr + v_rate > 0 THEN
+    SELECT count(*) INTO v_acc FROM public.deposit_events e WHERE e.event_type = 'interest_accrued';
+    IF v_dep + v_wvr + v_rate + v_acc > 0 THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('v5.4.2-15: %s deposit(s), %s waiver determination(s) and %s utility rate row(s) exist; this patch records the law row, state and service each was decided under, and will not invent them', v_dep, v_wvr, v_rate),
+            MESSAGE = format('v5.4.2-15: %s deposit(s), %s waiver determination(s), %s utility rate row(s) and %s interest accrual(s) exist; this patch records the law row, state and service each was decided under, and will not invent them', v_dep, v_wvr, v_rate, v_acc),
             ERRCODE = 'object_not_in_prerequisite_state',
             HINT = 'Nothing is live (2026-09-28). A database with real deposits needs a backfill that the core performs, citing law rows — write it before applying.';
     END IF;
@@ -3054,6 +3062,16 @@ BEGIN
         RAISE EXCEPTION USING
             MESSAGE = format('%s: the document names the return reason %s in two return rules — a return-due record cites the rule it rests on, one rule per reason (v5.4.2-15)', v_who, v_dup), ERRCODE = 'check_violation';
     END IF;
+    IF v_t #>> '{cap,strategy}' IS DISTINCT FROM 'parts' AND EXISTS (SELECT 1 FROM jsonb_array_elements(v_t -> 'return') r WHERE r #>> '{when,reason}' = 'excess_over_cap') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: a return of the excess over the cap needs a cap; this document sets none (v5.4.2-15)', v_who), ERRCODE = 'check_violation';
+    END IF;
+    SELECT t ->> 'id' || ' (' || (g ->> 'kind') || ')' INTO v_bad FROM jsonb_array_elements(v_t -> 'triggers') t, jsonb_array_elements(t -> 'guards') g
+     GROUP BY t ->> 'id', g ->> 'kind' HAVING count(*) > 1 ORDER BY 1 LIMIT 1;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: trigger %s has two guards of one kind — one guard per kind, so the days to pay and the like are one number (v5.4.2-15)', v_who, v_bad), ERRCODE = 'check_violation';
+    END IF;
     SELECT r ->> 'id' || ' (' || (r #>> '{when,waiver_class}') || ')' INTO v_bad FROM jsonb_array_elements(v_t -> 'return') r
      WHERE r #>> '{when,reason}' = 'entered_waiver_class'
        AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_t -> 'waivers') w WHERE w ->> 'waiver_class' = r #>> '{when,waiver_class}')
@@ -3362,6 +3380,12 @@ BEGIN
             MESSAGE = format('%s: the trigger code %s is not in deposit_triggers — the platform''s vocabulary of triggers (v5.4.2-15)', v_who, v_bad),
             ERRCODE = 'foreign_key_violation';
     END IF;
+    SELECT t ->> 'id' || ' (' || (g ->> 'kind') || ')' INTO v_bad FROM jsonb_array_elements(v_t -> 'triggers') t, jsonb_array_elements(t -> 'guards') g
+     GROUP BY t ->> 'id', g ->> 'kind' HAVING count(*) > 1 ORDER BY 1 LIMIT 1;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: trigger %s has two guards of one kind — one guard per kind (v5.4.2-15)', v_who, v_bad), ERRCODE = 'check_violation';
+    END IF;
     IF jsonb_array_length(v_t -> 'instalments') > 0 THEN
         SELECT sum((i ->> 'fraction')::numeric) INTO v_sum FROM jsonb_array_elements(v_t -> 'instalments') i;
         IF v_sum IS DISTINCT FROM 1 THEN
@@ -3375,13 +3399,22 @@ COMMENT ON FUNCTION public.deposit_tariff_insert_check(jsonb) IS
     'v5.4.2-15. The area predicate of deposit_tariffs (rule_tables.insert_check), over the new row with its document: the writer is the row''s own utility; the category is one of that utility''s own for the state and service; every trigger code is in the vocabulary; the instalment fractions add up to 1. Raises.';
 
 -- The tariff against the law (rule_tariff_check calls it with every law row in force over the tariff's dates that binds the
--- utility). It chooses the rows of the law class the category maps to, and returns the reasons the tariff is LOOSER:
---   * a deposit of N months of billing where the law caps at fewer (the law's cap converted to months: a fraction of annual
---     billing is 12 divided by the divisor; the lesser of several is the least, the greater of several is the greatest, and
---     only when every part can be converted); a flat amount is not compared when written — each deposit records the cap that
---     applied and its own check holds it to it;
---   * a trigger the law also names that fires sooner (a lower ratio, a lower count) or gives less time to pay;
--- A trigger or a waiver ground the law has no word on is the utility's own. A delegation, or a law with no cap, compares nothing.
+-- utility). It chooses the rows of the law class the category maps to, and returns the reasons the tariff is LOOSER, or cannot
+-- be shown to be no looser (unknown law is not permission):
+--   * no law row is known for the class at all;
+--   * a deposit of N months of billing where the law caps at fewer — the law's cap converted to months (a fraction of annual
+--     billing is 12 divided by the divisor; the lesser of several is the least of those that convert, the greater of several the
+--     greatest, only when every part converts). Months of the HIGHEST bill, or a minimum amount, cannot be shown to fit a cap
+--     stated on average billing, and are refused where such a cap exists;
+--   * the law has not ruled on the cap, and the tariff names an amount;
+--   * a trigger the law also names that fires sooner: a ratio of the same measure at a lower threshold (or the same, inclusive
+--     where the law is strict); a count of the same event over the same unit with a lower count, a longer window, or without the
+--     law's consecutive / disputed-bill protection; days to pay fewer than the law's (none given counts as none). A trigger of
+--     the same code whose condition cannot be compared with the law's (another measure, another unit, a combined condition that
+--     is not the law's own) is refused: it cannot be shown to fire no sooner.
+-- Not compared, and said so: a flat amount against a fixed-dollar cap or any cap not stated in months, waivers, instalments,
+-- guards other than days to pay. A trigger or waiver ground the law has no word on is the utility's own. A delegation compares
+-- nothing about content. A flat amount is held at each deposit by its recorded cap check.
 CREATE OR REPLACE FUNCTION public.deposit_tariff_compare(p_tariff jsonb, p_law jsonb) RETURNS text[]
     LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
@@ -3410,9 +3443,16 @@ BEGIN
     IF v_class IS NULL THEN
         RETURN v_problem;     -- the insert check has already refused an unknown category
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_law) r WHERE r ->> 'customer_class' = v_class) THEN
+        RETURN ARRAY[format('no law is known for the class %s this category maps to over these dates — unknown law is not permission', v_class)];
+    END IF;
     FOR v_row IN SELECT r FROM jsonb_array_elements(p_law) r
                   WHERE r ->> 'customer_class' = v_class AND r #>> '{terms,governs}' = 'law' LOOP
         -- the amount, against the cap of the bases that set the initial deposit
+        IF (v_row ->> 'basis') IN ('credit_evaluation', 'tariff') AND v_t #>> '{amount,strategy}' IN ('fixed', 'months_of_billing')
+           AND v_row #>> '{terms,cap,strategy}' = 'unruled' THEN
+            v_problem := v_problem || format('the law has not ruled on the cap for %s (%s), so an amount cannot be shown to be within it', v_class, v_row ->> 'basis');
+        END IF;
         IF v_t #>> '{amount,strategy}' = 'months_of_billing' AND (v_row ->> 'basis') IN ('credit_evaluation', 'tariff')
            AND v_row #>> '{terms,cap,strategy}' = 'parts' THEN
             v_months := (v_t #>> '{amount,months}')::numeric;
@@ -3432,9 +3472,15 @@ BEGIN
             IF v_comb = 'single' AND EXISTS (SELECT 1 FROM unnest(v_pms) x WHERE x IS NULL) THEN
                 v_allowed := NULL;
             END IF;
-            IF v_allowed IS NOT NULL AND v_months > v_allowed THEN
-                v_problem := v_problem || format('%s months of billing, where the law''s cap for %s (%s) is %s months',
-                                                 trim_scale(v_months), v_class, v_row ->> 'basis', trim_scale(round(v_allowed, 4)));
+            IF v_allowed IS NOT NULL THEN
+                IF v_t #>> '{amount,of}' = 'highest' THEN
+                    v_problem := v_problem || format('months of the highest bill cannot be shown to fit the law''s cap for %s (%s), which is stated on average billing', v_class, v_row ->> 'basis');
+                ELSIF v_t #>> '{amount,minimum_amount,kind}' = 'amount' THEN
+                    v_problem := v_problem || format('a minimum amount cannot be shown to fit the law''s cap for %s (%s)', v_class, v_row ->> 'basis');
+                ELSIF v_months > v_allowed THEN
+                    v_problem := v_problem || format('%s months of billing, where the law''s cap for %s (%s) is %s months',
+                                                     trim_scale(v_months), v_class, v_row ->> 'basis', trim_scale(round(v_allowed, 4)));
+                END IF;
             END IF;
         END IF;
         -- the triggers the law also names
@@ -3444,19 +3490,32 @@ BEGIN
                 CONTINUE WHEN v_lt IS NULL;
                 v_tc := v_tt -> 'condition';
                 v_lc := v_lt -> 'condition';
-                -- a ratio or a count, the same measure: the tariff fires sooner when its threshold is lower, or equal and inclusive where the law is strict
                 IF v_tc ->> 'kind' = 'ratio' AND v_lc ->> 'kind' = 'ratio' AND v_tc ->> 'measure' = v_lc ->> 'measure' THEN
+                    -- fires sooner: a lower threshold, or the same one inclusive where the law is strict
                     IF (v_tc ->> 'value')::numeric < (v_lc ->> 'value')::numeric
                        OR ((v_tc ->> 'value')::numeric = (v_lc ->> 'value')::numeric AND v_tc ->> 'op' = 'at_least' AND v_lc ->> 'op' = 'greater_than') THEN
                         v_problem := v_problem || format('the %s trigger fires at %s of %s, where the law waits for %s', v_tt ->> 'trigger_code',
                                                          trim_scale((v_tc ->> 'value')::numeric), v_tc ->> 'measure', trim_scale((v_lc ->> 'value')::numeric));
                     END IF;
                 ELSIF v_tc ->> 'kind' = 'count' AND v_lc ->> 'kind' = 'count' AND v_tc ->> 'event' = v_lc ->> 'event'
-                      AND v_tc -> 'window' = v_lc -> 'window' THEN
+                      AND v_tc #>> '{window,unit}' = v_lc #>> '{window,unit}' THEN
                     IF (v_tc ->> 'at_least')::numeric < (v_lc ->> 'at_least')::numeric THEN
                         v_problem := v_problem || format('the %s trigger fires at %s %s events, where the law waits for %s', v_tt ->> 'trigger_code',
                                                          v_tc ->> 'at_least', v_tc ->> 'event', v_lc ->> 'at_least');
                     END IF;
+                    IF (v_tc #>> '{window,size}')::numeric > (v_lc #>> '{window,size}')::numeric THEN
+                        v_problem := v_problem || format('the %s trigger counts over %s %s, where the law counts over %s', v_tt ->> 'trigger_code',
+                                                         v_tc #>> '{window,size}', v_tc #>> '{window,unit}', v_lc #>> '{window,size}');
+                    END IF;
+                    IF (v_lc ->> 'consecutive')::boolean AND NOT (v_tc ->> 'consecutive')::boolean THEN
+                        v_problem := v_problem || format('the %s trigger does not require the events to be consecutive, where the law does', v_tt ->> 'trigger_code');
+                    END IF;
+                    IF (v_lc ->> 'exclude_disputed')::boolean AND NOT (v_tc ->> 'exclude_disputed')::boolean THEN
+                        v_problem := v_problem || format('the %s trigger counts disputed bills, where the law excludes them', v_tt ->> 'trigger_code');
+                    END IF;
+                ELSIF v_tc IS DISTINCT FROM v_lc THEN
+                    v_problem := v_problem || format('the %s trigger''s condition cannot be compared with the law''s (%s against %s) and so cannot be shown to fire no sooner',
+                                                     v_tt ->> 'trigger_code', v_tc ->> 'kind', v_lc ->> 'kind');
                 END IF;
                 -- the days the customer has to pay: the tariff may give more, never fewer
                 SELECT (g ->> 'days')::integer INTO v_lg FROM jsonb_array_elements(v_lt -> 'guards') g WHERE g ->> 'kind' = 'payment_due_days';
@@ -3469,11 +3528,11 @@ BEGIN
             END LOOP;
         END IF;
     END LOOP;
-    RETURN v_problem;
+    RETURN coalesce((SELECT array_agg(DISTINCT x ORDER BY x) FROM unnest(v_problem) x), '{}');
 END;
 $$;
 COMMENT ON FUNCTION public.deposit_tariff_compare(jsonb, jsonb) IS
-    'v5.4.2-15. rule_tables.compare_function of deposit_tariffs: given the new tariff row and the law rows in force over its dates that bind the utility, the reasons the tariff is looser than the law of its category''s class: months of billing above the law''s cap (a fraction of annual billing is converted to months; a lesser-of is the least, a greater-of the greatest, only when every part converts), a trigger the law also names that fires sooner or gives fewer days to pay. A flat amount is not compared (each deposit''s own recorded cap check holds it); a trigger or waiver ground the law has no word on is the utility''s own; a delegation or a law with no cap compares nothing. A LATER change in the law that makes a tariff looser is a core audit finding, never a refusal of the law.';
+    'v5.4.2-15. rule_tables.compare_function of deposit_tariffs: given the new tariff row and the law rows in force over its dates that bind the utility, the reasons the tariff is looser than the law of its category''s class, or cannot be shown to be no looser: no law known for the class; months of billing above the law''s cap (a fraction of annual billing converted to months; a lesser-of the least of the parts that convert, a greater-of the greatest, only when all convert); months of the highest bill or a minimum amount where a cap in average months exists; an amount where the law has not ruled on the cap; a trigger the law also names that fires sooner (a lower ratio, a lower or longer-window count, without the law''s consecutive or disputed-bill protection) or gives fewer days to pay, and one whose condition cannot be compared. Not compared: a flat amount against a fixed-dollar cap (each deposit''s recorded cap holds it), waivers, instalments, other guards. A trigger or waiver ground the law has no word on is the utility''s own; a delegation compares nothing about content. A LATER change in the law that makes a tariff looser is a core audit finding, never a refusal of the law.';
 
 CREATE TABLE IF NOT EXISTS public.deposit_tariffs (
     id               uuid DEFAULT public.uuid_generate_v4() NOT NULL,
@@ -3590,8 +3649,7 @@ COMMENT ON FUNCTION public.deposit_published_rate(text, text, text, date) IS
 
 -- The highest floor the law sets for a utility's rate in a state and service,
 -- on a date, for the classes the rate reaches: the rate's own category's class,
--- or — for a rate for every category — every class the utility's categories map
--- to (every class of the state and service when it has no category). The floor
+-- or — for a rate for every category — every class of the state and service. The floor
 -- of a law row is its rate when the rate is a minimum: a fixed rate, or the
 -- highest of the published values it names (the main one and any by_hold).
 -- A rate the law names only as a reference, a law that leaves the rate to the
@@ -3613,17 +3671,27 @@ BEGIN
         SELECT array_agg(c.law_class) INTO v_classes FROM public.deposit_utility_categories c
          WHERE c.tenant_id = p_tenant_id AND c.state_code = p_state_code AND c.service_type = p_service_type AND c.category_code = p_category;
     ELSE
-        SELECT array_agg(DISTINCT c.law_class) INTO v_classes FROM public.deposit_utility_categories c
-         WHERE c.tenant_id = p_tenant_id AND c.state_code = p_state_code AND c.service_type = p_service_type;
-        IF v_classes IS NULL THEN
-            SELECT array_agg(c.class_code) INTO v_classes FROM public.deposit_customer_classes c
-             WHERE c.state_code = p_state_code AND c.service_type = p_service_type;
-        END IF;
+        -- A rate for every category serves any category the utility defines later, so it clears every class of the state
+        -- and service, not only those its categories map to today.
+        SELECT array_agg(c.class_code) INTO v_classes FROM public.deposit_customer_classes c
+         WHERE c.state_code = p_state_code AND c.service_type = p_service_type;
     END IF;
     FOR v_profile IN SELECT * FROM public.utility_service_profiles u
                       WHERE u.tenant_id = p_tenant_id AND u.service_type = p_service_type AND u.state_code = p_state_code
                         AND u.voided_at IS NULL AND daterange(u.effective_from, u.effective_to, '[)') @> p_on LOOP
         v_seen := true;
+        -- A rate for one category is for one class; with no law row at all for it the floor cannot be known.
+        IF p_category IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM public.deposit_rules r
+             WHERE r.state_code = p_state_code AND r.service_type = p_service_type AND r.customer_class = ANY (coalesce(v_classes, '{}'))
+               AND r.owner_span @> public.rule_applicability_ordinal('owner_type', v_profile.owner_type)
+               AND r.system_span @> public.rule_applicability_ordinal('system_kind', v_profile.system_kind)
+               AND r.jurisdiction_span @> (CASE WHEN v_profile.commission_jurisdiction THEN 1 ELSE 0 END)
+               AND daterange(r.effective_from, r.effective_to, '[)') @> p_on) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('no law is known for the class of category %s (%s %s) on %s, so the floor on its rate cannot be known — unknown law is not permission (v5.4.2-15)', p_category, p_state_code, p_service_type, p_on),
+                ERRCODE = 'check_violation';
+        END IF;
         FOR v_row IN SELECT r.terms FROM public.deposit_rules r
                       WHERE r.state_code = p_state_code AND r.service_type = p_service_type AND r.customer_class = ANY (coalesce(v_classes, '{}'))
                         AND r.owner_span @> public.rule_applicability_ordinal('owner_type', v_profile.owner_type)
@@ -3869,7 +3937,7 @@ ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_cap_source_check;
 ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_source_check
     CHECK ((((cap_amount IS NULL) AND (cap_source IS NULL) AND (cap_component IS NULL) AND (cap_basis_amount IS NULL) AND (cap_other_held IS NULL))
          OR ((cap_amount IS NOT NULL) AND (cap_source = 'statute'::text) AND (cap_component IS NOT NULL))
-         OR ((cap_amount IS NOT NULL) AND (cap_source = 'tariff'::text) AND (cap_component IS NULL))));
+         OR ((cap_amount IS NOT NULL) AND (cap_source = 'tariff'::text))));
 ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_cap_other_held_check;
 ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_other_held_check
     CHECK (((cap_other_held IS NULL) OR ((cap_other_held >= (0)::numeric) AND (cap_other_held < cap_amount))));
@@ -3921,6 +3989,7 @@ DECLARE
     v_doc    jsonb;
     v_cond   jsonb;
     v_met    boolean;
+    v_stat   numeric;
 BEGIN
     IF TG_OP = 'INSERT' THEN
         NEW.created_at    := now();
@@ -4001,18 +4070,24 @@ BEGIN
                 MESSAGE = format('deposit rejected: the law row %s leaves the matter to the utility, so the deposit cites the utility''s own tariff row (tariff_id, with its category) — no policy recorded is refused — v5.4.2-15', NEW.rule_id),
                 ERRCODE = 'check_violation';
         END IF;
-        -- The cap that applied: a statutory cap names the part of the cited document that governed it (under lesser-of or
-        -- greater-of, the part that won); a cap from the tariff cites the tariff row.
-        IF v_doc #>> '{cap,strategy}' = 'parts' AND NEW.cap_amount IS NULL THEN
+        -- The cap that applied. A cap said to come from the tariff cites the tariff row. Where the cited document caps the
+        -- deposit, the statutory cap is ALWAYS recorded — the part that governed it, by id, and the figure it was computed from
+        -- — and the cap that applied is no more than the statute's (a tariff's may be tighter): the record carries the law's
+        -- figure whichever source set the cap.
+        IF NEW.cap_source = 'tariff' AND NEW.tariff_id IS NULL THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('deposit rejected: law row %s caps the deposit; record the cap that applied — the statute''s or the utility''s tariff''s (cap_source) — v5.4.2-15', NEW.rule_id),
-                ERRCODE = 'check_violation';
+                MESSAGE = 'deposit rejected: a cap said to come from the tariff cites no tariff row (tariff_id) — v5.4.2-15', ERRCODE = 'check_violation';
         END IF;
-        IF NEW.cap_source = 'statute' THEN
-            SELECT p INTO v_part FROM jsonb_array_elements(coalesce(v_doc #> '{cap,parts}', '[]'::jsonb)) p WHERE p ->> 'id' = NEW.cap_component;
+        IF v_doc #>> '{cap,strategy}' = 'parts' THEN
+            IF NEW.cap_amount IS NULL THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('deposit rejected: law row %s caps the deposit; record the cap that applied — the statute''s or the utility''s tariff''s (cap_source) — v5.4.2-15', NEW.rule_id),
+                    ERRCODE = 'check_violation';
+            END IF;
+            SELECT p INTO v_part FROM jsonb_array_elements(v_doc #> '{cap,parts}') p WHERE p ->> 'id' = NEW.cap_component;
             IF v_part IS NULL THEN
                 RAISE EXCEPTION USING
-                    MESSAGE = format('deposit rejected: a statutory cap is the cited document''s — law row %s has no cap part %L; record the id of the part that governed (cap_component) — v5.4.2-15', NEW.rule_id, NEW.cap_component),
+                    MESSAGE = format('deposit rejected: the cited document sets a cap — law row %s has no cap part %L; record the id of the part that governed, whichever source set the cap (cap_component) — v5.4.2-15', NEW.rule_id, NEW.cap_component),
                     ERRCODE = 'check_violation';
             END IF;
             IF (NEW.cap_other_held IS NOT NULL) <> ((v_doc #>> '{cap,scope}') = 'combined') THEN
@@ -4025,11 +4100,20 @@ BEGIN
                     MESSAGE = 'deposit rejected: a cap records the figure it was computed from (cap_basis_amount), except a fixed amount, which has none (v5.4.2-15)',
                     ERRCODE = 'check_violation';
             END IF;
-        ELSIF NEW.cap_source = 'tariff' THEN
-            IF NEW.tariff_id IS NULL THEN
+            v_stat := CASE v_part ->> 'kind'
+                          WHEN 'fraction_of_annual_billing' THEN NEW.cap_basis_amount / (v_part ->> 'divisor')::numeric
+                          WHEN 'months_of_billing' THEN NEW.cap_basis_amount * (v_part ->> 'months')::numeric
+                          WHEN 'fixed_amount' THEN (v_part ->> 'amount')::numeric
+                      END;
+            IF v_stat IS NOT NULL AND NEW.cap_amount > v_stat + 0.005 THEN
                 RAISE EXCEPTION USING
-                    MESSAGE = 'deposit rejected: a cap said to come from the tariff cites no tariff row (tariff_id) — v5.4.2-15', ERRCODE = 'check_violation';
+                    MESSAGE = format('deposit rejected: the cap that applied (%s) is above the statutory cap of part %s (%s, from %s) — a tariff''s cap may be tighter, never looser (v5.4.2-15)',
+                                     NEW.cap_amount, NEW.cap_component, trim_scale(round(v_stat, 4)), NEW.cap_basis_amount),
+                    ERRCODE = 'check_violation';
             END IF;
+        ELSIF NEW.cap_source = 'statute' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit rejected: a statutory cap is the cited document''s — law row %s sets none (v5.4.2-15)', NEW.rule_id), ERRCODE = 'check_violation';
         END IF;
         -- The trigger an additional deposit was decided on: a trigger of the cited document (or of the tariff row), for the
         -- trigger code the deposit names, whose condition the measure the core observed meets.
@@ -4202,10 +4286,12 @@ BEGIN
         RETURN NULL;
     END IF;
     SELECT count(*), coalesce(sum(i.amount), 0) INTO v_n, v_sum FROM public.deposit_instalments i WHERE i.deposit_id = NEW.id;
-    SELECT coalesce(jsonb_array_length(r.terms -> 'instalments'), 0) INTO v_doc_n FROM public.deposit_rules r WHERE r.id = NEW.rule_id;
+    SELECT coalesce(nullif(jsonb_array_length(r.terms -> 'instalments'), 0),
+                    (SELECT jsonb_array_length(t.terms -> 'instalments') FROM public.deposit_tariffs t WHERE t.id = NEW.tariff_id), 0)
+      INTO v_doc_n FROM public.deposit_rules r WHERE r.id = NEW.rule_id;
     IF v_n + 1 <> v_doc_n OR NEW.received_at_posting + v_sum <> NEW.principal THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('deposit %s: taken in instalments, it records %s instalment(s) summing with the %s received at posting to %s; its law row''s schedule has %s and the principal is %s (v5.4.2-15)', NEW.id, v_n + 1, NEW.received_at_posting, NEW.received_at_posting + v_sum, v_doc_n, NEW.principal),
+            MESSAGE = format('deposit %s: taken in instalments, it records %s instalment(s) summing with the %s received at posting to %s; its schedule (the law row''s, or where the law gives none the cited tariff''s) has %s and the principal is %s (v5.4.2-15)', NEW.id, v_n + 1, NEW.received_at_posting, NEW.received_at_posting + v_sum, v_doc_n, NEW.principal),
             ERRCODE = 'check_violation';
     END IF;
     RETURN NULL;
@@ -5009,8 +5095,15 @@ $$;
 -- R4. A CLOSE RACING A NEW CITATION. The template's handshake holds: a citing
 --     record takes the law row's lock shared (deposit_cite_rule) and a close
 --     takes it exclusive before reading the floor. A deposit's own row is
---     locked but not required in force after its close (it governs what it
---     decided).
+--     locked but not required in force after its close: the old law stays the law
+--     that GOVERNS a deposit decided under it (Ryan, B1, 2026-10-02: "grandfathered"),
+--     while a successor reaches deposits already held only for the dates it is in
+--     force. A close floor can therefore rise above the row's own end; that is the
+--     citations, not a defect.
+--
+-- R11. A PARTIAL RETURN NEEDS NO DUE ROW. principal_returned may be recorded without
+--     one, as a voluntary refund may: part of a held deposit goes back by agreement or
+--     correction. When it cites a due row it must be exactly that row's amount.
 --
 -- R5. WHO WRITES THE RECORD TABLES. The tests write deposits, events and due
 --     rows as tally_app. The grant pattern says core-only later; this patch
@@ -5025,8 +5118,10 @@ $$;
 --     with the law's cap converted to months, and a trigger the law also names
 --     (a ratio or a count of the same measure, the days to pay). A flat amount,
 --     a cap of fixed dollars, highest bills or seasonal averages, a combined
---     condition, waivers and instalments are not compared when written; each
---     deposit's own recorded cap check holds a flat amount, and a later change in
+--     condition, waivers and instalments are not compared when written (months of the
+--     highest bill, a minimum amount and a cap the law has not ruled on are refused
+--     rather than passed); a flat amount is held at each deposit, which records the
+--     statutory cap's part and figure and may not exceed it; and a later change in
 --     the law that makes a tariff looser is a core audit finding.
 --
 -- R8. EVIDENCE IS REQUIRED, NOT COMPLETE. The database checks that a due row has
@@ -5043,8 +5138,14 @@ $$;
 --     cap, bill-anchored instalments, guarantor caps, municipal funds,
 --     post-discharge recalculation, periodic two-way recalculation. The schema
 --     refuses them rather than dropping them.
+-- R12. THE APPLICATION CONTRACTS FOLLOW THE MIRROR. application/APPLICATION-CONTRACTS.md
+--     AC-24 and AC-25 describe the -06 database (deposit_refund_trigger_state,
+--     deposit_interest_rate_as_of, deposit_accrual_amount, deposits_refund_due), which
+--     this patch drops. They describe what the mirrored database does today, so they are
+--     rewritten in the commit that mirrors this patch into tu.sql, not before.
 -- ============================================================================
 -- END PATCH v5.4.2-15
 -- ============================================================================
 
 COMMIT;
+\endif

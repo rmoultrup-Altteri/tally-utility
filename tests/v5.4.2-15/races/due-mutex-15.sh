@@ -257,9 +257,9 @@ BEGIN;
 SET LOCAL app.user_id = '$U';
 SET ROLE tally_app;
 INSERT INTO public.deposits (tenant_id, customer_id, basis, instrument, principal, posted_on, state_code, service_type, system_kind,
-                             customer_class, tariff_category, rule_id, tariff_id, cap_amount, cap_source, decided_by)
+                             customer_class, tariff_category, rule_id, tariff_id, cap_amount, cap_source, cap_component, cap_basis_amount, decided_by)
 SELECT '$T', '$C', 'credit_evaluation', 'cash', 100, DATE '2026-05-01', 'TX', 'gas', 'distribution', 'residential', 'residential', r.id, '$TH',
-       100, 'tariff', 'core-test' FROM $LAWROW r;
+       100, 'tariff', 'c1', 600, 'core-test' FROM $LAWROW r;
 SELECT pg_sleep(3);
 COMMIT;
 SQL

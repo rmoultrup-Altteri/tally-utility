@@ -8,7 +8,7 @@
   P2  a second application changes nothing; P2b, once real data exists, it still says so
   P3  a real (non-legacy) deposit stops the patch, naming it; the database is untouched
   P4  a waiver determination stops the patch likewise
-  P5  a utility's own interest rate row stops it likewise
+  P5  a utility's own interest rate row stops it likewise; P5b so does an interest accrual on a carried deposit
   P6  the -06 Texas law is gone (functions and the refund-due view), and the first draft's child tables never appeared
 
 P3-P5 are the standing precondition (Ryan, 2026-09-28: nothing is live; the patch will not invent the law row, state and
@@ -110,7 +110,7 @@ DUMP = "SELECT coalesce(jsonb_object_agg(t, rows), '{}') FROM (" + " UNION ALL "
     f"SELECT '{t}' AS t, coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.id), '[]') AS rows FROM public.{t} x" for t in OLD_TABLES) + ") q"
 
 
-def plant(db: str, waiver: bool = False, rate: bool = False, real_deposit: bool = False) -> None:
+def plant(db: str, waiver: bool = False, rate: bool = False, real_deposit: bool = False, accrual: bool = False) -> None:
     """A utility with two carried deposits (as -06's backfill made them) and, when asked, what the patch refuses to run over."""
     psql(db, f"""
 INSERT INTO public.tenants (id, name, slug) VALUES ('{T1}', 'M15 Gasco', 'm15-t1');
@@ -129,6 +129,13 @@ ALTER TABLE public.deposits DISABLE TRIGGER a_enforce_deposit;
 INSERT INTO public.deposits (id, tenant_id, customer_id, basis, instrument, principal, posted_on)
 VALUES ('{DEP3}', '{T1}', '{C1}', 'credit_evaluation', 'cash', 100, DATE '2026-01-15');
 ALTER TABLE public.deposits ENABLE ALWAYS TRIGGER a_enforce_deposit;
+""")
+    if accrual:
+        psql(db, f"""
+ALTER TABLE public.deposit_events DISABLE TRIGGER a_enforce_deposit_event;
+INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, period_start, period_end, rate_applied, principal_basis, source)
+VALUES ('{T1}', '{DEP2}', 'interest_accrued', 0.20, DATE '2024-02-01', DATE '2024-01-01', DATE '2024-01-31', 0.05, 500, 'system');
+ALTER TABLE public.deposit_events ENABLE ALWAYS TRIGGER a_enforce_deposit_event;
 """)
     if waiver:
         psql(db, f"""INSERT INTO public.deposit_waiver_determinations (tenant_id, customer_id, waiver_class, determined_on)
@@ -216,7 +223,8 @@ report("P2b: … and once the database holds real data a re-run still says there
 for tag, label, kwargs, word in [
         ("c", "P3", {"real_deposit": True}, "deposit"),
         ("d", "P4", {"waiver": True}, "waiver determination"),
-        ("e", "P5", {"rate": True}, "utility rate row")]:
+        ("e", "P5", {"rate": True}, "utility rate row"),
+        ("f", "P5b", {"accrual": True}, "interest accrual")]:
     clone(f"m15_{tag}")
     plant(f"m15_{tag}", **kwargs)
     r = apply(f"m15_{tag}")
