@@ -2,7 +2,7 @@
 
 **Generated**: 2026-10-13
 **Branch**: `main`. **-15 is mirrored**: `sql/tu.sql` 36,712 lines (md5 `95f79924acda06445b518db545365e61`), from the frozen r8 patch (md5 `2dc8f61cda3bc6958ca42737d317a629`). `tests/ci.sh --build` all pass.
-**Status**: Landed. Only decision 1 is left for Ryan (below); everything else is optional follow-up.
+**Status**: Landed. Decision 1 confirmed by Ryan 2026-10-13 (a deposit's own closed law row stays citable after its close). Everything else is optional follow-up.
 
 ## Goal
 Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sql` onto the rule-terms convention (-17 template, -18 worked example): law is a document per (state, service, owner types, class, basis); the utility has its own categories and one tariff per category; every record cites the law row and, when one applied, the tariff row.
@@ -14,7 +14,7 @@ Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sq
 - [x] Round 5 frozen: patch md5 `fb44ecc041cb2f6004171dd3723962bb`, battery md5 `1c93db1658445380739edd198b0e3543`. **Opus READY, Fable READY** (both verified hashes, clean strict apply, 334/334, M167 caught at R53).
 
 ## Not Yet Done
-- [ ] Ask Ryan decision 1 in one line, plain language: a deposit's own closed law row stays citable after its close ("grandfathered"). Not blocking.
+- [x] Decision 1 confirmed by Ryan 2026-10-13: a deposit's own closed law row stays citable after its close.
 - [ ] Optional, non-blocking, from the round-8 reports: extend V28b/c to terminal refunds/releases (Codex); a one-statement due row + citing notice + uncited `refunded` is refused where two statements are accepted, fails closed (Opus N1); a live due row beside an uncited notice in two statements is accepted, a cited due row may still be withdrawn, a zero refund can close a deposit with unpaid instalments (all the core's conventions).
 - [ ] Carried over: backbilling tariff table; GitHub Actions version bump; verify Florida's official text (25-7.083) before loading any Florida row; the waiver-determination rewrite (residual R6) waits for a core that records determinations.
 
@@ -35,7 +35,7 @@ Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sq
 | Decision | Rationale |
 |----------|-----------|
 | Ryan's five (2026-10-12): customer type stays on the utility's own rate; one tariff per utility/state/service/category; v1 scope with 6 shapes refused; state rate is a floor; utility defines its own categories mapped to one law class | See memory `deposits-rewrite-decisions` |
-| **Mine, unconfirmed:** a deposit's own closed law row stays citable after its close | A deposit decided under a row must keep citing it; Fable asks Ryan to confirm |
+| a deposit's own closed law row stays citable after its close (**Ryan confirmed 2026-10-13**) | A deposit decided under a row must keep citing it |
 | **Mine:** a partial return needs no due row | The due record covers what is owed in full |
 | **Mine:** no count-event vocabulary; triggers matched by condition leaves | Avoids a second vocabulary for the same thing |
 | **Mine:** a non-superuser owner is refused, untested | Same as -18 |
@@ -58,8 +58,7 @@ Codex: `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-wri
 
 ## Resume Instructions
 1. `git fetch` both repos (tally-utility, gas-billing-memory); read anything Kyle pushed first.
-2. Ask Ryan decision 1 (one line).
-3. Then ask what is next (the backbilling tariff table, or the core).
+2. Ask what is next (the backbilling tariff table, or the core).
 
 ## Warnings
 - Never edit the patch while reviewers test; one revision per round, hashes in every request.
