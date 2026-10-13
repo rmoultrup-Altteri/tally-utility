@@ -289,6 +289,8 @@ SELECT pg_temp.refuses('D7: a condition the schema does not name',
   '23514', '/triggers/0/condition/kind');
 SELECT pg_temp.refuses('D8: a document that is a delegation but carries law fields',
   pg_temp.ins_sql('household', 'tariff', '{"governs": "delegated_to_utility", "citation": "ZZ 1.1", "cap": {}}'::jsonb), '23514', '/cap: unknown key');
+SELECT pg_temp.refuses('D9: a law row on the carried-history basis (the core refuses to decide one, so no law is written for it)',
+  pg_temp.ins_sql('household', 'legacy_unknown', pg_temp.doc()), '23514', 'carried history');
 -- r4:end gate
 
 -- ============================================================ X. the area's insert check
@@ -350,6 +352,11 @@ SELECT pg_temp.refuses('X13: rate-by-hold thresholds not strictly ascending',
       "method": {"kind": "simple"}, "day_count": "actual_365", "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"],
       "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')),
   '23514', 'by_hold');
+SELECT pg_temp.refuses('X14: a return rule naming a disqualifier the vocabulary does not have',
+  pg_temp.ins_sql('business', 'additional_trigger', pg_temp.doc('{"return": [{"id": "r1", "when": {"reason": "clean_bill_history", "count": 12, "measure": "bills",
+     "max_delinquencies": 2, "lookback": {"kind": "whole_hold"}, "disqualifiers": ["no_such_disq"], "exclude_disputed": false}, "instruments": ["cash"],
+     "conditions": [], "minimum_amount": {"kind": "none"}, "deadline": {"kind": "none"}, "hold_while": [], "vests": "unruled"}]}')),
+  '23503', 'no_such_disq');
 -- r5:end insert-check
 
 
@@ -498,7 +505,7 @@ SELECT pg_temp.refuses('N3: a category is measured against the law class it maps
   '23514', 'looser than the law', 'tally_app', :'u2');
 SELECT pg_temp.does_as('N4: a flat amount cannot be compared with a billing fraction when it is written; it is accepted (each deposit records the cap that applied and its own check holds it to it)', :'t2', pg_temp.tar_sql(:'t2', 'residential_senior', pg_temp.tdoc('{"amount": {"strategy": "fixed", "version": 1, "amount": 5000}}')));
 SELECT pg_temp.refuses('N5: a usage trigger that fires at one and a half times the estimate where the law waits for twice',
-  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [],
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 2}],
      "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 1.5}}]}'), DATE '2022-01-01', DATE '2023-01-01'),
   '23514', 'looser than the law', 'tally_app', :'u2');
 SELECT pg_temp.does_as('N6: … three times the estimate, with five days to pay, is stricter than the law and is accepted', :'t2', pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 5}],
@@ -513,6 +520,16 @@ SELECT pg_temp.does_as('N9: a utility''s own waiver ground, in its own name, is 
      "effect": {"kind": "defer", "days": 90}, "also_releases_held": false, "disqualified_by": {"kind": "none"}}]}'), DATE '2025-01-01', DATE '2026-01-01'));
 SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'commercial', 'non_residential'), 'tally_app', :'u2');
 SELECT pg_temp.does_as('N10: a non-residential tariff of any months is accepted where the law sets no cap', :'t2', pg_temp.tar_sql(:'t2', 'commercial', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 6, "of": "highest", "minimum_amount": {"kind": "amount", "amount": 300}}}')));
+SELECT pg_temp.refuses('N13: a trigger code that is not in the platform''s vocabulary',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "no_such_trigger", "guards": [],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2026-01-01', DATE '2027-01-01'),
+  '23503', 'no_such_trigger', 'tally_app', :'u2');
+SELECT pg_temp.refuses('N14: a usage trigger with no days-to-pay guard, where the law gives two',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2026-01-01', DATE '2027-01-01'),
+  '23514', 'gives no days to pay', 'tally_app', :'u2');
+SELECT pg_temp.does_as('N15: … exactly the law''s two days is not looser', :'t2', pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled",
+     "guards": [{"kind": "payment_due_days", "days": 2}], "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 3}}]}'), DATE '2026-01-01', DATE '2027-01-01'));
 SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'zzres', 'household', 'ZZ'), 'tally_app', :'u2');
 SELECT pg_temp.refuses('N11: a tariff for a utility with no service profile in that state and service (unknown law is not permission)',
   format($q$INSERT INTO public.deposit_tariffs (tenant_id, state_code, service_type, system_kind, tariff_category, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
@@ -607,7 +624,7 @@ SELECT pg_temp.run(pg_temp.ins_sql('wholesale', 'credit_evaluation', pg_temp.doc
    "rate": {"kind": "published", "name": "zz_long", "binding": "reference", "by_hold": []}, "method": {"kind": "simple"}, "day_count": "actual_365",
    "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"], "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')));
 SELECT pg_temp.run(pg_temp.ins_sql('bulk', 'credit_evaluation', pg_temp.doc('{"interest": {"strategy": "bearing", "version": 1, "instruments": ["cash"],
-   "rate": {"kind": "published", "name": "zz_long", "binding": "minimum", "by_hold": [{"up_to_months": 12, "name": "zz_short"}]},
+   "rate": {"kind": "published", "name": "zz_short", "binding": "minimum", "by_hold": [{"up_to_months": 12, "name": "zz_long"}]},
    "method": {"kind": "simple"}, "day_count": "actual_365", "hold": {"kind": "none"}, "credit": {"kind": "at_refund"}, "stops_on": ["refund"],
    "forfeited_on": [], "penalty": {"kind": "none"}, "rounding": {"kind": "none"}}}')));
 SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'home', 'household', 'ZZ'), 'tally_app', :'u3');
@@ -634,6 +651,8 @@ SELECT pg_temp.ok('F14: the lookup returns the category''s own rate over the eve
     SELECT id FROM public.deposit_interest_rates WHERE tenant_id = :'t3' AND tariff_category = 'shop' AND effective_date = DATE '2021-01-01'));
 SELECT pg_temp.refuses('F15: … and none before the first',
   format($q$SELECT public.deposit_interest_rate_row_as_of(%L, 'ZZ', 'gas', 'shop', DATE '2019-06-01')$q$, :'t3'), 'P0002', 'no deposit interest rate');
+SELECT pg_temp.refuses('F16: a rate for a state and service the utility has no profile in (which law binds it is not known)',
+  pg_temp.rate_sql(:'t2', NULL, DATE '2021-01-01', 0.05, 'ZZ'), '23514', 'no service profile', 'tally_app', :'u2');
 -- r10:end floor
 
 
@@ -700,7 +719,8 @@ SELECT pg_temp.refuses('R2: a new deposit that cites no law row',
 SELECT pg_temp.refuses('R2b: … or a law row that does not exist',
   pg_temp.dep_sql('{"rule": "00000000-0000-4000-8000-000000000000"}'), '23514', 'law row', 'tally_app', :'u2');
 SELECT pg_temp.refuses('R3: a law row for another class: a residential deposit citing the non-residential row',
-  pg_temp.dep_sql(jsonb_build_object('rule', pg_temp.law('non_residential', 'credit_evaluation', 'investor_owned'))), '23514', 'law row', 'tally_app', :'u2');
+  pg_temp.dep_sql(jsonb_build_object('rule', pg_temp.law('non_residential', 'credit_evaluation', 'investor_owned'), 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null)),
+  '23514', 'law row', 'tally_app', :'u2');
 SELECT pg_temp.refuses('R4: a law row not in force on the posting date (before 2004-07-12)',
   pg_temp.dep_sql('{"posted": "2003-01-15"}'), '23514', 'in force', 'tally_app', :'u2');
 SELECT pg_temp.refuses('R5: under a law row that caps the deposit, the cap that applied is recorded',
@@ -728,7 +748,7 @@ SELECT pg_temp.does_as('R12: a city deposit cites the delegation row AND its own
      'cap_component', null, 'cap_basis', null)));
 SELECT pg_temp.refuses('R13: a city deposit that cites no tariff row (the law leaves it to the utility; the core refuses a decision with no policy recorded)',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'tariff', 'municipal'), 'basis', 'tariff',
-     'category', 'homeowner', 'principal', '175.00', 'cap', '175.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', null)), '23514', 'tariff', 'tally_app', :'u1');
+     'category', 'homeowner', 'principal', '175.00', 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null)), '23514', 'tariff', 'tally_app', :'u1');
 SELECT pg_temp.refuses('R14: a tariff row of another category: the renter''s cited for a homeowner',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'renter'), 'principal', '250.00', 'cap', '250.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', null)),
@@ -844,6 +864,8 @@ SELECT pg_temp.refuses('A12: a period that overlaps one already accrued',
   pg_temp.acc_sql('{"start": "2026-02-15", "end": "2026-03-15", "effective": "2026-03-16"}'), '23P01', NULL, 'tally_app', :'u2');
 SELECT pg_temp.refuses('A13: an accrual before the deposit was posted',
   pg_temp.acc_sql('{"start": "2026-01-01", "end": "2026-01-10", "effective": "2026-01-11"}'), '23514', NULL, 'tally_app', :'u2');
+SELECT pg_temp.refuses('A18: a rate backdated under a settled accrual (interest is accrued through February 28 at the rates it cites)',
+  pg_temp.rate_sql(:'t2', NULL, DATE '2026-02-20', 0.05), '23514', 'already been accrued', 'tally_app', :'u2');
 -- r15:end accrual
 
 -- r16:begin accrual-later-rule
@@ -871,6 +893,12 @@ SELECT pg_temp.does_as('A17: an accrual in March still cites the closed row the 
      'start', '2026-03-05', 'end', '2026-03-20', 'effective', '2026-03-21', 'rate', '0.05', 'amount', '0.20',
      'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
      'rule', (SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'household' AND basis = 'credit_evaluation' AND effective_to = DATE '2026-04-01'))));
+SELECT pg_temp.refuses('A19: … but not the successor for a period before it took effect (March, with the successor from April)',
+  pg_temp.acc_sql(jsonb_build_object('tenant', :'t3', 'deposit', format('(SELECT id FROM public.deposits WHERE customer_id = %L)', :'c4'),
+     'start', '2026-03-22', 'end', '2026-03-25', 'effective', '2026-03-26', 'rate', '0.05', 'amount', '0.10',
+     'rate_id', format('(SELECT id FROM public.deposit_interest_rates WHERE tenant_id = %L AND tariff_category IS NULL AND effective_date = DATE ''2022-01-01'')', :'t3'),
+     'rule', (SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'household' AND basis = 'credit_evaluation' AND effective_from = DATE '2026-04-01'))),
+  '23514', 'neither the rule the deposit was decided under', 'tally_app', :'u3');
 -- r16:end accrual-later-rule
 
 
@@ -1000,7 +1028,7 @@ SELECT pg_temp.refuses('V2: a due row with no evidence is refused when the trans
 SELECT pg_temp.refuses('V3: at most one live due row per deposit: the answer has not changed',
   pg_temp.wd_sql(:'d2', pg_temp.did('rr'), '2026-04-02', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23505', 'already has a live due row', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V4: a deposit whose law row has no return rule (11 U.S.C. 366) cannot fall due',
-  pg_temp.wd_sql(:'d2', pg_temp.did('r366'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'no return rule', 'tally_app', :'u2');
+  pg_temp.wd_sql(:'d2', pg_temp.did('r366'), '2026-04-01', '{}', '[]'), '23514', 'no return rule', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V5: nor an instrument the document''s return rules do not cover (Texas returns cash; this is a letter of credit)',
   pg_temp.wd_sql(:'d2', pg_temp.did('rlc'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i6'))), '23514', 'no return rule', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V6: a due row cites the deposit''s own law row, or one of its key in force on the due date: not another basis',
@@ -1014,7 +1042,7 @@ SELECT pg_temp.refuses('V8: evidence names the reason of the return rule it cite
   pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'hold_term_elapsed', 'component', 'r1', 'rests', true))),
   '23514', 'return rule r1', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V9: … nor a return rule the document does not have',
-  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1', 'r9'))), '23514', 'r9', 'tally_app', :'u2');
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1', 'r9'))), '23514', 'has no return rule', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V10: a reason rests on records of its own kind: a bill is no evidence of a closure',
   pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(pg_temp.bill(:'i1', 'r2', 'account_closed'))), '23514', 'rests on', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V11: … nor a change of state evidence of bills',
@@ -1107,7 +1135,7 @@ SELECT pg_temp.mk('zx', :'t3', jsonb_build_object('customer', :'c7', 'state', 'Z
 \set d7 '00000000-0000-4000-8000-0000000015d7'
 -- r23:begin partial
 SELECT pg_temp.refuses('Q1: a partial return is due only under a document that returns an excess over the cap: Texas does not',
-  pg_temp.wd_sql(:'d5', pg_temp.did('rtar'), '2026-04-01', '{"amount": 10}', jsonb_build_array(jsonb_build_object('reason', 'excess_over_cap', 'component', 'r1', 'rests', true))),
+  pg_temp.wd_sql(:'d5', pg_temp.did('rtar'), '2026-04-01', '{"amount": 10}', '[]'),
   '23514', 'excess', 'tally_app', :'u2');
 SELECT pg_temp.refuses('Q2: … and the amount leaves something held: returning all of it is a return of the whole',
   pg_temp.wd_sql(:'d5', pg_temp.did('zx'), '2026-04-01', '{"amount": 200}', jsonb_build_array(jsonb_build_object('reason', 'excess_over_cap', 'component', 'r2', 'rests', true))),
@@ -1131,6 +1159,8 @@ SELECT pg_temp.does_as('Q8: … exactly its amount does: it is then no longer ow
 SELECT pg_temp.ok('Q8b: the deposit holds 150 and is still held, and the settled partial row is gone from the list',
   (SELECT remainder = 150 FROM public.deposit_balance(pg_temp.did('zx'))) AND (SELECT status = 'held' FROM public.deposits WHERE id = pg_temp.did('zx'))
   AND NOT EXISTS (SELECT 1 FROM public.deposits_return_owed WHERE due_id = :'d5'));
+SELECT pg_temp.refuses('Q8c: a settled partial row cannot be cited again',
+  pg_temp.ev_sql(pg_temp.did('zx'), 'principal_returned', 50, DATE '2026-04-03', :'d5'), '23514', 'already been settled', 'tally_app', :'u3');
 SELECT pg_temp.does_as('Q9: once settled it is no longer live: the deposit may fall due again, now for the whole remainder on time held', :'t3',
   pg_temp.wd_sql(:'d6', pg_temp.did('zx'), '2026-06-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'hold_term_elapsed', 'component', 'r1', 'rests', true))));
 SELECT pg_temp.refuses('Q10: a partial return does not settle a whole-return row',

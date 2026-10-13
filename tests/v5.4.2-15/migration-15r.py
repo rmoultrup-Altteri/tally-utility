@@ -5,7 +5,7 @@
   P1  a base holding carried deposits (basis legacy_unknown, as -06's backfill made them): after the patch every row of
       the four old tables is unchanged in every column it had; a carried deposit cites no law row and still returns only
       with a stated reason; no accrual can be written on it
-  P2  a second application changes nothing
+  P2  a second application changes nothing; P2b, once real data exists, it still says so
   P3  a real (non-legacy) deposit stops the patch, naming it; the database is untouched
   P4  a waiver determination stops the patch likewise
   P5  a utility's own interest rate row stops it likewise
@@ -204,6 +204,13 @@ snap_a = one("m15_a", snap)
 r = apply("m15_a")
 snap_b = one("m15_a", snap)
 report("P2: a second application changes nothing and says so", r.returncode == 0 and "nothing to do" in r.stderr and snap_a == snap_b, r.stderr.strip()[-200:])
+
+# a re-run on a database that has since gained a waiver determination (real data) still finds the tables registered
+# and says so; it does not run its precondition over the new data
+psql("m15_a", f"""INSERT INTO public.deposit_waiver_determinations (tenant_id, customer_id, waiver_class, determined_on)
+                 VALUES ('{T1}', '{C1}', 'good_payment_history', DATE '2026-03-01');""")
+r = apply("m15_a")
+report("P2b: … and once the database holds real data a re-run still says there is nothing to do", r.returncode == 0 and "nothing to do" in r.stderr, r.stderr.strip()[-200:])
 
 # ---- P3-P5: what the patch will not run over
 for tag, label, kwargs, word in [
