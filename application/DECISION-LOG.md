@@ -6,6 +6,16 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-13 (finance gate) — Ryan accepts Kyle's D-2 as the finance reader's answer, with one carve-out
+
+**What:** Ryan (2026-10-13): "yes, accept D-2 on those terms". Kyle's D-2 (2026-08-18: the platform is a customer receivables subledger that exports to the utility's own accounting system, not a general ledger; accounting periods are freeze boundaries, reports run over arbitrary date ranges; GL account mapping is tenant configuration; the unbilled-revenue accrual is never a row) **releases the finance gate for the receivables and reporting side**: accounting periods and the close snapshot (A4), the GL account-code mapping as tenant configuration (A6), the receivables aging view (A7), a bad-debt recovery posting type that cites its write-off (CI-076), the revenue distribution matrix as configuration (A-10, CI-048), and the finance-adjacent parts of disputes/bankruptcy records (A-15, CI-074). CI-110 is read as Kyle re-scoped it: the export reconciles and the close snapshot is reproducible.
+
+**Carve-out:** the utility's gas-cost side stays fenced and goes to Kyle as its own question: gas purchase records, the per-rate-class deferred purchased-gas-cost ledger, carrying cost and the annual true-up (A-6 remainder; CI-033, CI-036). D-2 does not speak to them: they track what the utility pays suppliers, not what customers owe, so "not a general ledger" is not shown to cover them.
+
+*Why this and not the alternatives:* accepting D-2 for everything would guess at the cost side; rejecting it would hold seven invariants for a question Kyle has already answered in substance. *Where it lives:* this entry; `application/invariant-parity-measurement-2026-10-13.md` (the BLOCKED list now reads: finance gate released except the gas-cost side); HANDOFF.
+
+---
+
 ## 2026-09-23 (CI-091) — v5.4.2-12: the meter test history, landed ahead of A-2
 
 The append-only record of every meter test that Kyle's R-31 requires before the first gas tenant, and from which A-2 (renumbered v5.4.2-13) will read "the last test" (R-34). Authority: R-31, R-34…R-36, findings F-2…F-5 and erratum E-1 (`gas-billing-memory/application/kyle-decisions-2026-09-22-a2-straddle-and-meter-test-anchor.md`); drafting spec `ci091-meter-test-history-implementation-brief-2026-09-22.md`. Five hash-frozen review rounds (`75e33211` → `fd2418e2` → `ce8fcbe3` → `437ffb6b` → `3f74a76c`), Fable and Opus as independent reviewers (Codex stalled at round 1 — installed only under Node v24.15.0 — and was cancelled with Ryan's agreement). Rounds 4 and 5: both "sound enough to mirror". Landed file md5 `a13e04334f2cfb9dcbfecad892ac8114`, 1,790 lines; the final delta after round 5 was one refusal message and one function comment.

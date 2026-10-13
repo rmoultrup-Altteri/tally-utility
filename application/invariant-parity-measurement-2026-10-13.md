@@ -62,6 +62,8 @@
 
 ## Decisions that only a person can make (collected from the seven blocks, grouped)
 
+**RESOLVED 2026-10-13 — the finance gate (Ryan accepted Kyle's D-2 for the receivables and reporting side; the gas-cost side — gas purchases, the per-class deferred PGA ledger, carrying cost, true-up; CI-033, 036 — stays fenced and goes to Kyle as its own question).** Original question follows.
+
 **The finance gate (Ryan) — the single biggest unlock.** Does Kyle's D-2 (2026-08-18: the platform is a customer-receivables subledger that exports to the utility's own accounting system) satisfy the finance-reader gate? Answering it lets or keeps fenced: `gas_purchases`, the per-rate-class deferred ledger and carrying cost (CI-033, 036), the revenue distribution matrix (CI-048, A-10), accounting periods and the close snapshot (CI-110), the bad-debt recovery type and GL mapping (CI-076), and the finance-adjacent part of disputes (CI-074).
 
 **Kyle.**
