@@ -4,6 +4,24 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-12 (evening) — deposits rewrite (-15): patch written, 5 review rounds, round 5 frozen; Opus and Fable READY, Codex pending
+
+**What was done:**
+- Finished the tests, wrote the patch `sql/v5.4.2-15-deposits-law-to-core.sql` (~5,240 lines), and ran the loop: battery 259 -> 334 checks, mutations 110 -> 166, migration (P0-P6), races and evidence-transaction checks.
+- **Rounds 1-4** (commits `1153320`, `a471982`, `d8c3c47`, `7d66a09`): rate floor over every class; comparator rewritten (lesser-of, every cap kind, trigger matching by condition leaves, coverage per profile segment); statutory cap always recorded; a city's cap held to its tariff; tariff-backed instalments; whole-patch skip on re-run.
+- **Round 5:** `enforce_deposit` refuses a deposit with a category and no `tariff_id` when a tariff row is in force for it (patch 4150-4158; R53; M167). R10/R13 isolated with no-tariff categories `nt`/`notariff`. R7 wording on comparator limits. Frozen: patch md5 `fb44ecc0…`, battery md5 `1c93db16…`. Opus READY, Fable READY. Codex has not reviewed since round 2 (usage limit until Oct 13 12:59 AM).
+
+**Failed approaches / mechanisms:**
+- M43/M45 slipped through after the new tariff-citation guard because R10/R13 were now refused by it first; fixed with fixtures only the named guard can refuse.
+- `deposit_rule_citable` as a SQL function referenced a column not yet created (made plpgsql); the shared instalment trigger used `NEW.deposit_id` on the deposits table (IF on `TG_TABLE_NAME`).
+- macOS has no `timeout`: `command not found`, exit 127.
+
+**Decisions made without Ryan:** a deposit's own closed law row stays citable (Fable asks him to confirm); a partial return needs no due row; no count-event vocabulary; a non-superuser owner is refused, untested. Opus note: a deposit with no category can skip every tariff (statutory cap still holds).
+
+**Next:** Codex on the whole frozen r5; then ask Ryan about decision 1 and mirroring; at mirror rewrite AC-24/25, add the DEPLOY-VERIFICATION entry. Round-4 commit `7d66a09` message says "round 4" but contains the r5 freeze.
+
+---
+
 ## 2026-10-12 — the deposits rewrite (-15): five decisions, design pass, deposit and tariff schemas, and the law/utility/record tests (all written before the patch)
 
 **What was done:**
