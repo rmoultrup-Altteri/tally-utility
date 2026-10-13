@@ -1365,6 +1365,25 @@ SELECT pg_temp.refuses('I6: an instalment added after the schedule was checked o
      '{87.50}', '{2026-02-14}', '10.00'), '23514', 'instalment(s)', 'tally_app', :'u1');
 SELECT pg_temp.refuses('I7: an instalment received for more than is still to come (87.50 is owed, 100 is paid)',
   pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'instalment_received', 100, DATE '2026-02-14'), '23514', 'instalment_received must be', 'tally_app', :'u1');
+-- Money cannot leave before it arrived: the deposit above holds 87.50 from 15 Jan and takes the other 87.50 on 14 Feb.
+SELECT pg_temp.does_as('I8: the second instalment is received on its due date', :'t1',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'instalment_received', 87.50, DATE '2026-02-14'));
+SELECT pg_temp.refuses('I9: a partial return of 100 dated 1 Feb, when 87.50 had arrived (the other 87.50 comes on 14 Feb), would be paid out of money not yet received',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'principal_returned', 100, DATE '2026-02-01'), '23514', 'negative principal', 'tally_app', :'u1');
+SELECT pg_temp.refuses('I10: … nor an application to the account balance of 100 on that day',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'applied_to_balance', 100, DATE '2026-02-01'), '23514', 'negative principal', 'tally_app', :'u1');
+SELECT pg_temp.does_as('I11: … but 87.50, exactly what had arrived, may go back on 1 Feb (the boundary, accepted)', :'t1',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'principal_returned', 87.50, DATE '2026-02-01'));
+SELECT pg_temp.refuses('I12: … and not one cent more that day (nothing is held on 1 Feb)',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'principal_returned', 0.01, DATE '2026-02-01'), '23514', 'negative principal', 'tally_app', :'u1');
+SELECT pg_temp.refuses('I13: a backdated application of 1.00 dated 20 Jan would leave the 1 Feb return unfunded (a later day that was already recorded), though 87.50 was held on the 20th',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'applied_to_balance', 1, DATE '2026-01-20'), '23514', 'negative principal', 'tally_app', :'u1');
+SELECT pg_temp.ok('I14: the principal held is 0 on 1 Feb and 87.50 on 14 Feb, never below zero',
+  public.deposit_principal_in_force((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), DATE '2026-02-01') = 0 AND public.deposit_principal_in_force((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), DATE '2026-02-14') = 87.50);
+SELECT pg_temp.refuses('I15: a refund notice dated 10 Feb, before the 14 Feb receipt, would return money not yet received',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'refund_initiated', 87.50, DATE '2026-02-10'), '23514', 'precedes a receipt', 'tally_app', :'u1');
+SELECT pg_temp.does_as('I16: … dated on the day of the last movement, it is accepted', :'t1',
+  pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'refund_initiated', 87.50, DATE '2026-02-14'));
 -- r29:end instalments
 
 CREATE FUNCTION pg_temp.zz_rule(p_class text, p_basis text DEFAULT 'credit_evaluation') RETURNS text LANGUAGE sql STABLE AS $$

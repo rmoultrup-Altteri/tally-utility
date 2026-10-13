@@ -1,0 +1,17 @@
+Same job and rules as before (`review-brief-15r-r1.md` … `r5.md`). Round 6: Opus **READY** and Fable **READY** on round 5; **Codex's first look since round 3 said "not yet"** (`codex-r5.md`: one blocking finding B1, one should-fix S1). Output files: `opus-r6.md` / `fable-r6.md` / `codex-r6.md`.
+
+**Frozen artefacts (round 6)** — check the hashes:
+- patch `tests/v5.4.2-15/review/patch-15r-frozen-r6.sql` — md5 `cb770fbafb02e17b6bfb049805439a6d` (diff from round 5: `diff patch-15r-frozen-r5.sql patch-15r-frozen-r6.sql`, 35 changed lines)
+- battery `tests/v5.4.2-15/review/battery-15r-frozen-r6.sql` — md5 `46e7c36e12436204a5a33b87580ff3df` (343 checks; all pass, each block passes alone via `fail-first.py`)
+- tests: `migration-15r.py`, `mutations-15r.py` (169 mutations, all caught), `races/due-mutex-15.sh`, `evidence-txn-15.sh`, `fail-first.py` — all run and pass on this revision.
+
+## The delta from round 5
+- **Codex r5 B1 (measured first: reproduced, −25.00 on an unmodified clone, as predicted).** A later-dated instalment could fund an earlier partial return or application. `enforce_deposit_event` now ends (after every per-type check, so their messages stay first) with a timeline guard: an `applied_to_balance` or `principal_returned` must leave the principal held non-negative on its own day and on every later day an event is recorded for (`deposit_principal_in_force` at each of those days, least of them ≥ the amount); a `refund_initiated` / `refunded` / `released` is refused if a receipt, application or return is already recorded for a later day. Checks I8–I16 (I9/I10 refuse a return/application of 100 on 1 Feb with 87.50 arrived; I11/I12 the exact boundary, 87.50 accepted and one cent more refused; I13 a backdated debit that would leave a later recorded one unfunded; I15/I16 refund before / on the last movement). Mutations M168 (amount check off), M169 (own day only), M170 (refund-date check off).
+- **Codex r5 S1 (comments).** The comparator's leading comment and stored comment now say the law's guards other than days to pay are carried identically or the tariff is refused (they were said to be "not compared"); the rate-floor comment no longer lists "no law row" as a NULL result and says a mapped class with no law row in force raises; the `deposits.tariff_id` column comment says a tariff row is required wherever the deposit has a category and one is in force (R53), and that a deposit with no category may skip every tariff.
+
+## Decisions made without Ryan (unchanged)
+1. A deposit's own closed law row stays citable after its close. 2. A partial return needs no due row. 3. Not done: a count-event vocabulary; the AC-24/25 rewrite (at mirror); a non-superuser owner (refused). 4. A deposit with no category may skip every tariff (the statutory cap still holds).
+New this round, mine: the refund-date rule is "on or after every receipt, application or return already recorded", wider than the receipts Codex named, so a whole-remainder return cannot precede a later application either.
+
+## What to do
+Opus and Fable: verify the delta (diff above) and say whether it changed your verdict; try to break the timeline guard (ties on one day, several receipts, a debit dated before posting, the status projection after a late receipt). Codex: confirm B1 and S1 are closed and look for anything the new guard misses; you could not run the database last round, so if Docker is again unavailable, say what you could only read. Verdict: **ready** or **not yet**. Same output rules.

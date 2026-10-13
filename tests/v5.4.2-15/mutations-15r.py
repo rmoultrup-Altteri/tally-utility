@@ -269,6 +269,9 @@ MUTATIONS: list[tuple[str, str, str, Callable[[str], str]]] = [
     ("M165", "a strict law ratio and an inclusive tariff one are the same", "N38", rep("OR ((v_tc ->> 'value')::numeric = (v_lc ->> 'value')::numeric AND v_tc ->> 'op' = 'at_least' AND v_lc ->> 'op' = 'greater_than') THEN", "THEN")),
     ("M166", "a greater-of cap is compared on the parts that convert", "N43", rep("WHEN v_comb = 'greater_of' AND NOT EXISTS (SELECT 1 FROM unnest(v_pms) x WHERE x IS NULL) THEN (SELECT max(x) FROM unnest(v_pms) x)", "WHEN v_comb = 'greater_of' THEN (SELECT max(x) FROM unnest(v_pms) x)")),
     ("M167", "a deposit may leave out the tariff row in force for its category", "R53", rep("            IF v_expect IS NOT NULL THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('deposit rejected: the tariff row %s is in force for category", "            IF false THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('deposit rejected: the tariff row %s is in force for category")),
+    ("M168", "an application or partial return may exceed what had arrived by its day", "I9", off("IF NEW.amount > v_least THEN")),
+    ("M169", "the timeline guard looks at the movement's own day only, not the later days already recorded", "I13", rep("AND e.effective_on > NEW.effective_on) x;", "AND false) x;")),
+    ("M170", "a refund, release or refund notice may be dated before a receipt already recorded", "I15", rep("        IF EXISTS (SELECT 1 FROM public.deposit_events e\n                    WHERE e.deposit_id = d.id AND e.effective_on > NEW.effective_on\n", "        IF false AND EXISTS (SELECT 1 FROM public.deposit_events e\n                    WHERE e.deposit_id = d.id AND e.effective_on > NEW.effective_on\n")),
     # (the min / max of a lesser-of / greater-of is not a mutation: version 1 allows one part that converts, so there is one figure to take)
 ]
 

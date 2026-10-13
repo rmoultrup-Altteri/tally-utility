@@ -3420,8 +3420,9 @@ COMMENT ON FUNCTION public.deposit_tariff_insert_check(jsonb) IS
 --     law's consecutive / disputed-bill protection; days to pay fewer than the law's (none given counts as none). A trigger of
 --     the same code whose condition cannot be compared with the law's (another measure, another unit, a combined condition that
 --     is not the law's own) is refused: it cannot be shown to fire no sooner.
--- Not compared, and said so: a flat amount against a fixed-dollar cap or any cap not stated in months, waivers, instalments,
--- guards other than days to pay. A trigger or waiver ground the law has no word on is the utility's own. A delegation compares
+-- Not compared, and said so: a flat amount against a fixed-dollar cap or any cap not stated in months, waivers, instalments.
+-- The law's guards other than days to pay (service age, a recent move, notice,
+-- a cure) are carried identically or refused. A trigger or waiver ground the law has no word on is the utility's own. A delegation compares
 -- nothing about content. A flat amount is held at each deposit by its recorded cap check.
 -- The simple conditions (a usage ratio, an event count) a condition is made of, through any all_of / any_of.
 CREATE OR REPLACE FUNCTION public.deposit_condition_leaves(p_cond jsonb) RETURNS SETOF jsonb
@@ -3604,7 +3605,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.deposit_tariff_compare(jsonb, jsonb) IS
-    'v5.4.2-15. rule_tables.compare_function of deposit_tariffs: given the new tariff row and the law rows in force over its dates that bind the utility, the reasons the tariff is looser than the law of its category''s class, or cannot be shown to be no looser: no law known for the class; months of billing above the law''s cap (a fraction of annual billing converted to months; a lesser-of the least of the parts that convert, a greater-of the greatest, only when all convert); months of the highest bill or a minimum amount where a cap in average months exists; an amount where the law has not ruled on the cap; a trigger the law also names that fires sooner (a lower ratio, a lower or longer-window count, without the law''s consecutive or disputed-bill protection) or gives fewer days to pay, and one whose condition cannot be compared. Not compared: a flat amount against a fixed-dollar cap (each deposit''s recorded cap holds it), waivers, instalments, other guards. A trigger or waiver ground the law has no word on is the utility''s own; a delegation compares nothing about content. A LATER change in the law that makes a tariff looser is a core audit finding, never a refusal of the law.';
+    'v5.4.2-15. rule_tables.compare_function of deposit_tariffs: given the new tariff row and the law rows in force over its dates that bind the utility, the reasons the tariff is looser than the law of its category''s class, or cannot be shown to be no looser: no law known for the class; months of billing above the law''s cap (a fraction of annual billing converted to months; a lesser-of the least of the parts that convert, a greater-of the greatest, only when all convert); months of the highest bill or a minimum amount where a cap in average months exists; an amount where the law has not ruled on the cap; a trigger the law also names that fires sooner (a lower ratio, a lower or longer-window count, without the law''s consecutive or disputed-bill protection) or gives fewer days to pay, and one whose condition cannot be compared. Not compared: a flat amount against a fixed-dollar cap (each deposit''s recorded cap holds it), waivers, instalments. The law''s guards other than days to pay (service age, a recent move, notice, a cure) are not compared but required to be carried identically — a tariff trigger that omits one is refused. A trigger or waiver ground the law has no word on is the utility''s own; a delegation compares nothing about content. A LATER change in the law that makes a tariff looser is a core audit finding, never a refusal of the law.';
 
 CREATE TABLE IF NOT EXISTS public.deposit_tariffs (
     id               uuid DEFAULT public.uuid_generate_v4() NOT NULL,
@@ -3799,7 +3800,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.deposit_rate_floor(uuid, text, text, text, date) IS
-    'v5.4.2-15 (Ryan, decision 4). The floor the law sets for a utility''s own interest rate on a date: the highest binding minimum among the law rows (of the classes the rate reaches) that bind the utility''s owner type, system kind and jurisdiction status — a fixed rate, or the highest published value the rate names, read as of the date. NULL when nothing binds (a reference rate, a delegation, no law row). Refuses when a published value the floor needs is not recorded, or the utility has no profile.';
+    'v5.4.2-15 (Ryan, decision 4). The floor the law sets for a utility''s own interest rate on a date: the highest binding minimum among the law rows (of the classes the rate reaches) that bind the utility''s owner type, system kind and jurisdiction status — a fixed rate, or the highest published value the rate names, read as of the date. NULL when nothing binds (a reference rate, a delegation). Refuses when a mapped class has no law row in force. Refuses when a published value the floor needs is not recorded, or the utility has no profile.';
 
 CREATE OR REPLACE FUNCTION public.deposit_rate_lock_key(p_tenant_id uuid, p_state_code text, p_service_type text) RETURNS bigint
     LANGUAGE sql IMMUTABLE
@@ -4485,7 +4486,7 @@ COMMENT ON COLUMN public.deposits.cap_component IS
 COMMENT ON COLUMN public.deposits.rule_id IS
     'The deposit_rules row the core decided this deposit under: the row its utility''s profile, its premise''s state and service, its class and its basis resolve to on posted_on. Law rows never change, so the citation stays true.';
 COMMENT ON COLUMN public.deposits.tariff_id IS
-    'The utility''s own deposit_tariffs row that applied, in force for tariff_category on posted_on. Required where the law row delegates to the utility.';
+    'The utility''s own deposit_tariffs row that applied, in force for tariff_category on posted_on. Required where the law row delegates to the utility, and wherever a deposit has a tariff_category and a tariff row is in force for that category on posted_on (a deposit with no category may skip every tariff; the statutory cap still holds).';
 COMMENT ON COLUMN public.deposits.decided_by IS 'The calculation core''s version that decided the deposit.';
 
 
@@ -4970,6 +4971,7 @@ DECLARE
     v_last_return date;
     v_last_type text;
     v_earned numeric;
+    v_least numeric;
 BEGIN
     SELECT * INTO d FROM public.deposits x WHERE x.id = NEW.deposit_id FOR UPDATE;
     IF NOT FOUND THEN
@@ -5176,6 +5178,29 @@ BEGIN
                 ERRCODE = 'check_violation';
         END IF;
     END CASE;
+    -- Arithmetic, not law, on the effective-date timeline: money cannot leave before it arrived. An application or a partial
+    -- return leaves the principal held non-negative on its own day and on every later day an event is recorded for (the
+    -- undated remainder above would let a later instalment fund an earlier return); a refund, release or refund notice
+    -- is dated on or after every receipt and every application or return already recorded.
+    IF NEW.event_type IN ('applied_to_balance', 'principal_returned') THEN
+        SELECT min(public.deposit_principal_in_force(d.id, x.day)) INTO v_least
+          FROM (SELECT NEW.effective_on AS day
+                UNION SELECT e.effective_on FROM public.deposit_events e
+                 WHERE e.deposit_id = d.id AND e.effective_on > NEW.effective_on) x;
+        IF NEW.amount > v_least THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit %s: a %s of %s effective %s would leave a negative principal held on some day from then (least held %s) — money cannot leave before it was received (v5.4.2-15)', d.id, NEW.event_type, NEW.amount, NEW.effective_on, v_least),
+                ERRCODE = 'check_violation';
+        END IF;
+    ELSIF NEW.event_type IN ('refund_initiated', 'refunded', 'released') THEN
+        IF EXISTS (SELECT 1 FROM public.deposit_events e
+                    WHERE e.deposit_id = d.id AND e.effective_on > NEW.effective_on
+                      AND e.event_type IN ('posted', 'instalment_received', 'applied_to_balance', 'principal_returned')) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('deposit %s: a %s effective %s precedes a receipt, application or return already recorded — the whole remainder goes back on or after the last of them (v5.4.2-15)', d.id, NEW.event_type, NEW.effective_on),
+                ERRCODE = 'check_violation';
+        END IF;
+    END IF;
     RETURN NEW;
 END;
 $$;
