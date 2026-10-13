@@ -1,8 +1,8 @@
 # Handoff: the deposits rewrite (-15) — patch written and frozen at round 5; Opus and Fable READY, Codex still to review
 
 **Generated**: 2026-10-13
-**Branch**: `main`, pushed. Round 8 is frozen and committed (`a12b5c9`; patch md5 `2dc8f61cda3bc6958ca42737d317a629`, battery md5 `8a0c6c4548ab0560ffb0698c13b4da96`, 356 checks, 175 mutations). Reports `opus-r8.md`, `fable-r8.md`, `codex-r8.md` are committed with the wrap-up.
-**Status**: **Opus, Fable and Codex all READY on frozen r8.** Nothing mirrored. `tu.sql` is still the -18 build. Waiting on Ryan: approval to mirror.
+**Branch**: `main`. **-15 is mirrored**: `sql/tu.sql` 36,712 lines (md5 `95f79924acda06445b518db545365e61`), from the frozen r8 patch (md5 `2dc8f61cda3bc6958ca42737d317a629`). `tests/ci.sh --build` all pass.
+**Status**: Landed. Only decision 1 is left for Ryan (below); everything else is optional follow-up.
 
 ## Goal
 Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sql` onto the rule-terms convention (-17 template, -18 worked example): law is a document per (state, service, owner types, class, basis); the utility has its own categories and one tariff per category; every record cites the law row and, when one applied, the tariff row.
@@ -14,10 +14,9 @@ Rewrite the never-mirrored deposits draft `sql/v5.4.2-15-deposits-law-to-core.sq
 - [x] Round 5 frozen: patch md5 `fb44ecc041cb2f6004171dd3723962bb`, battery md5 `1c93db1658445380739edd198b0e3543`. **Opus READY, Fable READY** (both verified hashes, clean strict apply, 334/334, M167 caught at R53).
 
 ## Not Yet Done
-- [ ] Ask Ryan whether to mirror `sql/v5.4.2-15-deposits-law-to-core.sql` into `tu.sql` (one decision per message, plain language). Then: rewrite AC-24/25 in `APPLICATION-CONTRACTS.md` (residual R12); add the -15 entry to `sql/DEPLOY-VERIFICATION.md` (recipe as the -18 entry); update `CHANGELOG.md`.
-- [ ] Ask Ryan to confirm decision 1 (a deposit's own closed law row stays citable after its close) — one line at mirror time is enough (Fable).
-- [ ] Optional, non-blocking, from round 8: Codex — extend V28b/c to terminal refunds/releases; Opus N1 — a one-statement due row + notice + uncited `refunded` is refused where two statements are accepted (fail-closed; rule could become "none cites NEW.id"); Fable — a live due row beside an uncited notice in two statements is accepted (core convention), a cited due row may still be withdrawn; a zero refund can close a deposit with unpaid instalments (core's call).
-- [ ] Carried over: backbilling tariff table; GitHub Actions version bump; verify Florida's official text (25-7.083) before loading any Florida row.
+- [ ] Ask Ryan decision 1 in one line, plain language: a deposit's own closed law row stays citable after its close ("grandfathered"). Not blocking.
+- [ ] Optional, non-blocking, from the round-8 reports: extend V28b/c to terminal refunds/releases (Codex); a one-statement due row + citing notice + uncited `refunded` is refused where two statements are accepted, fails closed (Opus N1); a live due row beside an uncited notice in two statements is accepted, a cited due row may still be withdrawn, a zero refund can close a deposit with unpaid instalments (all the core's conventions).
+- [ ] Carried over: backbilling tariff table; GitHub Actions version bump; verify Florida's official text (25-7.083) before loading any Florida row; the waiver-determination rewrite (residual R6) waits for a core that records determinations.
 
 ## Rounds 6-8 (2026-10-13), what each fixed
 - r6: Codex r5 B1 — a later-dated instalment funded an earlier return; dated-principal timeline guard at the end of `enforce_deposit_event`; stale comments.
@@ -58,13 +57,12 @@ docker exec tally-pg psql -U tally -d <you>15 -c "REVOKE TEMP ON DATABASE <you>1
 Codex: `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C ~/code/tally-utility -o tests/v5.4.2-15/review/codex-r5.md -` with the brief on stdin.
 
 ## Resume Instructions
-1. `git fetch` both repos (tally-utility, gas-billing-memory); check `git status` is clean. Kyle may have pushed rulings.
-2. Tell Ryan all three reviewers are READY on the frozen r8 and ask, in plain language and as the only question, whether to mirror -15 into `tu.sql`.
-3. On yes: mirror (patch as frozen r8, md5 above), AC-24/25 rewrite, DEPLOY-VERIFICATION entry, CHANGELOG; then ask decision 1 in one line.
-4. On no / changes: one revision, re-run battery, mutations, fail-first, migration, races; freeze r9; all three re-review.
+1. `git fetch` both repos (tally-utility, gas-billing-memory); read anything Kyle pushed first.
+2. Ask Ryan decision 1 (one line).
+3. Then ask what is next (the backbilling tariff table, or the core).
 
 ## Warnings
 - Never edit the patch while reviewers test; one revision per round, hashes in every request.
 - Nothing is live: the patch refuses to run over any non-legacy deposit, waiver determination or rate row. That is intentional.
-- Never mirror into `tu.sql` before Ryan approves and all three reviewers have seen the frozen revision.
+- tu.sql is append-only; the mirror is done. A change to -15 is a new patch file.
 - Explain codes (R53, M167, N1) in plain language when asking Ryan to decide anything.

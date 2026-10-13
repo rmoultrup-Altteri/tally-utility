@@ -88,9 +88,18 @@ step "battery v5.4.2-18" tests/v5.4.2-18/run-battery-18.sh "$BASE"
 if [ "$(q tally -c "SELECT to_regclass('public.backbilling_rule_window_terms') IS NOT NULL")" = "t" ]; then
   step "migration v5.4.2-18" python3 tests/v5.4.2-18/migration-18.py tally
 fi
+step "battery v5.4.2-15" tests/v5.4.2-15/run-battery-15r.sh "$BASE"
+# The migration runs on a PRE-15 base (the -18 build). -15 is mirrored, so `tally` already has deposit_rules and this is
+# skipped; to run it, restore a pre-15 base first (a database built from the -18 tu.sql), then:
+# python3 tests/v5.4.2-15/migration-15r.py <base>.
+if [ "$(q tally -c "SELECT to_regclass('public.deposit_rules') IS NULL")" = "t" ]; then
+  step "migration v5.4.2-15" python3 tests/v5.4.2-15/migration-15r.py tally
+fi
 step "isolation v5.4.2-17" tests/v5.4.2-17/isolation-17.sh "$BASE" ci_iso17
 step "races v5.4.2-17" tests/v5.4.2-17/races/rule-close-17.sh "$BASE" ci_race17
 step "law files v5.4.2-17" tests/v5.4.2-17/lawfiles-17.sh "$BASE" ci_law17
+clone ci_r15 "$BASE" && step "races v5.4.2-15" bash tests/v5.4.2-15/races/due-mutex-15.sh ci_r15
+clone ci_e15 "$BASE" && step "evidence txn v5.4.2-15" bash tests/v5.4.2-15/evidence-txn-15.sh ci_e15
 clone ci_r16 "$BASE" && step "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
 clone ci_e13 "$BASE" && step "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh

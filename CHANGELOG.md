@@ -4,6 +4,28 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-13 — deposits rewrite (-15): Codex back, three more rounds (r6-r8), all three reviewers READY, mirrored into tu.sql on Ryan's approval
+
+**What was done:**
+- Resumed from the HANDOFF; no drift (three new upstream commits touch only `ui-concepts/`). Codex's quota had lifted: it reviewed the whole frozen r5 and said **not yet**.
+- **r6** (commit `cdf41d7`): Codex B1 **reproduced first** (a later-dated instalment funded an earlier partial return: principal held −25.00). `enforce_deposit_event` ends with a dated-principal timeline guard (an application or return must leave the principal non-negative on its own day and every later recorded day; a refund, release or notice is dated on or after every receipt, application and return already recorded). Stale comments corrected (S1). Checks I8-I16, mutations M168-M170.
+- **r7** (`2747e82`): Opus found the status projection is an AFTER ROW trigger, so inside a multi-row INSERT every status check was stale (two `refunded` events in one statement paid the money out twice). **Measured red** (I17, I21, I22). Refund state is now read from `deposit_events`; a refund is not dated before its own notice. Checks I17-I24, mutations M171-M174.
+- **r8** (`a12b5c9`): all three flagged the sibling check on due rows. A BEFORE ROW check cannot see which part of a writable WITH runs first (Opus showed a diagnostic trigger saw 0 events in one order), so a new AFTER INSERT trigger `z_enforce_deposit_return_due_not_started` judges the due row when its statement ends; a refund that cites the new row stays allowed. **Measured red** (V28b, V28c). Checks V28b-V28d, mutations M175-M176.
+- **Round 8: Opus, Fable and Codex all READY** on the frozen revision (patch md5 `2dc8f61cda3bc6958ca42737d317a629`, battery md5 `8a0c6c4548ab0560ffb0698c13b4da96`; 356 checks, 175/175 mutations, migration, races, evidence pass). Wrap-up commit `f209b5f`.
+- **Ryan approved the mirror.** `sql/tu.sql` 31,380 -> **36,712** lines (pure append, md5 `95f79924acda06445b518db545365e61`; body byte-identical to the patch's lines 73-5398; the psql re-run gate and BEGIN/COMMIT omitted). Image rebuilt on a fresh container: zero init errors; catalog identity (11,020 lines), counts and every table's row count identical to a clone of the -18 build with the patch applied; the patch re-applied over the build twice: skipped cleanly, TEMP false. `tests/ci.sh --build`: all pass (the -15 battery, races and evidence added; the -15 migration step runs only on a pre-15 base). AC-24 and AC-25 rewritten for the new database (residual R12); `sql/DEPLOY-VERIFICATION.md` has the -15 entry; `tests/README.md` updated.
+
+**Failed approaches / mechanisms:**
+- A reviewer-proposed fix for the due-row lag (read events in the BEFORE trigger) would not have worked: which CTE part runs first is not fixed. Judge after the statement.
+- A battery label with an unescaped apostrophe inside a SQL string literal ('deposit's') aborted the whole run at its end with a syntax error that looked like a pass count of 255; check the run's tail, not only the PASS count.
+- `sed -i` needs `''` on macOS; a `&&` chain that failed on it left `$DB` unset and the next commands ran against nothing.
+- Codex has no Docker access (its reviews are read-only); the old Opus/Fable agent ids could not be resumed, so they were started fresh as `opus-r6` / `fable-r6`.
+
+**Decisions made without Ryan:** "pending" is "a refund_initiated event exists" (no cancel in this ledger); the refund-date rule is wider than the receipts Codex named (also applications and returns). Still open for Ryan: decision 1 (a deposit's own closed law row stays citable after its close).
+
+**Next:** ask Ryan decision 1 in one line; optional non-blocking items from the round-8 reports (HANDOFF); carried over: backbilling tariff table, GitHub Actions version bump, verify Florida's official text (25-7.083) before loading any Florida row.
+
+---
+
 ## 2026-10-12 (evening) — deposits rewrite (-15): patch written, 5 review rounds, round 5 frozen; Opus and Fable READY, Codex pending
 
 **What was done:**

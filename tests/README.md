@@ -16,8 +16,8 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 tests/
   ci.sh                     # EVERY check, as .github/workflows/ci.yml runs it (--build: image from postgres/Dockerfile,
                             #   fresh tally-pg). Clones `tally`; strict-applies (twice) patches not yet mirrored;
-                            #   batteries -09..-14, -16, -17, -18; -18's migration (while `tally` is pre-18); -17's isolation, races and law files; -16 and -12 races;
-                            #   -13's evidence script; the tenant-isolation invariants. Never writes `tally`.
+                            #   batteries -09..-14, -15, -16, -17, -18; -18's and -15's migrations (while `tally` is pre-18 / pre-15); -17's isolation, races and law files; -15, -16 and -12 races;
+                            #   -15's and -13's evidence scripts; the tenant-isolation invariants. Never writes `tally`.
   v5.4.2-18/                # backbilling at the rule-terms convention: the 16 Texas rows adopted in place (landed 2026-10-10; r6 frozen, mirrored)
     battery-18.sql          # 108 checks, groups S M K D O H X L G, on the migrated table: the kind and its facet; the
                             #   registration; the sixteen documents against expectations typed from the -13 seed; the
@@ -41,16 +41,21 @@ tests/
                             #   validator agrees with jsonschema on 899 documents; the strict loader's refusals
     mutations-17.py         # 165 mutations, each caught at its named check (battery, X, R, W or APPLY); clones
                             #   `tally` (the -16 build) and revokes TEMP on every clone
-  v5.4.2-15/                # deposits at parity: the deposit law leaves the database (DRAFT; round 2 revision 2026-10-02)
-    battery-15.sql          # 104 checks, groups A Z B C D L E F W G; group Z stores a fictional state ZZ with
-                            #   no DDL (reach that halves or defers, a combined cap, a lookback); group L proves
-                            #   -06's Texas refusals are gone; W covers waiver reach and the utility's tariff grounds
-    evidence-txn-15.sh      # X1: return-due evidence only in its due row's transaction (two transactions)
-    races/due-mutex-15.sh   # R1-R6: one live due row (READ COMMITTED and REPEATABLE READ), a due row vs a refund,
-                            #   a refund vs a withdrawal, a rate backdated during an accrual, rates only under RC
-    mutations-15.py         # 91 mutations, each caught at its named check (battery, X1 or R1-R6); runs
-                            #   against `tally` as a -14 BASE; revokes TEMP on every clone
-    review/                 # round 1: brief, frozen patch and battery, findings and dispositions; the B3 proposal
+  v5.4.2-15/                # deposits at the rule-terms convention: the deposit law leaves the database (landed 2026-10-13; r8 frozen, mirrored)
+    battery-15r.sql         # 356 checks: the kinds and their schemas, the law table and its Texas rows, categories and
+                            #   tariffs against the law, the rate floor, deposits citing law and tariff rows, instalments,
+                            #   money not leaving before it arrived, refund state from the events (multi-row statements),
+                            #   accruals, partial returns, the return-due record and its evidence, tenancy
+    run-battery-15r.sh      # runs battery-15r against <db> that has -15 applied
+    fail-first.py           # runs each `rN:begin` block of the battery alone: a block fails on the previous build, passes on this
+    migration-15r.py        # P0-P6 on clones of a PRE-15 base (the -18 build): strict apply, carried legacy deposits unchanged,
+                            #   twice, a real deposit / waiver / rate / accrual stops it untouched, the -06 law gone
+    mutations-15r.py        # 175 mutations, each caught at its named check; needs a PRE-15 base (a database built from the -18 tu.sql)
+    terms-15.py             # the document schemas against their examples and fixtures
+    evidence-txn-15.sh      # X1-X2: return-due evidence and an instalment schedule only in their own transaction (two transactions)
+    races/due-mutex-15.sh   # R1-R10: one live due row, a due row vs a refund, a refund vs a withdrawal, a rate backdated during
+                            #   an accrual, law and tariff closes racing citing deposits, rates only under READ COMMITTED
+    review/                 # briefs r1-r8, the frozen patch and battery of each round, one report per reviewer per round, probes
   NOTE (2026-10-02): CREATE DATABASE … TEMPLATE does not copy the database ACL — tally_app regains TEMP on a
   clone. Revoke it after cloning (REVOKE TEMP ON DATABASE x FROM PUBLIC, tally_app) or the depth fences are open.
   v5.4.2-14/                # meter_governing_test() without R-36's gate (the core's now), LANDED 2026-09-30
