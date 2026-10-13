@@ -4,6 +4,26 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-13 (afternoon) — core-build gate step 1: per-invariant parity measurement, finance gate resolved, Kyle brief written
+
+**What was done:**
+- Ryan confirmed decision 1 for -15 (a deposit's own closed law row stays citable after its close). Recorded in memory and `HANDOFF.md` (`09c04fe`).
+- Ryan stated the gate for starting the core: (1) schema parity with the invariants and scenarios, (2) finish scenarios and devise a testing strategy, (3) plan the build phases, (4) execute. Saved as memory `core-build-gate-four-steps`. Told him honestly that the parity plan's table was last checked 2026-09-23 and that nothing in the repo dates the core.
+- **Per-invariant measurement** (`2dfc04e`, `dc8c7f4`): `application/invariant-parity-measurement-2026-10-13.md`. Seven read-only Sonnet agents measured CI-001…CI-135 against the live `tally` build (130 tables) and tu.sql/patches. Result: REP+PROT 34, REP 21, PARTIAL 61, GAP 12, BLOCKED 7 (55 of 135 done for step 1; 80 open). Evidence names (629) matched against the catalog; unmatched ones were enum values, JSON keys, wildcards, roles or absent-by-design objects. Findings worth keeping: `prorate_tier_breakpoints` default regressed to false when -03 moved the column (CI-108); `dunning_events` is UPDATE-able with `invoice_id` ON DELETE CASCADE; `recompute_do_not_disconnect` ignores `effective_end_date`; 267 tenant-to-tenant FKs are not tenant-bound (CI-116); `void_released` guard hole and negative consumption on meter rollover need no ruling; the register is stale in several places (CI-008/010/020/044/047/086/091/092/129-131 and others).
+- **Finance gate** (`d3ba0be`): Ryan accepted Kyle's D-2 for the receivables and reporting side (periods + close snapshot, GL code mapping, AR aging, bad-debt recovery type, revenue distribution matrix as config, finance parts of disputes/bankruptcy). The gas-cost side (gas purchases, deferred PGA ledger, carrying cost, annual true-up; CI-033, 036) stays fenced for Kyle. Logged in `application/DECISION-LOG.md`; memory `finance-gate-resolved`.
+- **Kyle brief** (`bf6fc4a`, `276abc7`): `application/kyle-brief-2026-10-13-tax-jurisdictions-and-gas-cost.md`, marked READY TO SEND. Seven questions: is a jurisdiction just a place (v5.4.2-16 places already carry dated tax facts), where the tax stack lives, the franchise-fee base (`applies_to` vs per-line flags; the 16 TAC §8.201 carve-out), what to hold for remittances, the silent not-taxable default, and on the gas-cost side whether the platform holds purchases/deferred balance and any unaccounted-for gas cap. Slack text drafted for Ryan; he must attach or link the file by repo path.
+
+**Failed approaches / mechanisms:**
+- The first Kyle-brief draft asserted Texas tax facts (a state-level residential-gas exemption, a combined-rate ceiling) not verified in the repo; removed before commit.
+- The first merge of the seven measurement tables found agents C and D wrote bare numbers (`| 039 |`) instead of `CI-039`; the merger normalized both forms and verified 135 unique CIs.
+- Late agent completion notices arrived after the merge; their counts matched what was published, so nothing changed.
+
+**Decisions made without Ryan:** the measurement's taxonomy (REP is not a gap; BLOCKED names whose ruling); keeping new documents in tally-utility `application/` rather than gas-billing-memory; stating preferences in the Kyle brief as input only.
+
+**Next:** Ryan posts the Kyle brief; price and sequence the 80 open items (finance-released builds and the 12 plain gaps first); take the remaining person-decisions to Ryan one at a time; review the medium/low-confidence rows that matter. Steps 2-4 of the gate have not started.
+
+---
+
 ## 2026-10-13 — deposits rewrite (-15): Codex back, three more rounds (r6-r8), all three reviewers READY, mirrored into tu.sql on Ryan's approval
 
 **What was done:**
