@@ -6,6 +6,14 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-13 (CI-019) — Ryan: drop the ledger's stored running balance
+
+**What:** Ryan (2026-10-13): "drop it". `account_ledger.running_balance` and its stamping trigger (`compute_ledger_running_balance`) are dropped in v5.4.2-19 r2; the balance is the sum of the customer's ledger rows (`account_balance_as_of(customer, on, recorded)`), and `void_invoice()` returns the summed balance as `credit_balance`. A screen that shows a running balance beside each line computes it when it shows it.
+
+*Why this and not the alternatives:* the stored value was taken from the "previous" row ordered by `created_at, id` — rows written in one transaction tie on `created_at` and fell back to a random id — and two writers for one customer read the same prior balance; on an append-only table a wrong value is permanent. Keeping it correct would serialise every posting for a customer behind a lock. Nothing but `void_invoice()`'s return value read it, and the tables are empty, so the drop costs nothing now. *Where it lives:* `sql/v5.4.2-19-hardening-batch-1.sql` section 8 (r2); this entry.
+
+---
+
 ## 2026-10-13 (finance gate) — Ryan accepts Kyle's D-2 as the finance reader's answer, with one carve-out
 
 **What:** Ryan (2026-10-13): "yes, accept D-2 on those terms". Kyle's D-2 (2026-08-18: the platform is a customer receivables subledger that exports to the utility's own accounting system, not a general ledger; accounting periods are freeze boundaries, reports run over arbitrary date ranges; GL account mapping is tenant configuration; the unbilled-revenue accrual is never a row) **releases the finance gate for the receivables and reporting side**: accounting periods and the close snapshot (A4), the GL account-code mapping as tenant configuration (A6), the receivables aging view (A7), a bad-debt recovery posting type that cites its write-off (CI-076), the revenue distribution matrix as configuration (A-10, CI-048), and the finance-adjacent parts of disputes/bankruptcy records (A-15, CI-074). CI-110 is read as Kyle re-scoped it: the export reconciles and the close snapshot is reproducible.
