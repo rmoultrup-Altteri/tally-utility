@@ -1,7 +1,7 @@
 ---
 title: TallyUtility — tax jurisdictions (A-8) and the gas-cost ledger: questions for Kyle
 type: brief
-status: DRAFT — for Ryan to review and send. Not yet sent.
+status: READY TO SEND (Ryan approved 2026-10-13). Not yet answered.
 created: 2026-10-13
 blocks: CI-044 and CI-045 (franchise fee traceability, tax stacking), the tax slice of CI-001/CI-004, CI-033 and CI-036 (PGA pass-through and the deferred gas-cost account)
 ---
