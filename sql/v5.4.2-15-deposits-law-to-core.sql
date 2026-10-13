@@ -3020,6 +3020,11 @@ BEGIN
                 MESSAGE = format('%s: the cap names the cap part kind %s twice — a deposit names the part that governed its cap by kind and id, one part of each kind (v5.4.2-15)', v_who, v_dup),
                 ERRCODE = 'check_violation';
         END IF;
+        IF v_comb <> 'single' AND (SELECT count(*) FROM jsonb_array_elements(v_t #> '{cap,parts}') p WHERE p ->> 'kind' <> 'fixed_amount') > 1 THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s: a %s cap with two parts that need different billing figures (annual, monthly, the highest bills …) cannot be recorded on one basis figure; version 1 allows one such part and any fixed amounts (v5.4.2-15)', v_who, v_comb),
+                ERRCODE = 'check_violation';
+        END IF;
         IF (SELECT array_agg(p ->> 'kind' ORDER BY o) IS DISTINCT FROM array_agg(p ->> 'kind' ORDER BY p ->> 'kind' COLLATE "C")
               FROM jsonb_array_elements(v_t #> '{cap,parts}') WITH ORDINALITY AS e(p, o)) THEN
             RAISE EXCEPTION USING
@@ -3418,6 +3423,27 @@ COMMENT ON FUNCTION public.deposit_tariff_insert_check(jsonb) IS
 -- Not compared, and said so: a flat amount against a fixed-dollar cap or any cap not stated in months, waivers, instalments,
 -- guards other than days to pay. A trigger or waiver ground the law has no word on is the utility's own. A delegation compares
 -- nothing about content. A flat amount is held at each deposit by its recorded cap check.
+-- The simple conditions (a usage ratio, an event count) a condition is made of, through any all_of / any_of.
+CREATE OR REPLACE FUNCTION public.deposit_condition_leaves(p_cond jsonb) RETURNS SETOF jsonb
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    x jsonb;
+BEGIN
+    IF p_cond ->> 'kind' IN ('ratio', 'count') THEN
+        RETURN NEXT p_cond;
+    ELSE
+        FOR x IN SELECT e FROM jsonb_array_elements(coalesce(p_cond -> 'of', '[]'::jsonb)) e LOOP
+            RETURN QUERY SELECT * FROM public.deposit_condition_leaves(x);
+        END LOOP;
+    END IF;
+    RETURN;
+END;
+$$;
+COMMENT ON FUNCTION public.deposit_condition_leaves(jsonb) IS
+    'v5.4.2-15. The simple conditions a trigger condition is made of: a ratio or a count itself, or the ratios and counts under its all_of / any_of. The comparator matches a tariff trigger with a law trigger when they share a leaf measure (a usage ratio of the same measure, a count of the same event) whatever their codes.';
+
 CREATE OR REPLACE FUNCTION public.deposit_tariff_compare(p_tariff jsonb, p_law jsonb) RETURNS text[]
     LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
@@ -3441,8 +3467,11 @@ DECLARE
     v_lg      integer;
     v_range   daterange;
     v_cov     datemultirange;
+    v_miss    datemultirange;
+    v_seg     daterange;
+    v_prof    public.utility_service_profiles%ROWTYPE;
+    v_related boolean;
     v_samecode boolean;
-    v_samemeasure boolean;
     v_g       jsonb;
 BEGIN
     SELECT c.law_class INTO v_class FROM public.deposit_utility_categories c
@@ -3453,10 +3482,24 @@ BEGIN
     END IF;
     -- The class's own law rows cover the whole range of the tariff (the template's coverage counts every class's rows).
     v_range := daterange((p_tariff ->> 'effective_from')::date, (p_tariff ->> 'effective_to')::date, '[)');
-    SELECT coalesce(range_agg(daterange((r ->> 'effective_from')::date, (r ->> 'effective_to')::date, '[)')), '{}'::datemultirange) INTO v_cov
-      FROM jsonb_array_elements(p_law) r WHERE r ->> 'customer_class' = v_class;
-    IF (datemultirange(v_range) - v_cov) <> '{}'::datemultirange THEN
-        RETURN ARRAY[format('no law is known for the class %s this category maps to over %s — unknown law is not permission', v_class, datemultirange(v_range) - v_cov)];
+    -- Per segment of the utility's profile (its owner type, system kind and jurisdiction status can change within the range), only
+    -- the class's law rows that bind that segment count.
+    v_miss := '{}'::datemultirange;
+    FOR v_prof IN SELECT * FROM public.utility_service_profiles u
+                   WHERE u.tenant_id = (p_tariff ->> 'tenant_id')::uuid AND u.service_type = p_tariff ->> 'service_type'
+                     AND u.system_kind = p_tariff ->> 'system_kind' AND u.state_code = p_tariff ->> 'state_code'
+                     AND u.voided_at IS NULL AND daterange(u.effective_from, u.effective_to, '[)') && v_range LOOP
+        v_seg := daterange(v_prof.effective_from, v_prof.effective_to, '[)') * v_range;
+        SELECT coalesce(range_agg(daterange((r ->> 'effective_from')::date, (r ->> 'effective_to')::date, '[)')), '{}'::datemultirange) INTO v_cov
+          FROM jsonb_array_elements(p_law) r
+         WHERE r ->> 'customer_class' = v_class
+           AND (r ->> 'owner_span')::int4multirange @> public.rule_applicability_ordinal('owner_type', v_prof.owner_type)
+           AND (r ->> 'system_span')::int4multirange @> public.rule_applicability_ordinal('system_kind', v_prof.system_kind)
+           AND (r ->> 'jurisdiction_span')::int4range @> (CASE WHEN v_prof.commission_jurisdiction THEN 1 ELSE 0 END);
+        v_miss := v_miss + (datemultirange(v_seg) - v_cov);
+    END LOOP;
+    IF v_miss <> '{}'::datemultirange THEN
+        RETURN ARRAY[format('no law is known for the class %s this category maps to over %s — unknown law is not permission', v_class, v_miss)];
     END IF;
     FOR v_row IN SELECT r FROM jsonb_array_elements(p_law) r
                   WHERE r ->> 'customer_class' = v_class AND r #>> '{terms,governs}' = 'law' LOOP
@@ -3503,18 +3546,22 @@ BEGIN
                 FOR v_lt IN SELECT t FROM jsonb_array_elements(v_row #> '{terms,triggers}') t LOOP
                     v_lc := v_lt -> 'condition';
                     v_samecode := v_lt ->> 'trigger_code' = v_tt ->> 'trigger_code';
-                    v_samemeasure := (v_tc ->> 'kind' = 'ratio' AND v_lc ->> 'kind' = 'ratio' AND v_tc ->> 'measure' = v_lc ->> 'measure')
-                                  OR (v_tc ->> 'kind' = 'count' AND v_lc ->> 'kind' = 'count' AND v_tc ->> 'event' = v_lc ->> 'event'
-                                      AND v_tc #>> '{window,unit}' = v_lc #>> '{window,unit}');
-                    CONTINUE WHEN NOT v_samecode AND NOT v_samemeasure;
-                    IF v_tc ->> 'kind' = 'ratio' AND v_samemeasure THEN
+                    v_related := v_samecode OR EXISTS (
+                        SELECT 1 FROM public.deposit_condition_leaves(v_tc) a, public.deposit_condition_leaves(v_lc) b
+                         WHERE (a ->> 'kind' = 'ratio' AND b ->> 'kind' = 'ratio' AND a ->> 'measure' = b ->> 'measure')
+                            OR (a ->> 'kind' = 'count' AND b ->> 'kind' = 'count' AND a ->> 'event' = b ->> 'event'));
+                    CONTINUE WHEN NOT v_related;
+                    IF v_tc = v_lc THEN
+                        NULL;
+                    ELSIF v_tc ->> 'kind' = 'ratio' AND v_lc ->> 'kind' = 'ratio' AND v_tc ->> 'measure' = v_lc ->> 'measure' THEN
                         -- fires sooner: a lower threshold, or the same one inclusive where the law is strict
                         IF (v_tc ->> 'value')::numeric < (v_lc ->> 'value')::numeric
                            OR ((v_tc ->> 'value')::numeric = (v_lc ->> 'value')::numeric AND v_tc ->> 'op' = 'at_least' AND v_lc ->> 'op' = 'greater_than') THEN
                             v_problem := v_problem || format('the %s trigger fires at %s of %s, where the law waits for %s', v_tt ->> 'trigger_code',
                                                              trim_scale((v_tc ->> 'value')::numeric), v_tc ->> 'measure', trim_scale((v_lc ->> 'value')::numeric));
                         END IF;
-                    ELSIF v_tc ->> 'kind' = 'count' AND v_samemeasure THEN
+                    ELSIF v_tc ->> 'kind' = 'count' AND v_lc ->> 'kind' = 'count' AND v_tc ->> 'event' = v_lc ->> 'event'
+                          AND v_tc #>> '{window,unit}' = v_lc #>> '{window,unit}' THEN
                         IF (v_tc ->> 'at_least')::numeric < (v_lc ->> 'at_least')::numeric THEN
                             v_problem := v_problem || format('the %s trigger fires at %s %s events, where the law waits for %s', v_tt ->> 'trigger_code',
                                                              v_tc ->> 'at_least', v_tc ->> 'event', v_lc ->> 'at_least');
@@ -3529,9 +3576,9 @@ BEGIN
                         IF (v_lc ->> 'exclude_disputed')::boolean AND NOT (v_tc ->> 'exclude_disputed')::boolean THEN
                             v_problem := v_problem || format('the %s trigger counts disputed bills, where the law excludes them', v_tt ->> 'trigger_code');
                         END IF;
-                    ELSIF v_tc IS DISTINCT FROM v_lc THEN
-                        v_problem := v_problem || format('the %s trigger''s condition cannot be compared with the law''s (%s against %s) and so cannot be shown to fire no sooner',
-                                                         v_tt ->> 'trigger_code', v_tc ->> 'kind', v_lc ->> 'kind');
+                    ELSE
+                        v_problem := v_problem || format('the %s trigger''s condition cannot be compared with the law''s %s trigger (%s against %s) and so cannot be shown to fire no sooner',
+                                                         v_tt ->> 'trigger_code', v_lt ->> 'trigger_code', v_tc ->> 'kind', v_lc ->> 'kind');
                     END IF;
                     -- the days the customer has to pay: the tariff may give more, never fewer
                     v_lg := NULL;
@@ -3674,7 +3721,8 @@ COMMENT ON FUNCTION public.deposit_published_rate(text, text, text, date) IS
 
 -- The highest floor the law sets for a utility's rate in a state and service,
 -- on a date, for the classes the rate reaches: the rate's own category's class,
--- or — for a rate for every category — every class of the state and service. The floor
+-- or — for a rate for every category — every class of the state and service (so it is refused while any class has no law row in force
+-- for the utility's owner type, though the utility serves no such customer: the floor of a class the law is silent on is not known). The floor
 -- of a law row is its rate when the rate is a minimum: a fixed rate, or the
 -- highest of the published values it names (the main one and any by_hold).
 -- A rate the law names only as a reference, a law that leaves the rate to the
@@ -3966,8 +4014,7 @@ ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_basis_amount_check CHECK
 ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_cap_source_check;
 ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_source_check
     CHECK ((((cap_amount IS NULL) AND (cap_source IS NULL) AND (cap_component IS NULL) AND (cap_basis_amount IS NULL) AND (cap_other_held IS NULL))
-         OR ((cap_amount IS NOT NULL) AND (cap_source = 'statute'::text) AND (cap_component IS NOT NULL))
-         OR ((cap_amount IS NOT NULL) AND (cap_source = 'tariff'::text))));
+         OR ((cap_amount IS NOT NULL) AND (cap_source IS NOT NULL) AND (((cap_source = 'statute'::text) AND (cap_component IS NOT NULL)) OR (cap_source = 'tariff'::text)))));
 ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_cap_other_held_check;
 ALTER TABLE public.deposits ADD CONSTRAINT deposits_cap_other_held_check
     CHECK (((cap_other_held IS NULL) OR ((cap_other_held >= (0)::numeric) AND (cap_other_held < cap_amount))));
@@ -4171,25 +4218,36 @@ BEGIN
             RAISE EXCEPTION USING
                 MESSAGE = format('deposit rejected: law row %s sets no cap, so there is no cap part %L to name (v5.4.2-15)', NEW.rule_id, NEW.cap_component), ERRCODE = 'check_violation';
         END IF;
-        -- A cap from the tariff is held to the tariff's own amount: a fixed amount, or — where the document sets no cap and the tariff
-        -- states its amount in months of billing — months times the monthly billing figure recorded (cap_basis_amount). A tariff
-        -- that states no amount (none, case by case) holds nothing; a minimum amount is the core's.
-        IF NEW.cap_source = 'tariff' THEN
-            v_tamt := CASE v_tariff.terms #>> '{amount,strategy}'
-                          WHEN 'fixed' THEN (v_tariff.terms #>> '{amount,amount}')::numeric
-                          WHEN 'months_of_billing' THEN
-                              CASE WHEN v_doc #>> '{cap,strategy}' = 'parts' THEN NULL ELSE NEW.cap_basis_amount * (v_tariff.terms #>> '{amount,months}')::numeric END
-                      END;
+        -- The cited tariff's own figure holds whatever source set the cap that applied. A fixed amount; or months of billing, from
+        -- the figure recorded (the named part's, where the document caps; the monthly billing, where it sets no cap). A tariff that
+        -- states no amount (none, case by case) holds nothing, and a minimum amount is the core's. Where the document sets no cap
+        -- and the tariff states an amount, the cap that applied is recorded: the tariff is the policy.
+        IF NEW.tariff_id IS NOT NULL THEN
             IF v_doc #>> '{cap,strategy}' IS DISTINCT FROM 'parts' THEN
+                IF v_tariff.terms #>> '{amount,strategy}' IN ('fixed', 'months_of_billing') AND NEW.cap_amount IS NULL THEN
+                    RAISE EXCEPTION USING
+                        MESSAGE = 'deposit rejected: the cited tariff states an amount and the law sets no cap, so the cap that applied is recorded (cap_amount, cap_source tariff) — v5.4.2-15',
+                        ERRCODE = 'check_violation';
+                END IF;
                 IF (NEW.cap_basis_amount IS NULL) <> (v_tariff.terms #>> '{amount,strategy}' IS DISTINCT FROM 'months_of_billing') THEN
                     RAISE EXCEPTION USING
                         MESSAGE = 'deposit rejected: with no cap in the document, a tariff cap records the monthly billing figure (cap_basis_amount) exactly when the tariff states its amount in months of billing (v5.4.2-15)',
                         ERRCODE = 'check_violation';
                 END IF;
             END IF;
-            IF v_tamt IS NOT NULL AND NEW.cap_amount > v_tamt + 0.005 THEN
+            v_tamt := CASE v_tariff.terms #>> '{amount,strategy}'
+                          WHEN 'fixed' THEN (v_tariff.terms #>> '{amount,amount}')::numeric
+                          WHEN 'months_of_billing' THEN
+                              CASE WHEN v_doc #>> '{cap,strategy}' = 'parts' THEN
+                                        CASE v_part ->> 'kind'
+                                            WHEN 'fraction_of_annual_billing' THEN NEW.cap_basis_amount / 12 * (v_tariff.terms #>> '{amount,months}')::numeric
+                                            WHEN 'months_of_billing' THEN NEW.cap_basis_amount * (v_tariff.terms #>> '{amount,months}')::numeric
+                                        END
+                                   ELSE NEW.cap_basis_amount * (v_tariff.terms #>> '{amount,months}')::numeric END
+                      END;
+            IF v_tamt IS NOT NULL AND NEW.cap_amount IS NOT NULL AND NEW.cap_amount > v_tamt + 0.005 THEN
                 RAISE EXCEPTION USING
-                    MESSAGE = format('deposit rejected: the cap that applied (%s) is above the tariff''s own amount (%s) — v5.4.2-15', NEW.cap_amount, trim_scale(round(v_tamt, 4))),
+                    MESSAGE = format('deposit rejected: the cap that applied (%s) is above the cited tariff''s own amount (%s) — v5.4.2-15', NEW.cap_amount, trim_scale(round(v_tamt, 4))),
                     ERRCODE = 'check_violation';
             END IF;
         END IF;

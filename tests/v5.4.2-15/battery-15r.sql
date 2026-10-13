@@ -310,8 +310,12 @@ SELECT pg_temp.refuses('X3: a lesser-of cap with one part',
   '23514', 'needs two or more parts');
 SELECT pg_temp.refuses('X4: cap parts out of order (by kind, byte order: one law has one document)',
   pg_temp.ins_sql('business', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "parts", "version": 1, "combinator": "lesser_of", "scope": "per_deposit",
-     "parts": [{"id": "c1", "kind": "months_of_billing", "months": 2}, {"id": "c2", "kind": "fraction_of_annual_billing", "divisor": 6}]}}')),
+     "parts": [{"id": "c1", "kind": "fraction_of_annual_billing", "divisor": 6}, {"id": "c2", "kind": "fixed_amount", "amount": 100}]}}')),
   '23514', 'out of order');
+SELECT pg_temp.refuses('X17: a lesser-of cap whose two parts need different billing figures (annual and monthly) cannot be recorded on one basis',
+  pg_temp.ins_sql('business', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "parts", "version": 1, "combinator": "lesser_of", "scope": "per_deposit",
+     "parts": [{"id": "c1", "kind": "fraction_of_annual_billing", "divisor": 6}, {"id": "c2", "kind": "months_of_billing", "months": 2}]}}')),
+  '23514', 'different billing figures');
 SELECT pg_temp.refuses('X5: instalments whose fractions do not add up to one',
   pg_temp.ins_sql('business', 'credit_evaluation', pg_temp.doc('{"instalments": [{"id": "i1", "fraction": 0.5, "days_after": 0}, {"id": "i2", "fraction": 0.25, "days_after": 30}]}')),
   '23514', 'add up to exactly 1');
@@ -504,6 +508,10 @@ INSERT INTO public.deposit_customer_classes (state_code, service_type, class_cod
   ('ZZ', 'gas', 'cnt', 'battery class with a count trigger', 'battery fixture'),
   ('ZZ', 'gas', 'lo', 'battery class with a lesser-of cap', 'battery fixture'),
   ('ZZ', 'gas', 'hb', 'battery class with a highest-bills cap', 'battery fixture'),
+  ('ZZ', 'gas', 'gt', 'battery class with a strict usage ratio', 'battery fixture'),
+  ('ZZ', 'gas', 'lm', 'battery class with a lesser-of cap in months', 'battery fixture'),
+  ('ZZ', 'gas', 'gm', 'battery class with a greater-of cap', 'battery fixture'),
+  ('ZZ', 'gas', 'sa', 'battery class with a seasonal cap', 'battery fixture'),
   ('ZZ', 'gas', 'unr', 'battery class whose cap the law has not ruled on', 'battery fixture'),
   ('ZZ', 'gas', 'retail', 'battery class', 'battery fixture'), ('ZZ', 'gas', 'wholesale', 'battery class', 'battery fixture'),
   ('ZZ', 'gas', 'bulk', 'battery class', 'battery fixture');
@@ -519,6 +527,13 @@ INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
   ('00000000-0000-4000-8000-0000000015b5', '00000000-0000-4000-8000-0000000015a5', 'Op5', 'op5@bat15r.test', 'operator');
 \set u5 '00000000-0000-4000-8000-0000000015b5'
 \set t5 '00000000-0000-4000-8000-0000000015a5'
+INSERT INTO public.deposit_customer_classes (state_code, service_type, class_code, description, source_note) VALUES
+  ('ZX', 'gas', 'cl', 'battery class whose law binds investor-owned utilities only', 'battery fixture');
+INSERT INTO public.tenants (id, name, slug) VALUES ('00000000-0000-4000-8000-0000000015a6', 'T6 Zex Gas', 'bat15r-t6');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('00000000-0000-4000-8000-0000000015b6', '00000000-0000-4000-8000-0000000015a6', 'Op6', 'op6@bat15r.test', 'operator');
+\set u6 '00000000-0000-4000-8000-0000000015b6'
+\set t6 '00000000-0000-4000-8000-0000000015a6'
 INSERT INTO public.tenants (id, name, slug) VALUES ('00000000-0000-4000-8000-0000000015a4', 'T4 Zed Gas', 'bat15r-t4');
 INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
   ('00000000-0000-4000-8000-0000000015b4', '00000000-0000-4000-8000-0000000015a4', 'Op4', 'op4@bat15r.test', 'operator');
@@ -623,6 +638,13 @@ SELECT pg_temp.run(format($q$
                                                effective_from, evidence_reference, evidence_date)
   VALUES (%L, 'gas', 'distribution', 'ZX', 'investor_owned', true, DATE '2000-01-01', 'ZX certificate bat15r 5', DATE '2000-01-01')$q$,
   :'t5'), 'tally_app', :'u5');
+SELECT pg_temp.run(format($q$
+  INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                               effective_from, effective_to, evidence_reference, evidence_date) VALUES
+    (%L, 'gas', 'distribution', 'ZX', 'investor_owned', true, DATE '2000-01-01', DATE '2021-01-01', 'ZX certificate bat15r 6a', DATE '2000-01-01'),
+    (%L, 'gas', 'distribution', 'ZX', 'cooperative', true, DATE '2021-01-01', NULL, 'ZX cooperative charter bat15r 6b', DATE '2021-01-01')$q$,
+  :'t6', :'t6'), 'tally_app', :'u6');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t6', 'clcat', 'cl', 'ZX'), 'tally_app', :'u6');
 SELECT pg_temp.run(pg_temp.cat_sql(:'t5', 'barecat', 'bare', 'ZX'), 'tally_app', :'u5');
 SELECT pg_temp.run(pg_temp.cat_sql(:'t5', 'gapcat', 'gap', 'ZX'), 'tally_app', :'u5');
 SELECT pg_temp.run(pg_temp.ins_sql('gap', 'credit_evaluation', pg_temp.doc('{"waivers": []}'), DATE '2020-01-01', DATE '2021-01-01', '{investor_owned}', 'ZX'));
@@ -640,6 +662,15 @@ SELECT pg_temp.run(pg_temp.ins_sql('lo', 'credit_evaluation', pg_temp.doc('{"cap
    "parts": [{"id": "c1", "kind": "fixed_amount", "amount": 100}, {"id": "c2", "kind": "fraction_of_annual_billing", "divisor": 6}]}}')));
 SELECT pg_temp.run(pg_temp.ins_sql('hb', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "parts", "version": 1, "combinator": "single", "scope": "per_deposit",
    "parts": [{"id": "c1", "kind": "highest_bills", "count": 2, "window_months": 12}]}}')));
+-- (rules for the strict-ratio, lesser-of, greater-of and seasonal classes)
+SELECT pg_temp.run(pg_temp.ins_sql('gt', 'additional_trigger', pg_temp.doc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 2}],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "greater_than", "value": 2}}]}')));
+SELECT pg_temp.run(pg_temp.ins_sql('lm', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "parts", "version": 1, "combinator": "lesser_of", "scope": "per_deposit",
+     "parts": [{"id": "c1", "kind": "fixed_amount", "amount": 500}, {"id": "c2", "kind": "fraction_of_annual_billing", "divisor": 6}]}}')));
+SELECT pg_temp.run(pg_temp.ins_sql('gm', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "parts", "version": 1, "combinator": "greater_of", "scope": "per_deposit",
+     "parts": [{"id": "c1", "kind": "fixed_amount", "amount": 500}, {"id": "c2", "kind": "fraction_of_annual_billing", "divisor": 6}]}}')));
+SELECT pg_temp.run(pg_temp.ins_sql('sa', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "parts", "version": 1, "combinator": "single", "scope": "per_deposit",
+     "parts": [{"id": "c1", "kind": "seasonal_average", "multiple": 2, "season": "heating"}]}}')));
 SELECT pg_temp.run(pg_temp.ins_sql('unr', 'credit_evaluation', pg_temp.doc('{"cap": {"strategy": "unruled", "version": 1}}')));
 
 -- r9:begin published
@@ -736,7 +767,7 @@ SELECT pg_temp.refuses('F20: … and a rate for every category is refused for th
 -- r10:end floor
 
 -- r30:begin count-triggers
--- r30:needs r4,r5,r10
+-- r30:needs r4,r5,r6,r10
 SELECT pg_temp.does_as('N19: a count trigger exactly the law''s (three consecutive late payments in twelve months, disputed bills not counted) is not looser', :'t3',
   pg_temp.tar_sql(:'t3', 'cnt', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "zz_late_history", "guards": [{"kind": "not_after_service_months", "months": 24}], "condition": {"kind": "count", "event": "late_payment", "at_least": 3,
      "window": {"unit": "months", "size": 12}, "consecutive": true, "exclude_disputed": true}}]}'), DATE '2021-01-01', DATE '2022-01-01', 'ZZ'));
@@ -765,6 +796,14 @@ SELECT pg_temp.refuses('N30: a tariff that outlasts its class''s law: the law of
 SELECT pg_temp.does_as('N31: … one inside the law''s dates is fine', :'t5', pg_temp.tar_sql(:'t5', 'gapcat', pg_temp.tdoc(), DATE '2020-03-01', DATE '2020-09-01', 'ZX'));
 SELECT pg_temp.refuses('N18: a category mapped to a class the law has no row for at all (unknown law is not permission)',
   pg_temp.tar_sql(:'t5', 'barecat', pg_temp.tdoc(), DATE '2020-03-01', DATE '2020-09-01', 'ZX'), '23514', 'no law is known', 'tally_app', :'u5');
+SELECT pg_temp.refuses('N32: a combined condition hides nothing: the usage trigger relabelled nsf, any-of the usage ratio at 1.01 and a count of nsf, is still the usage trigger',
+  pg_temp.tar_sql(:'t2', 'residential', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "nsf", "guards": [], "condition": {"kind": "any_of", "of": [
+     {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 1.01},
+     {"kind": "count", "event": "nsf", "at_least": 99, "window": {"unit": "months", "size": 1}, "consecutive": false, "exclude_disputed": false}]}}]}'), DATE '2027-01-01', DATE '2028-01-01'),
+  '23514', 'cannot be compared', 'tally_app', :'u2');
+SELECT pg_temp.refuses('N33: the law''s late-payment count under another code AND another unit (bills, not months), weakened',
+  pg_temp.tar_sql(:'t3', 'cnt', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "zz_nsf_history", "guards": [], "condition": {"kind": "count", "event": "late_payment", "at_least": 1,
+     "window": {"unit": "bills", "size": 12}, "consecutive": false, "exclude_disputed": false}}]}'), DATE '2022-01-01', DATE '2023-01-01', 'ZZ'), '23514', 'cannot be compared', 'tally_app', :'u3');
 -- r30:end count-triggers
 
 
@@ -1326,13 +1365,53 @@ SELECT pg_temp.refuses('I7: an instalment received for more than is still to com
   pg_temp.ev_sql((SELECT id FROM public.deposits WHERE customer_id = :'c1' AND received_at_posting = 87.50 LIMIT 1), 'instalment_received', 100, DATE '2026-02-14'), '23514', 'instalment_received must be', 'tally_app', :'u1');
 -- r29:end instalments
 
+CREATE FUNCTION pg_temp.zz_rule(p_class text, p_basis text DEFAULT 'credit_evaluation') RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT id::text FROM public.deposit_rules WHERE state_code = 'ZZ' AND service_type = 'gas' AND customer_class = p_class AND basis = p_basis AND effective_to IS NULL
+$$;
+-- r32:begin law-shapes
+-- r32:needs r6
+-- A utility whose owner type changes inside a tariff's range: only the law that binds each segment counts as coverage.
+SELECT pg_temp.does('N34: ZX also has a class "cl" whose law binds investor-owned utilities only, and a cooperative law for the class "wide"',
+  pg_temp.ins_sql('cl', 'credit_evaluation', pg_temp.doc('{"waivers": []}'), DATE '2020-01-01', NULL, '{investor_owned}', 'ZX'));
+SELECT pg_temp.does('N34b: … cooperative law for "wide"',
+  pg_temp.ins_sql('wide', 'credit_evaluation', pg_temp.doc('{"waivers": []}'), DATE '2020-01-01', NULL, '{cooperative}', 'ZX'));
+SELECT pg_temp.refuses('N35: a tariff that spans the day the utility turns cooperative has no law for class "cl" in the second part',
+  pg_temp.tar_sql(:'t6', 'clcat', pg_temp.tdoc(), DATE '2020-06-01', DATE '2021-06-01', 'ZX'), '23514', 'no law is known', 'tally_app', :'u6');
+SELECT pg_temp.does_as('N36: … one inside the investor-owned period is fine', :'t6', pg_temp.tar_sql(:'t6', 'clcat', pg_temp.tdoc(), DATE '2020-06-01', DATE '2020-12-01', 'ZX'));
+-- a strict law ratio ("more than twice") and an inclusive tariff one ("at least twice") differ at exactly twice
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'gt', 'gt', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.refuses('N38: … a tariff that fires AT twice is looser',
+  pg_temp.tar_sql(:'t3', 'gt', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 2}],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "at_least", "value": 2}}]}'), DATE '2021-01-01', DATE '2022-01-01', 'ZZ'), '23514', 'fires at', 'tally_app', :'u3');
+SELECT pg_temp.does_as('N39: … one that fires at more than twice is the law''s own', :'t3',
+  pg_temp.tar_sql(:'t3', 'gt', pg_temp.tdoc('{"triggers": [{"id": "t1", "trigger_code": "usage_doubled", "guards": [{"kind": "payment_due_days", "days": 2}],
+     "condition": {"kind": "ratio", "measure": "usage_to_estimate", "op": "greater_than", "value": 2}}]}'), DATE '2021-01-01', DATE '2022-01-01', 'ZZ'));
+-- the lesser of / the greater of two months-convertible parts: one-sixth of annual billing is two months; three months is three
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'lm', 'lm', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'gm', 'gm', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t3', 'sa', 'sa', 'ZZ'), 'tally_app', :'u3');
+SELECT pg_temp.refuses('N41: a tariff of three months where the cap is the lesser of 500 and two months: the fixed part does not convert, the months part does (two): looser',
+  pg_temp.tar_sql(:'t3', 'lm', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 3, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2021-01-01', DATE '2022-01-01', 'ZZ'),
+  '23514', 'months of billing', 'tally_app', :'u3');
+SELECT pg_temp.does_as('N42: … two months is the cap', :'t3',
+  pg_temp.tar_sql(:'t3', 'lm', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 2, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2021-01-01', DATE '2022-01-01', 'ZZ'));
+SELECT pg_temp.does_as('N43: the greater of a fixed amount and two months cannot be shown in months (the fixed part does not convert): nothing is compared', :'t3',
+  pg_temp.tar_sql(:'t3', 'gm', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 9, "of": "average", "minimum_amount": {"kind": "none"}}}'), DATE '2021-01-01', DATE '2022-01-01', 'ZZ'));
+SELECT pg_temp.refuses('R47: twice the seasonal average (100): 200.01 is more than the part allows',
+  pg_temp.dep_sql(jsonb_build_object('tenant', :'t3', 'customer', :'c4', 'state', 'ZZ', 'class', 'sa', 'rule', pg_temp.zz_rule('sa'),
+     'principal', '200.01', 'cap', '200.01', 'cap_component', 'c1', 'cap_basis', '100.00')), '23514', 'above the statutory cap', 'tally_app', :'u3');
+SELECT pg_temp.does_as('R48: … 200.00 is not', :'t3',
+  pg_temp.dep_sql(jsonb_build_object('tenant', :'t3', 'customer', :'c4', 'state', 'ZZ', 'class', 'sa', 'rule', pg_temp.zz_rule('sa'),
+     'principal', '200.00', 'cap', '200.00', 'cap_component', 'c1', 'cap_basis', '100.00')));
+-- r32:end law-shapes
+
 -- r31:begin deposit-cap2
 -- r31:needs r6,r7
 -- A city's cap is held to its tariff's own amount; a lesser-of cap to its least computable part; every kind of cap part is arithmetic on the figure recorded.
 SELECT pg_temp.refuses('R35: a city deposit whose cap is above its tariff''s flat amount (999 where the tariff asks 175)',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'homeowner'), 'principal', '999.00', 'cap', '999.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', null)),
-  '23514', 'above the tariff''s own amount', 'tally_app', :'u1');
+  '23514', 'own amount', 'tally_app', :'u1');
 SELECT pg_temp.refuses('R36: … naming a cap part the document does not have',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'homeowner'), 'principal', '175.00', 'cap', '175.00', 'cap_source', 'tariff', 'cap_component', 'zzz', 'cap_basis', null)),
@@ -1345,14 +1424,11 @@ SELECT pg_temp.does_as('R37: a city tariff of two average months: a cap of two m
 SELECT pg_temp.refuses('R38: … 250 is not',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'monthly', 'tariff', pg_temp.tar(:'t1', 'monthly'), 'principal', '250.00', 'cap', '250.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', '100.00')),
-  '23514', 'above the tariff''s own amount', 'tally_app', :'u1');
+  '23514', 'own amount', 'tally_app', :'u1');
 SELECT pg_temp.refuses('R39: … and the monthly billing figure is recorded',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'monthly', 'tariff', pg_temp.tar(:'t1', 'monthly'), 'principal', '200.00', 'cap', '200.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', null)),
   '23514', 'monthly billing figure', 'tally_app', :'u1');
-CREATE FUNCTION pg_temp.zz_rule(p_class text, p_basis text DEFAULT 'credit_evaluation') RETURNS text LANGUAGE sql STABLE AS $$
-  SELECT id::text FROM public.deposit_rules WHERE state_code = 'ZZ' AND service_type = 'gas' AND customer_class = p_class AND basis = p_basis AND effective_to IS NULL
-$$;
 SELECT pg_temp.refuses('R40: a lesser-of cap (100 flat, or one-sixth of 1200): naming the larger part does not lift the cap to 200',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t3', 'customer', :'c4', 'state', 'ZZ', 'class', 'lo', 'rule', pg_temp.zz_rule('lo'),
      'principal', '200.00', 'cap', '200.00', 'cap_component', 'c2', 'cap_basis', '1200.00')), '23514', 'above the statutory cap', 'tally_app', :'u3');
@@ -1374,6 +1450,21 @@ SELECT pg_temp.refuses('R45: the measure observed for a count trigger is a whole
 SELECT pg_temp.does_as('R46: … three is', :'t3',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t3', 'customer', :'c4', 'state', 'ZZ', 'class', 'cnt', 'basis', 'additional_trigger', 'rule', pg_temp.zz_rule('cnt', 'additional_trigger'),
      'trigger_basis', 'zz_late_history', 'trigger_source', 'statute', 'trigger_component', 't1', 'observed', '3')));
+SELECT pg_temp.refuses('R49: a city deposit that records a cap but omits its source',
+  pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
+     'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'homeowner'), 'principal', '175.00', 'cap', '175.00', 'cap_source', null, 'cap_component', null, 'cap_basis', null)),
+  '23514', 'deposits_cap_source_check', 'tally_app', :'u1');
+SELECT pg_temp.refuses('R50: … or records no cap at all',
+  pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
+     'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'homeowner'), 'principal', '999.00', 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null)),
+  '23514', 'the cap that applied is recorded', 'tally_app', :'u1');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'res_m', 'residential'), 'tally_app', :'u2');
+SELECT pg_temp.run(pg_temp.tar_sql(:'t2', 'res_m', pg_temp.tdoc('{"amount": {"strategy": "months_of_billing", "version": 1, "months": 1, "of": "average", "minimum_amount": {"kind": "none"}}}')), 'tally_app', :'u2');
+SELECT pg_temp.refuses('R51: a tariff of one average month (100 of the 1200 annual billing) holds a deposit that records the STATUTE''s cap of 200',
+  pg_temp.dep_sql(jsonb_build_object('customer', :'c5', 'category', 'res_m', 'tariff', pg_temp.tar(:'t2', 'res_m'), 'principal', '200.00', 'cap', '200.00')),
+  '23514', 'cited tariff''s own amount', 'tally_app', :'u2');
+SELECT pg_temp.does_as('R52: … 100 is what it asks', :'t2',
+  pg_temp.dep_sql(jsonb_build_object('customer', :'c5', 'category', 'res_m', 'tariff', pg_temp.tar(:'t2', 'res_m'), 'principal', '100.00', 'cap', '100.00')));
 -- r31:end deposit-cap2
 
 -- ============================================================ Q. partial returns
