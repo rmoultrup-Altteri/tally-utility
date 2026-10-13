@@ -419,8 +419,8 @@ BEGIN
                            'invoice_line_item','billing_run','rate_schedule','payment','payment_method',
                            'customer_credit','deposit','customer_tax_exemption','escheatment_event','import_job']
   LOOP
-    INSERT INTO public.anomalies (tenant_id, anomaly_type, entity_type, entity_id, description)
-    VALUES ('00000000-0000-4000-8000-0000000011a1', 'other', v, gen_random_uuid(), 'battery-11 domain probe: ' || v);
+    INSERT INTO public.anomalies (tenant_id, anomaly_type, entity_type, entity_id, description, dedup_key)
+    VALUES ('00000000-0000-4000-8000-0000000011a1', 'other', v, gen_random_uuid(), 'battery-11 domain probe: ' || v, 'b11-f1:' || v);
     n := n + 1;
   END LOOP;
   IF n <> 15 THEN RAISE EXCEPTION 'F1 FAILED: only % of 15 domain values accepted', n; END IF;
@@ -429,8 +429,8 @@ END $$;
 
 DO $$
 BEGIN
-  INSERT INTO public.anomalies (tenant_id, anomaly_type, entity_type, entity_id, description)
-  VALUES ('00000000-0000-4000-8000-0000000011a1', 'billing_run_exception', 'billing_runs', gen_random_uuid(), 'plural drift');
+  INSERT INTO public.anomalies (tenant_id, anomaly_type, entity_type, entity_id, description, dedup_key)
+  VALUES ('00000000-0000-4000-8000-0000000011a1', 'billing_run_exception', 'billing_runs', gen_random_uuid(), 'plural drift', 'b11-f2');
   RAISE EXCEPTION 'F2 FAILED: the plural ''billing_runs'' was accepted — the exact drift the routing table warned about';
 EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS F2: ''billing_runs'' (plural drift) is refused — routing keys on this column';
@@ -438,8 +438,8 @@ END $$;
 
 DO $$
 BEGIN
-  INSERT INTO public.anomalies (tenant_id, anomaly_type, entity_type, entity_id, description)
-  VALUES ('00000000-0000-4000-8000-0000000011a1', 'other', 'adhoc_charge', gen_random_uuid(), 'deliberately out of domain');
+  INSERT INTO public.anomalies (tenant_id, anomaly_type, entity_type, entity_id, description, dedup_key)
+  VALUES ('00000000-0000-4000-8000-0000000011a1', 'other', 'adhoc_charge', gen_random_uuid(), 'deliberately out of domain', 'b11-f3');
   RAISE EXCEPTION 'F3 FAILED: ''adhoc_charge'' was accepted — it is deliberately NOT seeded';
 EXCEPTION WHEN check_violation THEN
   RAISE NOTICE 'PASS F3: ''adhoc_charge'' is refused (not seeded; widening the CHECK is a decision, not a migration)';

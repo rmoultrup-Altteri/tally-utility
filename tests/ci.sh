@@ -18,6 +18,7 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 # patch file : a table it creates (its marker); a '!' before the marker means a table the
 # patch DROPS (the patch is pending while that table still exists)
 PENDING=(
+  sql/v5.4.2-19-hardening-batch-1.sql:payment_effective_date_methods
 )
 BASE=ci_base
 
@@ -78,7 +79,7 @@ done
 battery() {  # $1 file
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16; do
+for n in 09 10 11 12 13 14 16 19; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
@@ -101,6 +102,7 @@ step "law files v5.4.2-17" tests/v5.4.2-17/lawfiles-17.sh "$BASE" ci_law17
 clone ci_r15 "$BASE" && step "races v5.4.2-15" bash tests/v5.4.2-15/races/due-mutex-15.sh ci_r15
 clone ci_e15 "$BASE" && step "evidence txn v5.4.2-15" bash tests/v5.4.2-15/evidence-txn-15.sh ci_e15
 clone ci_r16 "$BASE" && step "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
+clone ci_r19 "$BASE" && step "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
 clone ci_e13 "$BASE" && step "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh
 step "tenant isolation invariants" q "$BASE" -c "SELECT public.assert_tenant_isolation_invariants()"
