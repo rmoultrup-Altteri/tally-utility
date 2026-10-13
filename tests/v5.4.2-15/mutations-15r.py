@@ -278,6 +278,8 @@ MUTATIONS: list[tuple[str, str, str, Callable[[str], str]]] = [
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — nothing more is received""", """        IF d.status = 'refund_pending' THEN
             RAISE EXCEPTION USING MESSAGE = format('deposit %s: a refund is pending — nothing more is received""")),
     ("M174", "a refund may be dated before its own refund notice", "I19", off("IF v_notice IS NOT NULL AND NEW.effective_on < v_notice THEN")),
+    ("M175", "a due row may stand beside a refund notice written in the same statement", "V28b", rep("    IF FOUND THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('deposit return due: deposit %s has a %s dated", "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('deposit return due: deposit %s has a %s dated")),
+    ("M176", "the refund that cites the new due row is refused too", "V28d", rep("       AND e.return_due_id IS DISTINCT FROM NEW.id\n     ORDER BY e.effective_on, e.created_at LIMIT 1;", "     ORDER BY e.effective_on, e.created_at LIMIT 1;")),
     # (the min / max of a lesser-of / greater-of is not a mutation: version 1 allows one part that converts, so there is one figure to take)
 ]
 

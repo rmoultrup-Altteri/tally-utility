@@ -4712,6 +4712,36 @@ CREATE TRIGGER a_enforce_deposit_return_due_record BEFORE INSERT ON public.depos
     FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_return_due_record();
 ALTER TABLE public.deposit_return_due ENABLE ALWAYS TRIGGER a_enforce_deposit_return_due_record;
 
+-- The check above reads the deposit's status, a projection written at the end of a statement, and a BEFORE ROW trigger
+-- cannot tell which part of a multi-part statement (a writable WITH) runs first. So once the statement has run, a due row
+-- may not stand beside a refund, release or refund notice of its deposit that does not cite it: a return that has started
+-- is not followed by a "fell due" record. The refund that settles THIS row (it cites it) is the legitimate path.
+CREATE OR REPLACE FUNCTION public.enforce_deposit_return_due_not_started() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_ev record;
+BEGIN
+    SELECT e.event_type, e.effective_on INTO v_ev FROM public.deposit_events e
+     WHERE e.deposit_id = NEW.deposit_id AND e.event_type IN ('refund_initiated', 'refunded', 'released')
+       AND e.return_due_id IS DISTINCT FROM NEW.id
+     ORDER BY e.effective_on, e.created_at LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('deposit return due: deposit %s has a %s dated %s that does not cite this due row — its return has started (v5.4.2-15)', NEW.deposit_id, v_ev.event_type, v_ev.effective_on),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_deposit_return_due_not_started() IS
+    'v5.4.2-15. AFTER INSERT on deposit_return_due, at the end of the statement: no refund notice, refund or release of the deposit that does not cite the new due row exists. Closes what the BEFORE ROW status check cannot see inside one multi-part statement.';
+DROP TRIGGER IF EXISTS z_enforce_deposit_return_due_not_started ON public.deposit_return_due;
+CREATE TRIGGER z_enforce_deposit_return_due_not_started AFTER INSERT ON public.deposit_return_due
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_deposit_return_due_not_started();
+ALTER TABLE public.deposit_return_due ENABLE ALWAYS TRIGGER z_enforce_deposit_return_due_not_started;
+
 -- Every due row says why: at commit it has evidence.
 CREATE OR REPLACE FUNCTION public.enforce_deposit_return_due_has_evidence() RETURNS trigger
     LANGUAGE plpgsql

@@ -1275,6 +1275,32 @@ SELECT pg_temp.ok('V27b: it is no longer owed', NOT EXISTS (SELECT 1 FROM public
 SELECT pg_temp.refuses('V28: no due row follows a return that has started',
   pg_temp.wd_sql(:'d4', pg_temp.did('rr'), '2026-11-02', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'return has started', 'tally_app', :'u2');
 
+-- A due row and a refund notice written in ONE statement (a writable WITH): the status has not caught up, and which part runs
+-- first is not fixed; the record is judged when the statement ends.
+SELECT pg_temp.mk('rcte', :'t2', jsonb_build_object('customer', :'c9', 'basis', 'tariff', 'principal', '60.00'));
+SELECT pg_temp.refuses('V28b: a refund notice and, in the same statement, a due row beside it (the notice is written first)',
+  format($q$WITH e AS (INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
+                       SELECT d.tenant_id, d.id, 'refund_initiated', 60, DATE '2026-11-02' FROM public.deposits d WHERE d.id = %L RETURNING deposit_id),
+                r AS (INSERT INTO public.deposit_return_due (tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
+                       SELECT d.tenant_id, d.id, d.rule_id, DATE '2026-11-02', '{"bills": 12}', 'fp-cte1', 'core-battery-1' FROM public.deposits d JOIN e ON e.deposit_id = d.id RETURNING id, tenant_id)
+           INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, rests_on_deposit)
+           SELECT r.tenant_id, r.id, 'clean_bill_history', 'r1', %L::uuid, 'clean', false FROM r$q$, pg_temp.did('rcte'), :'i1'), '23514', 'return has started', 'tally_app', :'u2');
+SELECT pg_temp.refuses('V28c: … and with the due row written first and the notice by the main statement',
+  format($q$WITH r AS (INSERT INTO public.deposit_return_due (tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
+                        SELECT d.tenant_id, d.id, d.rule_id, DATE '2026-11-02', '{"bills": 12}', 'fp-cte2', 'core-battery-1' FROM public.deposits d WHERE d.id = %L RETURNING id, tenant_id, deposit_id),
+                ev AS (INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, rests_on_deposit)
+                        SELECT r.tenant_id, r.id, 'clean_bill_history', 'r1', %L::uuid, 'clean', false FROM r RETURNING due_id)
+           INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
+           SELECT d.tenant_id, d.id, 'refund_initiated', 60, DATE '2026-11-02' FROM public.deposits d JOIN r ON r.deposit_id = d.id$q$, pg_temp.did('rcte'), :'i1'), '23514', 'return has started', 'tally_app', :'u2');
+
+SELECT pg_temp.does_as('V28d: … but a refund notice that CITES the due row written in the same statement is the legitimate path, accepted', :'t2',
+  format($q$WITH r AS (INSERT INTO public.deposit_return_due (tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
+                        SELECT d.tenant_id, d.id, d.rule_id, DATE '2026-11-02', '{"bills": 12}', 'fp-cte4', 'core-battery-1' FROM public.deposits d WHERE d.id = %L RETURNING id, tenant_id, deposit_id),
+                ev AS (INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, rests_on_deposit)
+                        SELECT r.tenant_id, r.id, 'clean_bill_history', 'r1', %L::uuid, 'clean', false FROM r RETURNING due_id)
+           INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, return_due_id)
+           SELECT d.tenant_id, d.id, 'refund_initiated', 60, DATE '2026-11-02', r.id FROM public.deposits d JOIN r ON r.deposit_id = d.id$q$, pg_temp.did('rcte'), :'i1'));
+
 SELECT pg_temp.refuses('V29: the application cannot edit a due row',
   format($q$UPDATE public.deposit_return_due SET due_on = DATE '2026-06-01' WHERE id = %L$q$, :'d3'), '42501', NULL, 'tally_app', :'u2');
 SELECT pg_temp.refuses('V30: nor delete a withdrawal',
