@@ -268,6 +268,7 @@ MUTATIONS: list[tuple[str, str, str, Callable[[str], str]]] = [
     ("M164", "a seasonal cap ignores its multiple", "R48", rep("WHEN 'seasonal_average' THEN p_basis * (p_part ->> 'multiple')::numeric", "WHEN 'seasonal_average' THEN p_basis")),
     ("M165", "a strict law ratio and an inclusive tariff one are the same", "N38", rep("OR ((v_tc ->> 'value')::numeric = (v_lc ->> 'value')::numeric AND v_tc ->> 'op' = 'at_least' AND v_lc ->> 'op' = 'greater_than') THEN", "THEN")),
     ("M166", "a greater-of cap is compared on the parts that convert", "N43", rep("WHEN v_comb = 'greater_of' AND NOT EXISTS (SELECT 1 FROM unnest(v_pms) x WHERE x IS NULL) THEN (SELECT max(x) FROM unnest(v_pms) x)", "WHEN v_comb = 'greater_of' THEN (SELECT max(x) FROM unnest(v_pms) x)")),
+    ("M167", "a deposit may leave out the tariff row in force for its category", "R53", rep("            IF v_expect IS NOT NULL THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('deposit rejected: the tariff row %s is in force for category", "            IF false THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('deposit rejected: the tariff row %s is in force for category")),
     # (the min / max of a lesser-of / greater-of is not a mutation: version 1 allows one part that converts, so there is one figure to take)
 ]
 

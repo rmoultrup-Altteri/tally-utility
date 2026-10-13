@@ -4144,8 +4144,18 @@ BEGIN
                     ERRCODE = 'check_violation';
             END IF;
         END IF;
-        -- The utility's tariff row, where one applied: the row in force for its category on the posting date. Where the
-        -- law delegates the matter, the tariff is the policy and the deposit cites it (no policy recorded is refused).
+        -- The utility's tariff row, where one applied: the row in force for its category on the posting date. A tariff row in force
+        -- for the deposit's category applies, so the deposit cites it (leaving it out would skip the utility's own stricter policy).
+        -- Where the law delegates the matter, the tariff is the policy and the deposit cites it (no policy recorded is refused).
+        IF NEW.tariff_id IS NULL AND NEW.tariff_category IS NOT NULL THEN
+            v_expect := public.rule_tariff_row_as_of('public.deposit_tariffs'::regclass, NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code,
+                                                     jsonb_build_object('tariff_category', NEW.tariff_category), NEW.posted_on);
+            IF v_expect IS NOT NULL THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('deposit rejected: the tariff row %s is in force for category %s on %s; the deposit cites it (tariff_id) — v5.4.2-15', v_expect, NEW.tariff_category, NEW.posted_on),
+                    ERRCODE = 'check_violation';
+            END IF;
+        END IF;
         IF NEW.tariff_id IS NOT NULL THEN
             SELECT * INTO v_tariff FROM public.deposit_tariffs t WHERE t.id = NEW.tariff_id;
             IF NOT FOUND THEN
@@ -4218,7 +4228,8 @@ BEGIN
             RAISE EXCEPTION USING
                 MESSAGE = format('deposit rejected: law row %s sets no cap, so there is no cap part %L to name (v5.4.2-15)', NEW.rule_id, NEW.cap_component), ERRCODE = 'check_violation';
         END IF;
-        -- The cited tariff's own figure holds whatever source set the cap that applied. A fixed amount; or months of billing, from
+        -- The cited tariff's own figure holds whatever source set the cap that applied (not under a law cap in highest bills or a
+        -- seasonal average: nothing converts). A fixed amount; or months of billing, from
         -- the figure recorded (the named part's, where the document caps; the monthly billing, where it sets no cap). A tariff that
         -- states no amount (none, case by case) holds nothing, and a minimum amount is the core's. Where the document sets no cap
         -- and the tariff states an amount, the cap that applied is recorded: the tariff is the policy.
@@ -5286,8 +5297,13 @@ $$;
 --     that applied may not exceed the part's figure (a lesser-of cap, the least figure
 --     computable from the one basis recorded); under a delegation the cap may not
 --     exceed the tariff's own amount (a flat amount, or months of the monthly billing
---     recorded). A later change in the law that makes a tariff looser is a core audit
---     finding, never a refusal of the law.
+--     recorded). Under a law cap in highest bills or in a seasonal average, nothing
+--     converts: a months tariff is neither compared when written nor held at the deposit.
+--     A tariff condition combining the law's measure with another (an all-of that is
+--     in fact stricter) is refused as incomparable, and so is a longer notice than the
+--     law's: version 1 fails toward refusal where it cannot show a tariff no looser. A
+--     later change in the law that makes a tariff looser is a core audit finding, never
+--     a refusal of the law.
 --
 -- R8. EVIDENCE IS REQUIRED, NOT COMPLETE. The database checks that a due row has
 --     evidence and that each row is of the right customer, kind and period. Whether

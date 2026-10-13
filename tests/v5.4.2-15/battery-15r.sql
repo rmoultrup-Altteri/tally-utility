@@ -540,6 +540,7 @@ INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
 \set u4 '00000000-0000-4000-8000-0000000015b4'
 \set t4 '00000000-0000-4000-8000-0000000015a4'
 SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'residential_senior', 'residential'), 'tally_app', :'u2');
+SELECT pg_temp.run(pg_temp.cat_sql(:'t2', 'nt', 'residential'), 'tally_app', :'u2');   -- a category with no tariff, for the cases that must be refused by the category check alone
 -- r8:begin never-looser
 -- r8:needs r6
 SELECT pg_temp.refuses('N1: a deposit of three average months where the law caps it at two',
@@ -887,7 +888,7 @@ SELECT pg_temp.refuses('R8: the law row the profile does not resolve to: the cit
 SELECT pg_temp.refuses('R9: a new deposit on the carried-history basis',
   pg_temp.dep_sql('{"basis": "legacy_unknown"}'), '23514', 'carried history', 'tally_app', :'u2');
 SELECT pg_temp.refuses('R10: a category that maps to another law class: "residential_senior" maps to residential, and non-residential is claimed',
-  pg_temp.dep_sql('{"class": "non_residential", "category": "residential_senior", "customer": "00000000-0000-4000-8000-0000000015c3"}'), '23514', 'category', 'tally_app', :'u2');
+  pg_temp.dep_sql('{"class": "non_residential", "category": "nt", "customer": "00000000-0000-4000-8000-0000000015c3"}'), '23514', 'category', 'tally_app', :'u2');
 SELECT pg_temp.refuses('R11: a category the utility has not defined',
   pg_temp.dep_sql('{"category": "kiosk"}'), '23514', 'kiosk', 'tally_app', :'u2');
 -- r11:end deposit-cites
@@ -899,9 +900,10 @@ SELECT pg_temp.does_as('R12: a city deposit cites the delegation row AND its own
   :'t1', pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'homeowner'), 'principal', '175.00', 'cap', '175.00', 'cap_source', 'tariff',
      'cap_component', null, 'cap_basis', null)));
+SELECT pg_temp.run(pg_temp.cat_sql(:'t1', 'notariff', 'residential'), 'tally_app', :'u1');
 SELECT pg_temp.refuses('R13: a city deposit that cites no tariff row (the law leaves it to the utility; the core refuses a decision with no policy recorded)',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'tariff', 'municipal'), 'basis', 'tariff',
-     'category', 'homeowner', 'principal', '175.00', 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null)), '23514', 'tariff', 'tally_app', :'u1');
+     'category', 'notariff', 'principal', '175.00', 'cap', null, 'cap_source', null, 'cap_component', null, 'cap_basis', null)), '23514', 'tariff', 'tally_app', :'u1');
 SELECT pg_temp.refuses('R14: a tariff row of another category: the renter''s cited for a homeowner',
   pg_temp.dep_sql(jsonb_build_object('tenant', :'t1', 'customer', :'c1', 'rule', pg_temp.law('residential', 'credit_evaluation', 'municipal'),
      'category', 'homeowner', 'tariff', pg_temp.tar(:'t1', 'renter'), 'principal', '250.00', 'cap', '250.00', 'cap_source', 'tariff', 'cap_component', null, 'cap_basis', null)),
@@ -1465,6 +1467,8 @@ SELECT pg_temp.refuses('R51: a tariff of one average month (100 of the 1200 annu
   '23514', 'cited tariff''s own amount', 'tally_app', :'u2');
 SELECT pg_temp.does_as('R52: … 100 is what it asks', :'t2',
   pg_temp.dep_sql(jsonb_build_object('customer', :'c5', 'category', 'res_m', 'tariff', pg_temp.tar(:'t2', 'res_m'), 'principal', '100.00', 'cap', '100.00')));
+SELECT pg_temp.refuses('R53: a deposit in a category whose tariff is in force, citing no tariff row, would skip the utility''s own policy',
+  pg_temp.dep_sql(jsonb_build_object('customer', :'c5', 'category', 'res_m', 'principal', '200.00', 'cap', '200.00')), '23514', 'the deposit cites it', 'tally_app', :'u2');
 -- r31:end deposit-cap2
 
 -- ============================================================ Q. partial returns
