@@ -13,6 +13,7 @@ const pages = [
   ['diff', '/invoices/inv-0004/diff'],
   ['collections', '/collections'],
   ['transfers', '/transfers'],
+  ['handoffs', '/transfers?view=handoffs'],
   ['transfer-new', '/transfers/new?customer=cus-0002'],
   ['payments', '/payments'],
   ['payment-new', '/payments/new'],

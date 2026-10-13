@@ -26,6 +26,7 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/dashboard` | Billing operations dashboard, built to the locked T8 rulings |
 | `/` | Pre-mail exception queue — the home surface |
 | `/transfers` | Transfers of service — the tab beside the exception queue: blocked and in-review moves first, each with the rule that stopped it |
+| `/transfers?view=handoffs` | Move-out / move-in — each termination reconciled with the new customer’s application at the same address |
 | `/transfers/new` | Book a transfer while the customer is on the line, with the checks running beside the form |
 | `/reads` | Read validation grid, 20 columns in 6 groups |
 | `/runs/run-2026-02-04` | Billing run cockpit with the post gate |
@@ -235,6 +236,18 @@ while the customer is on the line, with the checks running beside the form and
 a prorated estimate of the final bill. Booking needs **Edit accounts**; a
 transfer with anything to review waits on the tab for a sign-off. Transfers
 booked here are kept in this browser (`lib/transfers-store.ts`).
+
+**Move-out / move-in**, the second section on the tab, reconciles the other
+kind of move: one customer’s termination and a new customer’s application at
+the same premise (`lib/handoffs.ts`, `fixtures/handoffs.ts`). Stop orders,
+applications and the two ends of open transfers are paired by premise and
+held to one meter: a stop and start that overlap **block** (two accounts on one
+meter), as do a move-in where the current customer has no stop ordered and an
+applicant whose identity is not verified. **Review** catches a gap with nobody
+billed, closing and opening reads that disagree, a lock-off ordered the day
+someone moves in, a meter left on with nobody applying, and an applicant named
+on the outgoing account that left the debt. The outgoing balance and deposit
+are noted as the outgoing customer’s, never the applicant’s.
 
 ## Back and edit
 
