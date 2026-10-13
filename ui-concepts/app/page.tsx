@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
@@ -6,7 +7,8 @@ import { Rail, StateFlag, StateBlock, severityTone, humanize } from '@/component
 import { Confidence } from '@/components/ui/Flags'
 import { Money } from '@/components/ui/Money'
 import { AccountNumber, MeterNumber } from '@/components/ui/RecordLink'
-import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
+import { TableFooter } from '@/components/table/Table'
+import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { ListStar } from '@/components/shell/Favorites'
 import { QueueFilterBar } from '@/components/queue/QueueFilters'
 import { applyFilters, describeFilters, isFiltered, parseFilters } from '@/lib/views'
@@ -27,6 +29,105 @@ import { stamp, date, dateShort } from '@/lib/format'
  * the surrounding rows stay visible: judging whether this is one bad read or a
  * whole route gone wrong requires seeing its neighbours.
  */
+
+/** The shipped seven after the rail, then what the detector recorded, for the Columns menu. */
+const COLUMNS: ColumnDef[] = [
+  { key: 'rail', label: '', menuLabel: 'Severity rail', width: '3px', rail: true, fixed: true },
+  { key: 'exception', label: 'Exception', width: '38%' },
+  { key: 'account', label: 'Account', width: '16%' },
+  { key: 'meter', label: 'Meter', width: '8%' },
+  { key: 'confidence', label: 'Conf.', menuLabel: 'Confidence', width: '7%', align: 'center' },
+  { key: 'impact', label: 'At risk', width: '10%', align: 'right' },
+  { key: 'assigned', label: 'Assigned', width: '11%' },
+  { key: 'detected', label: 'Detected', width: '10%' },
+  { key: 'type', label: 'Type', hidden: true },
+  { key: 'detector', label: 'Detector', hidden: true },
+  { key: 'occurrences', label: 'Occurrences', align: 'right', hidden: true },
+  { key: 'firstDetected', label: 'First detected', hidden: true },
+]
+
+type QueueException = (typeof exceptions)[number]
+
+/** One row's cells, rendered here on the server and arranged by `ColumnTable`. */
+function exceptionCells(e: QueueException): Record<string, ReactNode> {
+  const tone = severityTone(e.severity, e.status)
+  const customer = e.customer_id ? customerById.get(e.customer_id) : undefined
+  const meter = e.meter_id ? meterById.get(e.meter_id) : undefined
+  return {
+    rail: <Rail tone={tone} />,
+    exception: (
+      <>
+        <div className="flex items-center gap-2">
+          <StateFlag tone={tone}>{e.severity}</StateFlag>
+          {e.blocks_delivery ? (
+            <span
+              className="field-label text-exception-critical-text"
+              title="This exception stops the bill from being delivered"
+            >
+              Blocks
+            </span>
+          ) : null}
+        </div>
+        <p className="text-data text-ink-primary mt-0.5">{e.description}</p>
+        <p className="text-micro text-ink-tertiary">
+          {humanize(e.anomaly_type)}
+          {e.recurrence_count > 1
+            ? ` · ${ordinal(e.recurrence_count)} occurrence since ${date(e.first_detected_at)}`
+            : ''}
+          {e.anomaly_type === 'high_usage' && e.customer_id ? (
+            <>
+              {' · '}
+              <Link
+                href={`/outreach?account=${e.customer_id}` as Route}
+                className="text-accent-text hover:text-accent-text-hover underline"
+              >
+                Plan a heads-up
+              </Link>
+            </>
+          ) : null}
+        </p>
+      </>
+    ),
+    account: customer ? (
+      <>
+        <p className="text-data text-ink-primary truncate">{customerName(customer)}</p>
+        <p>
+          <AccountNumber number={customer.customer_number} id={customer.id} />
+        </p>
+      </>
+    ) : (
+      <span className="text-ink-tertiary">—</span>
+    ),
+    meter: meter ? (
+      <MeterNumber number={meter.meter_number} id={meter.id} />
+    ) : (
+      <span className="text-ink-tertiary">—</span>
+    ),
+    confidence: <Confidence value={e.confidence} />,
+    impact: e.estimated_impact ? (
+      <Money value={e.estimated_impact} />
+    ) : (
+      <span className="text-ink-tertiary">—</span>
+    ),
+    assigned: (
+      <span className="text-micro text-ink-secondary">
+        {e.assigned_to ?? <span className="text-ink-tertiary">Unassigned</span>}
+      </span>
+    ),
+    detected: <span className="text-micro text-ink-tertiary whitespace-nowrap">{dateShort(e.detected_at)}</span>,
+    type: <span className="text-micro text-ink-secondary">{humanize(e.anomaly_type)}</span>,
+    detector: (
+      <>
+        <p className="ident text-ink-secondary">{e.detector_name}</p>
+        <p className="text-micro text-ink-tertiary">{humanize(e.detection_method)}</p>
+      </>
+    ),
+    occurrences: <span className="figures text-ink-secondary">{e.recurrence_count}</span>,
+    firstDetected: (
+      <span className="text-micro text-ink-tertiary whitespace-nowrap">{dateShort(e.first_detected_at)}</span>
+    ),
+  }
+}
 
 export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'>) {
   const filters = parseFilters(await searchParams)
@@ -71,128 +172,36 @@ export default async function ExceptionQueuePage({ searchParams }: PageProps<'/'
         <section className="min-w-0 min-h-0 border-r border-rule-solid flex flex-col">
           <QueueFilterBar filters={filters} shown={rows.length} total={all.length} />
 
-          <div className="flex items-center justify-between gap-4 px-cell-x py-2 border-b border-rule-hair bg-surface">
-            <p className="text-micro text-ink-secondary">
-              {filtered ? (
-                <>
-                  <strong className="text-ink-primary font-semibold">{rows.length} shown</strong> ·{' '}
-                  {describeFilters(filters)}
-                </>
-              ) : (
-                <>
-                  <strong className="text-ink-primary font-semibold">{rows.length} remaining</strong>{' '}
-                  · {cleared} cleared today
-                </>
-              )}
-            </p>
-            <p className="text-micro text-ink-tertiary flex items-center gap-1.5">
-              <Key>j</Key>
-              <Key>k</Key> move · <Key>r</Key> resolve · <Key>s</Key> snooze · <Key>a</Key> assign
-            </p>
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-auto">
-            <Table caption="Open pre-mail exceptions for cycle 04, ranked by consequence">
-              <thead className="sticky top-0 z-10">
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th width="38%">Exception</Th>
-                  <Th width="16%">Account</Th>
-                  <Th width="8%">Meter</Th>
-                  <Th width="7%" align="center">Conf.</Th>
-                  <Th width="10%" align="right">At risk</Th>
-                  <Th width="11%">Assigned</Th>
-                  <Th width="10%">Detected</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {rows.map((e) => {
-                  const tone = severityTone(e.severity, e.status)
-                  const customer = e.customer_id ? customerById.get(e.customer_id) : undefined
-                  const meter = e.meter_id ? meterById.get(e.meter_id) : undefined
-                  return (
-                    <Row key={e.id} selected={e.id === selected?.id}>
-                      <RailCell>
-                        <Rail tone={tone} />
-                      </RailCell>
-                      <Td>
-                        <div className="flex items-center gap-2">
-                          <StateFlag tone={tone}>{e.severity}</StateFlag>
-                          {e.blocks_delivery ? (
-                            <span
-                              className="field-label text-exception-critical-text"
-                              title="This exception stops the bill from being delivered"
-                            >
-                              Blocks
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="text-data text-ink-primary mt-0.5">{e.description}</p>
-                        <p className="text-micro text-ink-tertiary">
-                          {humanize(e.anomaly_type)}
-                          {e.recurrence_count > 1
-                            ? ` · ${ordinal(e.recurrence_count)} occurrence since ${date(e.first_detected_at)}`
-                            : ''}
-                          {e.anomaly_type === 'high_usage' && e.customer_id ? (
-                            <>
-                              {' · '}
-                              <Link
-                                href={`/outreach?account=${e.customer_id}` as Route}
-                                className="text-accent-text hover:text-accent-text-hover underline"
-                              >
-                                Plan a heads-up
-                              </Link>
-                            </>
-                          ) : null}
-                        </p>
-                      </Td>
-                      <Td>
-                        {customer ? (
-                          <>
-                            <p className="text-data text-ink-primary truncate">
-                              {customerName(customer)}
-                            </p>
-                            <p>
-                              <AccountNumber number={customer.customer_number} id={customer.id} />
-                            </p>
-                          </>
-                        ) : (
-                          <span className="text-ink-tertiary">—</span>
-                        )}
-                      </Td>
-                      <Td>
-                        {meter ? (
-                          <MeterNumber number={meter.meter_number} id={meter.id} />
-                        ) : (
-                          <span className="text-ink-tertiary">—</span>
-                        )}
-                      </Td>
-                      <Td align="center">
-                        <Confidence value={e.confidence} />
-                      </Td>
-                      <Td align="right">
-                        {e.estimated_impact ? (
-                          <Money value={e.estimated_impact} />
-                        ) : (
-                          <span className="text-ink-tertiary">—</span>
-                        )}
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-secondary">
-                          {e.assigned_to ?? <span className="text-ink-tertiary">Unassigned</span>}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-tertiary whitespace-nowrap">
-                          {dateShort(e.detected_at)}
-                        </span>
-                      </Td>
-                    </Row>
-                  )
-                })}
-              </tbody>
-            </Table>
-          </div>
+          {/* The table's own frame scrolls, so the strip holding the count and the
+              Columns button stays put and the header sticks above the rows. */}
+          <ColumnTable
+            fill
+            listId="exceptions"
+            caption="Open pre-mail exceptions for cycle 04, ranked by consequence"
+            columns={COLUMNS}
+            rows={rows.map((e) => ({ key: e.id, selected: e.id === selected?.id, cells: exceptionCells(e) }))}
+            toolbar={
+              <>
+                <p className="flex-1 min-w-0 text-micro text-ink-secondary">
+                  {filtered ? (
+                    <>
+                      <strong className="text-ink-primary font-semibold">{rows.length} shown</strong> ·{' '}
+                      {describeFilters(filters)}
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-ink-primary font-semibold">{rows.length} remaining</strong>{' '}
+                      · {cleared} cleared today
+                    </>
+                  )}
+                </p>
+                <p className="text-micro text-ink-tertiary flex items-center gap-1.5">
+                  <Key>j</Key>
+                  <Key>k</Key> move · <Key>r</Key> resolve · <Key>s</Key> snooze · <Key>a</Key> assign
+                </p>
+              </>
+            }
+          />
           <TableFooter
             shown={rows.length}
             total={filtered ? all.length : currentRun.total_exceptions}

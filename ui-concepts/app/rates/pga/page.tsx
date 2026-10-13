@@ -4,6 +4,7 @@ import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
 import { StateBlock, StateFlag, Rail, humanize } from '@/components/ui/State'
 import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
+import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { Money } from '@/components/ui/Money'
 import { PgaLattice } from '@/components/rates/PgaLattice'
 import { pgaVersions, versionAsOf } from '@/fixtures/rates'
@@ -25,6 +26,25 @@ import { count, date, rate as fmtRate, stamp, therms } from '@/lib/format'
  * two different moods: "what is the factor" on a calm day, and "what did we
  * think the factor was when we billed this" on a bad one.
  */
+
+/**
+ * The filing history, the one list on this console. The lattice is a grid of
+ * service month against recorded instant and the exposure table a single
+ * worked example, so neither has columns to arrange. Reason and version id
+ * are off until an operator adds them.
+ */
+const FILING_COLUMNS: ColumnDef[] = [
+  { key: 'rail', label: '', menuLabel: 'Status rail', width: '3px', fixed: true, rail: true },
+  { key: 'period', label: 'Service period' },
+  { key: 'factor', label: 'Factor', align: 'right' },
+  { key: 'recorded', label: 'Recorded' },
+  { key: 'lag', label: 'Lag', align: 'right' },
+  { key: 'change', label: 'Change' },
+  { key: 'citation', label: 'Citation' },
+  { key: 'by', label: 'By' },
+  { key: 'reason', label: 'Reason', hidden: true, cellClassName: 'max-w-72' },
+  { key: 'id', label: 'Version ID', hidden: true },
+]
 
 export default function PgaConsolePage() {
   const standing = versionAsOf(pgaVersions, asOf.validAt, asOf.recordedAt)
@@ -222,67 +242,43 @@ export default function PgaConsolePage() {
               title="Filing history"
               meta="How far ahead of its period each factor was recorded"
             />
-            <Table caption="Purchased gas adjustment filings and their recording lag">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th>Service period</Th>
-                  <Th align="right">Factor</Th>
-                  <Th>Recorded</Th>
-                  <Th align="right">Lag</Th>
-                  <Th>Change</Th>
-                  <Th>Citation</Th>
-                  <Th>By</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {[...pgaVersions].reverse().map((v) => {
-                  const lag = filingLagDays(v)
-                  const late = lag > 0
-                  return (
-                    <Row key={v.id}>
-                      <RailCell>
-                        <Rail tone={late ? 'failed' : 'approved'} />
-                      </RailCell>
-                      <Td>
+            <ColumnTable
+              listId="pga-filings"
+              caption="Purchased gas adjustment filings and their recording lag"
+              columns={FILING_COLUMNS}
+              rows={[...pgaVersions].reverse().map((v) => {
+                const lag = filingLagDays(v)
+                const late = lag > 0
+                return {
+                  key: v.id,
+                  cells: {
+                    rail: <Rail tone={late ? 'failed' : 'approved'} />,
+                    period: (
+                      <>
                         {date(v.effective_from)} →{' '}
-                        {v.effective_to ? (
-                          date(v.effective_to)
-                        ) : (
-                          <span className="text-ink-tertiary">open</span>
-                        )}
-                      </Td>
-                      <Td align="right">
-                        <span className="ident">{fmtRate(v.rate)}</span>
-                      </Td>
-                      <Td>
-                        <span className={`text-micro ${late ? 'text-exception-warning-text' : 'text-ink-secondary'}`}>
-                          {stamp(v.recorded_from)}
-                        </span>
-                      </Td>
-                      <Td align="right">
-                        <span
-                          className={`figures ${late ? 'text-exception-critical-text font-medium' : 'text-ink-secondary'}`}
-                        >
-                          {late ? `${lag} days late` : `${Math.abs(lag)} days ahead`}
-                        </span>
-                      </Td>
-                      <Td>
-                        <StateFlag tone={late ? 'warning' : 'cleared'}>
-                          {humanize(v.change_type)}
-                        </StateFlag>
-                      </Td>
-                      <Td>
-                        <span className="ident text-ink-secondary">{v.regulatory_reference}</span>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-tertiary">{v.changed_by}</span>
-                      </Td>
-                    </Row>
-                  )
-                })}
-              </tbody>
-            </Table>
+                        {v.effective_to ? date(v.effective_to) : <span className="text-ink-tertiary">open</span>}
+                      </>
+                    ),
+                    factor: <span className="ident">{fmtRate(v.rate)}</span>,
+                    recorded: (
+                      <span className={`text-micro ${late ? 'text-exception-warning-text' : 'text-ink-secondary'}`}>
+                        {stamp(v.recorded_from)}
+                      </span>
+                    ),
+                    lag: (
+                      <span className={`figures ${late ? 'text-exception-critical-text font-medium' : 'text-ink-secondary'}`}>
+                        {late ? `${lag} days late` : `${Math.abs(lag)} days ahead`}
+                      </span>
+                    ),
+                    change: <StateFlag tone={late ? 'warning' : 'cleared'}>{humanize(v.change_type)}</StateFlag>,
+                    citation: <span className="ident text-ink-secondary">{v.regulatory_reference}</span>,
+                    by: <span className="text-micro text-ink-tertiary">{v.changed_by}</span>,
+                    reason: <span className="text-micro text-ink-secondary">{v.change_reason}</span>,
+                    id: <span className="ident text-micro text-ink-tertiary">{v.id}</span>,
+                  },
+                }
+              })}
+            />
           </Panel>
         </div>
       </div>

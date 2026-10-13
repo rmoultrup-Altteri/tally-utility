@@ -9,6 +9,7 @@ import {
   excluded,
   outreachSummary,
   type Candidate,
+  type Flag,
   type Plan,
 } from '@/fixtures/outreach'
 import { templateById, type Channel } from '@/fixtures/templates'
@@ -25,7 +26,8 @@ import { Panel, PanelHeader, Button } from '@/components/ui/Panel'
 import { Rail, StateBlock, StateFlag, type Tone } from '@/components/ui/State'
 import { Chip, Group } from '@/components/ui/Chip'
 import { AccountNumber } from '@/components/ui/RecordLink'
-import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
+import { Table, Row, Td, RailCell } from '@/components/table/Table'
+import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/components/table/Columns'
 import { date, money, percent, stamp } from '@/lib/format'
 
 /**
@@ -63,6 +65,140 @@ const verdictOf = (c: Candidate): Verdict => {
 }
 
 const dollars = (c: number) => money(c / 100)
+
+const FLAG_LABEL: Record<Flag, string> = {
+  medical: 'Medical certificate',
+  collections: 'In collections',
+  payment_plan: 'Payment plan',
+  autopay: 'AutoPay',
+  paperless: 'Paperless',
+  commercial: 'Commercial',
+}
+
+/** What a row's cells need beyond the candidate: the board's state for that row. */
+type RowState = {
+  v: Verdict
+  tone: Tone
+  done: OutreachAction | undefined
+  delta: number
+  checked: boolean
+  onCheck: () => void
+  onOpen: () => void
+}
+
+type OutreachColumn = ColumnDef & { cell: (c: Candidate, s: RowState) => ReactNode }
+
+/**
+ * The rail and the selection box stay pinned at the left: they are how a row
+ * is read and picked, not data. The last four are off until an operator adds
+ * them — the detail pane shows them for one customer, these show them for all.
+ */
+const COLUMNS: OutreachColumn[] = [
+  { key: 'rail', label: '', menuLabel: 'Status rail', width: '3px', fixed: true, rail: true, cell: (_, s) => <Rail tone={s.done ? 'cleared' : s.tone} /> },
+  {
+    key: 'select',
+    label: '',
+    menuLabel: 'Select',
+    width: '3%',
+    fixed: true,
+    cell: (c, s) => (
+      <input
+        type="checkbox"
+        aria-label={`Select ${c.name}`}
+        checked={s.checked}
+        disabled={!!s.done || c.plan === 'call'}
+        onChange={s.onCheck}
+      />
+    ),
+  },
+  {
+    key: 'customer',
+    label: 'Customer',
+    width: '27%',
+    cell: (c, s) => (
+      <>
+        <button type="button" onClick={s.onOpen} className="text-left text-data text-ink-primary hover:text-accent-text">
+          {c.name}
+        </button>
+        <p className="flex items-center gap-1.5">
+          {c.customerId ? (
+            <AccountNumber number={c.accountNumber} id={c.customerId} />
+          ) : (
+            <span className="ident text-ink-tertiary">{c.accountNumber}</span>
+          )}
+          {c.lang === 'es' ? <span className="ident text-ink-tertiary">· ES</span> : null}
+        </p>
+      </>
+    ),
+  },
+  {
+    key: 'bills',
+    label: 'Last Feb → this Feb',
+    width: '17%',
+    align: 'right',
+    cell: (c) => (
+      <>
+        <span className="figures text-ink-tertiary">{dollars(c.priorCents)}</span>
+        <span className="text-ink-muted" aria-hidden>
+          {' '}→{' '}
+        </span>
+        <span className="figures text-ink-primary">{dollars(c.draftCents)}</span>
+      </>
+    ),
+  },
+  {
+    key: 'change',
+    label: 'Change',
+    width: '12%',
+    align: 'right',
+    cell: (c, s) => (
+      <>
+        <span className="figures text-exception-warning-text">+{dollars(s.delta)}</span>
+        <p className="text-micro text-ink-tertiary figures">{percent(s.delta / c.priorCents, 0)}</p>
+      </>
+    ),
+  },
+  {
+    key: 'mostly',
+    label: 'Mostly',
+    width: '17%',
+    cell: (c, s) => (
+      <>
+        <StateFlag tone={s.v === 'usage' ? 'warning' : 'info'}>{REASON_SHORT.en[s.v]}</StateFlag>
+        {c.usageFlag && s.v !== 'usage' ? (
+          <p className="mt-0.5 text-micro text-exception-warning-text">+ usage beyond weather</p>
+        ) : null}
+      </>
+    ),
+  },
+  { key: 'reach', label: 'Reach by', width: '11%', cell: (c) => <span className="text-micro text-ink-secondary">{PLAN_LABEL[c.plan]}</span> },
+  { key: 'status', label: 'Status', width: '13%', cell: (_, s) => <Status action={s.done} /> },
+  { key: 'address', label: 'Service address', hidden: true, cell: (c) => <span className="text-micro text-ink-secondary">{c.address}</span> },
+  {
+    key: 'consent',
+    label: 'Text consent',
+    width: '8rem',
+    hidden: true,
+    cell: (c) =>
+      c.reach.smsConsent ? (
+        <span className="text-micro text-exception-cleared-text">On file</span>
+      ) : (
+        <span className="text-micro text-ink-tertiary">{c.reach.mobile ? 'None' : 'No mobile'}</span>
+      ),
+  },
+  {
+    key: 'flags',
+    label: 'Account flags',
+    hidden: true,
+    cell: (c) =>
+      c.flags.length ? (
+        <span className="text-micro text-ink-secondary">{c.flags.map((f) => FLAG_LABEL[f]).join(' · ')}</span>
+      ) : (
+        <span className="text-micro text-ink-muted">—</span>
+      ),
+  },
+  { key: 'why', label: 'Why this channel', hidden: true, cell: (c) => <span className="text-micro text-ink-secondary">{c.planWhy}</span> },
+]
 
 const INTRO_KEY = 'tu-outreach-intro'
 
@@ -174,6 +310,7 @@ export function OutreachBoard({ initialId }: { initialId?: string }) {
       return n
     })
   const checkedRows = candidates.filter((c) => checked.has(c.id) && !latest.has(c.id) && c.plan !== 'call')
+  const cols = useColumns('outreach', COLUMNS)
 
   return (
     <>
@@ -248,7 +385,7 @@ export function OutreachBoard({ initialId }: { initialId?: string }) {
                 </Chip>
               ))}
             </Group>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {checkedRows.length ? (
                 <Button disabled={!mayContact} onClick={() => send(checkedRows)}>
                   Send to {checkedRows.length} selected
@@ -262,87 +399,38 @@ export function OutreachBoard({ initialId }: { initialId?: string }) {
               >
                 Send all ready · {ready.length}
               </Button>
+              <ColumnsMenu cols={cols} size="md" />
             </div>
           </div>
 
           <div className="flex-1 min-h-0 overflow-auto">
             <Table caption="Customers whose draft bill rose past the outreach threshold, largest increase first">
               <thead className="sticky top-0 z-10">
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th width="3%"> </Th>
-                  <Th width="27%">Customer</Th>
-                  <Th width="17%" align="right">
-                    Last Feb → this Feb
-                  </Th>
-                  <Th width="12%" align="right">
-                    Change
-                  </Th>
-                  <Th width="17%">Mostly</Th>
-                  <Th width="11%">Reach by</Th>
-                  <Th width="13%">Status</Th>
-                </HeadRow>
+                <ColumnHead cols={cols} />
               </thead>
               <tbody>
                 {rows.map((c) => {
                   const v = verdictOf(c)
-                  const tone: Tone = c.usageFlag || v === 'usage' ? 'warning' : 'info'
-                  const done = latest.get(c.id)
-                  const delta = c.draftCents - c.priorCents
+                  const state: RowState = {
+                    v,
+                    tone: c.usageFlag || v === 'usage' ? 'warning' : 'info',
+                    done: latest.get(c.id),
+                    delta: c.draftCents - c.priorCents,
+                    checked: checked.has(c.id),
+                    onCheck: () => toggle(c.id),
+                    onOpen: () => setSelectedId(c.id),
+                  }
                   return (
                     <Row key={c.id} selected={c.id === selected?.id}>
-                      <RailCell>
-                        <Rail tone={done ? 'cleared' : tone} />
-                      </RailCell>
-                      <Td>
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${c.name}`}
-                          checked={checked.has(c.id)}
-                          disabled={!!done || c.plan === 'call'}
-                          onChange={() => toggle(c.id)}
-                        />
-                      </Td>
-                      <Td>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedId(c.id)}
-                          className="text-left text-data text-ink-primary hover:text-accent-text"
-                        >
-                          {c.name}
-                        </button>
-                        <p className="flex items-center gap-1.5">
-                          {c.customerId ? (
-                            <AccountNumber number={c.accountNumber} id={c.customerId} />
-                          ) : (
-                            <span className="ident text-ink-tertiary">{c.accountNumber}</span>
-                          )}
-                          {c.lang === 'es' ? <span className="ident text-ink-tertiary">· ES</span> : null}
-                        </p>
-                      </Td>
-                      <Td align="right">
-                        <span className="figures text-ink-tertiary">{dollars(c.priorCents)}</span>
-                        <span className="text-ink-muted" aria-hidden>
-                          {' '}→{' '}
-                        </span>
-                        <span className="figures text-ink-primary">{dollars(c.draftCents)}</span>
-                      </Td>
-                      <Td align="right">
-                        <span className="figures text-exception-warning-text">+{dollars(delta)}</span>
-                        <p className="text-micro text-ink-tertiary figures">{percent(delta / c.priorCents, 0)}</p>
-                      </Td>
-                      <Td>
-                        <StateFlag tone={v === 'usage' ? 'warning' : 'info'}>{REASON_SHORT.en[v]}</StateFlag>
-                        {c.usageFlag && v !== 'usage' ? (
-                          <p className="mt-0.5 text-micro text-exception-warning-text">+ usage beyond weather</p>
-                        ) : null}
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-secondary">{PLAN_LABEL[c.plan]}</span>
-                      </Td>
-                      <Td>
-                        <Status action={done} />
-                      </Td>
+                      {cols.visible.map((col) =>
+                        col.rail ? (
+                          <RailCell key={col.key}>{col.cell(c, state)}</RailCell>
+                        ) : (
+                          <Td key={col.key} align={col.align}>
+                            {col.cell(c, state)}
+                          </Td>
+                        ),
+                      )}
                     </Row>
                   )
                 })}
@@ -446,7 +534,7 @@ function Detail({
           {c.usageFlag ? <StateFlag tone="warning">Usage beyond weather</StateFlag> : null}
           {c.flags.map((f) => (
             <span key={f} className="text-micro text-ink-tertiary">
-              {{ medical: 'Medical certificate', collections: 'In collections', payment_plan: 'Payment plan', autopay: 'AutoPay', paperless: 'Paperless', commercial: 'Commercial' }[f]}
+              {FLAG_LABEL[f]}
             </span>
           ))}
         </div>

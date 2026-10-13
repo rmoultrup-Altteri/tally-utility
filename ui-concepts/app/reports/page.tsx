@@ -2,13 +2,15 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Panel, PanelHeader } from '@/components/ui/Panel'
+import { CustomReportCount, CustomReportsPanel } from '@/components/reports/CustomReports'
 import { CATEGORIES, reports } from '@/fixtures/reports'
 import { cycle, tenant } from '@/fixtures/tenant'
 
 /**
  * The report library. Reports are grouped by who reads them — collections,
  * accounting, field operations, tax and the regulator — and each one can be
- * starred into the sidebar favorites.
+ * starred into the sidebar favorites. Whatever the library lacks, an operator
+ * builds: "Your reports" heads the grid with the ones saved in this browser.
  */
 export default function ReportsPage() {
   return (
@@ -17,13 +19,23 @@ export default function ReportsPage() {
         title="Reports"
         meta={
           <>
-            {tenant.name} · {reports.length} reports · {cycle.label} in flight
+            {tenant.name} · {reports.length} reports
+            <CustomReportCount /> · {cycle.label} in flight
           </>
+        }
+        actions={
+          <Link
+            href={'/reports/builder' as Route}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 h-8 text-data font-medium rounded-sm border bg-accent border-accent text-ink-inverse hover:bg-accent-hover hover:border-accent-hover transition-colors duration-fast"
+          >
+            Create your own report
+          </Link>
         }
       />
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <CustomReportsPanel />
           {CATEGORIES.map((category) => {
             const inCategory = reports.filter((r) => r.category === category)
             if (!inCategory.length) return null

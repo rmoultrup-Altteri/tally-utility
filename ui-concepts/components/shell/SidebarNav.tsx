@@ -8,8 +8,8 @@ import type { Route } from 'next'
  * The main navigation: Today always open, the rest as an accordion.
  *
  * Fifteen flat links is how CC&B got its reputation. Grouped by the job, the
- * list reads in five words instead of fifteen. Today — the queue and what
- * needs doing before the run posts — is always showing. Of the other groups
+ * list reads in five words instead of fifteen. Today — the dashboard and the
+ * exception queue — is always showing. Of the other groups
  * only one is open at a time: opening Rates folds Billing, so the sidebar
  * never grows past one group's worth of links.
  *
@@ -49,27 +49,31 @@ export function SidebarNav({ groups, current }: { groups: NavGroup[]; current: s
         return (
           <section key={g.key} className="mb-1">
             {g.pinned ? (
-              <p className="field-label px-2 pt-2 pb-1 pl-6">{g.label}</p>
+              <p className="field-label px-2.5 pt-2 pb-1">{g.label}</p>
             ) : (
+              /* Group labels share the left edge of the links above them; the
+                 chevron sits at the right so it never pushes the label in. */
               <button
                 type="button"
                 onClick={() => setOpenKey(open ? null : g.key)}
                 aria-expanded={open}
                 aria-controls={panelId}
-                className="group flex w-full items-center gap-1.5 rounded-sm px-2 pt-2 pb-1 text-left"
+                className="group flex w-full items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-left transition-colors duration-fast hover:bg-surface-sunken"
               >
+                {/* Group names read at the size of the links above them; their links drop a size beneath. */}
+                <span className={`text-data flex-1 group-hover:text-ink-primary ${open ? 'text-ink-primary font-medium' : 'text-ink-secondary'}`}>{g.label}</span>
+                {!open ? badges.map((b, i) => <Badge key={i} b={b} />) : null}
                 <span
                   aria-hidden
-                  className={`inline-block w-2.5 text-[9px] text-ink-tertiary transition-transform duration-fast group-hover:text-ink-primary ${open ? 'rotate-90' : ''}`}
+                  className={`inline-block w-2.5 text-center text-[9px] text-ink-tertiary transition-transform duration-fast group-hover:text-ink-primary ${open ? 'rotate-90' : ''}`}
                 >
                   ▸
                 </span>
-                <span className={`field-label flex-1 group-hover:text-ink-secondary ${open ? 'text-ink-secondary' : ''}`}>{g.label}</span>
-                {!open ? badges.map((b, i) => <Badge key={i} b={b} />) : null}
               </button>
             )}
             {open ? (
-              <ul id={panelId} className="space-y-0.5">
+              /* An accordion group's links sit one step in, under their label. */
+              <ul id={panelId} className={`space-y-0.5 ${g.pinned ? '' : 'pl-3'}`}>
                 {g.items.map((item) => {
                   const active = item.label === current
                   return (
@@ -77,7 +81,7 @@ export function SidebarNav({ groups, current }: { groups: NavGroup[]; current: s
                       <Link
                         href={item.href as Route}
                         aria-current={active ? 'page' : undefined}
-                        className={`flex items-center justify-between gap-2 rounded-sm px-2.5 py-1.5 text-data transition-colors duration-fast ${
+                        className={`flex items-center justify-between gap-2 rounded-sm px-2.5 transition-colors duration-fast ${g.pinned ? 'py-1.5 text-data' : 'py-1 text-micro'} ${
                           active ? 'bg-accent-wash text-accent-text font-medium' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink-primary'
                         }`}
                       >

@@ -1,14 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { Panel } from '@/components/ui/Panel'
 import { Chip, Group } from '@/components/ui/Chip'
 import { Money } from '@/components/ui/Money'
 import { StateFlag, type Tone } from '@/components/ui/State'
+import { AccountNumber } from '@/components/ui/RecordLink'
 import { Table, Row, Td, TableFooter } from '@/components/table/Table'
-import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
+import { sortRows, useSort } from '@/components/table/Sort'
+import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/components/table/Columns'
 import { count, date, money } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
 import { useEdits } from '@/lib/edits-store'
@@ -20,12 +22,18 @@ export type BillRow = {
   invoiceNumber: string
   invoiceDate: string
   status: BillStatus
+  customerId: string | null
   customerName: string
+  customerNumber: string | null
   streetAddress: string | null
   cityLine: string | null
   amountDue: string
   amountPaid: string
+  /** `invoices.balance` — what is still owed on this bill. */
+  balance: string
   dueDate: string
+  periodStart: string
+  periodEnd: string
   daysBilled: number
 }
 
@@ -50,18 +58,80 @@ type SortKey =
   | 'amountPaid'
   | 'dueDate'
   | 'daysBilled'
+  | 'invoiceNumber'
+  | 'customerNumber'
+  | 'balance'
+  | 'period'
 
-const COLUMNS: SortColumn<SortKey>[] = [
-  { key: 'invoiceDate', label: 'Bill date', width: '10rem' },
-  { key: 'status', label: 'Status', width: '7rem' },
-  { key: 'customerName', label: 'Customer' },
-  { key: 'streetAddress', label: 'Street address' },
-  { key: 'amountDue', label: 'Total amount', align: 'right', width: '8rem' },
-  { key: 'amountPaid', label: 'Total paid', align: 'right', width: '8rem' },
-  { key: 'dueDate', label: 'Due date', width: '8rem' },
-  { key: 'daysBilled', label: 'Days billed', align: 'right', width: '7rem' },
+type BillColumn = ColumnDef<SortKey> & {
+  cell: (r: BillRow) => ReactNode
+  className?: (r: BillRow) => string
+}
+
+/**
+ * The shipped eight, then fields an operator can add from the Columns menu:
+ * the bill number on its own, the account number, what is still owed, and
+ * the service period the bill covers.
+ */
+const COLUMNS: BillColumn[] = [
+  { key: 'invoiceDate', label: 'Bill date', width: '10rem', className: () => 'whitespace-nowrap', cell: (r) => <BillDateCell r={r} /> },
+  {
+    key: 'status',
+    label: 'Status',
+    width: '7rem',
+    cell: (r) => <StateFlag tone={STATUS[r.status].tone}>{STATUS[r.status].label}</StateFlag>,
+  },
+  { key: 'customerName', label: 'Customer', cell: (r) => r.customerName },
+  {
+    key: 'streetAddress',
+    label: 'Street address',
+    cell: (r) => (
+      <>
+        {r.streetAddress ?? '—'}
+        {r.cityLine ? <span className="block text-micro text-ink-tertiary">{r.cityLine}</span> : null}
+      </>
+    ),
+  },
+  { key: 'amountDue', label: 'Total amount', align: 'right', width: '8rem', cell: (r) => <Money value={r.amountDue} /> },
+  { key: 'amountPaid', label: 'Total paid', align: 'right', width: '8rem', cell: (r) => <Money value={r.amountPaid} /> },
+  {
+    key: 'dueDate',
+    label: 'Due date',
+    width: '8rem',
+    className: (r) => `tabular-nums whitespace-nowrap ${r.status === 'past_due' ? 'text-exception-critical-text' : ''}`,
+    cell: (r) => date(r.dueDate),
+  },
+  { key: 'daysBilled', label: 'Days billed', align: 'right', width: '7rem', className: () => 'tabular-nums', cell: (r) => r.daysBilled },
+  {
+    key: 'invoiceNumber',
+    label: 'Bill number',
+    width: '9rem',
+    hidden: true,
+    cell: (r) => (
+      <Link href={`/invoices/${r.id}` as Route} className="ident text-accent-text hover:text-accent-text-hover hover:underline">
+        {r.invoiceNumber}
+      </Link>
+    ),
+  },
+  {
+    key: 'customerNumber',
+    label: 'Account number',
+    width: '9rem',
+    hidden: true,
+    cell: (r) => (r.customerNumber && r.customerId ? <AccountNumber number={r.customerNumber} id={r.customerId} /> : '—'),
+  },
+  { key: 'balance', label: 'Balance', align: 'right', width: '8rem', hidden: true, cell: (r) => <Money value={r.balance} /> },
+  {
+    key: 'period',
+    label: 'Service period',
+    width: '13rem',
+    hidden: true,
+    className: () => 'tabular-nums whitespace-nowrap',
+    cell: (r) => `${date(r.periodStart)} – ${date(r.periodEnd)}`,
+  },
 ]
 
+/** Money sorts as a number, not as "$1,052" text; a period sorts by when it began. */
 const sortValue = (r: BillRow, key: SortKey) => {
   switch (key) {
     case 'status':
@@ -70,6 +140,10 @@ const sortValue = (r: BillRow, key: SortKey) => {
       return Number(r.amountDue)
     case 'amountPaid':
       return Number(r.amountPaid)
+    case 'balance':
+      return Number(r.balance)
+    case 'period':
+      return r.periodStart
     default:
       return r[key]
   }
@@ -173,6 +247,8 @@ export function BillsList({ rows: fixtureRows, asOf }: { rows: BillRow[]; asOf: 
   const billed = shown.reduce((a, r) => a + Math.round(Number(r.amountDue) * 100), 0) / 100
   const paid = shown.reduce((a, r) => a + Math.round(Number(r.amountPaid) * 100), 0) / 100
 
+  const cols = useColumns('bills', COLUMNS)
+
   const pick = (p: Preset) => {
     /* Custom opens on whatever range was showing, so it starts as an edit of it. */
     if (p === 'custom' && preset !== 'custom') setCustom(range)
@@ -247,51 +323,27 @@ export function BillsList({ rows: fixtureRows, asOf }: { rows: BillRow[]; asOf: 
           <p className="ml-auto text-micro text-ink-secondary">
             {count(shown.length)} bills · {money(billed)} billed · {money(paid)} paid
           </p>
+          <ColumnsMenu cols={cols} />
         </div>
       </div>
 
       <Table caption="Bills">
         <thead>
-          <SortHeader columns={COLUMNS} sort={sort} onSort={toggle} />
+          <ColumnHead cols={cols} sort={sort} onSort={toggle} />
         </thead>
         <tbody>
           {shown.map((r) => (
             <Row key={r.id} muted={r.status === 'void'}>
-              <Td className="whitespace-nowrap">
-                <Link href={`/invoices/${r.id}` as Route} className="group block">
-                  <span className="block tabular-nums text-ink-primary font-medium group-hover:underline">
-                    {date(r.invoiceDate)}
-                  </span>
-                  <span className="block ident text-micro text-accent-text group-hover:text-accent-text-hover">
-                    {r.invoiceNumber}
-                  </span>
-                </Link>
-              </Td>
-              <Td>
-                <StateFlag tone={STATUS[r.status].tone}>{STATUS[r.status].label}</StateFlag>
-              </Td>
-              <Td>{r.customerName}</Td>
-              <Td>
-                {r.streetAddress ?? '—'}
-                {r.cityLine ? <span className="block text-micro text-ink-tertiary">{r.cityLine}</span> : null}
-              </Td>
-              <Td align="right">
-                <Money value={r.amountDue} />
-              </Td>
-              <Td align="right">
-                <Money value={r.amountPaid} />
-              </Td>
-              <Td className={`tabular-nums whitespace-nowrap ${r.status === 'past_due' ? 'text-exception-critical-text' : ''}`}>
-                {date(r.dueDate)}
-              </Td>
-              <Td align="right" className="tabular-nums">
-                {r.daysBilled}
-              </Td>
+              {cols.visible.map((c) => (
+                <Td key={c.key} align={c.align} className={c.className?.(r)}>
+                  {c.cell(r)}
+                </Td>
+              ))}
             </Row>
           ))}
           {shown.length === 0 ? (
             <Row>
-              <Td colSpan={COLUMNS.length} className="py-6 text-center text-ink-tertiary">
+              <Td colSpan={cols.visible.length} className="py-6 text-center text-ink-tertiary">
                 No bills match these filters.
               </Td>
             </Row>
@@ -301,5 +353,15 @@ export function BillsList({ rows: fixtureRows, asOf }: { rows: BillRow[]; asOf: 
 
       {shown.length > 0 ? <TableFooter shown={shown.length} total={shown.length} noun="bills" /> : null}
     </Panel>
+  )
+}
+
+/** The bill date over its number, the pair opening the bill itself. */
+function BillDateCell({ r }: { r: BillRow }) {
+  return (
+    <Link href={`/invoices/${r.id}` as Route} className="group block">
+      <span className="block tabular-nums text-ink-primary font-medium group-hover:underline">{date(r.invoiceDate)}</span>
+      <span className="block ident text-micro text-accent-text group-hover:text-accent-text-hover">{r.invoiceNumber}</span>
+    </Link>
   )
 }

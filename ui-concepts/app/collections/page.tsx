@@ -5,7 +5,8 @@ import { ListStar } from '@/components/shell/Favorites'
 import { Button } from '@/components/ui/Panel'
 import { Collapsible } from '@/components/ui/Collapsible'
 import { Rail, StateBlock, StateFlag, humanize, type Tone } from '@/components/ui/State'
-import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
+import { TableFooter } from '@/components/table/Table'
+import { ColumnTable, type ColumnDef, type ColumnRow } from '@/components/table/Columns'
 import { Money } from '@/components/ui/Money'
 import { AccountNumber } from '@/components/ui/RecordLink'
 import { AgingReport, type CustomerClass, type OpenBill } from '@/components/collections/AgingReport'
@@ -25,6 +26,8 @@ import {
   stayedAccounts,
   worklist,
   type BypassCategory,
+  type ReconnectRow,
+  type Verdict,
   type WorklistRow,
 } from '@/fixtures/collections'
 import { count, date, dateShort, days, stamp } from '@/lib/format'
@@ -111,12 +114,15 @@ function openBills(): OpenBill[] {
         id: i.id,
         invoiceNumber: i.invoice_number,
         customerId: i.customer_id,
+        customerNumber: customer?.customer_number ?? null,
         customerName: customer ? customerName(customer) : '—',
         customerClass: customer ? CLASS_OF[customer.customer_type] : 'Residential',
         streetAddress: locationById.get(i.location_id)?.address ?? null,
         invoiceDate: i.invoice_date,
         dueDate: i.due_date,
         daysPastDue: daysBetween(i.due_date, asOf.validAt),
+        amountDue: i.amount_due,
+        amountPaid: i.amount_paid,
         balance: i.balance,
       }
     })
@@ -157,43 +163,30 @@ export default function CollectionsPage() {
             n={auditTrail.length}
             summary="Every action with its rule, its input value, and whether a person or the engine made it"
           >
-            <Table caption="Collections decision audit trail">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th width="14%">When</Th>
-                  <Th width="12%">Account</Th>
-                  <Th width="20%">Action</Th>
-                  <Th>Rationale</Th>
-                  <Th width="12%">Source</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {auditTrail.map((e) => (
-                  <Row key={e.id}>
-                    <RailCell>
-                      <Rail tone={e.source === 'operator' ? 'pending' : 'snoozed'} />
-                    </RailCell>
-                    <Td>
-                      <span className="text-micro text-ink-secondary">{stamp(e.at)}</span>
-                    </Td>
-                    <Td>
-                      <AccountNumber number={e.account} plainClassName="text-ink-secondary" />
-                    </Td>
-                    <Td>{e.action}</Td>
-                    <Td>
-                      <span className="text-micro text-ink-secondary">{e.rationale}</span>
-                    </Td>
-                    <Td>
+            <ColumnTable
+              listId="collections-decision-log"
+              caption="Collections decision audit trail"
+              columns={AUDIT_COLUMNS}
+              rows={auditTrail.map((e) => ({
+                key: e.id,
+                cells: {
+                  rail: <Rail tone={e.source === 'operator' ? 'pending' : 'snoozed'} />,
+                  at: <span className="text-micro text-ink-secondary">{stamp(e.at)}</span>,
+                  account: <AccountNumber number={e.account} plainClassName="text-ink-secondary" />,
+                  action: e.action,
+                  rationale: <span className="text-micro text-ink-secondary">{e.rationale}</span>,
+                  source: (
+                    <>
                       <StateFlag tone={e.source === 'operator' ? 'pending' : 'snoozed'}>
                         {humanize(e.source)}
                       </StateFlag>
                       <p className="text-micro text-ink-tertiary mt-0.5">{e.actor}</p>
-                    </Td>
-                  </Row>
-                ))}
-              </tbody>
-            </Table>
+                    </>
+                  ),
+                  actor: <span className="text-micro text-ink-secondary">{e.actor}</span>,
+                },
+              }))}
+            />
           </Collapsible>
 
           {/* ==== The other half of the truck roll ==== */}
@@ -204,75 +197,12 @@ export default function CollectionsPage() {
             summary={`${breached} past SLA · every reconnect is a scheduled visit — the meter is not simply re-energised`}
             actions={<Button>Build tomorrow&rsquo;s route</Button>}
           >
-            <Table caption="Accounts awaiting reconnection">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th>Account</Th>
-                  <Th>Disconnected</Th>
-                  <Th>Paid</Th>
-                  <Th>SLA due</Th>
-                  <Th>Priority</Th>
-                  <Th align="right">Fee</Th>
-                  <Th>Relight readiness</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {reconnectQueue.map((r) => {
-                  const overdue = Date.parse(r.slaDueAt) <= Date.parse(asOf.recordedAt)
-                  return (
-                    <Row key={r.id}>
-                      <RailCell>
-                        <Rail tone={overdue ? 'failed' : r.priority === 'standard' ? 'pending' : 'held'} />
-                      </RailCell>
-                      <Td>
-                        <p className="text-data text-ink-primary">{r.name}</p>
-                        <p className="text-micro text-ink-tertiary">{r.address}</p>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-secondary">{stamp(r.disconnectedAt)}</span>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-secondary">
-                          {r.paidAt ? stamp(r.paidAt) : '—'}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span
-                          className={`text-micro ${overdue ? 'text-exception-critical-text font-medium' : 'text-ink-secondary'}`}
-                        >
-                          {stamp(r.slaDueAt)}
-                          {overdue ? ' · breached' : ''}
-                        </span>
-                      </Td>
-                      <Td>
-                        <StateFlag
-                          tone={r.priority === 'medical' ? 'critical' : r.priority === 'temperature' ? 'warning' : 'snoozed'}
-                          title={r.priorityReason}
-                        >
-                          {humanize(r.priority)}
-                        </StateFlag>
-                        <p className="text-micro text-ink-tertiary mt-0.5">{r.priorityReason}</p>
-                      </Td>
-                      <Td align="right">
-                        <span className={r.feeWaived ? 'struck' : ''}>
-                          <Money value={r.fee} />
-                        </span>
-                        <p className="text-micro text-ink-tertiary">{r.feeNote}</p>
-                      </Td>
-                      <Td>
-                        <StateFlag tone={r.customerConfirmed ? 'approved' : 'warning'}>
-                          {r.customerConfirmed ? 'Customer confirmed' : 'Access not confirmed'}
-                        </StateFlag>
-                        <p className="text-micro text-ink-tertiary mt-0.5">
-                          Pressure test, then relight every pilot. Customer must be on site.
-                        </p>
-                      </Td>
-                    </Row>
-                  )
-                })}
-              </tbody>
-            </Table>
+            <ColumnTable
+              listId="collections-reconnect"
+              caption="Accounts awaiting reconnection"
+              columns={RECONNECT_COLUMNS}
+              rows={reconnectQueue.map((r) => ({ key: r.id, cells: reconnectCells(r) }))}
+            />
           </Collapsible>
 
           {/* ==== The worklist ==== */}
@@ -281,41 +211,19 @@ export default function CollectionsPage() {
             n={rows.length}
             summary={`${count(eligible.length)} eligible today · ${count(inGroup('process'))} our work outstanding · ${count(inGroup('weather'))} temperature hold · ${count(inGroup('protection'))} protected · ${count(pipeline.eligibleWhenHoldLifts)} become eligible when the hold lifts`}
           >
-            <Table caption="Accounts in the dunning pipeline with every bypass condition evaluated">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th width="16%">Account</Th>
-                  <Th width="14%">Service address</Th>
-                  <Th align="right" width="9%">
-                    Balance
-                  </Th>
-                  <Th align="right" width="5%">
-                    Past due
-                  </Th>
-                  <Th width="10%">Stage</Th>
-                  <Th width="13%">Last notice</Th>
-                  <Th width="16%">Conditions evaluated</Th>
-                  <Th width="12%">Disconnect eligible</Th>
-                  <Th align="right" width="5%">
-                    Deposit
-                  </Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {GROUPS.map((group) => {
-                  const inGroup = rows.filter((r) => r.verdict.category === group.key)
-                  if (inGroup.length === 0 && group.key !== 'eligible') return null
-                  return (
-                    <SectionGroup key={group.key} group={group} n={inGroup.length}>
-                      {inGroup.map(({ row, verdict }) => (
-                        <WorklistLine key={row.id} row={row} category={verdict.category} />
-                      ))}
-                    </SectionGroup>
-                  )
-                })}
-              </tbody>
-            </Table>
+            <ColumnTable
+              listId="collections-worklist"
+              caption="Accounts in the dunning pipeline with every bypass condition evaluated"
+              columns={WORKLIST_COLUMNS}
+              rows={GROUPS.flatMap((group) => {
+                const inGroup = rows.filter((r) => r.verdict.category === group.key)
+                if (inGroup.length === 0 && group.key !== 'eligible') return []
+                return sectionGroup(
+                  group,
+                  inGroup.map(({ row, verdict }) => worklistLine(row, verdict)),
+                )
+              })}
+            />
             <TableFooter shown={pipeline.modelled} total={pipeline.total} noun="accounts past due" />
           </Collapsible>
 
@@ -333,60 +241,53 @@ export default function CollectionsPage() {
                 it with a flag, because a flag is something an operator can talk themselves past.
               </p>
             </div>
-            <Table caption="Accounts under an automatic stay">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th>Account</Th>
-                  <Th>Case</Th>
-                  <Th>Petition date</Th>
-                  <Th align="right">Pre-petition</Th>
-                  <Th align="right">Post-petition</Th>
-                  <Th>Adequate assurance</Th>
-                  <Th>Stopped at</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {stayedAccounts.map((s) => {
-                  const remaining = days(asOf.validAt, s.assuranceDeadline)
-                  return (
-                    <Row key={s.id}>
-                      <RailCell>
-                        <Rail tone="critical" />
-                      </RailCell>
-                      <Td>
+            <ColumnTable
+              listId="collections-stayed"
+              caption="Accounts under an automatic stay"
+              columns={STAYED_COLUMNS}
+              rows={stayedAccounts.map((s) => {
+                const remaining = days(asOf.validAt, s.assuranceDeadline)
+                return {
+                  key: s.id,
+                  cells: {
+                    rail: <Rail tone="critical" />,
+                    account: (
+                      <>
                         <p className="text-data text-ink-primary">{s.name}</p>
                         <p>
                           <AccountNumber number={s.accountNumber} plainClassName="text-ink-tertiary" />
                         </p>
-                      </Td>
-                      <Td>
+                      </>
+                    ),
+                    address: (
+                      <span className="text-micro text-ink-secondary">
+                        {s.address}, {s.city}
+                      </span>
+                    ),
+                    case: (
+                      <>
                         <p className="text-data">{s.chapter}</p>
                         <p className="ident text-ink-tertiary">{s.caseNumber}</p>
-                      </Td>
-                      <Td>{date(s.petitionDate)}</Td>
-                      <Td align="right">
-                        <Money value={s.prePetitionBalance} />
-                      </Td>
-                      <Td align="right">
-                        <Money value={s.postPetitionBalance} />
-                      </Td>
-                      <Td>
+                      </>
+                    ),
+                    petitionDate: date(s.petitionDate),
+                    prePetition: <Money value={s.prePetitionBalance} />,
+                    postPetition: <Money value={s.postPetitionBalance} />,
+                    assurance: (
+                      <>
                         <span className="text-data text-exception-warning-text">
                           {date(s.assuranceDeadline)} · {remaining} days left
                         </span>
                         <p className="text-micro text-ink-tertiary">
                           11 USC §366(b) — request within 20 days or lose the right
                         </p>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-secondary">{stamp(s.noticedAt)}</span>
-                      </Td>
-                    </Row>
-                  )
-                })}
-              </tbody>
-            </Table>
+                      </>
+                    ),
+                    stoppedAt: <span className="text-micro text-ink-secondary">{stamp(s.noticedAt)}</span>,
+                  },
+                }
+              })}
+            />
           </Collapsible>
 
           {/* ==== What the engine decided before it looked at anyone ==== */}
@@ -434,98 +335,201 @@ export default function CollectionsPage() {
   )
 }
 
-/** A titled band inside the table body, with the group's rule stated once. */
-function SectionGroup({
-  group,
-  n,
-  children,
-}: {
-  group: Group
-  n: number
-  children: React.ReactNode
-}) {
-  return (
-    <>
-      <tr>
-        <td colSpan={10} className="p-0">
-          <div className="flex items-baseline gap-3 border-y border-rule-solid bg-surface-sunken px-cell-x py-2">
-            <StateFlag tone={group.tone}>{group.title}</StateFlag>
-            <span className="ident text-ink-primary">{count(n)}</span>
-            <span className="text-micro text-ink-tertiary">{group.note}</span>
-          </div>
-        </td>
-      </tr>
-      {n === 0 ? (
-        <tr>
-          <td colSpan={10} className="px-cell-x py-4 bg-surface-raised border-b border-rule-hair">
-            <p className="text-data text-ink-secondary">
-              No account is eligible for disconnect today.
-            </p>
-          </td>
-        </tr>
-      ) : (
-        children
-      )}
-    </>
-  )
+/* ---- Column layouts ------------------------------------------------------
+ * Each list's columns as shipped. The status rail is pinned; everything else
+ * moves and hides from the list's Columns menu. A `hidden` column is a field
+ * the row already carries but the shipped layout folds into another cell or
+ * leaves out — offered for the operator who wants it on its own.
+ */
+
+const RAIL: ColumnDef = { key: 'rail', label: '', menuLabel: 'Status', width: '3px', rail: true, fixed: true }
+
+const AUDIT_COLUMNS: ColumnDef[] = [
+  RAIL,
+  { key: 'at', label: 'When', width: '14%' },
+  { key: 'account', label: 'Account', width: '12%' },
+  { key: 'action', label: 'Action', width: '20%' },
+  { key: 'rationale', label: 'Rationale' },
+  { key: 'source', label: 'Source', width: '12%' },
+  { key: 'actor', label: 'Actor', hidden: true },
+]
+
+const RECONNECT_COLUMNS: ColumnDef[] = [
+  RAIL,
+  { key: 'account', label: 'Account' },
+  { key: 'disconnectedAt', label: 'Disconnected' },
+  { key: 'paidAt', label: 'Paid' },
+  { key: 'slaDueAt', label: 'SLA due' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'fee', label: 'Fee', align: 'right' },
+  { key: 'relight', label: 'Relight readiness' },
+  { key: 'accountNumber', label: 'Account number', hidden: true },
+  { key: 'feeNote', label: 'Fee note', hidden: true },
+]
+
+const WORKLIST_COLUMNS: ColumnDef[] = [
+  RAIL,
+  { key: 'account', label: 'Account', width: '16%' },
+  { key: 'address', label: 'Service address', width: '14%' },
+  { key: 'balance', label: 'Balance', align: 'right', width: '9%' },
+  { key: 'pastDue', label: 'Past due', align: 'right', width: '5%' },
+  { key: 'stage', label: 'Stage', width: '10%' },
+  { key: 'lastNotice', label: 'Last notice', width: '13%' },
+  { key: 'conditions', label: 'Conditions evaluated', width: '16%' },
+  { key: 'eligible', label: 'Disconnect eligible', width: '12%' },
+  { key: 'deposit', label: 'Deposit', align: 'right', width: '5%' },
+  { key: 'class', label: 'Class', hidden: true },
+  { key: 'priorDisconnects', label: 'Prior disconnects', align: 'right', hidden: true },
+  { key: 'disputed', label: 'Disputed', align: 'right', hidden: true },
+  { key: 'nextAction', label: 'Next action', hidden: true },
+]
+
+const STAYED_COLUMNS: ColumnDef[] = [
+  RAIL,
+  { key: 'account', label: 'Account' },
+  { key: 'case', label: 'Case' },
+  { key: 'petitionDate', label: 'Petition date' },
+  { key: 'prePetition', label: 'Pre-petition', align: 'right' },
+  { key: 'postPetition', label: 'Post-petition', align: 'right' },
+  { key: 'assurance', label: 'Adequate assurance' },
+  { key: 'stoppedAt', label: 'Stopped at' },
+  { key: 'address', label: 'Service address', hidden: true },
+]
+
+function reconnectCells(r: ReconnectRow) {
+  const overdue = Date.parse(r.slaDueAt) <= Date.parse(asOf.recordedAt)
+  return {
+    rail: <Rail tone={overdue ? 'failed' : r.priority === 'standard' ? 'pending' : 'held'} />,
+    account: (
+      <>
+        <p className="text-data text-ink-primary">{r.name}</p>
+        <p className="text-micro text-ink-tertiary">{r.address}</p>
+      </>
+    ),
+    disconnectedAt: <span className="text-micro text-ink-secondary">{stamp(r.disconnectedAt)}</span>,
+    paidAt: <span className="text-micro text-ink-secondary">{r.paidAt ? stamp(r.paidAt) : '—'}</span>,
+    slaDueAt: (
+      <span className={`text-micro ${overdue ? 'text-exception-critical-text font-medium' : 'text-ink-secondary'}`}>
+        {stamp(r.slaDueAt)}
+        {overdue ? ' · breached' : ''}
+      </span>
+    ),
+    priority: (
+      <>
+        <StateFlag
+          tone={r.priority === 'medical' ? 'critical' : r.priority === 'temperature' ? 'warning' : 'snoozed'}
+          title={r.priorityReason}
+        >
+          {humanize(r.priority)}
+        </StateFlag>
+        <p className="text-micro text-ink-tertiary mt-0.5">{r.priorityReason}</p>
+      </>
+    ),
+    fee: (
+      <>
+        <span className={r.feeWaived ? 'struck' : ''}>
+          <Money value={r.fee} />
+        </span>
+        <p className="text-micro text-ink-tertiary">{r.feeNote}</p>
+      </>
+    ),
+    relight: (
+      <>
+        <StateFlag tone={r.customerConfirmed ? 'approved' : 'warning'}>
+          {r.customerConfirmed ? 'Customer confirmed' : 'Access not confirmed'}
+        </StateFlag>
+        <p className="text-micro text-ink-tertiary mt-0.5">
+          Pressure test, then relight every pilot. Customer must be on site.
+        </p>
+      </>
+    ),
+    accountNumber: <AccountNumber number={r.accountNumber} plainClassName="text-ink-secondary" />,
+    feeNote: <span className="text-micro text-ink-secondary">{r.feeNote}</span>,
+  }
 }
 
-function WorklistLine({ row, category }: { row: WorklistRow; category: BypassCategory | 'eligible' }) {
-  const verdict = evaluate(row)
-  return (
-    <Row>
-      <RailCell>
-        <Rail tone={CATEGORY_TONE[category]} />
-      </RailCell>
-      <Td>
-        {row.customerId ? (
-          <Link
-            href={`/customers/${row.customerId}` as Route}
-            className="text-data text-ink-primary hover:text-accent-text hover:underline"
-          >
-            {row.name}
-          </Link>
-        ) : (
-          <span className="text-data text-ink-primary">{row.name}</span>
-        )}
-        <p className="ident text-ink-tertiary">
-          <AccountNumber number={row.accountNumber} id={row.customerId ?? undefined} /> · {row.isResidential ? 'Residential' : 'Commercial'}
-          {row.priorDisconnects > 0 ? ` · ${row.priorDisconnects} prior` : ''}
-        </p>
-      </Td>
-      <Td>
+/**
+ * A titled band inside the table body, with the group's rule stated once. The
+ * band is a full-width row, so it spans whatever columns are showing.
+ */
+function sectionGroup(group: Group, lines: ColumnRow[]): ColumnRow[] {
+  const head: ColumnRow = {
+    key: `group-${group.key}`,
+    full: (
+      <div className="flex items-baseline gap-3 border-y border-rule-solid bg-surface-sunken px-cell-x py-2">
+        <StateFlag tone={group.tone}>{group.title}</StateFlag>
+        <span className="ident text-ink-primary">{count(lines.length)}</span>
+        <span className="text-micro text-ink-tertiary">{group.note}</span>
+      </div>
+    ),
+  }
+  if (lines.length > 0) return [head, ...lines]
+  return [
+    head,
+    {
+      key: `group-${group.key}-empty`,
+      full: (
+        <div className="px-cell-x py-4 bg-surface-raised border-b border-rule-hair">
+          <p className="text-data text-ink-secondary">No account is eligible for disconnect today.</p>
+        </div>
+      ),
+    },
+  ]
+}
+
+function worklistLine(row: WorklistRow, verdict: Verdict): ColumnRow {
+  const category = verdict.category
+  return {
+    key: row.id,
+    cells: {
+      rail: <Rail tone={CATEGORY_TONE[category]} />,
+      account: (
+        <>
+          {row.customerId ? (
+            <Link
+              href={`/customers/${row.customerId}` as Route}
+              className="text-data text-ink-primary hover:text-accent-text hover:underline"
+            >
+              {row.name}
+            </Link>
+          ) : (
+            <span className="text-data text-ink-primary">{row.name}</span>
+          )}
+          <p className="ident text-ink-tertiary">
+            <AccountNumber number={row.accountNumber} id={row.customerId ?? undefined} /> · {row.isResidential ? 'Residential' : 'Commercial'}
+            {row.priorDisconnects > 0 ? ` · ${row.priorDisconnects} prior` : ''}
+          </p>
+        </>
+      ),
+      address: (
         <span className="text-micro text-ink-secondary">
           {row.address}, {row.city}
         </span>
-      </Td>
-      <Td align="right">
-        <Money value={row.balance} arrears={row.pastDueDays >= 60} />
-        {row.disputed ? (
-          <p className="text-micro text-exception-warning-text">
-            <Money value={row.disputed} className="!text-exception-warning-text" /> disputed
-          </p>
-        ) : null}
-      </Td>
-      <Td align="right">
-        <span className="figures text-ink-secondary">{row.pastDueDays}d</span>
-      </Td>
-      <Td>
-        <span className="text-micro text-ink-secondary">{humanize(row.stage)}</span>
-      </Td>
-      <Td>
-        {row.lastNotice ? (
-          <>
-            <p className="text-micro text-ink-primary">{row.lastNotice.type}</p>
-            <p className="text-micro text-ink-tertiary">
-              {dateShort(row.lastNotice.sentAt)} · {row.lastNotice.channel}
+      ),
+      balance: (
+        <>
+          <Money value={row.balance} arrears={row.pastDueDays >= 60} />
+          {row.disputed ? (
+            <p className="text-micro text-exception-warning-text">
+              <Money value={row.disputed} className="!text-exception-warning-text" /> disputed
             </p>
-          </>
-        ) : (
-          <span className="text-ink-tertiary">—</span>
-        )}
-      </Td>
-      <Td>
-        {row.bypasses.length === 0 ? (
+          ) : null}
+        </>
+      ),
+      pastDue: <span className="figures text-ink-secondary">{row.pastDueDays}d</span>,
+      stage: <span className="text-micro text-ink-secondary">{humanize(row.stage)}</span>,
+      lastNotice: row.lastNotice ? (
+        <>
+          <p className="text-micro text-ink-primary">{row.lastNotice.type}</p>
+          <p className="text-micro text-ink-tertiary">
+            {dateShort(row.lastNotice.sentAt)} · {row.lastNotice.channel}
+          </p>
+        </>
+      ) : (
+        <span className="text-ink-tertiary">—</span>
+      ),
+      conditions:
+        row.bypasses.length === 0 ? (
           <span className="text-micro text-ink-tertiary">All clear</span>
         ) : (
           <div className="flex flex-wrap gap-x-3 gap-y-1">
@@ -545,22 +549,27 @@ function WorklistLine({ row, category }: { row: WorklistRow; category: BypassCat
               )
             })}
           </div>
-        )}
-      </Td>
-      <Td>
-        <StateFlag tone={CATEGORY_TONE[category]}>{verdict.eligible ? 'Yes' : 'No'}</StateFlag>
-        <p className="text-micro text-ink-secondary mt-0.5">{verdict.reason}</p>
-        {row.nextAction ? (
-          <p className="text-micro text-accent-text mt-0.5">{row.nextAction}</p>
-        ) : null}
-      </Td>
-      <Td align="right">
-        {Number(row.deposit) > 0 ? (
-          <Money value={row.deposit} />
-        ) : (
-          <span className="text-ink-tertiary">—</span>
-        )}
-      </Td>
-    </Row>
-  )
+        ),
+      eligible: (
+        <>
+          <StateFlag tone={CATEGORY_TONE[category]}>{verdict.eligible ? 'Yes' : 'No'}</StateFlag>
+          <p className="text-micro text-ink-secondary mt-0.5">{verdict.reason}</p>
+          {row.nextAction ? <p className="text-micro text-accent-text mt-0.5">{row.nextAction}</p> : null}
+        </>
+      ),
+      deposit: Number(row.deposit) > 0 ? <Money value={row.deposit} /> : <span className="text-ink-tertiary">—</span>,
+      class: <span className="text-micro text-ink-secondary">{row.isResidential ? 'Residential' : 'Commercial'}</span>,
+      priorDisconnects: <span className="figures text-ink-secondary">{row.priorDisconnects}</span>,
+      disputed: row.disputed ? (
+        <Money value={row.disputed} className="!text-exception-warning-text" />
+      ) : (
+        <span className="text-ink-tertiary">—</span>
+      ),
+      nextAction: row.nextAction ? (
+        <span className="text-micro text-accent-text">{row.nextAction}</span>
+      ) : (
+        <span className="text-ink-tertiary">—</span>
+      ),
+    },
+  }
 }

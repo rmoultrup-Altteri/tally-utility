@@ -1,15 +1,17 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Rail, StateBlock, StateFlag, runTone, humanize } from '@/components/ui/State'
 import { Money } from '@/components/ui/Money'
-import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
+import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { runs, currentRun, invoices, invoiceById } from '@/fixtures/billing'
 import { blockingCount, openExceptions } from '@/fixtures/exceptions'
 import { customerById } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
-import { count, date, stamp } from '@/lib/format'
+import type { Invoice } from '@/schemas/models'
+import { count, date, dateShort, stamp } from '@/lib/format'
 
 /**
  * The billing run cockpit.
@@ -37,6 +39,50 @@ const STAGES = [
   { key: 'audit', label: 'Pre-mail audit', done: false },
   { key: 'post', label: 'Post and deliver', done: false },
 ]
+
+/** The bills table: the shipped seven after the rail, then more of each bill's arithmetic. */
+const COLUMNS: ColumnDef[] = [
+  { key: 'rail', label: '', menuLabel: 'Status rail', width: '3px', rail: true, fixed: true },
+  { key: 'invoice', label: 'Invoice' },
+  { key: 'account', label: 'Account' },
+  { key: 'charges', label: 'Charges', align: 'right' },
+  { key: 'taxes', label: 'Taxes', align: 'right' },
+  { key: 'due', label: 'Amount due', align: 'right' },
+  { key: 'status', label: 'Status' },
+  { key: 'note', label: 'Note', cellClassName: 'max-w-72' },
+  { key: 'previous', label: 'Previous balance', align: 'right', hidden: true },
+  { key: 'credits', label: 'Credits', align: 'right', hidden: true },
+  { key: 'dueDate', label: 'Due date', hidden: true },
+  { key: 'estimated', label: 'Est. reads', menuLabel: 'Estimated reads', align: 'right', hidden: true },
+]
+
+/** One bill's cells, rendered here on the server and arranged by `ColumnTable`. */
+function invoiceCells(inv: Invoice): Record<string, ReactNode> {
+  const customer = customerById.get(inv.customer_id)
+  const invTone = inv.held_at ? 'held' : runTone(inv.status, false)
+  return {
+    rail: <Rail tone={invTone} />,
+    invoice: (
+      <Link href={`/invoices/${inv.id}`} className="ident text-accent-text hover:text-accent-text-hover underline">
+        {inv.invoice_number}
+      </Link>
+    ),
+    account: customer ? customerName(customer) : '—',
+    charges: <Money value={inv.total_charges} />,
+    taxes: <Money value={inv.total_taxes} />,
+    due: <Money value={inv.amount_due} />,
+    status: <StateFlag tone={invTone}>{humanize(inv.status)}</StateFlag>,
+    note: <span className="text-micro text-ink-secondary">{inv.hold_reason ?? ''}</span>,
+    previous: <Money value={inv.previous_balance} />,
+    credits: <Money value={inv.total_credits} />,
+    dueDate: <span className="text-micro text-ink-secondary whitespace-nowrap">{dateShort(inv.due_date)}</span>,
+    estimated: (
+      <span className={`figures ${inv.estimated_read_count > 0 ? 'text-exception-warning-text' : 'text-ink-tertiary'}`}>
+        {inv.estimated_read_count}
+      </span>
+    ),
+  }
+}
 
 export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
   const { runId } = await params
@@ -175,59 +221,12 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
           {runInvoices.length > 0 ? (
             <Panel>
               <PanelHeader title="Bills in this run" meta={`${runInvoices.length} shown`} />
-              <Table caption="Invoices produced by this billing run">
-                <thead>
-                  <HeadRow>
-                    <Th width="3px"> </Th>
-                    <Th>Invoice</Th>
-                    <Th>Account</Th>
-                    <Th align="right">Charges</Th>
-                    <Th align="right">Taxes</Th>
-                    <Th align="right">Amount due</Th>
-                    <Th>Status</Th>
-                    <Th>Note</Th>
-                  </HeadRow>
-                </thead>
-                <tbody>
-                  {runInvoices.map((inv) => {
-                    const customer = customerById.get(inv.customer_id)
-                    const invTone = inv.held_at ? 'held' : runTone(inv.status, false)
-                    return (
-                      <Row key={inv.id}>
-                        <RailCell>
-                          <Rail tone={invTone} />
-                        </RailCell>
-                        <Td>
-                          <Link
-                            href={`/invoices/${inv.id}`}
-                            className="ident text-accent-text hover:text-accent-text-hover underline"
-                          >
-                            {inv.invoice_number}
-                          </Link>
-                        </Td>
-                        <Td>{customer ? customerName(customer) : '—'}</Td>
-                        <Td align="right">
-                          <Money value={inv.total_charges} />
-                        </Td>
-                        <Td align="right">
-                          <Money value={inv.total_taxes} />
-                        </Td>
-                        <Td align="right">
-                          <Money value={inv.amount_due} />
-                        </Td>
-                        <Td>
-                          <StateFlag tone={invTone}>{humanize(inv.status)}</StateFlag>
-                        </Td>
-                        <Td className="max-w-72">
-                          <span className="text-micro text-ink-secondary">
-                            {inv.hold_reason ?? ''}
-                          </span>
-                        </Td>
-                      </Row>
-                    )
-                  })}
-                </tbody>
-              </Table>
+              <ColumnTable
+                listId="run"
+                caption="Invoices produced by this billing run"
+                columns={COLUMNS}
+                rows={runInvoices.map((inv) => ({ key: inv.id, cells: invoiceCells(inv) }))}
+              />
             </Panel>
           ) : null}
         </div>

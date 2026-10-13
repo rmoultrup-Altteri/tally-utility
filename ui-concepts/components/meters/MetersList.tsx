@@ -1,18 +1,23 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { Panel } from '@/components/ui/Panel'
 import { Chip, Group } from '@/components/ui/Chip'
 import { StateFlag, humanize } from '@/components/ui/State'
 import { Table, Row, Td, TableFooter } from '@/components/table/Table'
-import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
+import { sortRows, useSort } from '@/components/table/Sort'
+import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/components/table/Columns'
 import { METER_STATUS, meterStatus, sizeLabel, type MeterStatus } from '@/components/meters/status'
 import { AccountNumber } from '@/components/ui/RecordLink'
 import { count, date } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
 import { useEdits } from '@/lib/edits-store'
+import { useImported } from '@/lib/imports-store'
+import { customers, locations, serviceLinks } from '@/fixtures/accounts'
+import { customerName } from '@/schemas/models'
+import type { ImportedData } from '@/lib/assistant/protocol'
 
 export type MeterRow = {
   id: string
@@ -38,19 +43,145 @@ export type MeterRow = {
   nextTestDueDate: string | null
   estimates: number
   endpointSilent: boolean
+  /** Added in this browser — by hand or through the assistant — so it has no meter page yet. */
+  imported?: boolean
 }
 
-type SortKey = 'meterNumber' | 'status' | 'customerName' | 'make' | 'readType' | 'route' | 'lastReadDate' | 'nextTestDueDate'
+type SortKey =
+  | 'meterNumber'
+  | 'status'
+  | 'customerName'
+  | 'make'
+  | 'readType'
+  | 'route'
+  | 'lastReadDate'
+  | 'nextTestDueDate'
+  | 'manufacturer'
+  | 'model'
+  | 'size'
+  | 'endpointId'
+  | 'customerNumber'
 
-const COLUMNS: SortColumn<SortKey>[] = [
-  { key: 'meterNumber', label: 'Meter', width: '9rem' },
-  { key: 'status', label: 'Status', width: '7rem' },
-  { key: 'customerName', label: 'Account · premise' },
-  { key: 'make', label: 'Make · size' },
-  { key: 'readType', label: 'Read type · endpoint', width: '10rem' },
-  { key: 'route', label: 'Route', width: '7rem' },
-  { key: 'lastReadDate', label: 'Last read', width: '8rem' },
-  { key: 'nextTestDueDate', label: 'Next test due', width: '8.5rem' },
+/** Test dates read against the as-of date, so a cell needs it as well as the row. */
+type MeterColumn = ColumnDef<SortKey> & {
+  cell: (r: MeterRow, asOf: string) => ReactNode
+  className?: (r: MeterRow, asOf: string) => string
+  title?: (r: MeterRow, asOf: string) => string | undefined
+}
+
+const testOverdue = (r: MeterRow, asOf: string) => !!r.nextTestDueDate && r.nextTestDueDate < asOf
+
+/** A size as a number — "3/4_inch" is 0.75 — so sizes order by bore, not by text. */
+const sizeValue = (size: string) => parseFloat(size.replace('3/4', '0.75'))
+
+const dash = <span className="text-ink-muted">—</span>
+
+/**
+ * The shipped eight, then single fields an operator can add from the Columns
+ * menu — the make, model and size split apart, the bare endpoint, the account
+ * number — for sorting or exporting on one of them alone.
+ */
+const COLUMNS: MeterColumn[] = [
+  { key: 'meterNumber', label: 'Meter', width: '9rem', className: () => 'whitespace-nowrap', cell: (r) => <MeterCell r={r} /> },
+  {
+    key: 'status',
+    label: 'Status',
+    width: '7rem',
+    cell: (r) => {
+      const st = meterStatus(r.status)
+      return <StateFlag tone={st.tone}>{st.label}</StateFlag>
+    },
+  },
+  { key: 'customerName', label: 'Account · premise', cell: (r) => <PremiseCell r={r} /> },
+  {
+    key: 'make',
+    label: 'Make · size',
+    cell: (r) => (
+      <>
+        {[r.manufacturer, r.model].filter(Boolean).join(' ') || '—'}
+        <span className="block text-micro text-ink-tertiary">{sizeLabel(r.size)}</span>
+      </>
+    ),
+  },
+  {
+    key: 'readType',
+    label: 'Read type · endpoint',
+    width: '10rem',
+    cell: (r) => (
+      <>
+        {humanize(r.readType)}
+        <span
+          className={`block ident text-micro ${r.endpointSilent ? 'text-exception-critical-text' : 'text-ink-tertiary'}`}
+          title={r.endpointSilent ? 'Endpoint not reporting' : undefined}
+        >
+          {r.endpointId ?? '—'}
+          {r.endpointSilent ? ' · silent' : ''}
+        </span>
+      </>
+    ),
+  },
+  {
+    key: 'route',
+    label: 'Route',
+    width: '7rem',
+    className: () => 'ident whitespace-nowrap',
+    cell: (r) =>
+      r.routeId ? (
+        <>
+          {r.routeId} <span className="text-ink-tertiary">· {r.routeSequence}</span>
+        </>
+      ) : (
+        dash
+      ),
+  },
+  {
+    key: 'lastReadDate',
+    label: 'Last read',
+    width: '8rem',
+    className: () => 'tabular-nums whitespace-nowrap',
+    cell: (r) => (
+      <>
+        {r.lastReadDate ? date(r.lastReadDate) : dash}
+        {r.estimates > 0 ? (
+          <span className={`block text-micro ${r.estimates >= 3 ? 'text-exception-critical-text font-medium' : 'text-ink-tertiary'}`}>
+            {r.estimates} estimate{r.estimates === 1 ? '' : 's'} in a row
+          </span>
+        ) : null}
+      </>
+    ),
+  },
+  {
+    key: 'nextTestDueDate',
+    label: 'Next test due',
+    width: '8.5rem',
+    className: (r, asOf) => `tabular-nums whitespace-nowrap ${testOverdue(r, asOf) ? 'text-exception-critical-text font-medium' : ''}`,
+    title: (r, asOf) => (testOverdue(r, asOf) ? 'Periodic test overdue' : undefined),
+    cell: (r, asOf) => (
+      <>
+        {r.nextTestDueDate ? date(r.nextTestDueDate) : dash}
+        {testOverdue(r, asOf) ? <span className="block text-micro font-normal">Overdue</span> : null}
+      </>
+    ),
+  },
+  { key: 'manufacturer', label: 'Manufacturer', hidden: true, cell: (r) => r.manufacturer ?? dash },
+  { key: 'model', label: 'Model', hidden: true, cell: (r) => r.model ?? dash },
+  { key: 'size', label: 'Size', width: '5rem', hidden: true, className: () => 'whitespace-nowrap', cell: (r) => (r.size ? sizeLabel(r.size) : dash) },
+  {
+    key: 'endpointId',
+    label: 'AMR ID',
+    width: '9rem',
+    hidden: true,
+    className: () => 'ident',
+    title: (r) => (r.endpointId ? undefined : 'Manually read — no radio endpoint'),
+    cell: (r) => r.endpointId ?? dash,
+  },
+  {
+    key: 'customerNumber',
+    label: 'Account number',
+    width: '9rem',
+    hidden: true,
+    cell: (r) => (r.customerNumber && r.customerId ? <AccountNumber number={r.customerNumber} id={r.customerId} /> : dash),
+  },
 ]
 
 const READ_TYPES = ['amr', 'ami', 'manual'] as const
@@ -92,9 +223,13 @@ function flagsFor(asOf: string): { key: Flag; label: string; test: (r: MeterRow)
 export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf: string }) {
   /* A meter inactivated in this browser lists under its new status. */
   const edits = useEdits().meters
+  const imported = useImported()
   const rows = useMemo(
-    () => fixtureRows.map((r) => (edits[r.id]?.status ? { ...r, status: edits[r.id].status! } : r)),
-    [fixtureRows, edits],
+    () => [
+      ...fixtureRows.map((r) => (edits[r.id]?.status ? { ...r, status: edits[r.id].status! } : r)),
+      ...importedRows(imported),
+    ],
+    [fixtureRows, edits, imported],
   )
 
   const [query, setQuery] = useState('')
@@ -109,7 +244,7 @@ export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf
 
   const routes = [...new Set(rows.map((r) => r.routeId).filter((x): x is string => !!x))].sort()
   const sizes = [...new Set(rows.map((r) => r.size).filter((x): x is string => !!x))].sort(
-    (a, b) => parseFloat(a.replace('3/4', '0.75')) - parseFloat(b.replace('3/4', '0.75')),
+    (a, b) => sizeValue(a) - sizeValue(b),
   )
 
   const searching = query.trim() !== ''
@@ -144,6 +279,8 @@ export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf
           return [r.manufacturer, r.model].filter(Boolean).join(' ') || null
         case 'route':
           return r.routeId ? `${r.routeId}-${String(r.routeSequence ?? 0).padStart(4, '0')}` : null
+        case 'size':
+          return r.size ? sizeValue(r.size) : null
         default:
           return r[key]
       }
@@ -159,6 +296,7 @@ export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf
     setFlags([])
     setQuery('')
   }
+  const cols = useColumns('meters', COLUMNS)
   const flip = <T,>(set: (f: (xs: T[]) => T[]) => void, v: T) =>
     set((xs) => (xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]))
   const selectClass =
@@ -244,96 +382,27 @@ export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf
             {searching && pick === 'active' ? 'Searching every status · ' : ''}
             {count(shown.length)} of {count(rows.length)} meters
           </p>
+          <ColumnsMenu cols={cols} />
         </div>
       </div>
 
       <Table caption="Meters">
         <thead>
-          <SortHeader columns={COLUMNS} sort={sort} onSort={toggle} />
+          <ColumnHead cols={cols} sort={sort} onSort={toggle} />
         </thead>
         <tbody>
-          {shown.map((r) => {
-            const st = meterStatus(r.status)
-            const overdue = !!r.nextTestDueDate && r.nextTestDueDate < asOf
-            return (
-              <Row key={r.id} muted={r.status === 'removed'}>
-                <Td className="whitespace-nowrap">
-                  <Link href={`/meters/${r.id}` as Route} className="group block">
-                    <span className="block ident font-medium text-accent-text group-hover:text-accent-text-hover group-hover:underline">
-                      {r.meterNumber}
-                    </span>
-                    <span className="block ident text-micro text-ink-tertiary">{r.serialNumber ?? '—'}</span>
-                  </Link>
+          {shown.map((r) => (
+            <Row key={r.id} muted={r.status === 'removed'}>
+              {cols.visible.map((c) => (
+                <Td key={c.key} align={c.align} className={c.className?.(r, asOf)} title={c.title?.(r, asOf)}>
+                  {c.cell(r, asOf)}
                 </Td>
-                <Td>
-                  <StateFlag tone={st.tone}>{st.label}</StateFlag>
-                </Td>
-                <Td>
-                  {r.customerId ? (
-                    <>
-                      <Link href={`/customers/${r.customerId}` as Route} className="text-ink-primary hover:underline">
-                        {r.customerName}
-                      </Link>
-                      {r.customerNumber ? (
-                        <span className="ml-2 text-micro">
-                          <AccountNumber number={r.customerNumber} id={r.customerId} />
-                        </span>
-                      ) : null}
-                      <span className="block text-micro text-ink-tertiary">
-                        {r.streetAddress}
-                        {r.cityLine ? ` · ${r.cityLine}` : ''}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-ink-tertiary">{r.warehouseLocation ?? 'No premise'}</span>
-                  )}
-                </Td>
-                <Td>
-                  {[r.manufacturer, r.model].filter(Boolean).join(' ') || '—'}
-                  <span className="block text-micro text-ink-tertiary">{sizeLabel(r.size)}</span>
-                </Td>
-                <Td>
-                  {humanize(r.readType)}
-                  <span
-                    className={`block ident text-micro ${r.endpointSilent ? 'text-exception-critical-text' : 'text-ink-tertiary'}`}
-                    title={r.endpointSilent ? 'Endpoint not reporting' : undefined}
-                  >
-                    {r.endpointId ?? '—'}
-                    {r.endpointSilent ? ' · silent' : ''}
-                  </span>
-                </Td>
-                <Td className="ident whitespace-nowrap">
-                  {r.routeId ? (
-                    <>
-                      {r.routeId} <span className="text-ink-tertiary">· {r.routeSequence}</span>
-                    </>
-                  ) : (
-                    <span className="text-ink-muted">—</span>
-                  )}
-                </Td>
-                <Td className="tabular-nums whitespace-nowrap">
-                  {r.lastReadDate ? date(r.lastReadDate) : <span className="text-ink-muted">—</span>}
-                  {r.estimates > 0 ? (
-                    <span
-                      className={`block text-micro ${r.estimates >= 3 ? 'text-exception-critical-text font-medium' : 'text-ink-tertiary'}`}
-                    >
-                      {r.estimates} estimate{r.estimates === 1 ? '' : 's'} in a row
-                    </span>
-                  ) : null}
-                </Td>
-                <Td
-                  className={`tabular-nums whitespace-nowrap ${overdue ? 'text-exception-critical-text font-medium' : ''}`}
-                  title={overdue ? 'Periodic test overdue' : undefined}
-                >
-                  {r.nextTestDueDate ? date(r.nextTestDueDate) : <span className="text-ink-muted">—</span>}
-                  {overdue ? <span className="block text-micro font-normal">Overdue</span> : null}
-                </Td>
-              </Row>
-            )
-          })}
+              ))}
+            </Row>
+          ))}
           {shown.length === 0 ? (
             <Row>
-              <Td colSpan={COLUMNS.length} className="py-6 text-center text-ink-tertiary">
+              <Td colSpan={cols.visible.length} className="py-6 text-center text-ink-tertiary">
                 No meters match these filters.
               </Td>
             </Row>
@@ -344,4 +413,95 @@ export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf
       {shown.length > 0 ? <TableFooter shown={shown.length} total={shown.length} noun="meters" /> : null}
     </Panel>
   )
+}
+
+/** The meter number over its serial; a meter added in this browser has no page to link to yet. */
+function MeterCell({ r }: { r: MeterRow }) {
+  if (r.imported)
+    return (
+      <>
+        <span className="block ident font-medium text-ink-primary">{r.meterNumber}</span>
+        <span className="block text-micro text-ink-tertiary">
+          <span className="ident">{r.serialNumber ?? '—'}</span>
+          <span className="text-exception-info-text" title="Added in this browser and kept here until the API exists">
+            {' '}· new
+          </span>
+        </span>
+      </>
+    )
+  return (
+    <Link href={`/meters/${r.id}` as Route} className="group block">
+      <span className="block ident font-medium text-accent-text group-hover:text-accent-text-hover group-hover:underline">
+        {r.meterNumber}
+      </span>
+      <span className="block ident text-micro text-ink-tertiary">{r.serialNumber ?? '—'}</span>
+    </Link>
+  )
+}
+
+/** Who the meter serves and where, or where an unset meter is kept. */
+function PremiseCell({ r }: { r: MeterRow }) {
+  if (!r.customerId) return <span className="text-ink-tertiary">{r.warehouseLocation ?? 'No premise'}</span>
+  return (
+    <>
+      <Link href={`/customers/${r.customerId}` as Route} className="text-ink-primary hover:underline">
+        {r.customerName}
+      </Link>
+      {r.customerNumber ? (
+        <span className="ml-2 text-micro">
+          <AccountNumber number={r.customerNumber} id={r.customerId} />
+        </span>
+      ) : null}
+      <span className="block text-micro text-ink-tertiary">
+        {r.streetAddress}
+        {r.cityLine ? ` · ${r.cityLine}` : ''}
+      </span>
+    </>
+  )
+}
+
+/** The page header's meter count, including meters added in this browser. */
+export function MeterCount({ base, set }: { base: number; set: number }) {
+  const extra = importedRows(useImported())
+  const total = base + extra.length
+  const atPremise = set + extra.filter((r) => r.streetAddress).length
+  return <>{total.toLocaleString('en-US')} meters · {atPremise.toLocaleString('en-US')} set at a premise</>
+}
+
+/** Meters added in this browser, shaped like the fixture rows the page builds on the server. */
+function importedRows(data: ImportedData): MeterRow[] {
+  const allLinks = [...serviceLinks, ...data.links]
+  const allLocations = [...locations, ...data.locations]
+  const allCustomers = [...customers, ...data.customers]
+  return data.meters.map((m) => {
+    const link = allLinks.find((l) => l.meterId === m.id)
+    const location = link ? allLocations.find((l) => l.id === link.locationId) : undefined
+    /* A meter set at an occupied premise links to the premise, not the customer: find who lives there. */
+    const customerId = link?.customerId ?? (location ? allLinks.find((l) => l.locationId === location.id && l.customerId)?.customerId : null) ?? null
+    const customer = customerId ? allCustomers.find((c) => c.id === customerId) : undefined
+    return {
+      id: m.id,
+      meterNumber: m.meter_number,
+      serialNumber: m.serial_number,
+      manufacturer: m.manufacturer,
+      model: m.model,
+      size: m.size,
+      readType: m.read_type,
+      endpointId: m.ami_endpoint_id,
+      routeId: m.route_id,
+      routeSequence: m.route_sequence,
+      status: m.status,
+      customerId: customer?.id ?? null,
+      customerName: customer ? customerName(customer) : null,
+      customerNumber: customer?.customer_number ?? null,
+      streetAddress: location?.address ?? null,
+      cityLine: location ? `${location.city}, ${location.state} ${location.zip}` : null,
+      warehouseLocation: location ? null : 'In stock',
+      lastReadDate: null,
+      nextTestDueDate: null,
+      estimates: m.consecutive_estimate_count,
+      endpointSilent: false,
+      imported: true,
+    }
+  })
 }

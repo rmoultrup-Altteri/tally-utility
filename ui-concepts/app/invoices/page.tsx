@@ -42,12 +42,17 @@ export default function InvoicesPage() {
       invoiceNumber: inv.invoice_number,
       invoiceDate: inv.invoice_date,
       status: billStatus(inv),
+      customerId: customer?.id ?? null,
       customerName: customer ? customerName(customer) : '—',
+      customerNumber: customer?.customer_number ?? null,
       streetAddress: location?.address ?? null,
       cityLine: location ? `${location.city}, ${location.state} ${location.zip}` : null,
       amountDue: inv.amount_due,
       amountPaid: inv.amount_paid,
+      balance: inv.balance,
       dueDate: inv.due_date,
+      periodStart: inv.period_start,
+      periodEnd: inv.period_end,
       /* Same count the bill's own lines carry in days_in_period. */
       daysBilled: daysBetween(inv.period_start, inv.period_end),
     }

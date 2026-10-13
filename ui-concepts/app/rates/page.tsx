@@ -3,7 +3,7 @@ import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { StateBlock, StateFlag, humanize } from '@/components/ui/State'
-import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
+import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { Rail } from '@/components/ui/State'
 import { RateItemsEditor } from '@/components/rates/RateItemsEditor'
 import { g1Items, pgaVersions, priorVersions, r1Items, rateSchedules, versionAsOf } from '@/fixtures/rates'
@@ -58,6 +58,27 @@ function catalog(): CatalogItem[] {
     }
   })
 }
+
+/**
+ * The PGA's version history. The rail stays pinned; the last three are off
+ * until an operator adds them — the ids an auditor quotes, and when each
+ * record stopped being what the system believed.
+ */
+const VERSION_COLUMNS: ColumnDef[] = [
+  { key: 'rail', label: '', menuLabel: 'Status rail', width: '3px', fixed: true, rail: true },
+  { key: 'validFrom', label: 'Valid from' },
+  { key: 'validTo', label: 'Valid to' },
+  { key: 'rate', label: 'Rate', align: 'right' },
+  { key: 'change', label: 'Change', align: 'right' },
+  { key: 'recorded', label: 'Recorded' },
+  { key: 'type', label: 'Type' },
+  { key: 'reason', label: 'Reason', cellClassName: 'max-w-72' },
+  { key: 'citation', label: 'Citation' },
+  { key: 'by', label: 'By' },
+  { key: 'id', label: 'Version ID', hidden: true },
+  { key: 'supersedes', label: 'Supersedes', hidden: true },
+  { key: 'recordedUntil', label: 'Recorded until', hidden: true },
+]
 
 /** Every rate a non-void bill carried, by item and the month its service period ends. */
 function billedRates(): BilledRates {
@@ -144,77 +165,52 @@ export default function RatesPage() {
               title="Version history"
               meta="Nothing is edited in place; nothing is deleted"
             />
-            <Table caption="Every recorded version of the purchased gas adjustment">
-              <thead>
-                <HeadRow>
-                  <Th width="3px"> </Th>
-                  <Th>Valid from</Th>
-                  <Th>Valid to</Th>
-                  <Th align="right">Rate</Th>
-                  <Th align="right">Change</Th>
-                  <Th>Recorded</Th>
-                  <Th>Type</Th>
-                  <Th>Reason</Th>
-                  <Th>Citation</Th>
-                  <Th>By</Th>
-                </HeadRow>
-              </thead>
-              <tbody>
-                {[...pgaVersions].reverse().map((v, i, arr) => {
-                  const prior = arr[i + 1]
-                  const future = v.effective_from > asOf.validAt
-                  const standingNow = v.id === standing?.id
-                  const late = v.change_type === 'backfill'
-                  return (
-                    <Row key={v.id} selected={standingNow} muted={future}>
-                      <RailCell>
-                        <Rail tone={late ? 'warning' : standingNow ? 'approved' : future ? 'draft' : 'superseded'} />
-                      </RailCell>
-                      <Td>{date(v.effective_from)}</Td>
-                      <Td>
-                        {v.effective_to ? (
-                          date(v.effective_to)
-                        ) : (
-                          <span className="text-ink-tertiary">open</span>
-                        )}
-                      </Td>
-                      <Td align="right">
-                        <span className="figures text-ink-primary">{fmtRate(v.rate)}</span>
-                      </Td>
-                      <Td align="right">
-                        {prior ? (
-                          <Delta from={prior.rate} to={v.rate} />
-                        ) : (
-                          <span className="text-ink-tertiary">—</span>
-                        )}
-                      </Td>
-                      <Td>
-                        <span
-                          className={`text-micro ${late ? 'text-exception-warning-text' : 'text-ink-secondary'}`}
-                          title={late ? 'Recorded after the period it applies to' : undefined}
-                        >
-                          {stamp(v.recorded_from)}
-                        </span>
-                      </Td>
-                      <Td>
-                        <StateFlag tone={late ? 'warning' : 'cleared'}>
-                          {humanize(v.change_type)}
-                        </StateFlag>
-                      </Td>
-                      <Td className="max-w-72">
-                        <span className="text-micro text-ink-secondary">{v.change_reason}</span>
-                      </Td>
-                      <Td>
-                        <span className="ident text-ink-secondary">{v.regulatory_reference}</span>
-                      </Td>
-                      <Td>
-                        <span className="text-micro text-ink-tertiary">{v.changed_by}</span>
-                      </Td>
-                    </Row>
-                  )
-                })}
-              </tbody>
-            </Table>
+            <ColumnTable
+              listId="rates"
+              caption="Every recorded version of the purchased gas adjustment"
+              columns={VERSION_COLUMNS}
+              rows={[...pgaVersions].reverse().map((v, i, arr) => {
+                const prior = arr[i + 1]
+                const future = v.effective_from > asOf.validAt
+                const standingNow = v.id === standing?.id
+                const late = v.change_type === 'backfill'
+                return {
+                  key: v.id,
+                  selected: standingNow,
+                  muted: future,
+                  cells: {
+                    rail: <Rail tone={late ? 'warning' : standingNow ? 'approved' : future ? 'draft' : 'superseded'} />,
+                    validFrom: date(v.effective_from),
+                    validTo: v.effective_to ? date(v.effective_to) : <span className="text-ink-tertiary">open</span>,
+                    rate: <span className="figures text-ink-primary">{fmtRate(v.rate)}</span>,
+                    change: prior ? <Delta from={prior.rate} to={v.rate} /> : <span className="text-ink-tertiary">—</span>,
+                    recorded: (
+                      <span
+                        className={`text-micro ${late ? 'text-exception-warning-text' : 'text-ink-secondary'}`}
+                        title={late ? 'Recorded after the period it applies to' : undefined}
+                      >
+                        {stamp(v.recorded_from)}
+                      </span>
+                    ),
+                    type: <StateFlag tone={late ? 'warning' : 'cleared'}>{humanize(v.change_type)}</StateFlag>,
+                    reason: <span className="text-micro text-ink-secondary">{v.change_reason}</span>,
+                    citation: <span className="ident text-ink-secondary">{v.regulatory_reference}</span>,
+                    by: <span className="text-micro text-ink-tertiary">{v.changed_by}</span>,
+                    id: <span className="ident text-micro text-ink-tertiary">{v.id}</span>,
+                    supersedes: v.supersedes_id ? (
+                      <span className="ident text-micro text-ink-secondary">{v.supersedes_id}</span>
+                    ) : (
+                      <span className="text-ink-tertiary">—</span>
+                    ),
+                    recordedUntil: v.recorded_until ? (
+                      <span className="text-micro text-ink-secondary">{stamp(v.recorded_until)}</span>
+                    ) : (
+                      <span className="text-micro text-ink-tertiary">still current</span>
+                    ),
+                  },
+                }
+              })}
+            />
           </Panel>
 
           <Panel>

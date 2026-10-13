@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import {
@@ -15,7 +15,8 @@ import { contentWith, useTemplateVersions, type TemplateVersion } from '@/lib/te
 import { Panel, PanelHeader } from '@/components/ui/Panel'
 import { StateFlag } from '@/components/ui/State'
 import { Chip, Group } from '@/components/ui/Chip'
-import { Table, HeadRow, Th, Row, Td } from '@/components/table/Table'
+import { Table, Row, Td } from '@/components/table/Table'
+import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/components/table/Columns'
 import { askAssistant } from '@/lib/assistant/bus'
 import { stamp } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
@@ -27,6 +28,140 @@ import { matchesSearch } from '@/lib/search'
  */
 
 const CHANNELS: Channel[] = ['email', 'sms', 'letter']
+
+const KIND_LABEL: Record<Template['kind'], string> = {
+  transactional: 'Transactional',
+  regulatory: 'Regulatory',
+  courtesy: 'Courtesy',
+}
+
+/** What a row's cells need beyond the template: its saved content and last edit in this browser. */
+type RowState = { content: ReturnType<typeof contentWith>; edit: TemplateVersion | undefined }
+
+type TemplateColumn = ColumnDef & { cell: (t: Template, s: RowState) => ReactNode }
+
+/**
+ * The shipped five, then three an operator can add: what kind of message it
+ * is, the rules whose wording it carries, and the id the assistant and the
+ * runs refer to it by.
+ */
+const COLUMNS: TemplateColumn[] = [
+  {
+    key: 'template',
+    label: 'Template',
+    width: '34%',
+    cell: (t) => (
+      <>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/communications/${t.id}` as Route}
+            className="text-data font-medium text-accent-text hover:text-accent-text-hover underline"
+          >
+            {t.name}
+          </Link>
+          {t.kind === 'regulatory' ? (
+            <StateFlag tone="info" title="Carries wording a rule prescribes">
+              Required text
+            </StateFlag>
+          ) : null}
+        </div>
+        <p className="text-micro text-ink-secondary mt-0.5">{t.purpose}</p>
+      </>
+    ),
+  },
+  {
+    key: 'trigger',
+    label: 'Sent when',
+    width: '22%',
+    cell: (t) => (
+      <>
+        <p className="text-micro text-ink-secondary">{t.trigger}</p>
+        {t.usedBy ? (
+          <Link href={t.usedBy.href as Route} className="text-micro text-accent-text hover:text-accent-text-hover underline">
+            {t.usedBy.label}
+          </Link>
+        ) : null}
+      </>
+    ),
+  },
+  {
+    key: 'channels',
+    label: 'Channels',
+    width: '16%',
+    cell: (t) => (
+      <div className="flex flex-wrap gap-1">
+        {t.channels.map((ch) => (
+          <span
+            key={ch}
+            className="inline-flex h-5 items-center rounded-full border border-rule-solid bg-surface px-2 text-micro text-ink-secondary"
+          >
+            {CHANNEL_LABEL[ch]}
+          </span>
+        ))}
+      </div>
+    ),
+  },
+  {
+    key: 'languages',
+    label: 'Languages',
+    width: '9%',
+    cell: (t, { content }) => (
+      <>
+        <span className="ident text-ink-primary">EN</span>{' '}
+        {t.channels.every((ch) => content[ch]?.es?.body) ? (
+          <span className="ident text-ink-primary">ES</span>
+        ) : t.channels.some((ch) => content[ch]?.es?.body) ? (
+          <span className="ident text-exception-warning-text" title="Spanish on some channels only">
+            ES·
+          </span>
+        ) : (
+          <span className="ident struck" title="No Spanish version yet">
+            ES
+          </span>
+        )}
+      </>
+    ),
+  },
+  {
+    key: 'changed',
+    label: 'Last changed',
+    width: '19%',
+    cell: (t, { edit }) =>
+      edit ? (
+        <>
+          <p className="text-micro text-ink-primary">
+            {edit.by}
+            {edit.source === 'assistant' ? ' · with the assistant' : ''}
+          </p>
+          <p className="text-micro text-ink-tertiary">{stamp(edit.at)}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-micro text-ink-secondary">{t.updatedBy}</p>
+          <p className="text-micro text-ink-tertiary">{stamp(t.updatedAt)}</p>
+        </>
+      ),
+  },
+  { key: 'kind', label: 'Kind', width: '8rem', hidden: true, cell: (t) => <span className="text-micro text-ink-secondary">{KIND_LABEL[t.kind]}</span> },
+  {
+    key: 'required',
+    label: 'Required wording',
+    hidden: true,
+    cell: (t) =>
+      t.required?.length ? (
+        <ul className="space-y-0.5">
+          {t.required.map((r) => (
+            <li key={r.key} className="text-micro text-ink-secondary">
+              {r.label} <span className="ident text-ink-tertiary">· {r.citation}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <span className="text-micro text-ink-muted">—</span>
+      ),
+  },
+  { key: 'id', label: 'Template ID', width: '11rem', hidden: true, cell: (t) => <span className="ident text-micro text-ink-tertiary">{t.id}</span> },
+]
 
 function hasSpanish(t: Template, versions: TemplateVersion[]) {
   const c = contentWith(t, versions)
@@ -45,6 +180,8 @@ export function TemplateLibrary() {
     for (const v of versions) m.set(v.templateId, v)
     return m
   }, [versions])
+  /* One layout for every category's table, so the groups line up column for column. */
+  const cols = useColumns('templates', COLUMNS)
 
   const rows = templates.filter(
     (t) =>
@@ -104,19 +241,22 @@ export function TemplateLibrary() {
           <Chip on={noSpanish} onClick={() => setNoSpanish(!noSpanish)}>
             Missing Spanish
           </Chip>
-          {noSpanish && rows.length > 0 ? (
-            <button
-              type="button"
-              onClick={() =>
-                askAssistant(
-                  `Write the missing Spanish version of the "${rows[0].name}" template (${rows[0].id}) for every channel it uses, keeping every merge field and required text exactly. Stage each one for me to review.`,
-                )
-              }
-              className="ml-auto text-micro text-accent-text hover:text-accent-text-hover underline"
-            >
-              Ask the assistant to write Spanish for “{rows[0].name}”
-            </button>
-          ) : null}
+          <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2">
+            {noSpanish && rows.length > 0 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  askAssistant(
+                    `Write the missing Spanish version of the "${rows[0].name}" template (${rows[0].id}) for every channel it uses, keeping every merge field and required text exactly. Stage each one for me to review.`,
+                  )
+                }
+                className="text-micro text-accent-text hover:text-accent-text-hover underline"
+              >
+                Ask the assistant to write Spanish for “{rows[0].name}”
+              </button>
+            ) : null}
+            <ColumnsMenu cols={cols} size="md" />
+          </div>
         </div>
 
         {CATEGORIES.filter((c) => rows.some((t) => t.category === c)).map((c) => {
@@ -126,89 +266,18 @@ export function TemplateLibrary() {
               <PanelHeader title={c} meta={`${group.length} template${group.length === 1 ? '' : 's'}`} />
               <Table caption={`${c} templates`}>
                 <thead>
-                  <HeadRow>
-                    <Th width="34%">Template</Th>
-                    <Th width="22%">Sent when</Th>
-                    <Th width="16%">Channels</Th>
-                    <Th width="9%">Languages</Th>
-                    <Th width="19%">Last changed</Th>
-                  </HeadRow>
+                  <ColumnHead cols={cols} />
                 </thead>
                 <tbody>
                   {group.map((t) => {
-                    const edit = lastEdit.get(t.id)
-                    const content = contentWith(t, versions)
+                    const state: RowState = { content: contentWith(t, versions), edit: lastEdit.get(t.id) }
                     return (
                       <Row key={t.id}>
-                        <Td>
-                          <div className="flex items-center gap-2">
-                            <Link
-                              href={`/communications/${t.id}` as Route}
-                              className="text-data font-medium text-accent-text hover:text-accent-text-hover underline"
-                            >
-                              {t.name}
-                            </Link>
-                            {t.kind === 'regulatory' ? (
-                              <StateFlag tone="info" title="Carries wording a rule prescribes">
-                                Required text
-                              </StateFlag>
-                            ) : null}
-                          </div>
-                          <p className="text-micro text-ink-secondary mt-0.5">{t.purpose}</p>
-                        </Td>
-                        <Td>
-                          <p className="text-micro text-ink-secondary">{t.trigger}</p>
-                          {t.usedBy ? (
-                            <Link
-                              href={t.usedBy.href as Route}
-                              className="text-micro text-accent-text hover:text-accent-text-hover underline"
-                            >
-                              {t.usedBy.label}
-                            </Link>
-                          ) : null}
-                        </Td>
-                        <Td>
-                          <div className="flex flex-wrap gap-1">
-                            {t.channels.map((ch) => (
-                              <span
-                                key={ch}
-                                className="inline-flex h-5 items-center rounded-full border border-rule-solid bg-surface px-2 text-micro text-ink-secondary"
-                              >
-                                {CHANNEL_LABEL[ch]}
-                              </span>
-                            ))}
-                          </div>
-                        </Td>
-                        <Td>
-                          <span className="ident text-ink-primary">EN</span>{' '}
-                          {t.channels.every((ch) => content[ch]?.es?.body) ? (
-                            <span className="ident text-ink-primary">ES</span>
-                          ) : t.channels.some((ch) => content[ch]?.es?.body) ? (
-                            <span className="ident text-exception-warning-text" title="Spanish on some channels only">
-                              ES·
-                            </span>
-                          ) : (
-                            <span className="ident struck" title="No Spanish version yet">
-                              ES
-                            </span>
-                          )}
-                        </Td>
-                        <Td>
-                          {edit ? (
-                            <>
-                              <p className="text-micro text-ink-primary">
-                                {edit.by}
-                                {edit.source === 'assistant' ? ' · with the assistant' : ''}
-                              </p>
-                              <p className="text-micro text-ink-tertiary">{stamp(edit.at)}</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-micro text-ink-secondary">{t.updatedBy}</p>
-                              <p className="text-micro text-ink-tertiary">{stamp(t.updatedAt)}</p>
-                            </>
-                          )}
-                        </Td>
+                        {cols.visible.map((col) => (
+                          <Td key={col.key} align={col.align}>
+                            {col.cell(t, state)}
+                          </Td>
+                        ))}
                       </Row>
                     )
                   })}

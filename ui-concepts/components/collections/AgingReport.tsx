@@ -1,12 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { Panel, PanelHeader } from '@/components/ui/Panel'
 import { Money } from '@/components/ui/Money'
+import { AccountNumber } from '@/components/ui/RecordLink'
 import { Table, Row, Td, TableFooter } from '@/components/table/Table'
-import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
+import { sortRows, useSort } from '@/components/table/Sort'
+import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/components/table/Columns'
 import { count, date, money } from '@/lib/format'
 
 export type CustomerClass = 'Residential' | 'Commercial' | 'Government'
@@ -16,6 +18,8 @@ export type OpenBill = {
   id: string
   invoiceNumber: string
   customerId: string
+  /** `customers.customer_number`, or null where the bill's customer is not modelled. */
+  customerNumber: string | null
   customerName: string
   customerClass: CustomerClass
   streetAddress: string | null
@@ -23,6 +27,10 @@ export type OpenBill = {
   dueDate: string
   /** Days past the due date at the as-of coordinate. Zero or negative is not yet due. */
   daysPastDue: number
+  /** `invoices.amount_due` — what the bill asked for, before anything was paid on it. */
+  amountDue: string
+  /** `invoices.amount_paid`. */
+  amountPaid: string
   balance: string
 }
 
@@ -47,15 +55,73 @@ const inCell = (b: OpenBill, c: Cell) =>
 
 const sumCents = (bills: OpenBill[]) => bills.reduce((a, b) => a + Math.round(Number(b.balance) * 100), 0)
 
-type SortKey = 'invoiceNumber' | 'customerName' | 'streetAddress' | 'invoiceDate' | 'dueDate' | 'daysPastDue' | 'balance'
-const COLUMNS: SortColumn<SortKey>[] = [
-  { key: 'invoiceNumber', label: 'Bill', width: '12rem' },
-  { key: 'customerName', label: 'Customer' },
-  { key: 'streetAddress', label: 'Street address' },
-  { key: 'invoiceDate', label: 'Bill date', width: '8rem' },
-  { key: 'dueDate', label: 'Due date', width: '8rem' },
-  { key: 'daysPastDue', label: 'Days past due', align: 'right', width: '8rem' },
-  { key: 'balance', label: 'Balance', align: 'right', width: '8rem' },
+type SortKey =
+  | 'invoiceNumber'
+  | 'customerName'
+  | 'streetAddress'
+  | 'invoiceDate'
+  | 'dueDate'
+  | 'daysPastDue'
+  | 'balance'
+  | 'customerNumber'
+  | 'customerClass'
+  | 'amountDue'
+  | 'amountPaid'
+
+/** Money sorts as a number, not as "$1,052" text. */
+const MONEY_KEYS = new Set<SortKey>(['balance', 'amountDue', 'amountPaid'])
+
+type BillColumn = ColumnDef<SortKey> & {
+  cell: (b: OpenBill) => ReactNode
+  className?: string | ((b: OpenBill) => string)
+}
+
+/** The shipped seven, then the ones an operator can add from the Columns menu. */
+const COLUMNS: BillColumn[] = [
+  {
+    key: 'invoiceNumber',
+    label: 'Bill',
+    width: '12rem',
+    cell: (b) => (
+      <Link href={`/invoices/${b.id}` as Route} className="ident text-accent-text hover:text-accent-text-hover hover:underline">
+        {b.invoiceNumber}
+      </Link>
+    ),
+  },
+  {
+    key: 'customerName',
+    label: 'Customer',
+    cell: (b) => (
+      <>
+        <Link href={`/customers/${b.customerId}` as Route} className="text-ink-primary hover:text-accent-text hover:underline">
+          {b.customerName}
+        </Link>
+        <span className="block text-micro text-ink-tertiary">{b.customerClass}</span>
+      </>
+    ),
+  },
+  { key: 'streetAddress', label: 'Street address', cell: (b) => b.streetAddress ?? '—' },
+  { key: 'invoiceDate', label: 'Bill date', width: '8rem', className: 'tabular-nums whitespace-nowrap', cell: (b) => date(b.invoiceDate) },
+  { key: 'dueDate', label: 'Due date', width: '8rem', className: 'tabular-nums whitespace-nowrap', cell: (b) => date(b.dueDate) },
+  {
+    key: 'daysPastDue',
+    label: 'Days past due',
+    align: 'right',
+    width: '8rem',
+    className: (b) => `figures ${b.daysPastDue > 60 ? 'text-exception-critical-text' : ''}`,
+    cell: (b) => (b.daysPastDue > 0 ? b.daysPastDue : 'Not due'),
+  },
+  { key: 'balance', label: 'Balance', align: 'right', width: '8rem', cell: (b) => <Money value={b.balance} arrears={b.daysPastDue > 60} /> },
+  {
+    key: 'customerNumber',
+    label: 'Account number',
+    width: '9rem',
+    hidden: true,
+    cell: (b) => (b.customerNumber ? <AccountNumber number={b.customerNumber} id={b.customerId} /> : '—'),
+  },
+  { key: 'customerClass', label: 'Class', width: '8rem', hidden: true, cell: (b) => b.customerClass },
+  { key: 'amountDue', label: 'Amount due', align: 'right', width: '8rem', hidden: true, cell: (b) => <Money value={b.amountDue} /> },
+  { key: 'amountPaid', label: 'Paid', align: 'right', width: '8rem', hidden: true, cell: (b) => <Money value={b.amountPaid} /> },
 ]
 
 /**
@@ -73,11 +139,12 @@ export function AgingReport({ bills, asOf }: { bills: OpenBill[]; asOf: string }
         ? sortRows(
             bills.filter((b) => inCell(b, cell)),
             sort,
-            (b, key) => (key === 'balance' ? Number(b.balance) : b[key]),
+            (b, key) => (MONEY_KEYS.has(key) ? Number(b[key]) : b[key]),
           )
         : [],
     [bills, cell, sort],
   )
+  const cols = useColumns('aging-open-bills', COLUMNS)
 
   const total = sumCents(bills)
   const same = (c: Cell) => cell !== null && cell.bucket === c.bucket && cell.cls === c.cls
@@ -188,54 +255,41 @@ export function AgingReport({ bills, asOf }: { bills: OpenBill[]; asOf: string }
 
       {cell ? (
         <div className="border-t border-rule-solid">
-          <div className="flex items-baseline justify-between gap-4 bg-surface px-cell-x py-2">
+          {/* Wraps, so Columns and Close stay reachable on a narrow window. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-surface px-cell-x py-2">
             <p className="text-data text-ink-primary">
               <span className="font-medium">{label(cell)}</span>
               <span className="ml-2 text-micro text-ink-tertiary">
                 {count(selected.length)} bills · <Money value={(sumCents(selected) / 100).toFixed(2)} />
               </span>
             </p>
-            <button
-              type="button"
-              onClick={() => setCell(null)}
-              className="text-micro text-ink-secondary underline hover:text-ink-primary"
-            >
-              Close
-            </button>
+            <div className="ml-auto flex items-center gap-3">
+              <ColumnsMenu cols={cols} />
+              <button
+                type="button"
+                onClick={() => setCell(null)}
+                className="text-micro text-ink-secondary underline hover:text-ink-primary"
+              >
+                Close
+              </button>
+            </div>
           </div>
           <Table caption={`Open bills — ${label(cell)}`}>
             <thead>
-              <SortHeader columns={COLUMNS} sort={sort} onSort={toggle} />
+              <ColumnHead cols={cols} sort={sort} onSort={toggle} />
             </thead>
             <tbody>
               {selected.map((b) => (
                 <Row key={b.id}>
-                  <Td>
-                    <Link
-                      href={`/invoices/${b.id}` as Route}
-                      className="ident text-accent-text hover:text-accent-text-hover hover:underline"
+                  {cols.visible.map((c) => (
+                    <Td
+                      key={c.key}
+                      align={c.align}
+                      className={typeof c.className === 'function' ? c.className(b) : c.className}
                     >
-                      {b.invoiceNumber}
-                    </Link>
-                  </Td>
-                  <Td>
-                    <Link
-                      href={`/customers/${b.customerId}` as Route}
-                      className="text-ink-primary hover:text-accent-text hover:underline"
-                    >
-                      {b.customerName}
-                    </Link>
-                    <span className="block text-micro text-ink-tertiary">{b.customerClass}</span>
-                  </Td>
-                  <Td>{b.streetAddress ?? '—'}</Td>
-                  <Td className="tabular-nums whitespace-nowrap">{date(b.invoiceDate)}</Td>
-                  <Td className="tabular-nums whitespace-nowrap">{date(b.dueDate)}</Td>
-                  <Td align="right" className={`figures ${b.daysPastDue > 60 ? 'text-exception-critical-text' : ''}`}>
-                    {b.daysPastDue > 0 ? b.daysPastDue : 'Not due'}
-                  </Td>
-                  <Td align="right">
-                    <Money value={b.balance} arrears={b.daysPastDue > 60} />
-                  </Td>
+                      {c.cell(b)}
+                    </Td>
+                  ))}
                 </Row>
               ))}
             </tbody>

@@ -60,15 +60,18 @@ export default async function ReportPage({ params }: PageProps<'/reports/[report
           </div>
 
           <Panel>
-            <div className="border-b border-rule-hair px-4 py-2.5">
-              <p className="text-micro text-ink-secondary">{report.description}</p>
-              <p className="text-micro text-ink-tertiary mt-0.5">Source: {report.source}</p>
-            </div>
             <ReportTable
+              listId={`report:${report.id}`}
               caption={report.title}
               columns={report.columns}
               rows={report.rows}
               hrefFor={(i) => `/reports/${report.id}/${i}`}
+              toolbar={
+                <>
+                  <p className="text-micro text-ink-secondary">{report.description}</p>
+                  <p className="text-micro text-ink-tertiary mt-0.5">Source: {report.source}</p>
+                </>
+              }
             />
             <div className="border-t border-rule-hair px-4 py-2 text-micro text-ink-tertiary">
               {count(report.rows.length)} {report.rows.length === 1 ? 'line' : 'lines'} · click a line for the

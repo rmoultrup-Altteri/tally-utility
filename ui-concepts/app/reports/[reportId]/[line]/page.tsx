@@ -69,7 +69,14 @@ export default async function ReportLinePage({ params, searchParams }: PageProps
           </div>
 
           <Panel>
-            <ReportTable caption={drill.title} columns={drill.columns} rows={shown} allRows={drill.rows} offset={offset} />
+            <ReportTable
+              listId={`report:${report.id}:line`}
+              caption={drill.title}
+              columns={drill.columns}
+              rows={shown}
+              allRows={drill.rows}
+              offset={offset}
+            />
             <div className="flex items-center justify-between gap-4 border-t border-rule-solid bg-surface-sunken px-cell-x py-2">
               <p className="text-micro text-ink-secondary">
                 {drill.rows.length ? `${count(offset + 1)}–${count(offset + shown.length)}` : '0'} of{' '}

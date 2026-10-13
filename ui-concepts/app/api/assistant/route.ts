@@ -22,6 +22,7 @@ import {
   type TenantView,
 } from '@/lib/assistant/tenant-data'
 import { getTemplate, listTemplates, proposeTemplateEdit, reportTemplateProposal } from '@/lib/assistant/template-tools'
+import { answerLocally, localOnly } from '@/lib/assistant/local'
 
 /**
  * The assistant behind the chat bubble.
@@ -33,6 +34,8 @@ import { getTemplate, listTemplates, proposeTemplateEdit, reportTemplateProposal
  *
  * Credentials come from the environment (ANTHROPIC_API_KEY in .env.local, or
  * an `ant auth login` profile). Nothing reaches the browser but the answer.
+ * With no credentials (or ASSISTANT_MODE=local) it answers offline from the
+ * stored records instead — see lib/assistant/local.ts.
  */
 
 const MODEL = 'claude-opus-5-5'
@@ -276,6 +279,12 @@ function friendly(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/** No credentials at all, as opposed to a key the API refused for some other reason. */
+function noCredentials(err: unknown): boolean {
+  if (err instanceof Anthropic.AuthenticationError) return true
+  return err instanceof Anthropic.AnthropicError && !(err instanceof Anthropic.APIError) && /api ?key|auth/i.test(err.message)
+}
+
 export async function POST(request: Request) {
   const req = (await request.json()) as AssistantRequest
   const imported: ImportedData = { ...EMPTY_IMPORTED, ...(req.imported ?? {}) }
@@ -297,14 +306,24 @@ export async function POST(request: Request) {
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
+      /* Whether any of the answer reached the panel, so a fallback never follows half a reply. */
+      let streamed = false
       const send = (e: StreamEvent) => {
+        if (e.type === 'text' || e.type === 'proposal' || e.type === 'template_proposal') streamed = true
         try {
           controller.enqueue(encoder.encode(`${JSON.stringify(e)}\n`))
         } catch {
           /* The panel hung up (Stop, or the tab closed). The loop ends on the abort signal. */
         }
       }
+      const offline = () => {
+        const answer = answerLocally(view, req.message, send)
+        send({ type: 'text', text: answer })
+        messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] })
+        send({ type: 'transcript', messages })
+      }
       try {
+        if (localOnly()) return offline()
         const client = new Anthropic()
         let jsonRetries = 0
 
@@ -394,7 +413,9 @@ export async function POST(request: Request) {
 
         send({ type: 'transcript', messages })
       } catch (err) {
-        if (!request.signal.aborted) send({ type: 'error', message: friendly(err) })
+        if (request.signal.aborted) return
+        if (noCredentials(err) && !streamed) offline()
+        else send({ type: 'error', message: friendly(err) })
       } finally {
         send({ type: 'done' })
         try {

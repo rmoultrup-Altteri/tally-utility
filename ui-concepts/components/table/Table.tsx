@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, ThHTMLAttributes } from 'react'
 
 /**
  * Dense table primitives.
@@ -9,9 +9,9 @@ import type { ReactNode } from 'react'
  * navigable and six labelled groups are.
  */
 
-export function Table({ children, caption }: { children: ReactNode; caption: string }) {
+export function Table({ children, caption, className = 'overflow-x-auto' }: { children: ReactNode; caption: string; className?: string }) {
   return (
-    <div className="overflow-x-auto">
+    <div className={className}>
       <table className="w-full text-data">
         <caption className="sr-only">{caption}</caption>
         {children}
@@ -50,23 +50,27 @@ export function Th({
   width,
   groupStart = false,
   sort,
+  className = '',
+  ...rest
 }: {
   children: ReactNode
   align?: 'left' | 'right' | 'center'
   width?: string
   groupStart?: boolean
   sort?: 'ascending' | 'descending' | 'none'
-}) {
+  className?: string
+} & Omit<ThHTMLAttributes<HTMLTableCellElement>, 'align' | 'children' | 'className' | 'style'>) {
   const alignment =
     align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   return (
     <th
       scope="col"
+      {...rest}
       style={width ? { width } : undefined}
       aria-sort={sort}
       className={`field-label bg-surface-sunken px-cell-x py-2 ${alignment} ${
         groupStart ? 'border-l border-rule-solid' : ''
-      }`}
+      } ${className}`}
     >
       {children}
     </th>

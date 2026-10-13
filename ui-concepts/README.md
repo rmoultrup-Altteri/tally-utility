@@ -369,6 +369,12 @@ credentials on the server:
 echo ANTHROPIC_API_KEY=sk-ant-... > .env.local   # then restart pnpm dev
 ```
 
+Without credentials it answers offline from the stored records
+(`lib/assistant/local.ts`): balances over an amount, rates on a schedule, the
+PGA, an account or bill by name or number, counts, open exceptions,
+collections, the run and AR aging. The web, imports and template drafting need
+the key. `ASSISTANT_MODE=local` forces offline answers even with a key.
+
 It can do four things:
 
 - **Read the tenant's account** — search, an account in full, a bill with its

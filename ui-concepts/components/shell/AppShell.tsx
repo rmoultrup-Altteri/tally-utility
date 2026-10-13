@@ -46,11 +46,6 @@ function navGroups(): NavGroup[] {
           label: 'Exceptions',
           badge: { count: openExceptions.length, tone: 'critical', title: `${blockingCount} of these block delivery` },
         },
-        {
-          href: '/outreach',
-          label: 'High-bill outreach',
-          badge: { count: outreachSummary.toContact, tone: 'warning', title: `${outreachSummary.toContact} customers to tell before bills post` },
-        },
       ],
     },
     {
@@ -61,6 +56,11 @@ function navGroups(): NavGroup[] {
         { href: '/meters', label: 'Meters' },
         { href: '/payments', label: 'Payments' },
         { href: '/collections', label: 'Collections' },
+        {
+          href: '/outreach',
+          label: 'High-bill outreach',
+          badge: { count: outreachSummary.toContact, tone: 'warning', title: `${outreachSummary.toContact} customers to tell before bills post` },
+        },
       ],
     },
     {

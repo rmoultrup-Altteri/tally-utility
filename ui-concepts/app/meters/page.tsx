@@ -1,5 +1,6 @@
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
-import { MetersList, type MeterRow } from '@/components/meters/MetersList'
+import { MeterCount, MetersList, type MeterRow } from '@/components/meters/MetersList'
+import { NewRecordLink } from '@/components/records/NewRecordLink'
 import { customerById, locationById, meters, serviceLinks } from '@/fixtures/accounts'
 import { meterDetailById } from '@/fixtures/meters'
 import { readingByMeterId } from '@/fixtures/reads'
@@ -49,7 +50,8 @@ export default function MetersPage() {
     <AppShell current="Meters">
       <PageHeader
         title="Meters"
-        meta={`${rows.length.toLocaleString('en-US')} meters · ${rows.filter((r) => r.customerId).length} set at a premise`}
+        meta={<MeterCount base={rows.length} set={rows.filter((r) => r.customerId).length} />}
+        actions={<NewRecordLink href="/meters/new">New meter</NewRecordLink>}
       />
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5">

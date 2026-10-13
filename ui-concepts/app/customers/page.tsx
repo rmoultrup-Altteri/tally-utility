@@ -1,5 +1,6 @@
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { AccountCount, AccountsList, type AccountRow } from '@/components/accounts/AccountsList'
+import { NewRecordLink } from '@/components/records/NewRecordLink'
 import { customers, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
 
@@ -32,7 +33,11 @@ export default function CustomersPage() {
 
   return (
     <AppShell current="Accounts">
-      <PageHeader title="Accounts" meta={<AccountCount base={rows.length} />} />
+      <PageHeader
+        title="Accounts"
+        meta={<AccountCount base={rows.length} />}
+        actions={<NewRecordLink href="/customers/new">New account</NewRecordLink>}
+      />
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5">
           <AccountsList rows={rows} />

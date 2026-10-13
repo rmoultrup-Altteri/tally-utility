@@ -1,12 +1,14 @@
+import type { ReactNode } from 'react'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { ItemFilterBar } from '@/components/dashboard/ItemFilters'
 import { Rail, StateFlag } from '@/components/ui/State'
 import type { Tone } from '@/components/ui/State'
 import { Money } from '@/components/ui/Money'
 import { AccountNumber } from '@/components/ui/RecordLink'
-import { Table, HeadRow, Th, Row, Td, RailCell, TableFooter } from '@/components/table/Table'
+import { TableFooter } from '@/components/table/Table'
+import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { dashboardItems, TIERS, typesByTier } from '@/fixtures/dashboard-items'
-import type { Tier } from '@/fixtures/dashboard-items'
+import type { DashboardItem, Tier } from '@/fixtures/dashboard-items'
 import { cycle } from '@/fixtures/tenant'
 import { dateShort } from '@/lib/format'
 
@@ -22,6 +24,58 @@ const TIER_TONE: Record<Tier, Tone> = {
   Critical: 'critical',
   Medium: 'warning',
   Low: 'info',
+}
+
+/**
+ * The shipped five after the rail. Tier, type and reference already ride
+ * inside the Item and Source cells; as their own columns they can be read
+ * down the page at a glance, so they wait in the Columns menu.
+ */
+const COLUMNS: ColumnDef[] = [
+  { key: 'rail', label: '', menuLabel: 'Tier rail', width: '3px', rail: true, fixed: true },
+  { key: 'item', label: 'Item', width: '34%' },
+  { key: 'account', label: 'Account', width: '20%' },
+  { key: 'source', label: 'Source', width: '16%' },
+  { key: 'amount', label: 'Amount', width: '10%', align: 'right' },
+  { key: 'detected', label: 'Detected', width: '10%' },
+  { key: 'tier', label: 'Tier', hidden: true },
+  { key: 'type', label: 'Type', hidden: true },
+  { key: 'reference', label: 'Reference', hidden: true },
+]
+
+/** One item's cells, rendered here on the server and arranged by `ColumnTable`. */
+function itemCells(item: DashboardItem): Record<string, ReactNode> {
+  return {
+    rail: <Rail tone={TIER_TONE[item.tier]} />,
+    item: (
+      <>
+        <div className="flex items-center gap-2">
+          <StateFlag tone={TIER_TONE[item.tier]}>{item.tier}</StateFlag>
+          <span className="field-label">{item.typeLabel}</span>
+        </div>
+        <p className="text-data text-ink-primary mt-0.5">{item.detail}</p>
+      </>
+    ),
+    account: (
+      <>
+        <p className="text-data text-ink-primary truncate">{item.accountName}</p>
+        <p>
+          <AccountNumber number={item.accountNumber} plainClassName="text-ink-tertiary" />
+        </p>
+      </>
+    ),
+    source: (
+      <>
+        <p className="text-micro text-ink-secondary">{item.source}</p>
+        <p className="ident text-ink-tertiary">{item.reference}</p>
+      </>
+    ),
+    amount: item.amount ? <Money value={item.amount} /> : <span className="text-ink-tertiary">—</span>,
+    detected: <span className="text-micro text-ink-tertiary whitespace-nowrap">{dateShort(item.detectedAt)}</span>,
+    tier: <StateFlag tone={TIER_TONE[item.tier]}>{item.tier}</StateFlag>,
+    type: <span className="text-micro text-ink-secondary">{item.typeLabel}</span>,
+    reference: <span className="ident text-ink-tertiary">{item.reference}</span>,
+  }
 }
 
 export default async function DashboardItemsPage({ searchParams }: PageProps<'/dashboard/items'>) {
@@ -67,61 +121,16 @@ export default async function DashboardItemsPage({ searchParams }: PageProps<'/d
           total={dashboardItems.length}
         />
 
-        <div className="flex-1 min-h-0 overflow-auto">
-          <Table caption="Items behind the dashboard portlet counts">
-            <thead className="sticky top-0 z-10">
-              <HeadRow>
-                <Th width="3px"> </Th>
-                <Th width="34%">Item</Th>
-                <Th width="20%">Account</Th>
-                <Th width="16%">Source</Th>
-                <Th width="10%" align="right">Amount</Th>
-                <Th width="10%">Detected</Th>
-              </HeadRow>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <Row key={item.id}>
-                  <RailCell>
-                    <Rail tone={TIER_TONE[item.tier]} />
-                  </RailCell>
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      <StateFlag tone={TIER_TONE[item.tier]}>{item.tier}</StateFlag>
-                      <span className="field-label">{item.typeLabel}</span>
-                    </div>
-                    <p className="text-data text-ink-primary mt-0.5">{item.detail}</p>
-                  </Td>
-                  <Td>
-                    <p className="text-data text-ink-primary truncate">{item.accountName}</p>
-                    <p>
-                      <AccountNumber number={item.accountNumber} plainClassName="text-ink-tertiary" />
-                    </p>
-                  </Td>
-                  <Td>
-                    <p className="text-micro text-ink-secondary">{item.source}</p>
-                    <p className="ident text-ink-tertiary">{item.reference}</p>
-                  </Td>
-                  <Td align="right">
-                    {item.amount ? <Money value={item.amount} /> : <span className="text-ink-tertiary">—</span>}
-                  </Td>
-                  <Td>
-                    <span className="text-micro text-ink-tertiary whitespace-nowrap">
-                      {dateShort(item.detectedAt)}
-                    </span>
-                  </Td>
-                </Row>
-              ))}
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-cell-x py-6 text-center text-micro text-ink-tertiary">
-                    Nothing of this type is open.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </Table>
-        </div>
+        {/* The table's own frame scrolls, so the Columns strip stays put and
+            the header sticks above the rows. */}
+        <ColumnTable
+          fill
+          listId="dashboard-items"
+          caption="Items behind the dashboard portlet counts"
+          columns={COLUMNS}
+          rows={rows.map((item) => ({ key: item.id, cells: itemCells(item) }))}
+          empty={<span className="text-micro">Nothing of this type is open.</span>}
+        />
         <TableFooter shown={rows.length} total={rows.length} noun="items" />
       </div>
     </AppShell>

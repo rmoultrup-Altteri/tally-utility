@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { Panel } from '@/components/ui/Panel'
@@ -9,7 +9,8 @@ import { StateFlag, humanize } from '@/components/ui/State'
 import { accountTone } from '@/components/meters/status'
 import { AccountNumber, MeterNumber } from '@/components/ui/RecordLink'
 import { Table, Row, Td, TableFooter } from '@/components/table/Table'
-import { SortHeader, sortRows, useSort, type SortColumn } from '@/components/table/Sort'
+import { sortRows, useSort } from '@/components/table/Sort'
+import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/components/table/Columns'
 import { count, date, money } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
 import { useImported } from '@/lib/imports-store'
@@ -33,18 +34,62 @@ export type AccountRow = {
   meterNumber: string | null
   /** `meters.ami_endpoint_id`. Null on a manually read meter. */
   amrId: string | null
-  /** Added through the assistant and kept in this browser; it has no account page yet. */
+  /** Added in this browser, by hand or through the assistant; it has no account page yet. */
   imported?: boolean
 }
 
-type SortKey = 'createdAt' | 'ownerName' | 'streetAddress' | 'meterNumber' | 'amrId'
+type SortKey = 'createdAt' | 'ownerName' | 'streetAddress' | 'meterNumber' | 'amrId' | 'customerNumber' | 'status' | 'balance' | 'cityLine'
 
-const COLUMNS: SortColumn<SortKey>[] = [
-  { key: 'createdAt', label: 'Customer since', width: '9rem' },
-  { key: 'ownerName', label: 'Owner name' },
-  { key: 'streetAddress', label: 'Street address' },
-  { key: 'meterNumber', label: 'Meter ID', width: '8rem' },
-  { key: 'amrId', label: 'AMR ID', width: '9rem' },
+type AccountColumn = ColumnDef<SortKey> & {
+  cell: (r: AccountRow) => ReactNode
+  className?: string
+  title?: (r: AccountRow) => string | undefined
+}
+
+/** The shipped five, then the ones an operator can add from the Columns menu. */
+const COLUMNS: AccountColumn[] = [
+  { key: 'createdAt', label: 'Customer since', width: '9rem', className: 'tabular-nums whitespace-nowrap', cell: (r) => date(r.createdAt) },
+  { key: 'ownerName', label: 'Owner name', cell: (r) => <OwnerCell r={r} /> },
+  {
+    key: 'streetAddress',
+    label: 'Street address',
+    cell: (r) => (
+      <>
+        {r.streetAddress ?? '—'}
+        {r.cityLine ? <span className="block text-micro text-ink-tertiary">{r.cityLine}</span> : null}
+      </>
+    ),
+  },
+  {
+    key: 'meterNumber',
+    label: 'Meter ID',
+    width: '8rem',
+    cell: (r) => (r.meterNumber ? <MeterNumber number={r.meterNumber} plainClassName="text-ink-primary" /> : '—'),
+  },
+  {
+    key: 'amrId',
+    label: 'AMR ID',
+    width: '9rem',
+    className: 'ident',
+    title: (r) => (r.amrId ? undefined : 'Manually read — no radio endpoint'),
+    cell: (r) => r.amrId ?? <span className="text-ink-muted">—</span>,
+  },
+  {
+    key: 'customerNumber',
+    label: 'Account number',
+    width: '9rem',
+    hidden: true,
+    cell: (r) => (r.imported ? <span className="ident text-ink-tertiary">{r.customerNumber}</span> : <AccountNumber number={r.customerNumber} id={r.id} />),
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    width: '8rem',
+    hidden: true,
+    cell: (r) => <StateFlag tone={accountTone(r.status)}>{humanize(r.status)}</StateFlag>,
+  },
+  { key: 'balance', label: 'Balance', width: '8rem', align: 'right', hidden: true, className: 'tabular-nums', cell: (r) => money(r.balance) },
+  { key: 'cityLine', label: 'City, state ZIP', hidden: true, cell: (r) => r.cityLine ?? '—' },
 ]
 
 /**
@@ -95,14 +140,16 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
             matchesSearch(query, [r.ownerName, r.customerNumber, r.streetAddress, r.cityLine, r.meterNumber, r.amrId]),
         ),
         sort,
-        (r, key) => r[key],
+        /* Money sorts as a number, not as "$1,052" text. */
+        (r, key) => (key === 'balance' ? Number(r.balance) : (r[key] ?? null)),
       ),
     [rows, query, effective, sort],
   )
+  const cols = useColumns('accounts', COLUMNS)
 
   return (
     <Panel>
-      <div className="flex items-center gap-3 border-b border-rule-hair bg-surface px-cell-x py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule-hair bg-surface px-cell-x py-2">
         <label htmlFor="account-search" className="field-label">
           Search
         </label>
@@ -125,70 +172,26 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
           {searching && pick === 'active' ? 'Searching every status · ' : ''}
           {count(shown.length)} of {count(rows.length)} accounts
         </span>
+        <ColumnsMenu cols={cols} size="md" />
       </div>
 
       <Table caption="Accounts">
         <thead>
-          <SortHeader columns={COLUMNS} sort={sort} onSort={toggle} />
+          <ColumnHead cols={cols} sort={sort} onSort={toggle} />
         </thead>
         <tbody>
           {shown.map((r) => (
             <Row key={r.id}>
-              <Td className="tabular-nums whitespace-nowrap">{date(r.createdAt)}</Td>
-              <Td>
-                {r.imported ? (
-                  <span className="text-ink-primary font-medium">{r.ownerName}</span>
-                ) : (
-                  <Link
-                    href={`/customers/${r.id}` as Route}
-                    className="text-ink-primary font-medium hover:underline"
-                  >
-                    {r.ownerName}
-                  </Link>
-                )}
-                {r.status !== 'active' ? (
-                  <span className="ml-2 align-middle">
-                    <StateFlag
-                      tone={accountTone(r.status)}
-                      title={Number(r.balance) !== 0 ? `${money(r.balance)} still on the account` : undefined}
-                    >
-                      {humanize(r.status)}
-                      {r.status === 'collections' || Number(r.balance) === 0
-                        ? ''
-                        : Number(r.balance) > 0
-                          ? ' · balance due'
-                          : ' · credit due'}
-                    </StateFlag>
-                  </span>
-                ) : null}
-                <span className="block text-micro">
-                  {r.imported ? (
-                    <span className="ident text-ink-tertiary">{r.customerNumber}</span>
-                  ) : (
-                    <AccountNumber number={r.customerNumber} id={r.id} />
-                  )}
-                  {r.imported ? (
-                    <span className="font-sans text-exception-info-text" title="Imported through the assistant and kept in this browser until the API exists">
-                      {' '}· imported
-                    </span>
-                  ) : null}
-                </span>
-              </Td>
-              <Td>
-                {r.streetAddress ?? '—'}
-                {r.cityLine ? (
-                  <span className="block text-micro text-ink-tertiary">{r.cityLine}</span>
-                ) : null}
-              </Td>
-              <Td>{r.meterNumber ? <MeterNumber number={r.meterNumber} plainClassName="text-ink-primary" /> : '—'}</Td>
-              <Td className="ident" title={r.amrId ? undefined : 'Manually read — no radio endpoint'}>
-                {r.amrId ?? <span className="text-ink-muted">—</span>}
-              </Td>
+              {cols.visible.map((c) => (
+                <Td key={c.key} align={c.align} className={c.className} title={c.title?.(r)}>
+                  {c.cell(r)}
+                </Td>
+              ))}
             </Row>
           ))}
           {shown.length === 0 ? (
             <Row>
-              <Td colSpan={COLUMNS.length} className="py-6 text-center text-ink-tertiary">
+              <Td colSpan={cols.visible.length} className="py-6 text-center text-ink-tertiary">
                 {query.trim() ? <>No account matches “{query.trim()}”.</> : 'No accounts match these filters.'}
               </Td>
             </Row>
@@ -198,6 +201,48 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
 
       {shown.length > 0 ? <TableFooter shown={shown.length} total={shown.length} noun="accounts" /> : null}
     </Panel>
+  )
+}
+
+/** The name, any status that is not plain active, and the account number beneath. */
+function OwnerCell({ r }: { r: AccountRow }) {
+  return (
+    <>
+      {r.imported ? (
+        <span className="text-ink-primary font-medium">{r.ownerName}</span>
+      ) : (
+        <Link href={`/customers/${r.id}` as Route} className="text-ink-primary font-medium hover:underline">
+          {r.ownerName}
+        </Link>
+      )}
+      {r.status !== 'active' ? (
+        <span className="ml-2 align-middle">
+          <StateFlag
+            tone={accountTone(r.status)}
+            title={Number(r.balance) !== 0 ? `${money(r.balance)} still on the account` : undefined}
+          >
+            {humanize(r.status)}
+            {r.status === 'collections' || Number(r.balance) === 0
+              ? ''
+              : Number(r.balance) > 0
+                ? ' · balance due'
+                : ' · credit due'}
+          </StateFlag>
+        </span>
+      ) : null}
+      <span className="block text-micro">
+        {r.imported ? (
+          <span className="ident text-ink-tertiary">{r.customerNumber}</span>
+        ) : (
+          <AccountNumber number={r.customerNumber} id={r.id} />
+        )}
+        {r.imported ? (
+          <span className="font-sans text-exception-info-text" title="Added in this browser — by hand or through the assistant — and kept here until the API exists">
+            {' '}· new
+          </span>
+        ) : null}
+      </span>
+    </>
   )
 }
 
