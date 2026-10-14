@@ -43,14 +43,23 @@ clone() {  # $1 new db, $2 template
   docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $1" -qc "CREATE DATABASE $1 TEMPLATE $2" >/dev/null 2>&1 || return 1
   # CREATE DATABASE … TEMPLATE does not copy the database ACL: the app role
   # would hold TEMP again and the trigger-depth fences would be open.
-  q "$1" -c "REVOKE TEMP ON DATABASE $1 FROM PUBLIC" -c "REVOKE TEMP ON DATABASE $1 FROM tally_app" >/dev/null
+  q "$1" -c "REVOKE TEMP ON DATABASE $1 FROM PUBLIC" -c "REVOKE TEMP ON DATABASE $1 FROM tally_app" >/dev/null || return 1
   if q "$1" -c "SELECT 1 FROM pg_roles WHERE rolname = 'tally_core'" | grep -q 1; then
-    q "$1" -c "REVOKE TEMP ON DATABASE $1 FROM tally_core" >/dev/null
+    q "$1" -c "REVOKE TEMP ON DATABASE $1 FROM tally_core" >/dev/null || return 1
   fi
 }
 
 results=()
 fail=0
+# A step on a fresh clone of $BASE: a clone that fails is a FAIL, never a
+# silently skipped step (v5.4.2-19 r2, Codex S1).
+cstep() {  # $1 clone db, $2 label, rest: the command
+  local db=$1 label=$2
+  if clone "$db" "$BASE"; then shift; step "$@"
+  else results+=("FAIL  $label (clone $db)"); fail=1
+  fi
+}
+
 step() {  # $1 label, rest: the command
   local label=$1; shift
   if out=$("$@" 2>&1); then
@@ -99,11 +108,11 @@ fi
 step "isolation v5.4.2-17" tests/v5.4.2-17/isolation-17.sh "$BASE" ci_iso17
 step "races v5.4.2-17" tests/v5.4.2-17/races/rule-close-17.sh "$BASE" ci_race17
 step "law files v5.4.2-17" tests/v5.4.2-17/lawfiles-17.sh "$BASE" ci_law17
-clone ci_r15 "$BASE" && step "races v5.4.2-15" bash tests/v5.4.2-15/races/due-mutex-15.sh ci_r15
-clone ci_e15 "$BASE" && step "evidence txn v5.4.2-15" bash tests/v5.4.2-15/evidence-txn-15.sh ci_e15
-clone ci_r16 "$BASE" && step "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
-clone ci_r19 "$BASE" && step "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
-clone ci_e13 "$BASE" && step "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
+cstep ci_r15 "races v5.4.2-15" bash tests/v5.4.2-15/races/due-mutex-15.sh ci_r15
+cstep ci_e15 "evidence txn v5.4.2-15" bash tests/v5.4.2-15/evidence-txn-15.sh ci_e15
+cstep ci_r16 "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
+cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
+cstep ci_e13 "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh
 step "tenant isolation invariants" q "$BASE" -c "SELECT public.assert_tenant_isolation_invariants()"
 step "core role invariants" q "$BASE" -c "SELECT public.assert_core_role_invariants()"
