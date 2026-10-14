@@ -31,6 +31,8 @@ the fixtures, and clear of the usual 3000 / 4200 / 5173 / 8080 collisions.
 | `/reads` | Read validation grid, 20 columns in 6 groups |
 | `/runs/run-2026-02-04` | Billing run cockpit with the post gate |
 | `/runs/run-2026-02-sbx` | The same, as a dry run |
+| `/runs` | Run history — every run with its coordinate and the corrections made against it, each posted run one click from Void and rebill |
+| `/runs/run-2026-01-04/rebill` | Void and rebill a whole run — the January cycle, priced at December’s PGA |
 | `/invoices/inv-0001` | The bill, with its derivation rail |
 | `/invoices/inv-0002` | A held commercial bill on G-1 — declining block, no sales-tax exemption |
 | `/invoices/inv-0003` | A voided bill showing lineage |
@@ -249,6 +251,44 @@ someone moves in, a meter left on with nobody applying, and an applicant named
 on the outgoing account that left the debt. The outgoing balance and deposit
 are noted as the outgoing customer’s, never the applicant’s.
 
+## Void and rebill a run
+
+When a run used the wrong rate it used it on every bill, so the correction
+belongs on the run, not on thousands of bills one at a time. **Void and rebill
+run**, top right on a posted run (and on its row in **Run history**, under
+Billing run in the sidebar), opens the single-bill election at run scale
+(`lib/run-corrections.ts`):
+
+1. **Which bills** — every bill the run issued, less any already voided, or
+   only the bills ticked (with R-1 / G-1 shortcuts). Each shown bill is
+   repriced to the cent: billed, rebill, change, paid and what it leaves owing.
+2. **Why** — the void reason code and a required note, stored on every void.
+3. **Which rates** — historical or current for the whole run. A specific date
+   stays per bill (AC-31). The rates the election changes are listed with the
+   version, and a version recorded after the run is flagged. If the election
+   changes nothing, the screen says to record the corrected rate first; if no
+   PGA version covers the period, the bill stops rather than borrowing a month.
+4. **Customers** — a new due date with late fees reversed, or the original;
+   dunning held on the bills until the correction posts; the Corrected bill
+   notice. Payments move to the replacement, and an overpayment becomes a
+   credit.
+5. **Correction run** — the run it will be (`BR-2026-02-COR-n`) and the totals.
+
+Requesting needs **Void bills** and queues the correction run without voiding
+anything. A second person with **Approve corrections** approves it, and the
+voids and rebills then post together, so no customer holds a voided bill
+without its replacement. You can't approve your own request. Only one request
+can be open on a run at a time. A run still in review has issued nothing, so
+its button says to cancel and rerun instead.
+
+The run page lists every correction against the run, both the posted
+correction runs and the requests, which can be approved or withdrawn with a
+reason. Withdrawn requests stay listed, struck. A correction run's header names
+the run it corrects. Requests are kept in this browser
+(`lib/run-corrections-store.ts`). The audit holds the preview to the bills: a
+repriced bill gives back its own amount, and INV-2026-01-004913 reprices to
+the $138.72 its real correction carries.
+
 ## Back and edit
 
 Detail screens — an account, a bill, its correction diff and rebill, Add
@@ -460,10 +500,14 @@ extended one back.
 
 ## Known gaps
 
+- Approving a batch void and rebill records the approval only. The voids and
+  rebills it would post are not applied, so bills and balances do not change.
+  The preview reprices only the bills modeled here, and only for rate changes.
+  A corrected read reaches a rebill through the correction run.
 - Interactions are presentational. Nothing writes; buttons do not submit.
   Payments taken, assistant imports, account and draft-bill edits, template
-  versions and outreach sends are the exceptions, and all are kept only in
-  this browser.
+  versions, outreach sends and batch correction requests are the exceptions,
+  and all are kept only in this browser.
 - Outreach candidates beyond the fixture accounts, and the general-service
   population in the rate case, are seeded rather than drawn from records; their
   figures are given, split the same way and summing to the cent.

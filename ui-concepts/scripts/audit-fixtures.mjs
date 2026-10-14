@@ -461,6 +461,29 @@ if (sandboxBaseline.accountsOnSchedule + sandboxBaseline.accountsOtherSchedules 
     fail('narrative', 'tariff', `card reproduces ${b.charges.toFixed(2)}/${b.tax.toFixed(2)} but ${inv.invoice_number} is ${inv.total_charges}/${inv.total_taxes}`)
 }
 
+/*
+ * Void and rebill a run. The batch preview states each bill's amount and its
+ * rebill to the cent, so both must be true: repricing a bill on its own lines
+ * gives back what it billed, and repricing a bill that was actually corrected
+ * gives the amount its correction carries.
+ */
+{
+  const { reprice, runTargets } = await import('../lib/run-corrections.ts')
+  for (const run of runs.filter((r) => r.status === 'posted' && !r.is_dry_run)) {
+    for (const t of runTargets(run)) {
+      const p = reprice(t.invoice, 'historical')
+      if (p.before !== Math.round(n(t.invoice.amount_due) * 100))
+        fail('rebill', t.invoice.invoice_number, `batch preview bills ${(p.before / 100).toFixed(2)} but the bill is ${t.invoice.amount_due}`)
+    }
+  }
+  for (const c of invoices.filter((i) => i.replaces_invoice_id)) {
+    const original = invoices.find((i) => i.id === c.replaces_invoice_id)
+    const p = reprice(original, 'historical')
+    if (p.after !== Math.round(n(c.amount_due) * 100))
+      fail('rebill', original.invoice_number, `batch rebill prices ${p.after === null ? 'nothing' : (p.after / 100).toFixed(2)} but ${c.invoice_number} is ${c.amount_due}`)
+  }
+}
+
 /* ---- Report ------------------------------------------------------------ */
 const byArea = {}
 for (const f of findings) (byArea[f.area] ??= []).push(f)
