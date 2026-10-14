@@ -6,6 +6,26 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (A-8, CI-033, CI-036) — Kyle answers the tax-jurisdiction and gas-cost brief
+
+**What:** Kyle answered all seven questions of `application/kyle-brief-2026-10-13-tax-jurisdictions-and-gas-cost.md` in `gas-billing-memory/application/kyle-decisions-2026-10-14-tax-jurisdictions-and-gas-cost.md` (commit `45dfff6`). He answered from Ryan's summary, because the brief lives in this repo, not in gas-billing-memory.
+
+1. **Jurisdiction = place.** A city, county, transit or special district is a place. Its taxes are separate effective-dated rows, and a service location links to every jurisdiction it sits in (`tax_jurisdictions`, gap A-8). Rates come from the Comptroller's quarterly address and rate files through a scheduled job that stages changes. No rate goes live without an operator's sign-off.
+2. **Tax stack from law and tariff.** Each tax or fee line carries its source (statute, ordinance or tariff) and a citation, and is tenant configuration. The franchise fee is a percentage of every billed line except those the rules exclude (the pipeline safety fee, 16 TAC §8.201). The franchise fee is not in the sales-tax base.
+3. **Franchise fee base.** The tenant picks a base type per jurisdiction from a short fixed list, with no default. Per-item `is_taxable` and `franchise_fee_rules.applies_to` are to be resolved into one mechanism (`franchise-fee-application` #26, open question 2). The live `applies_to_customer_types` size-tier defect is closed in the same work.
+4. **Remittances.** The liability only: billed and collected amounts by jurisdiction and period, plus an optional filing reference. Payments stay in the utility's ERP.
+5. **Tax classification required.** Drop `DEFAULT false` on `rate_items.is_taxable_default` and `adhoc_charges.is_taxable`. Tax applies only when both the item and the customer are taxable for that service type (`should_charge_tax()`). An exempt customer zeroes the tax but still gets a $0.00 line (CI-046). Customer taxability is recorded per service type. Water and sewer treatment is to be confirmed with tax counsel before that launch.
+6. **Gas cost: billing side only.** We keep the approved PGA factor (every historical factor, so rebills use the one in effect), billed gas-cost revenue and volumes per period, exported for the utility's reconciliation. Gas purchases and the deferred balance stay in the utility's accounting.
+7. **Unaccounted-for gas cap: out of scope.** We don't compute the PGA factor, so the utility applies any cap before filing.
+
+**Effect on the 2026-10-13 carve-out:** answers 6 and 7 settle it. Gas purchase records, the per-class deferred gas-cost ledger, carrying cost and the annual true-up are not platform records. CI-033 and CI-036 are to be re-read against "billing side only" in the parity measurement, not built as cost-side ledgers.
+
+**Kyle's open ask:** he could not find D-2 to check whether its wording already covered gas-cost records. D-2 is Part 2 of `gas-billing-memory/application/kyle-decisions-2026-08-18-coda-items.md`. Answer 6 stands on its own either way.
+
+*Why this and not the alternatives:* the answers are Kyle's rulings, recorded as given. The calls that remain inside them are drafting calls for the patches that build them: the fixed list of base types; how `is_taxable` and `applies_to` merge. *Where it lives:* Kyle's file in gas-billing-memory; this entry.
+
+---
+
 ## 2026-10-13 (CI-019) — Ryan: drop the ledger's stored running balance
 
 **What:** Ryan (2026-10-13): "drop it". `account_ledger.running_balance` and its stamping trigger (`compute_ledger_running_balance`) are dropped in v5.4.2-19 r2; the balance is the sum of the customer's ledger rows (`account_balance_as_of(customer, on, recorded)`), and `void_invoice()` returns the summed balance as `credit_balance`. A screen that shows a running balance beside each line computes it when it shows it.
