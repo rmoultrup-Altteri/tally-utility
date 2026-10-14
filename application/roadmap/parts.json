@@ -1,0 +1,327 @@
+[
+ {
+  "phase": "P0",
+  "part": "Gas billing knowledge base",
+  "status": "done"
+ },
+ {
+  "phase": "P0",
+  "part": "135 canonical invariants",
+  "status": "done"
+ },
+ {
+  "phase": "P0",
+  "part": "Feature list (439 required, 61 nice-to-have)",
+  "status": "done"
+ },
+ {
+  "phase": "P0",
+  "part": "Tech stack decided",
+  "status": "done"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 1: close holes in what is built",
+  "status": "done"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 2: finance structures and cash handling",
+  "status": "next"
+ },
+ {
+  "phase": "P1",
+  "part": "Tax jurisdictions, tax stack, franchise fees (Kyle answered)",
+  "status": "unblocked"
+ },
+ {
+  "phase": "P1",
+  "part": "PGA billing side only (Kyle answered)",
+  "status": "unblocked"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 3: disputes and collections records",
+  "status": "todo"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 4: program enrollment lifecycle",
+  "status": "waiting"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 5: communications",
+  "status": "todo"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 6: rate-assignment and occupancy history",
+  "status": "waiting"
+ },
+ {
+  "phase": "P1",
+  "part": "Wave 7: rule-terms extensions",
+  "status": "waiting"
+ },
+ {
+  "phase": "P1",
+  "part": "Fix the old meter-reading defect (from -05)",
+  "status": "todo"
+ },
+ {
+  "phase": "P2",
+  "part": "26 date-tracking scenarios",
+  "status": "done"
+ },
+ {
+  "phase": "P2",
+  "part": "28 invariant cases-to-cover docs",
+  "status": "done"
+ },
+ {
+  "phase": "P2",
+  "part": "60 decision tables, 80 workflows",
+  "status": "done"
+ },
+ {
+  "phase": "P2",
+  "part": "14 fixture catalogs",
+  "status": "done"
+ },
+ {
+  "phase": "P2",
+  "part": "Scenario prose for each invariant",
+  "status": "todo"
+ },
+ {
+  "phase": "P2",
+  "part": "State machines, exception paths, persona matrix",
+  "status": "todo"
+ },
+ {
+  "phase": "P2",
+  "part": "Worked bills with dollar figures (Kyle checks)",
+  "status": "todo"
+ },
+ {
+  "phase": "P2",
+  "part": "Coverage audit against the 135 invariants",
+  "status": "todo"
+ },
+ {
+  "phase": "P2",
+  "part": "Testing strategy",
+  "status": "todo"
+ },
+ {
+  "phase": "P3",
+  "part": "Launch feature set chosen from the 439 required features",
+  "status": "todo"
+ },
+ {
+  "phase": "P3",
+  "part": "Core sub-phases, order and exit tests",
+  "status": "todo"
+ },
+ {
+  "phase": "P4",
+  "part": "Login provider chosen",
+  "status": "todo"
+ },
+ {
+  "phase": "P4",
+  "part": "Hosting and environments (dev, test, prod)",
+  "status": "todo"
+ },
+ {
+  "phase": "P4",
+  "part": "CI/CD pipeline",
+  "status": "todo"
+ },
+ {
+  "phase": "P4",
+  "part": ".NET solution and tenant-scoped data access",
+  "status": "todo"
+ },
+ {
+  "phase": "P4",
+  "part": "Logging and monitoring",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Rate calculation (tariffs, PGA, heating value, WNA, taxes, franchise)",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Meter reads, validation, estimation, exceptions",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Billing run and bill issue",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Cancel-rebill and backbilling",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Payments, ledger, deposits, refunds",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Collections, disconnects, programs, disputes",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Accounting export, periods, tax liability",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "Notices and bill documents",
+  "status": "todo"
+ },
+ {
+  "phase": "P5",
+  "part": "API (OpenAPI contract)",
+  "status": "todo"
+ },
+ {
+  "phase": "P6",
+  "part": "Prototype: 36 screens on made-up data",
+  "status": "done"
+ },
+ {
+  "phase": "P6",
+  "part": "Decide: harden the prototype or rebuild from it",
+  "status": "todo"
+ },
+ {
+  "phase": "P6",
+  "part": "Wire screens to the API",
+  "status": "todo"
+ },
+ {
+  "phase": "P6",
+  "part": "Roles, permissions, audit views",
+  "status": "todo"
+ },
+ {
+  "phase": "P6",
+  "part": "Accessibility and browser testing",
+  "status": "todo"
+ },
+ {
+  "phase": "P7",
+  "part": "Payment processor and bank files",
+  "status": "todo"
+ },
+ {
+  "phase": "P7",
+  "part": "Bill print and mail vendor",
+  "status": "todo"
+ },
+ {
+  "phase": "P7",
+  "part": "Meter-reading file import",
+  "status": "todo"
+ },
+ {
+  "phase": "P7",
+  "part": "General ledger export",
+  "status": "todo"
+ },
+ {
+  "phase": "P7",
+  "part": "Comptroller tax-rate file job (operator approval)",
+  "status": "todo"
+ },
+ {
+  "phase": "P8",
+  "part": "Synthetic utility (meters, accounts, 13 months of reads)",
+  "status": "todo"
+ },
+ {
+  "phase": "P8",
+  "part": "Scenario suite green end to end",
+  "status": "todo"
+ },
+ {
+  "phase": "P8",
+  "part": "Billing-run load test",
+  "status": "todo"
+ },
+ {
+  "phase": "P9",
+  "part": "Backups and recovery tested",
+  "status": "todo"
+ },
+ {
+  "phase": "P9",
+  "part": "Penetration test",
+  "status": "todo"
+ },
+ {
+  "phase": "P9",
+  "part": "Incident and support runbooks",
+  "status": "todo"
+ },
+ {
+  "phase": "P9",
+  "part": "SOC 2 groundwork",
+  "status": "todo"
+ },
+ {
+  "phase": "P10",
+  "part": "First customer signed",
+  "status": "todo"
+ },
+ {
+  "phase": "P10",
+  "part": "Data conversion from the old billing system",
+  "status": "todo"
+ },
+ {
+  "phase": "P10",
+  "part": "Tariffs, taxes and ordinances loaded",
+  "status": "todo"
+ },
+ {
+  "phase": "P10",
+  "part": "Staff training",
+  "status": "todo"
+ },
+ {
+  "phase": "P11",
+  "part": "Cycle 1 reconciled",
+  "status": "todo"
+ },
+ {
+  "phase": "P11",
+  "part": "Cycle 2 reconciled",
+  "status": "todo"
+ },
+ {
+  "phase": "P11",
+  "part": "Go/no-go sign-off",
+  "status": "todo"
+ },
+ {
+  "phase": "P12",
+  "part": "Cutover",
+  "status": "todo"
+ },
+ {
+  "phase": "P12",
+  "part": "First live cycle billed and paid",
+  "status": "todo"
+ }
+]

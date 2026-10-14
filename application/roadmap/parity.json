@@ -1,0 +1,9 @@
+[
+ {"block": "Bi-temporality, immutability, ledger", "range": "CI-001-019", "protected": 6, "represented": 4, "partial": 8, "gap": 0, "blocked": 1},
+ {"block": "Meters, reads, PGA", "range": "CI-020-038", "protected": 5, "represented": 3, "partial": 7, "gap": 2, "blocked": 2},
+ {"block": "WNA, taxes, payments", "range": "CI-039-058", "protected": 4, "represented": 1, "partial": 10, "gap": 3, "blocked": 2},
+ {"block": "Programs, collections, disconnects", "range": "CI-059-081", "protected": 2, "represented": 6, "partial": 13, "gap": 1, "blocked": 1},
+ {"block": "Bankruptcy, Texas rules, audit, notices", "range": "CI-082-099", "protected": 4, "represented": 0, "partial": 11, "gap": 3, "blocked": 0},
+ {"block": "Pipeline, exceptions, tenant isolation", "range": "CI-100-119", "protected": 6, "represented": 4, "partial": 8, "gap": 1, "blocked": 1},
+ {"block": "Lifecycle, deposits, cross-cutting", "range": "CI-120-135", "protected": 7, "represented": 3, "partial": 4, "gap": 2, "blocked": 0}
+]

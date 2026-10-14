@@ -1,0 +1,392 @@
+[
+ {
+  "phase": "P0",
+  "name": "Domain research and planning",
+  "track": "Foundation",
+  "status": "done",
+  "scenario": "low",
+  "start": "2026-05-13",
+  "end": "2026-08-18",
+  "critical": false
+ },
+ {
+  "phase": "P1",
+  "name": "Schema at parity with the invariants",
+  "track": "Schema",
+  "status": "in_progress",
+  "scenario": "low",
+  "start": "2026-08-18",
+  "end": "2026-11-18",
+  "critical": true
+ },
+ {
+  "phase": "P2",
+  "name": "Scenarios and testing strategy",
+  "track": "Specification",
+  "status": "partial",
+  "scenario": "low",
+  "start": "2026-11-18",
+  "end": "2027-01-06",
+  "critical": true
+ },
+ {
+  "phase": "P3",
+  "name": "Core build plan",
+  "track": "Specification",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-01-06",
+  "end": "2027-01-13",
+  "critical": true
+ },
+ {
+  "phase": "P4",
+  "name": "Platform foundation",
+  "track": "Platform",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-01-06",
+  "end": "2027-01-27",
+  "critical": true
+ },
+ {
+  "phase": "P5",
+  "name": "Core billing engine (C#)",
+  "track": "Core",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-01-20",
+  "end": "2027-05-26",
+  "critical": true
+ },
+ {
+  "phase": "P6",
+  "name": "Frontend hardening and integration",
+  "track": "Frontend",
+  "status": "partial",
+  "scenario": "low",
+  "start": "2027-03-03",
+  "end": "2027-06-09",
+  "critical": false
+ },
+ {
+  "phase": "P7",
+  "name": "Integrations",
+  "track": "Integrations",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-04-14",
+  "end": "2027-06-09",
+  "critical": false
+ },
+ {
+  "phase": "P8",
+  "name": "Test data and release testing",
+  "track": "Quality",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-06-09",
+  "end": "2027-06-30",
+  "critical": false
+ },
+ {
+  "phase": "P9",
+  "name": "Security and operations readiness",
+  "track": "Platform",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-05-12",
+  "end": "2027-06-23",
+  "critical": false
+ },
+ {
+  "phase": "P10",
+  "name": "First customer: conversion and setup",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-04-28",
+  "end": "2027-07-07",
+  "critical": true
+ },
+ {
+  "phase": "P11",
+  "name": "Parallel billing runs",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-07-07",
+  "end": "2027-09-01",
+  "critical": true
+ },
+ {
+  "phase": "P12",
+  "name": "Go-live and stabilization",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "low",
+  "start": "2027-09-01",
+  "end": "2027-09-29",
+  "critical": true
+ },
+ {
+  "phase": "P0",
+  "name": "Domain research and planning",
+  "track": "Foundation",
+  "status": "done",
+  "scenario": "likely",
+  "start": "2026-05-13",
+  "end": "2026-08-18",
+  "critical": false
+ },
+ {
+  "phase": "P1",
+  "name": "Schema at parity with the invariants",
+  "track": "Schema",
+  "status": "in_progress",
+  "scenario": "likely",
+  "start": "2026-08-18",
+  "end": "2026-12-09",
+  "critical": true
+ },
+ {
+  "phase": "P2",
+  "name": "Scenarios and testing strategy",
+  "track": "Specification",
+  "status": "partial",
+  "scenario": "likely",
+  "start": "2026-12-09",
+  "end": "2027-02-17",
+  "critical": true
+ },
+ {
+  "phase": "P3",
+  "name": "Core build plan",
+  "track": "Specification",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-02-17",
+  "end": "2027-03-03",
+  "critical": true
+ },
+ {
+  "phase": "P4",
+  "name": "Platform foundation",
+  "track": "Platform",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-02-17",
+  "end": "2027-03-24",
+  "critical": false
+ },
+ {
+  "phase": "P5",
+  "name": "Core billing engine (C#)",
+  "track": "Core",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-03-03",
+  "end": "2027-09-01",
+  "critical": true
+ },
+ {
+  "phase": "P6",
+  "name": "Frontend hardening and integration",
+  "track": "Frontend",
+  "status": "partial",
+  "scenario": "likely",
+  "start": "2027-04-14",
+  "end": "2027-09-01",
+  "critical": false
+ },
+ {
+  "phase": "P7",
+  "name": "Integrations",
+  "track": "Integrations",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-05-26",
+  "end": "2027-08-18",
+  "critical": false
+ },
+ {
+  "phase": "P8",
+  "name": "Test data and release testing",
+  "track": "Quality",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-09-01",
+  "end": "2027-09-29",
+  "critical": true
+ },
+ {
+  "phase": "P9",
+  "name": "Security and operations readiness",
+  "track": "Platform",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-06-23",
+  "end": "2027-08-18",
+  "critical": false
+ },
+ {
+  "phase": "P10",
+  "name": "First customer: conversion and setup",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-06-09",
+  "end": "2027-09-15",
+  "critical": false
+ },
+ {
+  "phase": "P11",
+  "name": "Parallel billing runs",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-09-29",
+  "end": "2028-01-05",
+  "critical": true
+ },
+ {
+  "phase": "P12",
+  "name": "Go-live and stabilization",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2028-01-05",
+  "end": "2028-02-16",
+  "critical": true
+ },
+ {
+  "phase": "P0",
+  "name": "Domain research and planning",
+  "track": "Foundation",
+  "status": "done",
+  "scenario": "high",
+  "start": "2026-05-13",
+  "end": "2026-08-18",
+  "critical": false
+ },
+ {
+  "phase": "P1",
+  "name": "Schema at parity with the invariants",
+  "track": "Schema",
+  "status": "in_progress",
+  "scenario": "high",
+  "start": "2026-08-18",
+  "end": "2027-01-20",
+  "critical": true
+ },
+ {
+  "phase": "P2",
+  "name": "Scenarios and testing strategy",
+  "track": "Specification",
+  "status": "partial",
+  "scenario": "high",
+  "start": "2027-01-20",
+  "end": "2027-04-14",
+  "critical": true
+ },
+ {
+  "phase": "P3",
+  "name": "Core build plan",
+  "track": "Specification",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2027-04-14",
+  "end": "2027-05-05",
+  "critical": true
+ },
+ {
+  "phase": "P4",
+  "name": "Platform foundation",
+  "track": "Platform",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2027-04-14",
+  "end": "2027-06-09",
+  "critical": false
+ },
+ {
+  "phase": "P5",
+  "name": "Core billing engine (C#)",
+  "track": "Core",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2027-05-05",
+  "end": "2028-02-23",
+  "critical": true
+ },
+ {
+  "phase": "P6",
+  "name": "Frontend hardening and integration",
+  "track": "Frontend",
+  "status": "partial",
+  "scenario": "high",
+  "start": "2027-06-16",
+  "end": "2028-01-26",
+  "critical": false
+ },
+ {
+  "phase": "P7",
+  "name": "Integrations",
+  "track": "Integrations",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2027-07-28",
+  "end": "2027-12-01",
+  "critical": false
+ },
+ {
+  "phase": "P8",
+  "name": "Test data and release testing",
+  "track": "Quality",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2028-02-23",
+  "end": "2028-04-05",
+  "critical": true
+ },
+ {
+  "phase": "P9",
+  "name": "Security and operations readiness",
+  "track": "Platform",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2027-08-25",
+  "end": "2027-11-17",
+  "critical": false
+ },
+ {
+  "phase": "P10",
+  "name": "First customer: conversion and setup",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2027-08-11",
+  "end": "2028-01-12",
+  "critical": false
+ },
+ {
+  "phase": "P11",
+  "name": "Parallel billing runs",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2028-04-05",
+  "end": "2028-07-26",
+  "critical": true
+ },
+ {
+  "phase": "P12",
+  "name": "Go-live and stabilization",
+  "track": "Customer",
+  "status": "todo",
+  "scenario": "high",
+  "start": "2028-07-26",
+  "end": "2028-09-20",
+  "critical": true
+ }
+]

@@ -1,0 +1,20 @@
+[
+ {
+  "scenario": "low",
+  "go_live": "2027-09-01",
+  "weeks_from_now": 46,
+  "critical_path": "P1 > P2 > P3 > P4 > P5 > P10 > P11"
+ },
+ {
+  "scenario": "likely",
+  "go_live": "2028-01-05",
+  "weeks_from_now": 64,
+  "critical_path": "P1 > P2 > P3 > P5 > P8 > P11"
+ },
+ {
+  "scenario": "high",
+  "go_live": "2028-07-26",
+  "weeks_from_now": 93,
+  "critical_path": "P1 > P2 > P3 > P5 > P8 > P11"
+ }
+]
