@@ -75,6 +75,7 @@ function navGroups(): NavGroup[] {
       items: [
         { href: '/invoices', label: 'Bills' },
         { href: '/runs/run-2026-02-04', label: 'Billing run' },
+        { href: '/runs', label: 'Run history' },
         { href: '/reads', label: 'Read validation' },
       ],
     },

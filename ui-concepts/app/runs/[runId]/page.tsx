@@ -12,6 +12,8 @@ import { customerById } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
 import type { Invoice } from '@/schemas/models'
 import { count, date, dateShort, stamp } from '@/lib/format'
+import { correctedRuns, correctionsOf, runEligibility } from '@/lib/run-corrections'
+import { RebillRunButton, RunCorrections, type PostedCorrection } from '@/components/runs/RunCorrections'
 
 /**
  * The billing run cockpit.
@@ -91,32 +93,62 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
 
   const tone = runTone(run.status, run.is_dry_run)
   const runInvoices = invoices.filter((i) => i.billing_run_id === run.id)
+  const eligibility = runEligibility(run)
+  const corrects = correctedRuns(run.id)
+  const posted: PostedCorrection[] = correctionsOf(run.id).map((c) => ({
+    runId: c.run.id,
+    runNumber: c.run.run_number,
+    postedAt: c.run.posted_at,
+    bills: c.bills.map((b) => ({
+      id: b.id,
+      number: b.invoice_number,
+      replaces: invoiceById.get(b.replaces_invoice_id!)?.invoice_number ?? '—',
+      amount: b.amount_due,
+    })),
+  }))
+  /* The live cycle is "Billing run" in the sidebar; every other run is reached from the history. */
+  const isCurrent = run.id === currentRun.id
+  /* A posted run finished every stage; the gate and the open queue belong to the run still in review. */
+  const isPosted = run.status === 'posted'
+  const stages = STAGES.map((s) => ({ ...s, done: s.done || isPosted }))
 
   return (
-    <AppShell current="Billing run">
+    <AppShell current={isCurrent ? 'Billing run' : 'Run history'}>
       <PageHeader
+        back={isCurrent ? undefined : { href: '/runs', label: 'Run history' }}
         title={<span className="ident text-h1">{run.run_number}</span>}
         meta={
           <>
             {humanize(run.run_type)} · {run.billing_period} · {date(run.period_start)} →{' '}
             {date(run.period_end)}
+            {corrects.map((r) => (
+              <span key={r.id}>
+                {' · '}Corrects{' '}
+                <Link href={`/runs/${r.id}`} className="ident text-accent-text hover:text-accent-text-hover underline">
+                  {r.run_number}
+                </Link>
+              </span>
+            ))}
           </>
         }
         actions={
           <>
             <StateFlag tone={tone}>{humanize(run.status)}</StateFlag>
             <Button>Export</Button>
-            <Button
-              variant="primary"
-              disabled={blockingCount > 0}
-              title={
-                blockingCount > 0
-                  ? `${blockingCount} exceptions block delivery`
-                  : 'Post this run'
-              }
-            >
-              Post run
-            </Button>
+            <RebillRunButton runId={run.id} eligible={eligibility.ok} reason={eligibility.reason} />
+            {run.status === 'posted' ? null : (
+              <Button
+                variant="primary"
+                disabled={blockingCount > 0}
+                title={
+                  blockingCount > 0
+                    ? `${blockingCount} exceptions block delivery`
+                    : 'Post this run'
+                }
+              >
+                Post run
+              </Button>
+            )}
           </>
         }
       />
@@ -152,9 +184,12 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
           </div>
 
           <Panel>
-            <PanelHeader title="Pipeline" meta={`Started ${stamp(run.started_at)}`} />
+            <PanelHeader
+              title="Pipeline"
+              meta={isPosted ? `Started ${stamp(run.started_at)} · posted ${stamp(run.posted_at)}` : `Started ${stamp(run.started_at)}`}
+            />
             <ol className="divide-y divide-rule-hair">
-              {STAGES.map((s, i) => (
+              {stages.map((s, i) => (
                 <li key={s.key} className="flex items-center gap-3 px-4 py-2.5">
                   <span
                     className={`ident flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
@@ -170,7 +205,7 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
                   >
                     {s.label}
                   </span>
-                  {s.key === 'audit' ? (
+                  {s.key === 'audit' && !isPosted ? (
                     <span className="ml-auto text-micro text-exception-critical-text">
                       {blockingCount} blocking · {openExceptions.length} open
                     </span>
@@ -180,7 +215,7 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
             </ol>
           </Panel>
 
-          {blockingCount > 0 && !run.is_dry_run ? (
+          {blockingCount > 0 && !run.is_dry_run && !isPosted ? (
             <StateBlock tone="critical">
               <p className="text-data text-ink-primary">
                 <strong className="font-semibold">This run cannot post.</strong>{' '}
@@ -217,6 +252,8 @@ export default async function RunPage({ params }: PageProps<'/runs/[runId]'>) {
               </p>
             </div>
           </Panel>
+
+          <RunCorrections runId={run.id} posted={posted} />
 
           {runInvoices.length > 0 ? (
             <Panel>
