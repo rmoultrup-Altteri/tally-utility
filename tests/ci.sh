@@ -18,7 +18,6 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 # patch file : a table it creates (its marker); a '!' before the marker means a table the
 # patch DROPS (the patch is pending while that table still exists)
 PENDING=(
-  sql/v5.4.2-20-seal-version-check-and-void.sql:reference_version_receipts
 )
 BASE=ci_base
 
