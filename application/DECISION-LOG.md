@@ -6,6 +6,28 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (CI-016) — Ryan: which bill lines must carry their own arithmetic at issue
+
+**What:** Ryan (2026-10-14): "yes, go with the default". At issue, every `invoice_line_items` row on the invoice must carry the values below, keyed by `charge_type`:
+- **`usage_charge`:** `usage_quantity`, `usage_unit`, `rate`. A gas usage line also carries `gas_meter_factor`, `gas_ccf_used`, `gas_therms_billed` and `gas_commodity_rate`.
+- **`base_charge`:** `rate`. A partial-period line also carries `coverage_start`, `coverage_end`, `days_covered`, `days_in_period` and `partial_period_policy_applied`.
+  - The coverage columns are all set or all NULL. NULL keeps its existing meaning: the full billing period, which the invoice records.
+- **`surcharge`** whose rate item is per unit (`per_unit_usage`, `tiered_usage`): as for `usage_charge`. A percentage surcharge (`percentage_of_bill` / `percentage_of_charges`) is already covered by its `invoice_line_item_bases` rows (A-7).
+- **`tax`:** nothing new. Its base is in `invoice_line_item_bases`.
+- **All other kinds** (`late_fee`, `penalty`, `deposit`, `credit`, `adjustment`, `adhoc`, `minimum_bill_adjustment`, `consolidated_summary`, `misc`): amount only. An `adhoc` line already links its `adhoc_charge_id`.
+
+*Why this and not the alternatives:* the bill tables are empty, so the requirement costs nothing now. After bills exist, every issued line would have to be judged.
+- **Rejected:** requiring the values on every kind, with an exempt list. It fails safe, but every new kind would need a ruling first. A new kind is already a CHECK change, so it gets decided then.
+
+**Left to drafting:**
+- The check runs at issue, as a deferred check on the line, beside the existing snapshot check.
+- Whether `rate` and `gas_commodity_rate` on a gas usage line are one figure or two.
+- How a per-unit surcharge is recognised: from its rate item's `calculation_type` at the bill's coordinates.
+
+*Where it lives:* this entry; the wave that lands CI-016 in `application/step1-sequencing-2026-10-13.md`.
+
+---
+
 ## 2026-10-14 (A-8, CI-033, CI-036) — Kyle answers the tax-jurisdiction and gas-cost brief
 
 **What:** Kyle answered all seven questions of `application/kyle-brief-2026-10-13-tax-jurisdictions-and-gas-cost.md` in `gas-billing-memory/application/kyle-decisions-2026-10-14-tax-jurisdictions-and-gas-cost.md` (commit `45dfff6`). He answered from Ryan's summary, because the brief lives in this repo, not in gas-billing-memory.
