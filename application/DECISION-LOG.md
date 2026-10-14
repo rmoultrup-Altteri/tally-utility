@@ -6,6 +6,25 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (-20 residual R1, Codex B3) — Ryan: the database trusts the app's verified identity; no database-side session
+
+**What:** Ryan (2026-10-14): "this app will be using Cognito as an auth provider. Every call to the app must have the token and pass verification at the AWS level and in app middleware. the user is tied to the token … if an attacker has comprimised the app server the database is comprimised as well."
+- `app.user_id` stays the identity the database acts on.
+- The app sets it only from the verified Cognito token, once per transaction (AC-43).
+- No sealed session table and no in-database token check.
+
+*Why this and not a database-side session (Codex B3, the offered Option 2):* an attacker who controls the app server holds `tally_app`'s credentials and every live token passing through it. A session table only narrows which users they can act as; it does not keep them out. That leaves bugs as the risk a session check would guard against. Setting `app.user_id` in one middleware path from the verified token covers bugs at the source.
+
+*What stays true at the database:* `tally_app` still cannot bypass the seals, the append-only guards or RLS itself. A compromise reaches what any one claimed user can reach, and a claimed platform admin reaches every tenant. This is the accepted residual.
+
+*Consequences for the schema (to draft in -21, no further decision needed):*
+- `users` has no column tying a row to its Cognito identity. Add a unique, write-once `cognito_sub`.
+- `get_user_tenant_id()` and `is_platform_admin()` ignore `users.is_active`, so a deactivated user still passes RLS. Make them require an active user.
+
+*Where it lives:* AC-43 in `application/APPLICATION-CONTRACTS.md`; the review, `application/a23-seal-review-2026-10-14/review-codex.md` B3.
+
+---
+
 ## 2026-10-14 (CI-011, A-23 item 1, AC-12) — Ryan: seal the version check and the void, by the corrected design
 
 **What:** Ryan asked for the three-reviewer design review (`application/a23-seal-review-2026-10-14/`) and then said "yes, go ahead and draft it". The corrected design follows.
