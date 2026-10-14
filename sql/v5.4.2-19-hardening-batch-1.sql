@@ -27,6 +27,14 @@
 --   Codex B4: supersession always rewrites the predecessor, inactive or
 --   not, so a concurrent reactivation cannot slip past on an old snapshot.
 --
+-- Revision r3 (review round 2: Codex ready, Opus ready, Fable not yet):
+--   a refund (any money out) delivered twice is refused, as a receipt is;
+--   a refund or replacement cites the same customer's payment; an unconsumed
+--   read's lock record is written only by the move to locked; a finished
+--   import job's stored file and counts are frozen; account_ledger's table
+--   comment no longer describes the dropped column; the rider lock order
+--   names headers-before-edges; R15-R18 record what was left on purpose.
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -71,9 +79,12 @@
 --   * CI-052. payments.return_code: a NACHA return code (R followed by two
 --     digits), only on a payment in nsf or reversed, required when an ACH
 --     payment goes to nsf, write-once.
---   * CI-055. One payment per processor transaction: UNIQUE (tenant_id,
---     source_system, provider_transaction_id) for original payments (a
---     refund or an NSF row that cites its original is not counted).
+--   * CI-055. One receipt and one refund per processor transaction per
+--     source: UNIQUE (tenant_id, source_system, provider_transaction_id) over
+--     money in (amount > 0, a replacement for a bounced payment included) and
+--     again over money out (amount < 0). A row citing a refunded payment must
+--     be a negative refund; a refund or replacement cites a payment of the
+--     same customer.
 --   * CI-057. payment_methods keeps its history. The account identity
 --     (customer, provider, token, method type, last four, bank, account type,
 --     holder) is frozen once written; a change is a new row that names the
@@ -103,11 +114,12 @@
 --     customer received, required with pdf_url and write-once with it.
 --   Imports
 --   * CI-118. A file import (csv, excel, pdf, legacy_export) names its file
---     and its hash; one live job per tenant, file hash, import type and
---     preview/commit (a failed or cancelled job does not count), so a
+--     and its hash; one live commit per tenant and file hash, whatever its
+--     import type (previews and failed or cancelled jobs do not count), so a
 --     renamed copy of a file already imported is refused — the
 --     idempotency_key (filename-based, or caller-supplied) no longer decides
---     that alone.
+--     that alone. A job's file identity is write-once; a finished job's
+--     status, stored file and row counts are final.
 --   * CI-098. import_type gains ach_return, lockbox and amr.
 --   Programs
 --   * CI-062. program_types.requires_attestation (true for
@@ -196,6 +208,25 @@
 --       can release a locked read without voiding its bill (only the pointer
 --       write void_invoice() does is admitted). Sealing void_invoice() behind
 --       a definer is the A-23 question (Ryan).
+--   R15. CI-031: the move to locked requires the run, not the bill; a read
+--       locked without locked_by_invoice_id can never get it (the pointer is
+--       frozen) and void_invoice() can never release it. Contract (R9): a run
+--       sets the bill pointer in the same write as the lock. A read's
+--       voided_from_invoice_id holds the latest void only; earlier voids are
+--       in invoice_events.
+--   R16. CI-057: a payment may cite an inactive (superseded) method — a
+--       late confirmation of a charge on the old account is a true record;
+--       choosing the account to draw on is the core's.
+--   R17. CI-055: duplicates are keyed on source_system, the capture
+--       channel: one processor transaction arriving by webhook and again in
+--       an imported settlement file posts twice (the core matches across
+--       channels); a zero-amount row is not counted; a pending row's amount
+--       is editable, so its slot is held only while its sign is.
+--   R18. CI-025: on a consumed read, status is follow-up work (whitelisted),
+--       but populate_reading_calculations takes the "previous" read by
+--       status = 'active', so marking a consumed read disputed changes the
+--       next read's database-filled previous_value; field-reader confirmation
+--       and quality_flag are frozen after consumption (a domain call, R9).
 --
 -- PRECONDITION. v5.4.2-18 and -15 applied (tu.sql). The tables tightened are
 --   empty in every database built from tu.sql; on a database with rows, a
@@ -343,6 +374,21 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
 
+    -- r3 (Fable S1): nor is the rest of the lock record written on a read no
+    -- run has consumed. The lock time, run and bill come only with the move
+    -- to locked; voided_from_invoice_id only from a void (Block 3).
+    IF NOT OLD.billing_period_locked THEN
+        IF NEW.voided_from_invoice_id IS DISTINCT FROM OLD.voided_from_invoice_id
+           OR (NEW.validation_status IS DISTINCT FROM 'locked'
+               AND (NEW.locked_at IS DISTINCT FROM OLD.locked_at
+                    OR NEW.locked_by_billing_run_id IS DISTINCT FROM OLD.locked_by_billing_run_id
+                    OR NEW.locked_by_invoice_id IS DISTINCT FROM OLD.locked_by_invoice_id)) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('meter reading %s: the lock record (locked_at, locked_by_*, voided_from_invoice_id) of a read no billing run has consumed is written only by the move to locked (CI-031, v5.4.2-19)', OLD.id),
+                ERRCODE = 'check_violation';
+        END IF;
+    END IF;
+
     -- -------------------------------------------------------------------------
     -- BLOCK 2: a read a billing run consumed keeps its record (v5.4.2-19,
     -- CI-025 / CI-031). Keyed on billing_period_locked, which stays true after
@@ -433,6 +479,12 @@ DROP TRIGGER IF EXISTS a_enforce_reading_born_unconsumed ON public.meter_reading
 CREATE TRIGGER a_enforce_reading_born_unconsumed BEFORE INSERT ON public.meter_readings
     FOR EACH ROW EXECUTE FUNCTION public.enforce_reading_born_unconsumed();
 ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER a_enforce_reading_born_unconsumed;
+-- r3 (Fable N8): the read guards this patch rewrites fire as every new one does.
+ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER trg_enforce_reading_validation_workflow;
+ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER trg_populate_reading_calculations;
+ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER dry_run_no_read_locks;
+COMMENT ON COLUMN public.meter_readings.voided_from_invoice_id IS
+    'Set during a void operation to preserve the invoice that originally locked this read, before locked_by_invoice_id is cleared. Enables full audit traversal: read -> voided invoice -> correction invoice. Written only by a void (v5.4.2-19); it holds the latest void — a read voided again after a re-lock names the second bill, and invoice_events keeps both.';
 
 
 -- ----------------------------------------------------------------------------
@@ -491,9 +543,14 @@ BEGIN
             ERRCODE = 'foreign_key_violation';
     END IF;
 
-    -- Lock order (AC, r2): a transaction that writes dependencies of several
-    -- schedules writes them in schedule-id order; the opposite order in two
-    -- transactions deadlocks (one is cancelled and may retry).
+    -- Lock order (AC, r2/r3): a transaction that writes dependencies takes
+    -- the schedule headers first, in schedule-id order (this bump, or
+    -- assert_reference_version), and only then writes dependency rows; an
+    -- UPDATE of an edge locks the edge before this bump, so a transaction
+    -- holding the header that then edits the edge, against one editing the
+    -- edge, deadlocks. PostgreSQL cancels one; the caller retries the whole
+    -- transaction on deadlock_detected or serialization_failure. A cancelled
+    -- participant never lets a cycle through.
     -- Row-version mutex on the schedule header: every writer of the
     -- schedule's dependencies bumps the same row, so two halves of a cycle
     -- written at once serialise (READ COMMITTED: the second waits and its
@@ -589,7 +646,49 @@ CREATE UNIQUE INDEX payments_provider_transaction_once
     ON public.payments (tenant_id, source_system, provider_transaction_id)
     WHERE provider_transaction_id IS NOT NULL AND amount > 0;
 COMMENT ON INDEX public.payments_provider_transaction_once IS
-    'v5.4.2-19 (CI-055). One receipt per processor transaction per source: a webhook or file delivered twice cannot post twice, whatever lineage it claims. Every positive payment counts (a replacement for a bounced payment is a fresh receipt); a refund is negative (payments_refund_is_refund_check) and is not counted.';
+    'v5.4.2-19 (CI-055). One receipt per processor transaction per source: a webhook or file delivered twice cannot post twice, whatever lineage it claims. Every positive payment counts (a replacement for a bounced payment is a fresh receipt). Money out is counted by payments_provider_refund_once; a zero-amount row is counted by neither.';
+-- r3 (Fable B1, Opus S4): money out delivered twice must not go out twice.
+-- One refund (any negative row) per processor id per source. A refund may
+-- share its original's id (one receipt and one refund per id), but a second
+-- refund of the same payment — a partial refund — carries the processor's own
+-- id for that refund event, never the original's again.
+CREATE UNIQUE INDEX payments_provider_refund_once
+    ON public.payments (tenant_id, source_system, provider_transaction_id)
+    WHERE provider_transaction_id IS NOT NULL AND amount < 0;
+COMMENT ON INDEX public.payments_provider_refund_once IS
+    'v5.4.2-19 r3 (CI-055). One money-out row (a refund, any negative payment) per processor transaction per source, so a refund delivered twice cannot pay out twice. A refund may carry its original''s id once; a further (partial) refund carries the processor''s id for that refund. A zero-amount row is not counted.';
+
+-- r3 (Fable S2, Opus PR3): the payment a refund or a replacement cites is the
+-- same customer's. A positive check (visible AND same tenant AND same
+-- customer): row-level security hides another tenant's payment, so absence
+-- of a mismatch proves nothing.
+CREATE OR REPLACE FUNCTION public.enforce_payment_lineage() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_ref  uuid;
+    v_kind text;
+BEGIN
+    FOREACH v_kind IN ARRAY ARRAY['refunds_payment_id', 'nsf_original_payment_id'] LOOP
+        v_ref := CASE v_kind WHEN 'refunds_payment_id' THEN NEW.refunds_payment_id ELSE NEW.nsf_original_payment_id END;
+        CONTINUE WHEN v_ref IS NULL;
+        IF NOT EXISTS (SELECT 1 FROM public.payments o
+                        WHERE o.id = v_ref AND o.tenant_id = NEW.tenant_id AND o.customer_id = NEW.customer_id) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('payment %s: %s %s is not a payment of this customer (CI-055, v5.4.2-19)', NEW.payment_number, v_kind, v_ref),
+                ERRCODE = 'foreign_key_violation';
+        END IF;
+    END LOOP;
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_payment_lineage() IS
+    'v5.4.2-19 r3 (CI-055). BEFORE INSERT OR UPDATE on payments: refunds_payment_id and nsf_original_payment_id name a visible payment of the same tenant and customer.';
+DROP TRIGGER IF EXISTS a_enforce_payment_lineage ON public.payments;
+CREATE TRIGGER a_enforce_payment_lineage BEFORE INSERT OR UPDATE OF refunds_payment_id, nsf_original_payment_id, customer_id, tenant_id ON public.payments
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_payment_lineage();
+ALTER TABLE public.payments ENABLE ALWAYS TRIGGER a_enforce_payment_lineage;
 
 CREATE OR REPLACE FUNCTION public.enforce_payment_effective_date() RETURNS trigger
     LANGUAGE plpgsql
@@ -720,7 +819,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.payment_method_after_supersede() IS
-    'v5.4.2-19 (CI-057). AFTER INSERT on payment_methods: the superseded method is deactivated (and loses default), so a draft can no longer use the replaced account. The predecessor is always rewritten, even when already inactive: that new row version makes a concurrent reactivation fail to serialise (REPEATABLE READ) or re-read and be refused (READ COMMITTED).';
+    'v5.4.2-19 (CI-057). AFTER INSERT on payment_methods: the superseded method is deactivated (and loses default), so the core no longer draws on the replaced account. A payment row may still cite it: a processor can confirm a charge on the old account after the customer replaced it, and the record says what was drawn (R16). The predecessor is always rewritten, even when already inactive: that new row version makes a concurrent reactivation fail to serialise (REPEATABLE READ) or re-read and be refused (READ COMMITTED).';
 
 DROP TRIGGER IF EXISTS a_enforce_payment_method_history ON public.payment_methods;
 CREATE TRIGGER a_enforce_payment_method_history BEFORE INSERT OR UPDATE ON public.payment_methods
@@ -988,8 +1087,17 @@ BEGIN
     IF NEW.is_dry_run        IS DISTINCT FROM OLD.is_dry_run        THEN v_changed := v_changed || 'is_dry_run'::text; END IF;
     IF NEW.idempotency_key   IS DISTINCT FROM OLD.idempotency_key   THEN v_changed := v_changed || 'idempotency_key'::text; END IF;
     IF NEW.created_at        IS DISTINCT FROM OLD.created_at        THEN v_changed := v_changed || 'created_at'::text; END IF;
-    IF OLD.status IN ('complete', 'partial', 'failed', 'cancelled') AND NEW.status IS DISTINCT FROM OLD.status THEN
-        v_changed := v_changed || format('status (%s is final)', OLD.status);
+    IF OLD.status IN ('complete', 'partial', 'failed', 'cancelled') THEN
+        IF NEW.status IS DISTINCT FROM OLD.status THEN
+            v_changed := v_changed || format('status (%s is final)', OLD.status);
+        END IF;
+        -- r3 (Opus S2): a finished job's stored file and its counts are its record.
+        IF NEW.source_file_url        IS DISTINCT FROM OLD.source_file_url        THEN v_changed := v_changed || 'source_file_url'::text; END IF;
+        IF NEW.source_file_size_bytes IS DISTINCT FROM OLD.source_file_size_bytes THEN v_changed := v_changed || 'source_file_size_bytes'::text; END IF;
+        IF (NEW.total_rows, NEW.processed_rows, NEW.committed_rows, NEW.held_rows, NEW.error_rows, NEW.warning_rows, NEW.skipped_rows)
+           IS DISTINCT FROM (OLD.total_rows, OLD.processed_rows, OLD.committed_rows, OLD.held_rows, OLD.error_rows, OLD.warning_rows, OLD.skipped_rows) THEN
+            v_changed := v_changed || 'row counts'::text;
+        END IF;
     END IF;
     IF cardinality(v_changed) > 0 THEN
         RAISE EXCEPTION USING
@@ -1001,7 +1109,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_import_job_record() IS
-    'v5.4.2-19 r2 (CI-118). BEFORE UPDATE on import_jobs: tenant, initiator, import and source type, file name, file hash, preview flag, idempotency key and created_at are write-once; complete, partial, failed and cancelled are final statuses.';
+    'v5.4.2-19 r2 (CI-118). BEFORE UPDATE on import_jobs: tenant, initiator, import and source type, file name, file hash, preview flag, idempotency key and created_at are write-once; complete, partial, failed and cancelled are final statuses, and a finished job''s stored file (URL, size) and row counts are frozen with it (r3).';
 DROP TRIGGER IF EXISTS a_enforce_import_job_record ON public.import_jobs;
 CREATE TRIGGER a_enforce_import_job_record BEFORE UPDATE ON public.import_jobs
     FOR EACH ROW EXECUTE FUNCTION public.enforce_import_job_record();
@@ -1075,7 +1183,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.account_balance_as_of(uuid, date, timestamp with time zone) IS
-    'v5.4.2-19 (CI-019). The customer''s ledger balance: the sum of account_ledger amounts dated on or before p_on and recorded (created_at) by p_recorded_at. Order-independent, unlike running_balance. All coordinates required; a customer not visible raises.';
+    'v5.4.2-19 (CI-019). The customer''s ledger balance: the sum of account_ledger amounts dated on or before p_on and recorded (created_at) by p_recorded_at. Order-independent. All coordinates required; a customer not visible raises.';
 REVOKE ALL ON FUNCTION public.account_balance_as_of(uuid, date, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.account_balance_as_of(uuid, date, timestamp with time zone) TO tally_app, tally_core;
 
@@ -1400,6 +1508,8 @@ $$;
 DROP TRIGGER IF EXISTS trg_compute_ledger_running_balance ON public.account_ledger;
 DROP FUNCTION IF EXISTS public.compute_ledger_running_balance();
 ALTER TABLE public.account_ledger DROP COLUMN running_balance;
+COMMENT ON TABLE public.account_ledger IS
+    'Append-only financial ledger (CI-013; structurally enforced since v5.4.2-01: BEFORE UPDATE/DELETE/TRUNCATE triggers raise; tally_app holds SELECT/INSERT only). Reversals are new rows linked through reverses_ledger_entry_id. A balance is a sum of amounts, never a stored column (v5.4.2-19, CI-019): account_balance_as_of() for a date and recorded-time coordinate; created_at is stamped by the database.';
 
 -- ============================================================================
 -- END PATCH v5.4.2-19

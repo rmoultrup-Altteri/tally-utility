@@ -21,6 +21,10 @@
 -- r2 adds the review-round-1 cases: RB (reads born unconsumed), RF (the lock
 -- flag), RW (the whitelist), RV (pointers on a void-released read), P7-P8,
 -- L6-L8, N4, M9, J6-J9, I4-I6, Q5 (a deep diamond is fast).
+-- r3 adds the review-round-2 cases: RL (an unconsumed read's lock record),
+-- P7c-P9b (money out once; lineage of the same customer), Q4h-Q4i, J2c
+-- isolated by constraint, J10 (a finished job's file and counts), L7c by a
+-- different citation, B5 (void_invoice()'s returned balance).
 -- Races (two halves of a dependency cycle at once): races/cycle-19.sh.
 -- ============================================================================
 BEGIN;
@@ -41,6 +45,26 @@ BEGIN
   RAISE EXCEPTION 'FAIL %: accepted', p_label;
 END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.refuses(text, text, text) TO tally_app;
+-- refuses_at (r3, Codex S1): as refuses(), and the refusal must come from the
+-- named guard — its constraint name, or a fragment of its message — so a test
+-- cannot pass on another guard that shares the SQLSTATE.
+CREATE FUNCTION pg_temp.refuses_at(p_label text, p_sql text, p_state text, p_guard text) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE v_con text;
+BEGIN
+  BEGIN
+    EXECUTE p_sql;
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_con = CONSTRAINT_NAME;
+    IF SQLSTATE = p_state AND (v_con = p_guard OR strpos(SQLERRM, p_guard) > 0) THEN
+      RAISE NOTICE 'PASS %: refused by % (%)', p_label, p_guard, left(SQLERRM, 120);
+      RETURN;
+    END IF;
+    RAISE EXCEPTION 'FAIL %: refused with % [%] (%), expected % by %', p_label, SQLSTATE, v_con, SQLERRM, p_state, p_guard;
+  END;
+  RAISE EXCEPTION 'FAIL %: accepted', p_label;
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text) TO tally_app;
 
 -- ------------------------------------------------------------------ fixtures
 INSERT INTO public.tenants (id, name, slug) VALUES
@@ -89,6 +113,11 @@ INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, readin
 VALUES ('00000000-0000-4000-8000-000000001912', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019e2', DATE '2026-01-31', 5);
 SELECT pg_temp.refuses('RF1 the lock flag set on a pending read',
   $q$UPDATE public.meter_readings SET billing_period_locked = true WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514');
+-- RL (r3, Fable S1): nor is the rest of the lock record written on it.
+SELECT pg_temp.refuses_at('RL1 a run pointer on a pending read', $q$UPDATE public.meter_readings SET locked_by_billing_run_id = '00000000-0000-4000-8000-0000000019f1' WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514', 'no billing run has consumed');
+SELECT pg_temp.refuses_at('RL2 a bill pointer on a pending read', $q$UPDATE public.meter_readings SET locked_by_invoice_id = '00000000-0000-4000-8000-000000001901' WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514', 'no billing run has consumed');
+SELECT pg_temp.refuses_at('RL3 a lock time on a pending read', $q$UPDATE public.meter_readings SET locked_at = TIMESTAMPTZ '2020-01-01 00:00Z' WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514', 'no billing run has consumed');
+SELECT pg_temp.refuses_at('RL4 a voided bill on a pending read', $q$UPDATE public.meter_readings SET voided_from_invoice_id = '00000000-0000-4000-8000-000000001902' WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514', 'no billing run has consumed');
 
 -- R0: a wrapped dial (previous 9990, now 50) gets no usage from the database.
 INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, reading_value, previous_value)
@@ -211,7 +240,8 @@ SELECT pg_temp.refuses('Q3d a recorded deadband edited in place (the version is 
 DO $$ BEGIN RAISE NOTICE 'PASS Q3: a full deadband (value, measure, application) is recorded on the zone version (CI-041)'; END $$;
 
 INSERT INTO public.rate_schedules (id, tenant_id, code) VALUES
-  ('00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a1', 'RS1');
+  ('00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a1', 'RS1'),
+  ('00000000-0000-4000-8000-000000001943', '00000000-0000-4000-8000-0000000019a2', 'RS-T2');
 INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019a1', 'A'),
   ('00000000-0000-4000-8000-0000000019b0', '00000000-0000-4000-8000-0000000019a1', 'B'),
@@ -246,6 +276,10 @@ SELECT pg_temp.refuses('Q4c a 3-cycle with no shortcut (C on A while A on B on C
 UPDATE public.rate_item_dependencies SET dependent_rate_item_id = '00000000-0000-4000-8000-0000000019d0', base_rate_item_id = '00000000-0000-4000-8000-0000000019a0'
  WHERE id = '00000000-0000-4000-8000-000000001953';
 DO $$ BEGIN RAISE NOTICE 'PASS Q4h: reversing a lone edge passes (the edited row is not its own cycle)'; END $$;
+-- r3 (Fable N7): another tenant's schedule, not just another tenant's item.
+SELECT pg_temp.refuses_at('Q4i a dependency filed under another tenant''s schedule',
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001943', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019b0')$q$, '23503', 'is not a row of this dependency''s tenant');
 RESET ROLE;
 -- The owner sees every tenant: the check compares tenants, not just visibility.
 SELECT pg_temp.refuses('Q4g the owner writes a dependency on another tenant''s rate item',
@@ -347,6 +381,31 @@ SELECT pg_temp.refuses('P8 a refund of money in (positive)',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-8', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', 20, 'refund',
              DATE '2026-02-07', 'bank_settlement', '00000000-0000-4000-8000-000000001961')$q$, '23514');
+-- r3 (Fable B1, Opus S4): money out delivered twice does not go out twice.
+SELECT pg_temp.refuses_at('P7c the same refund delivered twice',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
+                                  source_system, provider_transaction_id, refunds_payment_id)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4b', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', -20, 'refund',
+             DATE '2026-02-07', 'bank_settlement', 'paymentus_webhook', 'TXN-1', '00000000-0000-4000-8000-000000001962')$q$, '23505', 'payments_provider_refund_once');
+INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
+                             source_system, provider_transaction_id, refunds_payment_id)
+VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4c', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-08', -5, 'refund',
+        DATE '2026-02-08', 'bank_settlement', 'paymentus_webhook', 'RFND-7', '00000000-0000-4000-8000-000000001962');
+DO $$ BEGIN RAISE NOTICE 'PASS P7d: a further (partial) refund under its own processor id is recorded'; END $$;
+SELECT pg_temp.refuses_at('P7e a negative row with no lineage delivered twice',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
+                                  source_system, provider_transaction_id)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4d', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-08', -5, 'ach',
+             DATE '2026-02-08', 'bank_settlement', 'paymentus_webhook', 'RFND-7')$q$, '23505', 'payments_provider_refund_once');
+-- r3 (Fable S2, Opus PR3): a refund or a replacement cites the same customer's payment.
+SELECT pg_temp.refuses_at('P9 a refund of another customer''s payment',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-9', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-07', -500, 'refund',
+             DATE '2026-02-07', 'bank_settlement', '00000000-0000-4000-8000-000000001962')$q$, '23503', 'is not a payment of this customer');
+SELECT pg_temp.refuses_at('P9b a replacement for another customer''s bounced payment',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, nsf_original_payment_id)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-9b', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-12', 20, 'check',
+             DATE '2026-02-12', 'postmark', '00000000-0000-4000-8000-000000001962')$q$, '23503', 'is not a payment of this customer');
 RESET ROLE;
 
 
@@ -408,7 +467,8 @@ VALUES ('00000000-0000-4000-8000-000000001982', '00000000-0000-4000-8000-0000000
 INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, created_at)
 VALUES ('00000000-0000-4000-8000-000000001983', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001981', '00000000-0000-4000-8000-0000000019c1', 'dormancy_flag', TIMESTAMPTZ '2020-01-01 00:00Z');
 INSERT INTO public.ai_audit_log (id, tenant_id, action_type, created_at)
-VALUES ('00000000-0000-4000-8000-000000001984', '00000000-0000-4000-8000-0000000019a1', 'mutation_executed', TIMESTAMPTZ '2020-01-01 00:00Z');
+VALUES ('00000000-0000-4000-8000-000000001984', '00000000-0000-4000-8000-0000000019a1', 'mutation_executed', TIMESTAMPTZ '2020-01-01 00:00Z'),
+       ('00000000-0000-4000-8000-000000001989', '00000000-0000-4000-8000-0000000019a1', 'mutation_executed', now());
 DO $$ BEGIN
   IF (SELECT created_at FROM public.dunning_events WHERE id = '00000000-0000-4000-8000-000000001982') IS DISTINCT FROM now()
      OR (SELECT created_at FROM public.escheatment_events WHERE id = '00000000-0000-4000-8000-000000001983') IS DISTINCT FROM now()
@@ -448,8 +508,10 @@ SELECT pg_temp.refuses('L7 an AI service order''s flag and citation cleared',
   $q$UPDATE public.service_orders SET created_by_ai = false, ai_audit_id = NULL WHERE id = '00000000-0000-4000-8000-000000001986'$q$, '23001');
 SELECT pg_temp.refuses('L7b a human service order relabelled as the AI''s',
   $q$UPDATE public.service_orders SET created_by_ai = true, ai_audit_id = '00000000-0000-4000-8000-000000001984' WHERE id = '00000000-0000-4000-8000-000000001987'$q$, '23001');
-SELECT pg_temp.refuses('L7c an AI charge''s citation cleared',
-  $q$UPDATE public.adhoc_charges SET ai_audit_id = NULL WHERE charge_number = 'CH-AI'$q$, '23001');
+-- r3 (Fable N6): a different, valid same-tenant citation — only the
+-- write-once trigger can refuse it (clearing it also trips the CHECK).
+SELECT pg_temp.refuses('L7c an AI charge''s citation swapped for another audit row',
+  $q$UPDATE public.adhoc_charges SET ai_audit_id = '00000000-0000-4000-8000-000000001989' WHERE charge_number = 'CH-AI'$q$, '23001');
 -- r2 (Opus S1, Fable S4): the ledger's recorded time is the database's.
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, created_at)
 VALUES ('00000000-0000-4000-8000-000000001988', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c2', DATE '2026-01-31', 'adjustment', 'x', 1.00, TIMESTAMPTZ '2000-01-01 00:00Z');
@@ -543,9 +605,11 @@ SELECT pg_temp.refuses('J2 the same file renamed',
 SELECT pg_temp.refuses('J2b the same file under a fresh caller key',
   $q$INSERT INTO public.import_jobs (tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy, idempotency_key)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'payments', 'csv', 'feb.csv', 'h-feb', 'all_or_nothing', 'fresh-key')$q$, '23505');
-SELECT pg_temp.refuses('J2c the same file committed as another import type (r2, Opus S4)',
-  $q$INSERT INTO public.import_jobs (tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'lockbox', 'csv', 'feb.csv', 'h-feb', 'all_or_nothing')$q$, '23505');
+-- r3 (Codex S1): its own file name and caller key, so only the file-wide
+-- index can refuse it (not the idempotency key).
+SELECT pg_temp.refuses_at('J2c the same file committed as another import type (r2, Opus S4)',
+  $q$INSERT INTO public.import_jobs (tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy, idempotency_key)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'lockbox', 'csv', 'feb-lockbox.csv', 'h-feb', 'all_or_nothing', 'j2c-key')$q$, '23505', 'import_jobs_file_once');
 INSERT INTO public.import_jobs (id, tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy, is_dry_run)
 VALUES ('00000000-0000-4000-8000-0000000019b6', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'payments', 'csv', 'feb.csv', 'h-feb', 'all_or_nothing', true);
 UPDATE public.import_jobs SET status = 'complete' WHERE id = '00000000-0000-4000-8000-0000000019b6';
@@ -563,6 +627,9 @@ VALUES ('00000000-0000-4000-8000-0000000019b5', '00000000-0000-4000-8000-0000000
 DO $$ BEGIN RAISE NOTICE 'PASS J4: a failed job frees the file for a retry (CI-118)'; END $$;
 UPDATE public.import_jobs SET status = 'complete' WHERE id = '00000000-0000-4000-8000-0000000019b5';
 SELECT pg_temp.refuses('J8 a completed import cancelled (to free the file)', $q$UPDATE public.import_jobs SET status = 'cancelled' WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001');
+-- r3 (Opus S2): a finished job's stored file and counts are its record.
+SELECT pg_temp.refuses_at('J10 a completed import''s stored file repointed', $q$UPDATE public.import_jobs SET source_file_url = 's3://f/other.csv' WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001', 'source_file_url');
+SELECT pg_temp.refuses_at('J10b a completed import''s committed rows rewritten', $q$UPDATE public.import_jobs SET committed_rows = 99 WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001', 'row counts');
 SELECT pg_temp.refuses('J9 the same file imported again after completion',
   $q$INSERT INTO public.import_jobs (tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy, idempotency_key)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'payments', 'csv', 'feb-again.csv', 'h-feb', 'all_or_nothing', 'again')$q$, '23505');
@@ -644,6 +711,30 @@ VALUES ('00000000-0000-4000-8000-000000001903', '00000000-0000-4000-8000-0000000
 SET ROLE tally_app;
 SELECT pg_temp.refuses('I5 an issued bill''s fingerprint rewritten', $q$UPDATE public.invoices SET pdf_sha256 = repeat('d', 64) WHERE id = '00000000-0000-4000-8000-000000001903'$q$, '23001');
 SELECT pg_temp.refuses('I6 an issued bill''s image and fingerprint replaced together', $q$UPDATE public.invoices SET pdf_url = 's3://bills/I3-v2.pdf', pdf_sha256 = repeat('d', 64) WHERE id = '00000000-0000-4000-8000-000000001903'$q$, '23001');
+RESET ROLE;
+
+-- B5 (r3, Codex S1): void_invoice() returns the customer's summed ledger
+-- balance. C2 holds 1.00 (L8); its bill of 30.00 is charged and voided, so
+-- the balance after the reversal is 1.00 again. C1's rows and another
+-- tenant's must not count; a stub returning 0 would fail.
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, status, amount_due)
+VALUES ('00000000-0000-4000-8000-000000001904', '00000000-0000-4000-8000-0000000019a1', 'I4', '00000000-0000-4000-8000-0000000019c2', '00000000-0000-4000-8000-0000000019d1',
+        '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 30.00);
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
+  ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-01', 'charge', 'bill I4', 30.00),
+  ('00000000-0000-4000-8000-0000000019a2', '00000000-0000-4000-8000-0000000019c9', DATE '2026-02-01', 'charge', 'other tenant', 70.00);
+SET ROLE tally_app;
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := public.void_invoice('00000000-0000-4000-8000-000000001904', '00000000-0000-4000-8000-0000000019b1', 'wrong_customer', 'battery-19 B5', true);
+  IF (v ->> 'credit_balance')::numeric IS DISTINCT FROM 1.00
+     OR (v ->> 'reversal_amount')::numeric IS DISTINCT FROM -30.00
+     OR (v ->> 'credit_balance')::numeric IS DISTINCT FROM public.account_balance_as_of('00000000-0000-4000-8000-0000000019c2', DATE '2999-12-31', now()) THEN
+    RAISE EXCEPTION 'FAIL B5: void_invoice() returned %', v;
+  END IF;
+  RAISE NOTICE 'PASS B5: void_invoice() returns the customer''s summed balance after the reversal (1.00), the same as account_balance_as_of';
+END $$;
 RESET ROLE;
 
 DO $$ BEGIN RAISE NOTICE 'battery-19: complete'; END $$;
