@@ -1,8 +1,8 @@
 # Handoff: core-build gate step 1 — schema parity measured; finance gate resolved; Kyle brief ready to post
 
-**Generated**: 2026-10-13 14:04
+**Generated**: 2026-10-13 14:04; updated 2026-10-13 evening (-19 mirrored)
 **Branch**: `main`, pushed, tree clean after this commit.
-**Status**: In Progress. Deposits (-15) is mirrored and closed. The step-1 measurement exists; the next job is to price and sequence the open items while Kyle answers a brief.
+**Status**: In Progress. Hardening batch 1 (-19, wave 1 of step 1) is mirrored and closed (2026-10-13 evening). Waves 2–7 are sequenced in `application/step1-sequencing-2026-10-13.md`; Kyle has not answered the brief.
 
 ## Goal
 
@@ -16,12 +16,26 @@ Reach the C#-core build. Ryan's gate (2026-10-13), no date, in order: (1) schema
 - [x] **Finance gate resolved**: Ryan accepted Kyle's D-2 for the receivables/reporting side. Released: accounting periods + close snapshot, GL code mapping, AR aging, bad-debt recovery type, revenue distribution matrix, finance parts of disputes/bankruptcy. **Carve-out**: gas-cost side (gas_purchases, per-class deferred PGA ledger, carrying cost, annual true-up; CI-033, 036) stays fenced for Kyle. Logged in `application/DECISION-LOG.md` (`d3ba0be`).
 - [x] **Kyle brief written and marked READY TO SEND**: `application/kyle-brief-2026-10-13-tax-jurisdictions-and-gas-cost.md` (7 questions: 5 tax/A-8, 2 gas-cost). Ryan has the Slack text; he must attach/link the file (the repo is private).
 
+- [x] **Open items priced and sequenced** into seven waves: `application/step1-sequencing-2026-10-13.md` (`a505fbd`).
+- [x] **Ryan dropped the ledger's stored running balance** (CI-019): logged in `application/DECISION-LOG.md` (`bf2f39b`).
+- [x] **-19 hardening batch 1 landed and mirrored**: `sql/tu.sql` 38,016 lines, md5 `785baf90675ccfe597330d208a010820`, from r5 (patch md5 `e9a4e02285416a6e375f08b16c91d074`).
+  - **Review:** r1–r4 reviewed by Opus, Fable and Codex. On r4, Opus and Fable said ready; Codex hit its usage limit and **Ryan waived its r4 review**. r5 is documentation and tests only, with the same catalog.
+  - **Tests:** battery 173, races C1–C9, `tests/ci.sh --build` all pass; catalog identity (11,165 lines) equal to the patched clone.
+  - **Docs:** AC-4 rewritten, AC-34–AC-41 added, `sql/DEPLOY-VERIFICATION.md` has the -19 entry.
+  - **Residuals:** R1–R18 in the patch header. Several are Ryan's or Kyle's: R11 composite tenant FKs, R14 the void GUC seal (A-23), R1 the Chicago cutoff.
+
 ## Not Yet Done
 
 - [ ] **Ryan posts the Kyle brief** (Slack text was given; the file path is above). Then fold Kyle's answers when they arrive.
 - [ ] **Price and sequence the 80 open items** from the measurement document (no size estimate exists yet). The 12 GAPs and the PARTIALs whose missing piece is a typed column, a transition record or an append-only guard are buildable with no ruling.
 - [ ] Buildable now (finance gate released): `accounting_periods` + close snapshot (A4), GL code mapping as tenant config (A6), AR aging view (A7), bad-debt recovery posting type citing its write-off (CI-076), revenue distribution matrix as config (A-10, CI-048), disputes table (A-15 non-finance, CI-074).
-- [ ] Hardening patch Ryan has not yet decided: stop `populate_reading_calculations` default-filling negative consumption on rollover (CI-022); the `void_released` guard hole in `enforce_reading_validation_workflow` (CI-025/030/031); `prorate_tier_breakpoints` default regressed to false (CI-108).
+- [ ] **Wave 2** of `application/step1-sequencing-2026-10-13.md` (finance-released structures and cash). Before wave 1 is fully closed, Ryan's queued calls are still open; ask them one at a time, in plain language:
+  - CI-016: which charge types need a rate or coverage period;
+  - CI-017: whether reversal lineage is required;
+  - CI-014: DELETE scoping;
+  - CI-011: sealing `version` bumps (A-23).
+- [ ] **Fix the pre-existing -05 defect** Fable found (r1 N6): a non-estimated read inserted past `pending` fails on `meters_last_validated_actual_reading_id_fkey`, because the exception gate updates the meter before the read exists. It needs its own small patch. Battery-19's RF2 uses an estimated read to avoid it.
+- [ ] Optional: a scheduled Codex run on the frozen r4 may have left `tests/v5.4.2-19/review/codex-r4.md`. If it found anything, it goes in a new patch (tu.sql is append-only).
 - [ ] Person-decisions still open (grouped in the measurement doc): Kyle — A-8 tax jurisdictions, Q-1 concurrent assertions, zone model for BTU/pressure/rate, reading-supersede pair, transport/sales vocabulary and PSF cap figure, Q-5 earmarking, rounding, city-owned gas protections. Ryan — seal `version` bumps (A-23), reversal rows carrying predecessor, enrollment transition record, `service_locations.customer_id` nullable vs occupancy table, composite tenant-bound FKs, extend rule-terms to estimation/late fees/program exclusions.
 - [ ] Review the low/medium-confidence rows of the measurement before a decision rests on them. Unread trigger bodies: premise-place membership guard, tax-exemption lifecycle, surcharge-line freeze (agent C); CI-119 not traced to the end (agent F).
 - [ ] Carried over: backbilling tariff table; GitHub Actions version bump; verify Florida's official text (25-7.083) before loading any Florida row; waiver-determination rewrite (residual R6) waits for a core that records determinations; optional -15 follow-ups listed in the round-8 reports (`tests/v5.4.2-15/review/*r8*.md`).
@@ -51,7 +65,7 @@ Reach the C#-core build. Ryan's gate (2026-10-13), no date, in order: (1) schema
 
 ## Current State
 
-**Working**: -15 landed; `tests/ci.sh --build` passes (batteries 09–18, isolation, races, evidence, invariants); the `tally-pg` container is the fresh -15 build (leftover `ci_*` clone databases are normal).
+**Working**: -19 landed; `tests/ci.sh --build` passes (batteries 09–19, isolation, races, evidence, invariants); the `tally-pg` container is the fresh -19 build (leftover `ci_*` clone databases are normal). `PENDING` in ci.sh is empty.
 **Broken**: nothing known. The parity table in gas-billing-memory (`application/schema-parity-plan.md`) is stale (2026-09-23) and the invariant register's grades are v5.2.1-era; neither was edited.
 **Uncommitted changes**: None in tally-utility. gas-billing-memory has an uncommitted `application/wiki-ingestion-pending.md` and untracked `Clippings/` that predate this session; not touched.
 
@@ -82,7 +96,7 @@ Never write test data to the `tally` or `postgres` databases; tu.sql is append-o
 ## Warnings
 
 - Ryan wants one decision per message in plain language; spell out any code (CI-nnn, A-nn, R-nn) wherever he is asked to decide. Commit and push straight to main in tally-utility; do not branch or ask.
-- Never edit a patch while reviewers test it; one revision per round, hashes in every request; all three reviewers (Opus, Fable, Codex) before a mirror.
+- Never edit a patch while reviewers test it; one revision per round, hashes in every request; all three reviewers (Opus, Fable, Codex) before a mirror unless Ryan waives one (he waived Codex's r4 review of -19 when its quota ran out).
 - Do not build the gas-cost tables (gas purchases, deferred PGA ledger, carrying cost, true-up) until Kyle rules.
 - The measurement is agent judgment backed by catalog name checks; it is not a re-review. Treat REP+PROT as "agent verified the objects exist", not as a proof of enforcement.
 - Don't edit the invariant register from the measurement document; the list of stale entries is in it for a deliberate pass.

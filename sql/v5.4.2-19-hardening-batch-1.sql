@@ -41,7 +41,9 @@
 --   (Codex B1 / Opus S1); a payment cannot cite itself. A read in locked or
 --   void_released must carry the lock flag (a table CHECK, every role). A
 --   finished import job's counts, summary, errors and completion time are
---   its snapshot at finish. The money-out rule is stated for every negative
+--   its snapshot at finish (r5, documentation and tests only: the
+--   precondition names the two r4 constraints; R13 and R17 state the
+--   one-write finish and the three-write re-homing). The money-out rule is stated for every negative
 --   row (chargebacks included), not refunds alone.
 --
 -- ----------------------------------------------------------------------------
@@ -213,7 +215,10 @@
 --       schedule-id order (opposite orders deadlock; one is cancelled).
 --   R13. CI-118: the file hash has no format rule (the algorithm is the
 --       intake's); a job cancelled mid-import after committing rows frees the
---       file (the core marks such a job partial, not cancelled).
+--       file (the core marks such a job partial, not cancelled). Contract
+--       (R9): a job finishes in ONE write — the terminal status with its
+--       final counts, stored file, summary, validation errors and
+--       completed_at; a later write of any of them is refused.
 --   R14. AC-12: app.void_operation is still caller-settable; with it a caller
 --       can release a locked read without voiding its bill (only the pointer
 --       write void_invoice() does is admitted). Sealing void_invoice() behind
@@ -237,6 +242,10 @@
 --       a refunded charge's id is a distinct event and needs its own id.
 --       Likewise an ACH re-presentment is a new transaction with its own id;
 --       one reusing the original's id is refused as a duplicate receipt.
+--       Re-homing a cited pending payment with its pending refund to another
+--       customer is three writes: clear the refund's pointer, move the
+--       payment, then move the refund and re-point it in one UPDATE (one
+--       statement moving both succeeds only if the payment row is first).
 --   R18. CI-025: on a consumed read, status is follow-up work (whitelisted),
 --       but populate_reading_calculations takes the "previous" read by
 --       status = 'active', so marking a consumed read disputed changes the
@@ -248,7 +257,9 @@
 --   new CHECK or NOT NULL fails the patch rather than skip a row (anomalies
 --   without dedup_key, ad-hoc charges requiring approval without threshold,
 --   AI rows without audit, file imports without hash, active medical holds
---   without attestation). Applied by a superuser, under READ COMMITTED.
+--   without attestation, a refund or replacement citing another customer's
+--   payment, a locked or void_released read without billing_period_locked).
+--   Applied by a superuser, under READ COMMITTED.
 --   A second run finds payment_effective_date_methods and skips the whole
 --   patch (psql's \if): apply it with psql.
 -- ============================================================================

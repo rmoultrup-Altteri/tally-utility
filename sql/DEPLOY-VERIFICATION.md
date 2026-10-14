@@ -1,6 +1,8 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-18, verified 2026-10-13.** After v5.4.2-15: **130 tables** / **9 views** / **4 matviews** / **101 policies** / **100 FORCE-RLS** / **474 FKs** / **545 CHECKs** / **22 EXCLUDE** / **385 triggers** / **507 functions** / **700 indexes**. tu.sql **36,712 lines**, md5 `95f79924acda06445b518db545365e61` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-19, verified 2026-10-13.** After v5.4.2-19: **131 tables** / **9 views** / **4 matviews** / **101 policies** / **100 FORCE-RLS** / **476 FKs** / **573 CHECKs** / **22 EXCLUDE** / **404 triggers** / **520 functions** / **708 indexes**. tu.sql **38,016 lines**, md5 `785baf90675ccfe597330d208a010820` (the container init file matches by hash).
+
+**Previous: through v5.4.2-18 (v5.4.2-15 mirrored), verified 2026-10-13.** After v5.4.2-15: **130 tables** / **9 views** / **4 matviews** / **101 policies** / **100 FORCE-RLS** / **474 FKs** / **545 CHECKs** / **22 EXCLUDE** / **385 triggers** / **507 functions** / **700 indexes**. tu.sql **36,712 lines**, md5 `95f79924acda06445b518db545365e61` (the container init file matches by hash).
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16 + v5.4.2-17 + v5.4.2-18, verified 2026-10-10 (v5.4.2-15 was not yet mirrored).** After v5.4.2-18: **117 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **436 FKs** / **497 CHECKs** / **20 EXCLUDE** / **349 triggers** / **487 functions** / **665 indexes**. tu.sql **31,380 lines**, md5 `b35302dcc0979c29b2c693dc569838c7` (the container init file matches by hash).
 
@@ -19,6 +21,87 @@
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
 
 **Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+
+## v5.4.2-19 — hardening batch 1: close the holes in what is already built (step 1, wave 1; Ryan 2026-10-13 "yes, start batch 1"; running balance dropped by Ryan 2026-10-13, CI-019; mirror approved by Ryan 2026-10-13, Codex's r4 review waived)
+`sql/v5.4.2-19-hardening-batch-1.sql` (1,572 lines, md5 `e9a4e02285416a6e375f08b16c91d074`, r5), mirrored into tu.sql (36,712 → **38,016**: a pure append of a blank line, a 4-line banner and the 1,299-line body; 1,304 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 272–1570.
+
+**What changes** (the patch header lists each item with its CI row; residuals R1–R18 are left on purpose):
+- **Reads:**
+  - the database no longer writes usage;
+  - a read is born unconsumed;
+  - a consumed read (locked or void_released) is frozen except for named follow-up fields;
+  - the lock pointers move only by `void_invoice()`'s write or a correction re-lock;
+  - the lock record of an unconsumed read is written only by the move to locked;
+  - locked and void_released require the lock flag (a table CHECK).
+- **Rates:**
+  - tier proration defaults to true;
+  - coverage order is enforced;
+  - WNA zone versions gain deadband columns;
+  - rider dependencies form a DAG within one tenant, with a row-version mutex on the schedule header.
+- **Payments:**
+  - effective date and method;
+  - the NACHA return code;
+  - one receipt and one money-out row per processor id per source;
+  - a refund is negative;
+  - refund and replacement lineage are composite FKs on (id, tenant, customer).
+- **Payment methods:** the identity is frozen and changes by supersession (the predecessor is always rewritten); notice-of-change fields.
+- **Logs:**
+  - dunning, escheatment and AI audit rows are append-only, with a DB-stamped `created_at`, as is the ledger's;
+  - AI orders and charges cite a same-tenant audit row, write-once.
+- **Anomalies:** a dedup key is required and immediately unique; identity and detection are write-once.
+- **Ad-hoc approval:** the threshold is captured at creation.
+- **Invoice image:** the SHA-256 is recorded with the image.
+- **Imports:**
+  - the file is named and hashed;
+  - one live commit per file;
+  - identity is write-once;
+  - a finished job is final.
+- **Programs:** attestation is required on active medical holds.
+- **Ledger:** `account_balance_as_of()` is added. **`account_ledger.running_balance` is dropped** with its trigger; `void_invoice()` returns the summed balance.
+- **Contracts:** AC-4 is rewritten (now REJECTS), and AC-34 to AC-41 are added (R9).
+
+**Review:** five revisions; three reviewers (Opus, Fable, Codex) on each frozen revision through r3, and Opus and Fable on r4.
+- **Round 1:** Opus and Fable "not yet", with overlapping blocking items:
+  - a read could be born locked;
+  - a void-released read's pointers could move;
+  - duplicate receipts slipped through under lineage labels;
+  - AI citations crossed tenants;
+  - the ledger's recorded time was caller-supplied.
+
+  Codex ran later on r1 and found the same plus B4: an inactive predecessor's reactivation race. It was **reproduced red** (a superseded card committed active), and r2 writes the predecessor unconditionally.
+- **Round 2:** Codex and Opus ready; Fable "not yet": a refund delivered twice paid out twice. Fixed in r3 by `payments_provider_refund_once`.
+- **Round 3:** Opus and Fable ready; Codex "not yet". All three found that a cited pending payment could move to another customer. Fixed in r4 with composite FKs, and races C8/C9 cover both orders.
+- **Round 4:** Opus and Fable ready, no blocking item. Codex hit its usage limit mid-review; Ryan waived its r4 review.
+- **r5:** documentation and tests only. The precondition names the r4 constraints; R13 and R17 state the one-write import finish and the three-write re-homing; new tests J10i/J10j and race C9. The catalog is identical to r4's.
+
+The dispositions are in `tests/v5.4.2-19/review/`: briefs r1–r4, one report per reviewer per round, and the frozen patches and batteries r1–r5.
+
+**Method.**
+1. Strict apply twice (`search_path ''`, function bodies checked) on a clone of the -15 build, TEMP revoked: clean; the second run is skipped by the gate.
+2. **battery-19: 173 PASS**, with a guard-specific `refuses_at` helper. Mutation runs, each on a fresh clone, fail their named case:
+   - refund index → P7c
+   - lineage trigger → P9
+   - single-column lineage FKs → P9c / C8
+   - consumed-flag CHECK → RF2
+   - r1 typed file index → J2c
+   - void sum → 0 → B5
+   - r1 conditional supersession → C5 / C7
+
+   Reviewers ran further mutations (L7c, RL1, J10, J10c, J10h, P9d, P9f, Q4i).
+3. **races/cycle-19.sh C1–C9:** each leg checks that session B was seen blocked by session A (`pg_blocking_pids`).
+4. Mirror.
+5. Image rebuilt on a fresh volume: **zero error lines during init**; init file = tu.sql by md5.
+6. **Catalog parity, full identity including every comment:** `tests/v5.4.2-14/parity/catalog-identity.sql`, 11,165 lines, identical between the build and a clone of the -15 build with the patch applied (md5 `8f1df2655386ca4eacd5119eee388b16`). The counts (`tests/v5.4.2-13/parity/catalog-counts.sql`) and the row count of every table (131) are also identical.
+7. **On the build** (`tests/ci.sh --build`, all 23 steps pass):
+   - batteries 09 / 10 / 11 / 12 / 13 / 14 / 16 / **19** / 17 / 18 / 15;
+   - isolation-17;
+   - races -17 / -15 / -16 / **-19** / -12;
+   - law files;
+   - evidence txn -15 / -13;
+   - tenant isolation, core role and rule table invariants.
+
+   The patch re-applied over the build twice is skipped ("already applied"), and TEMP is still false for tally_app.
+8. `PENDING` in `tests/ci.sh` is empty. `tests/ci.sh` now counts a failed clone as a FAIL (`cstep`).
 
 ## v5.4.2-15 — deposits at the rule-terms convention: the law is a document the platform keeps and the core evaluates (rule-terms step 2; Ryan 2026-09-28 and 2026-10-12; mirror approved by Ryan 2026-10-13)
 `sql/v5.4.2-15-deposits-law-to-core.sql` (5,401 lines, md5 `2dc8f61cda3bc6958ca42737d317a629`, the r8 freeze), mirrored into tu.sql (31,380 → **36,712**, pure append: a blank line, a 4-line banner and the 5,326-line body; 5,332 insertions, 0 deletions; header omitted as for every mirror, and so are the patch's psql re-run gate (`\gset` / `\if`) and its BEGIN / COMMIT — tu.sql is applied once, to a database that has none of this; the body is byte-identical to the patch's lines 73–5398).

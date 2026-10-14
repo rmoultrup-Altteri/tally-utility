@@ -677,6 +677,8 @@ UPDATE public.import_jobs SET status = 'partial', total_rows = 10, committed_row
  WHERE id = '00000000-0000-4000-8000-0000000019b7';
 DO $$ BEGIN RAISE NOTICE 'PASS J10f: finishing a job writes its final counts and file in the same write'; END $$;
 SELECT pg_temp.refuses_at('J10h a finished import''s summary rewritten', $q$UPDATE public.import_jobs SET import_summary = '{"x":1}' WHERE id = '00000000-0000-4000-8000-0000000019b7'$q$, '23001', 'import_summary');
+SELECT pg_temp.refuses_at('J10i a finished import''s validation errors rewritten', $q$UPDATE public.import_jobs SET validation_errors = '[{"row":1}]' WHERE id = '00000000-0000-4000-8000-0000000019b7'$q$, '23001', 'validation_errors');
+SELECT pg_temp.refuses_at('J10j a finished import stamped complete afterwards', $q$UPDATE public.import_jobs SET completed_at = now() WHERE id = '00000000-0000-4000-8000-0000000019b7'$q$, '23001', 'completed_at');
 SELECT pg_temp.refuses_at('J10g a partial import''s held rows released after finish', $q$UPDATE public.import_jobs SET held_rows = 0, committed_rows = 10 WHERE id = '00000000-0000-4000-8000-0000000019b7'$q$, '23001', 'row counts');
 SELECT pg_temp.refuses('J9 the same file imported again after completion',
   $q$INSERT INTO public.import_jobs (tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy, idempotency_key)

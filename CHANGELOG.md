@@ -4,6 +4,45 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-13 (evening) — hardening batch 1 (-19, wave 1 of step 1): five revisions, mirrored into tu.sql on Ryan's approval
+
+**What was done:**
+- **Sequencing:** the 80 open invariants are priced and sequenced into seven waves (`application/step1-sequencing-2026-10-13.md`, `a505fbd`). Ryan: "yes, start batch 1".
+- **r1** (`4c833a0`) — about twenty small fixes on empty tables:
+  - reads, rates, payments and methods, logs, anomalies;
+  - ad-hoc approval capture, invoice image hash, imports, attestation;
+  - `account_balance_as_of()`.
+- **Ryan dropped the ledger's stored running balance** (CI-019, `bf2f39b`). `void_invoice()` now returns the summed balance.
+- **r2** (`d4a0968`):
+  - **Round-1 findings folded:** reads are born unconsumed; the consumed-read whitelist; receipt dedup keyed on money in; tenant-bound, write-once AI citations; DB-stamped ledger `created_at`; the import record freeze.
+  - **Codex B4, reproduced red:** a superseded card committed active. The predecessor is now always rewritten (races C5–C7).
+  - **CI:** a failed clone now counts as a FAIL.
+- **r3** (`183428b`):
+  - **Fable B1:** a refund delivered twice paid out twice → `payments_provider_refund_once`.
+  - Lineage tied to the same customer; the unconsumed-read lock fence; the finished-import freeze; R15–R18.
+  - `refuses_at` battery helper.
+- **r4** (`d5a455f`): all three found that a cited pending payment could move to another customer. Fixed with composite lineage FKs, a no-self CHECK, and race C8. Also the consumed-flag CHECK.
+- **Round 4:** Opus and Fable ready. Codex hit its usage limit mid-review; Ryan said "proceed without Codex".
+- **r5:** documentation and tests only (J10i/J10j, race C9).
+- **Mirror:**
+  - **`sql/tu.sql`:** 36,712 → **38,016** lines (md5 `785baf90…`), byte-identical body.
+  - **Build check:** fresh build with zero init errors; catalog identity (11,165 lines), counts and every table's row count equal to the patched clone; re-apply skipped twice; `tests/ci.sh --build` all pass.
+  - **Docs:** AC-4 rewritten, AC-34–AC-41 added; DEPLOY-VERIFICATION and the tests README updated.
+
+**Failed approaches / mechanisms:**
+- **A test's text matched itself:** the B4 check first failed on the word "running_balance" in a comment, and on ILIKE's `_` wildcard. It now uses `strpos`.
+- **Self-citation test:** an INSERT citing itself is refused by the lineage trigger before the CHECK runs (the row does not exist yet). Test the CHECK with an UPDATE.
+- **Non-estimated read born past `pending`:** it trips the -05 meters-FK defect (Fable r1 N6). The fixture uses an estimated read, and the defect is logged for its own patch.
+- **Codex usage limit, twice:** it reset at 4:10 PM and again at 1:08 AM. Its reviews remain source-only.
+
+**Decisions made without Ryan:**
+- **Payment on a superseded method:** the database accepts it as a true record (R16), and choosing the account is the core's. All three reviewers agreed.
+- **Refund identity:** a refund may share its original's processor id once; any further money-out row carries its own id.
+
+**Next:** wave 2; Ryan's queued calls (CI-016, CI-017, CI-014, CI-011), asked one at a time; fix the -05 defect; Kyle's answers when they arrive.
+
+---
+
 ## 2026-10-13 (afternoon) — core-build gate step 1: per-invariant parity measurement, finance gate resolved, Kyle brief written
 
 **What was done:**

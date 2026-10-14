@@ -89,17 +89,16 @@ becomes a trigger and retires this entry.
 
 ## Imports
 
-### AC-4 — Supply `source_filename` + `source_file_hash` on file imports — SILENT
-*Introduced by v5.4.1-01 item 2.2 (`trg_populate_import_job_idempotency_key`).*
+### AC-4 — A file import names and hashes its file; one live commit per file; a job finishes in one write — REJECTS
+*Introduced by v5.4.1-01 item 2.2 (`trg_populate_import_job_idempotency_key`); made a refusal by v5.4.2-19 (CI-118, CI-098).*
 
-`import_jobs.idempotency_key` is NOT NULL and auto-derived as
-`<filename>:<hash>:<preview|commit>` — but only when both filename and hash
-are present. Otherwise it falls back to the job's own `id`, which is unique by
-construction and therefore **never detects a duplicate import**.
-
-**Do:** always populate both columns for csv/excel/file-backed imports (or
-supply an explicit `idempotency_key`). CI-118's duplicate-import guarantee is
-conditional on this.
+**Do:**
+- **Name and hash the file.** A csv, excel, pdf or legacy_export import must carry both `source_filename` and `source_file_hash`, or it is refused. The hash's algorithm and format are the intake's (R13).
+- **Expect a second copy of a file to be refused.** One live commit per tenant and file hash, whatever its `import_type` and filename. Previews and failed or cancelled jobs do not count. A renamed copy is refused; so is a fresh caller `idempotency_key`.
+- **Treat the identity as write-once.** Tenant, initiator, import and source type, filename, hash, `is_dry_run`, `idempotency_key` and `created_at` never change.
+- **Finish a job in ONE write.** Set the terminal status (`complete`, `partial`, `failed`, `cancelled`) together with the final row counts, `source_file_url`, `source_file_size_bytes`, `import_summary`, `validation_errors` and `completed_at`. After that, any write to them, or to the status, is refused. The counts are a snapshot at finish; staging rows stay the live record of held rows.
+- **Mark a job that already committed rows as `partial`, never `cancelled`.** A cancelled job frees its file for re-import (R13).
+- **Use the new types.** ACH return, lockbox and AMR files are `ach_return`, `lockbox` and `amr`.
 
 ---
 
@@ -304,6 +303,62 @@ What the database will refuse to certify:
 | A default privilege granting PUBLIC EXECUTE | Global **or** per-schema — either reopens it for every new function |
 
 `RESTRICTIVE` policies are exempt from the canonical-predicate test (they are AND-ed and can only narrow), but a table must still carry at least one permissive policy. A table whose predicate must legitimately differ is an explicit edit of the assertion, not a reason to weaken it. The key is the column name `tenant_id`: a tenant table whose discriminator is called something else is outside the check by construction.
+
+---
+
+## Hardening batch 1 (v5.4.2-19)
+
+*All introduced by v5.4.2-19 (step 1, wave 1). The patch header's "What changes" list and residuals R1–R18 are the authority; this section is what a writer must do.*
+
+### AC-34 — The core writes a read's usage; a read is born unconsumed; only a billing run locks it, with its bill, in one write; a consumed read is frozen but for follow-up — REJECTS / SILENT
+- **Usage:** the database no longer computes `meter_readings.consumption`, so the core writes it, including rollover and the multiplier (CI-022). A read the core never gives usage to drops out of `usage_statistics`, which filters NULL consumption: **SILENT**.
+- **Born unconsumed:** an application INSERT may not carry a lock record. That means no locked or void_released status, no `billing_period_locked`, no `locked_*`, no `voided_from_invoice_id`. On a read no run has consumed, those fields are written only by the move to `locked`; `voided_from_invoice_id` is written only by `void_invoice()`.
+- **Locking:** a billing run sets `validation_status = 'locked'`, `billing_period_locked`, `locked_by_billing_run_id` **and `locked_by_invoice_id`** in the SAME UPDATE. A read locked without its bill pointer can never get one, and `void_invoice()` can never release it (R15). `locked_at` is the database's.
+- **After consumption** (locked or void_released), every column is frozen except the follow-up fields: notes, tamper investigation, dispute fields, `status`, follow-up, assignee, `replaced_by_reading_id`, `triggers_correction_workflow`. A correction run re-locks a `released_to_billing` read under its own run. A read in locked or void_released always carries `billing_period_locked`, history loads included.
+- **Previous-read selection:** marking a consumed read `disputed` or `voided` (its `status`) changes which read the next read takes as its "previous" (R18). Field-reader confirmation and `quality_flag` are frozen after consumption.
+
+### AC-35 — Payments: effective date and method when the payment takes effect; an ACH return's code; one receipt and one money-out per processor id; lineage within the customer — REJECTS
+- **Effective date:** a payment in any status but `pending` or `voided` carries `effective_date` and `effective_date_method` (`postmark`, `lockbox_receipt`, `bank_settlement`, `other`). Both are write-once once it has left pending (CI-058). Which method applies is the core's.
+- **Return code:** an ACH payment going to `nsf` carries `return_code` (`R` + two digits). It is write-once, and allowed only on `nsf` or `reversed` (CI-052).
+- **One per processor id:** one positive row (`amount > 0`, a replacement for a bounced payment included) and one negative row (a refund, a chargeback, any money out) per (tenant, `source_system`, `provider_transaction_id`).
+  - A further refund of the same payment, or a chargeback after a refund, carries the processor's **own** id for that event.
+  - An ACH re-presentment is a new transaction with its own id.
+  - On a `unique_violation` from either index, compare the rows before treating it as a harmless redelivery.
+  - The index keys on the capture channel, so the core matches one transaction arriving by webhook and again in a settlement file (R17).
+  - A zero-amount row is not counted.
+- **Lineage:** a row citing `refunds_payment_id` is a negative `refund`. `refunds_payment_id` and `nsf_original_payment_id` cite a payment of the same tenant and customer, never the row itself. A cited payment cannot be moved to another customer.
+  - To move a cited pending payment with its pending refund, use three writes: clear the refund's pointer; move the payment; move the refund and re-point it in one UPDATE.
+
+### AC-36 — A changed bank account or card is a new `payment_methods` row that supersedes the old; never edit the identity — REJECTS
+The account identity is frozen once written: customer, provider, token, method type, last four, bank, account type, holder. Card-updater expiry and the nickname stay editable.
+- **A change is a new row** with `supersedes_payment_method_id` and `supersede_reason`, either `customer_update` or `ach_notice_of_change`. The latter carries `noc_change_code` (`C` + two digits) and `noc_received_at`, from which the core runs the NACHA window.
+- **The database deactivates the predecessor.** It cannot be reactivated or made the default, and each row has at most one successor. Retry on `serialization_failure`.
+- **A payment may still cite an inactive method,** for a late confirmation of a charge on the old account. Choosing the account to draw on is the core's, and it must not draw on an inactive method (R16).
+
+### AC-37 — Dunning, escheatment and AI audit rows are written once, complete; an AI-created order or charge cites its audit row — REJECTS
+- **Append-only logs:** `dunning_events`, `escheatment_events` and `ai_audit_log` refuse UPDATE, DELETE and TRUNCATE, and UPDATE is revoked. Write each row complete. Their `created_at` is the database's; a superuser's history load keeps its value.
+- **AI citations:** a `service_orders` row with `created_by_ai`, or an `adhoc_charges` row with `source = 'ai_suggestion'`, cites its `ai_audit_log` row through `ai_audit_id`. The citation must be of the same tenant, and the flag, source and citation are write-once. The check proves a citation exists, not that it is the right action (R11).
+- **Ledger:** `account_ledger.created_at` is the database's too. It is the recorded coordinate of `account_balance_as_of()`.
+
+### AC-38 — An anomaly carries its `dedup_key`; a recurrence updates the canonical row — REJECTS
+`anomalies.dedup_key` is NOT NULL and immediately unique.
+- **Recurrence:** update the canonical row. Raise `recurrence_count` and move `last_detected_at` forward, never back and never before `first_detected_at`.
+- **Write-once:** `dedup_key`, `first_detected_at`, `created_at`, and the subject and detection fields (`entity_type` / `entity_id`, customer, meter, location, `detected_at`, detection method and detector).
+
+### AC-39 — A bill image is recorded with its SHA-256; an issued bill's image and hash are frozen — REJECTS
+Set `invoices.pdf_url` and `pdf_sha256` together; on a draft or held bill, change them together. Once the bill is issued, both are frozen (CI-096).
+
+### AC-40 — Ad-hoc approval captures its threshold; medical holds carry attestation; rider dependencies take headers first — REJECTS
+- **Ad-hoc approval:** a charge that requires approval records the threshold in force at creation. `requires_approval` and the threshold are write-once (CI-127).
+- **Medical holds:** an enrollment in a program type that `requires_attestation` (`medical_certificate`) is active only with its attestation received. A verifier needs a verification time, and verification falls on or after receipt (CI-062).
+- **Rider dependencies:** they form a DAG within one tenant, and the database refuses a cycle. Lock order:
+  1. Take the schedule headers first, in schedule-id order (`assert_reference_version` or the dependency write's own bump).
+  2. Write dependency rows only after that.
+  3. Retry the whole transaction on `deadlock_detected` or `serialization_failure`.
+  - A dependency on an archived schedule is accepted (R12).
+
+### AC-41 — A balance is a sum of the ledger; there is no stored running balance — REJECTS
+`account_ledger.running_balance` is dropped (CI-019, Ryan 2026-10-13). Read a balance with `account_balance_as_of(customer, on_date, recorded_at)`: all three arguments are required, and an invisible customer raises. `void_invoice()` returns `credit_balance` as the same sum.
 
 ---
 

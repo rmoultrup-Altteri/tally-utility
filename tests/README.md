@@ -16,8 +16,18 @@ when the session's temp directory was cleared — the -07 and -08 batteries
 tests/
   ci.sh                     # EVERY check, as .github/workflows/ci.yml runs it (--build: image from postgres/Dockerfile,
                             #   fresh tally-pg). Clones `tally`; strict-applies (twice) patches not yet mirrored;
-                            #   batteries -09..-14, -15, -16, -17, -18; -18's and -15's migrations (while `tally` is pre-18 / pre-15); -17's isolation, races and law files; -15, -16 and -12 races;
-                            #   -15's and -13's evidence scripts; the tenant-isolation invariants. Never writes `tally`.
+                            #   batteries -09..-14, -15, -16, -17, -18, -19; -18's and -15's migrations (while `tally` is pre-18 / pre-15); -17's isolation, races and law files; -15, -16, -19 and -12 races;
+                            #   -15's and -13's evidence scripts; the tenant-isolation invariants. A failed clone is a FAIL (`cstep`). Never writes `tally`.
+  v5.4.2-19/                # hardening batch 1: wave 1 of step 1, the holes in what is already built (landed 2026-10-13; r5, mirrored)
+    battery-19.sql          # 173 checks, groups R Q P M L N H I J E B (+ RB RF RL RW RV): reads born unconsumed and frozen once
+                            #   consumed; rider DAG; effective date, return code, one receipt and one money-out per processor id,
+                            #   lineage within the customer; method supersession; append-only logs and AI citations; anomalies;
+                            #   approval capture; invoice image hash; imports; attestation; account_balance_as_of and void_invoice()'s
+                            #   balance. pg_temp.refuses_at() requires the named guard, not just the SQLSTATE
+    races/cycle-19.sh       # C1-C9: two halves of a rider cycle (RC, RR), two successors of one method, reactivation of an inactive
+                            #   method being superseded (RR, RC), a refund citing a payment being moved (both orders); each leg
+                            #   requires session B seen blocked by A (pg_blocking_pids)
+    review/                 # briefs r1-r4, one report per reviewer per round, frozen patches and batteries r1-r5
   v5.4.2-18/                # backbilling at the rule-terms convention: the 16 Texas rows adopted in place (landed 2026-10-10; r6 frozen, mirrored)
     battery-18.sql          # 108 checks, groups S M K D O H X L G, on the migrated table: the kind and its facet; the
                             #   registration; the sixteen documents against expectations typed from the -13 seed; the
