@@ -249,7 +249,7 @@ def main() -> int:
         first = next((l for l in text.splitlines() if "FAIL" in l or "ERROR" in l), "")
         first = re.sub(r"^psql:[^:]+:\d+: ", "", first)[:140]
         # The first line that reports any failure, infrastructure errors included, must be the named check's.
-        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"FAIL [A-Z]+\d|ERROR|SETUP FAIL", l)]
+        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"\bFAIL\b|ERROR|FATAL|PANIC", l)]  # r3 Codex: any failure word
         if fails and re.match(rf"FAIL {re.escape(check)}[a-z]?[:\s]", fails[0]):
             print(f"{mid} caught at {check}: {what}")
         else:
