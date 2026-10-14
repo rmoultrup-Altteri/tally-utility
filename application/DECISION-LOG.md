@@ -6,6 +6,28 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (CI-017) — Ryan: every reversal that undoes exactly one thing must name it
+
+**What:** Ryan (2026-10-14): "yes, go with the default". The link to the predecessor becomes required wherever the act always undoes exactly one thing:
+- **Correction invoice:** `invoice_type = 'correction'` requires `replaces_invoice_id`, and the invoice it names must be void.
+- **Ledger reversal:** `transaction_type = 'void_reversal'` requires `reverses_ledger_entry_id` and a `reversal_reason` with at least one alphanumeric character (memory rule on blank checks). `void_invoice()` already writes both. The rule closes every other path.
+- **Refund:** a refund payment (`payment_method = 'refund'`) names exactly one source: either the payment it returns (`refunds_payment_id`) or the customer credit it pays out.
+  - Nothing links a refund to `customer_credits` today. The patch adds that link: one additive nullable FK, with an exactly-one CHECK.
+  - Without the credit option, refunding an overpayment built from several payments would force an operator to pick one at random. A wrong link is worse than a blank.
+- **Replacement for a bounced payment:** `nsf_original_payment_id` stays optional. It is a fresh receipt, not an undo (the existing r2 comment on `payments_refund_is_refund_check` already reads it that way).
+
+*Why this and not the alternatives:* the tables are empty, so the requirement costs nothing now. Later it means repairing every reversal written without its link.
+- **Rejected:** leaving the links optional and flagging gaps in a report. A flag records the gap; it does not prevent it (memory rule: guards must act).
+
+**Left to drafting:**
+- Whether "the named invoice is void" is checked at insert or at issue of the correction.
+- The column name of the refund-to-credit FK.
+- Indexes on the lineage columns, which the measurement found unindexed, so walks forward from an original scan the table.
+
+*Where it lives:* this entry; the wave that lands CI-017 in `application/step1-sequencing-2026-10-13.md`.
+
+---
+
 ## 2026-10-14 (CI-016) — Ryan: which bill lines must carry their own arithmetic at issue
 
 **What:** Ryan (2026-10-14): "yes, go with the default". At issue, every `invoice_line_items` row on the invoice must carry the values below, keyed by `charge_type`:
