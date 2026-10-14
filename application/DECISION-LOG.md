@@ -6,6 +6,33 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (CI-011, A-23 item 1, AC-12) — Ryan: seal the version check and the void, by the corrected design
+
+**What:** Ryan asked for the three-reviewer design review (`application/a23-seal-review-2026-10-14/`) and then said "yes, go ahead and draft it". The corrected design follows.
+- **The rate check:** sealed by a receipt that binds the transaction, the transaction's start time, the entity and its current version.
+- **The void:** sealed by its own role (`current_user = 'tally_void'` in the guards), not by a receipt.
+- **Owners:** both functions are owned by dedicated NOLOGIN roles that do not bypass RLS (`tally_seal`, `tally_void`), never the superuser.
+- **Grants:** rebuilt. Table-level UPDATE is revoked and the columns granted back, and objects are born with an explicit REVOKE.
+- **The core:** loses its write path through the check.
+- **Two fixes to the void as it stands:** the cross-tenant void (Opus B1) is fixed, and the void locks the bill.
+- **Out of scope:** Codex's caller-identity question is excluded. It is Ryan's next decision.
+
+*Why this and not the alternatives:* all three reviewers rejected leaving it as an application contract (a guard must act) and the header-`xmin` test (savepoints, `updated_at` touches).
+- **Why not a receipt for the void:** Opus and Codex showed it stays valid until commit and reopens the window v5.4.2-01 closed. The role predicate's window is exactly the call.
+- **Why not Codex's write API for the versions:** Opus and Fable preferred the receipt. It keeps the app's calling shape, and they tested it against every bypass path. The write API stays the next step if the version tables get a second writer.
+- **Lifecycle moves need the check** (Fable S6 over the Opus and Codex boundary reading): an archive is an edit of the entity.
+- **Removed as redundant** (memory rule: redundant guards make a mutation miss):
+  - the void's explicit tenant comparison, now that RLS binds the owner;
+  - the function's duplicate stamping of the receipt.
+
+*Where it lives:*
+- the patch, `sql/v5.4.2-20-seal-version-check-and-void.sql`;
+- the requirement inventory, `application/a23-seal-review-2026-10-14/source-inventory-20.md`;
+- AC-12 (rewritten) and AC-42 (new) in `application/APPLICATION-CONTRACTS.md`;
+- the tests, `tests/v5.4.2-20/`.
+
+---
+
 ## 2026-10-14 (CI-014) — Ryan: 17 more tables join the no-hard-delete set; 6 stay deletable
 
 **What:** Ryan (2026-10-14): "yes, go with the default". The live catalog (the -19 build) showed `tally_app` with DELETE on 29 public tables.

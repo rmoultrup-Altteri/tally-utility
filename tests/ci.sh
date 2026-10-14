@@ -18,6 +18,7 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 # patch file : a table it creates (its marker); a '!' before the marker means a table the
 # patch DROPS (the patch is pending while that table still exists)
 PENDING=(
+  sql/v5.4.2-20-seal-version-check-and-void.sql:reference_version_receipts
 )
 BASE=ci_base
 
@@ -87,7 +88,7 @@ done
 battery() {  # $1 file
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16 19; do
+for n in 09 10 11 12 13 14 16 19 20; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
@@ -111,10 +112,12 @@ cstep ci_r15 "races v5.4.2-15" bash tests/v5.4.2-15/races/due-mutex-15.sh ci_r15
 cstep ci_e15 "evidence txn v5.4.2-15" bash tests/v5.4.2-15/evidence-txn-15.sh ci_e15
 cstep ci_r16 "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
 cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
+cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
 cstep ci_e13 "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh
 step "tenant isolation invariants" q "$BASE" -c "SELECT public.assert_tenant_isolation_invariants()"
 step "core role invariants" q "$BASE" -c "SELECT public.assert_core_role_invariants()"
+step "seal role invariants" q "$BASE" -c "SELECT public.assert_seal_role_invariants()"
 step "rule table invariants" q "$BASE" -c "SELECT public.assert_rule_table_invariants()"
 
 printf '%s\n' "${results[@]}"

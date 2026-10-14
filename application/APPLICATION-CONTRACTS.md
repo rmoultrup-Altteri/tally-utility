@@ -151,10 +151,19 @@ Once `invoices.status` leaves `draft`/`held` (`pending` counts as issued), the b
 
 A payment's identity (customer, date, amount, method, channel, source, external references, check fields, `is_deposit`, `received_by`, lineage FKs) is frozen once `status <> 'pending'`, and a payment never returns to `pending`. Because the column default is `posted`, a webhook/lockbox intake row that may still need correction must be inserted with `status = 'pending'`; a posted payment is corrected by reversal/NSF + a new payment. `nsf`/`reversed`/`refunded`/`voided` are terminal.
 
-### AC-12 — `app.void_operation` is a carve-out for `void_invoice()` only; never set it yourself — SILENT
-*Introduced by v5.4.2-01 (the GUC itself dates from v5.2.1).*
+### AC-12 — Void a bill only through `void_invoice()`; it names its caller — REJECTS
+*Introduced by v5.4.2-01 as a SILENT contract on the `app.void_operation` setting; rewritten by v5.4.2-20, which removed the setting.*
 
-The locked-read guard on `meter_readings` and the billed-charge guard on `adhoc_charges` both step aside when the session GUC `app.void_operation = 'true'`. It is a plain session variable: any role with UPDATE can `SET LOCAL` it and walk through both guards — the database cannot tell `void_invoice()` from an impostor. Application code must never set it; `void_invoice()` sets it and (since v5.4.2-01) clears it before returning, so nothing later in the caller's transaction inherits it. Since v5.4.2-02 the invoice guard also honours it (entering `status = 'void'`), and `void_invoice()` runs with `search_path` pinned to `public, pg_temp` — a caller's search_path can no longer redirect anything it resolves. Grep for it in code review. A true seal needs the SECURITY-DEFINER half of Appendix A-4 option (a) — routing those writes through procedures and revoking UPDATE on the columns — which is an application-architecture decision not taken by the schema.
+`void_invoice()` is the only way to void a bill, release the reads it locked, or un-bill its ad-hoc charges. Since v5.4.2-20 it runs as `tally_void`, a role no login can become. The read, charge and invoice guards admit those writes because they run as that role, and only while the function runs. Setting `app.void_operation` (the v5.2.1 to v5.4.2-19 carve-out) now admits nothing. Every function body that read it is rewritten, and `assert_seal_role_invariants()` refuses any that does.
+
+**Name the caller.** Set `app.user_id` to a user of the bill's tenant, or to a platform administrator, before calling. Row-level security is the tenant check: a caller with no user, a user that does not exist, or a user of another tenant gets `Invoice not found` (P0002). Before -20, a caller with no user could void any tenant's bill.
+
+**Concurrency.** The function locks the bill (`FOR UPDATE`) before reading its status. A second void waits, then is refused (`is not voidable`).
+- A write that attaches a read (`locked_by_invoice_id`) or a charge (`billed_on_invoice_id`) to a bill takes `FOR SHARE` on it. It waits for a void in flight, then is refused if the bill is now void.
+- A void that waits behind an attach releases what was attached.
+- A voided bill takes no new reads or charges: bill them on its correction.
+
+**History loads.** Only a superuser may INSERT a bill already `void`.
 
 ### AC-13 — Retire operational records through their status/voided/closed marker; the 33 protected tables reject DELETE and TRUNCATE — REJECTS
 *Introduced by v5.4.2-01.*
@@ -360,6 +369,28 @@ Set `invoices.pdf_url` and `pdf_sha256` together; on a draft or held bill, chang
 ### AC-41 — A balance is a sum of the ledger; there is no stored running balance — REJECTS
 `account_ledger.running_balance` is dropped (CI-019, Ryan 2026-10-13). Read a balance with `account_balance_as_of(customer, on_date, recorded_at)`: all three arguments are required, and an invisible customer raises. `void_invoice()` returns `credit_balance` as the same sum.
 
+
+### AC-42 — Call `assert_reference_version()` first, in the same transaction, before any rate, item or zone edit — REJECTS
+*Introduced by v5.4.2-20 (CI-011, D1-1).*
+
+Before writing a version of a `rate_schedules`, `rate_items` or `wna_zones` entity, call `assert_reference_version('<header table>', id, <the version you read>)` **in the same transaction as the write**. This covers:
+- inserting its first version;
+- closing a version (supersede or retract);
+- inserting a successor;
+- a lifecycle move of the header (`status`, and on schedules `archive_reason`, `activated_at`, `archived_at`).
+
+The database refuses each of those writes unless the transaction holds the check's receipt for that entity at its current version.
+
+**What it returns.** The new version. Keep it if you check again in the same transaction.
+- **Stale token:** `40001` ("modified since it was read"). Re-read the entity, show the editor the change, and retry.
+- **Entity not visible:** `P0002`. It is not retryable.
+
+**What the database cannot prove.** That the token came from the read the edit is based on. Pass the version the editor saw, never one re-read just before the call: a fresh read always passes and turns the check into last-writer-wins (v5.4.2-20 residual R2).
+
+**Shape of the transaction.** In autocommit, the check and the write as two statements fail. So does a check whose savepoint was rolled back. The app holds no UPDATE on `version`.
+- An `updated_at`-only write needs no check (the `rate_item_dependencies` mutex).
+- A header is created at version 1.
+- Schedule composition (`rate_schedule_items`, `rate_item_dependencies`) is outside the token (R7).
 ---
 
 ## Meter test history

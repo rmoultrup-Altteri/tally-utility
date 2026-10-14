@@ -46,7 +46,7 @@ BEGIN
   END;
   RAISE EXCEPTION 'FAIL %: accepted', p_label;
 END $$;
-GRANT EXECUTE ON FUNCTION pg_temp.refuses(text, text, text) TO tally_app;
+GRANT EXECUTE ON FUNCTION pg_temp.refuses(text, text, text) TO tally_app, tally_void;  -- tally_void: R4-R6 (v5.4.2-20)
 -- refuses_at (r3, Codex S1): as refuses(), and the refusal must come from the
 -- named guard — its constraint name, or a fragment of its message — so a test
 -- cannot pass on another guard that shares the SQLSTATE.
@@ -174,8 +174,11 @@ UPDATE public.meter_readings SET requires_followup = true, followup_notes = 'che
  WHERE id = '00000000-0000-4000-8000-000000001911';
 DO $$ BEGIN RAISE NOTICE 'PASS RW6: follow-up and dispute fields stay editable'; END $$;
 
--- R4/R5: a "void" that writes more than void_invoice() writes.
-SET LOCAL app.void_operation = 'true';
+-- R4/R5: a "void" that writes more than void_invoice() writes. Since
+-- v5.4.2-20 the void is the write made as tally_void, void_invoice()'s
+-- owner; the owner session takes that role to write as the void does.
+RESET ROLE;
+SET ROLE tally_void;
 SELECT pg_temp.refuses('R4 void that also edits the value', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, reading_value = 52 WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('R5 void that keeps the bill pointer', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('R5b void that points at another bill', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = '00000000-0000-4000-8000-000000001902', locked_by_invoice_id = NULL WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
@@ -183,7 +186,8 @@ SELECT pg_temp.refuses('R5c void that moves the run', $q$UPDATE public.meter_rea
 -- R6: void_invoice()'s exact write passes.
 UPDATE public.meter_readings SET voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, validation_status = 'void_released'
  WHERE id = '00000000-0000-4000-8000-000000001911';
-SET LOCAL app.void_operation = 'false';
+RESET ROLE;
+SET ROLE tally_app;
 DO $$ BEGIN
   IF (SELECT validation_status FROM public.meter_readings WHERE id = '00000000-0000-4000-8000-000000001911') IS DISTINCT FROM 'void_released' THEN
     RAISE EXCEPTION 'FAIL R6: void_invoice()''s write was refused';
@@ -235,6 +239,8 @@ SELECT pg_temp.refuses('Q2 coverage ends before it starts',
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001901', 'gas', 'base_charge', 'x', 1, DATE '2026-01-31', DATE '2026-01-01')$q$, '23514');
 
 INSERT INTO public.wna_zones (id, tenant_id, zone_code) VALUES ('00000000-0000-4000-8000-000000001931', '00000000-0000-4000-8000-0000000019a1', 'Z1');
+-- v5.4.2-20: a version row is written only after the version check.
+SELECT public.assert_reference_version('wna_zones', '00000000-0000-4000-8000-000000001931', 1);
 SELECT pg_temp.refuses('Q3 a deadband value with no measure',
   $q$INSERT INTO public.wna_zone_versions (tenant_id, wna_zone_id, zone_name, effective_date, change_type, deadband_value)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001931', 'Z1', DATE '2026-01-01', 'initial', 5)$q$, '23514');

@@ -98,7 +98,10 @@ UPDATE public.meter_readings SET validation_status = 'locked', billing_period_lo
 
 -- issue, then void with a non-auto-revert reason so the charge parks
 UPDATE public.invoices SET status = 'pending' WHERE id IN ('00000000-0000-4000-8000-000000001101','00000000-0000-4000-8000-000000001102');
+-- v5.4.2-20: each void names a caller of the bill's tenant (a caller with no user is refused, Opus B1).
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000011b1', true);
 SELECT public.void_invoice('00000000-0000-4000-8000-000000001101', '00000000-0000-4000-8000-0000000011b1', 'wrong_customer', 'battery-11 T1', true);
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000011b2', true);
 SELECT public.void_invoice('00000000-0000-4000-8000-000000001102', '00000000-0000-4000-8000-0000000011b2', 'wrong_customer', 'battery-11 T2', true);
 
 DO $$

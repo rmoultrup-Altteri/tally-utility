@@ -75,6 +75,8 @@ SELECT pg_temp.inv('00000000-0000-4000-8000-00000000c002', 'INV-LIVE', '00000000
 SELECT pg_temp.snap('00000000-0000-4000-8000-00000000c002', '2025-06-30', '2025-07-01 09:10-05');
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000c002';
 -- void the original (the only route to void — A-4)
+-- v5.4.2-20: the void names its caller (a caller with no user is refused, Opus B1).
+SET LOCAL app.user_id = '00000000-0000-4000-8000-00000000ab01';
 SELECT public.void_invoice('00000000-0000-4000-8000-00000000c001', '00000000-0000-4000-8000-00000000ab01', 'wrong_rate', 'battery: original to be corrected', true);
 DO $$ DECLARE st text; BEGIN
   SELECT status INTO st FROM public.invoices WHERE id = '00000000-0000-4000-8000-00000000c001';
