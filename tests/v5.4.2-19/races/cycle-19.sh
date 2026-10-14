@@ -13,6 +13,9 @@
 #       supersession rewrites the predecessor even when nothing changes.
 #   C6  READ COMMITTED: the same; B re-reads, sees the successor, is refused.
 #   C7  both inactive predecessors stayed inactive.
+#   C8  (r4, Codex B1) A cites a pending payment in a refund and holds; B
+#       moves that payment to another customer, waits on A's key lock, then
+#       is refused (foreign_key_violation): a citation and a move serialise.
 # Every leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids of B's backend contains A's, polled while A holds), so a
 # leg cannot pass by running sequentially. Setup failures exit 2.
@@ -33,6 +36,8 @@ I4=00000000-0000-4000-8000-0000000019e8
 PM=00000000-0000-4000-8000-0000000019e9
 PM2=00000000-0000-4000-8000-0000000019ea
 PM3=00000000-0000-4000-8000-0000000019eb
+C2=00000000-0000-4000-8000-0000000019ec
+PAY=00000000-0000-4000-8000-0000000019ed
 A_OUT=$(mktemp); B_OUT=$(mktemp)
 trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
 fail=0
@@ -41,6 +46,9 @@ fail=0
 INSERT INTO public.tenants (id, name, slug) VALUES ('$T', 'Race19', 'race19');
 INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES ('$U', '$T', 'Op', 'op@race19.test', 'operator');
 INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES ('$C', '$T', 'R19-C1', 'residential');
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES ('$C2', '$T', 'R19-C2', 'residential');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
+VALUES ('$PAY', '$T', 'R19-PAY', '$C', DATE '2026-02-01', 20, 'check', 'pending');
 INSERT INTO public.rate_schedules (id, tenant_id, code) VALUES ('$S', '$T', 'RS-R19');
 INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES ('$I1', '$T', 'X1'), ('$I2', '$T', 'Y1'), ('$I3', '$T', 'X2'), ('$I4', '$T', 'Y2');
 INSERT INTO public.payment_methods (id, tenant_id, customer_id, provider, provider_token, method_type, last_four)
@@ -116,6 +124,10 @@ two "$(succ_of "$PM3" race19-c6)" "READ COMMITTED" "$(react "$PM3")"
 check "C6 READ COMMITTED: reactivating an inactive method being superseded waits, then is refused" "23514" "was superseded"
 N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.payment_methods WHERE id IN ('$PM2', '$PM3') AND NOT is_active AND NOT is_default")
 if [ "$N" = "2" ]; then echo "PASS C7: both superseded methods stayed inactive"; else echo "FAIL C7: $N of 2 superseded methods inactive"; fail=1; fi
+
+refund="INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id) VALUES ('$T', 'R19-REF', '$C', DATE '2026-02-02', -5, 'refund', DATE '2026-02-02', 'other', '$PAY');"
+two "$refund" "READ COMMITTED" "UPDATE public.payments SET customer_id = '$C2' WHERE id = '$PAY';"
+check "C8 a payment moved to another customer while a refund cites it: the move waits, then is refused" "23503" "payments_refunds_payment_id_fkey"
 
 N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.rate_item_dependencies WHERE rate_schedule_id = '$S'")
 if [ "$N" = "2" ]; then echo "PASS C4: exactly one half of each cycle was stored"; else echo "FAIL C4: $N dependencies stored, expected 2"; fail=1; fi

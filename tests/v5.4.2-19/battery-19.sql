@@ -25,6 +25,8 @@
 -- P7c-P9b (money out once; lineage of the same customer), Q4h-Q4i, J2c
 -- isolated by constraint, J10 (a finished job's file and counts), L7c by a
 -- different citation, B5 (void_invoice()'s returned balance).
+-- r4 adds P9c-P9g: a cited payment cannot move to another customer; a
+-- payment cannot cite itself.
 -- Races (two halves of a dependency cycle at once): races/cycle-19.sh.
 -- ============================================================================
 BEGIN;
@@ -113,6 +115,15 @@ INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, readin
 VALUES ('00000000-0000-4000-8000-000000001912', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019e2', DATE '2026-01-31', 5);
 SELECT pg_temp.refuses('RF1 the lock flag set on a pending read',
   $q$UPDATE public.meter_readings SET billing_period_locked = true WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514');
+-- r4 (Opus r3 N3): even a superuser's history load cannot store a locked
+-- read without the flag (the birth guard exempts it; the CHECK does not).
+-- Estimated, to stay clear of the -05 meters-pointer defect on a
+-- non-estimated read born past pending (Fable r1 N6, logged separately).
+RESET ROLE;
+SELECT pg_temp.refuses_at('RF2 a history load of a locked read with no lock flag',
+  $q$INSERT INTO public.meter_readings (tenant_id, meter_id, reading_date, reading_value, is_estimated, estimation_reason, validation_status, locked_by_billing_run_id)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019e2', DATE '2025-12-31', 4, true, 'other', 'locked', '00000000-0000-4000-8000-0000000019f1')$q$, '23514', 'meter_readings_consumed_flag_check');
+SET ROLE tally_app;
 -- RL (r3, Fable S1): nor is the rest of the lock record written on it.
 SELECT pg_temp.refuses_at('RL1 a run pointer on a pending read', $q$UPDATE public.meter_readings SET locked_by_billing_run_id = '00000000-0000-4000-8000-0000000019f1' WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514', 'no billing run has consumed');
 SELECT pg_temp.refuses_at('RL2 a bill pointer on a pending read', $q$UPDATE public.meter_readings SET locked_by_invoice_id = '00000000-0000-4000-8000-000000001901' WHERE id = '00000000-0000-4000-8000-000000001912'$q$, '23514', 'no billing run has consumed');
@@ -156,7 +167,7 @@ DO $$ BEGIN RAISE NOTICE 'PASS R3: notes stay editable on a locked read'; END $$
 -- RW: every column but the follow-up whitelist is frozen (r2, Opus S2 / Fable S5).
 SELECT pg_temp.refuses('RW1 days in period (a proration input)', $q$UPDATE public.meter_readings SET days_in_period = 99 WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('RW2 raw read value', $q$UPDATE public.meter_readings SET raw_read_value = '51' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
-SELECT pg_temp.refuses('RW3 estimation reason', $q$UPDATE public.meter_readings SET estimation_reason = 'x' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
+SELECT pg_temp.refuses('RW3 estimation reason', $q$UPDATE public.meter_readings SET estimation_reason = 'other' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('RW4 read timestamp', $q$UPDATE public.meter_readings SET reading_timestamp = now() WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('RW5 validated_by', $q$UPDATE public.meter_readings SET validated_by = '00000000-0000-4000-8000-0000000019b1' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 UPDATE public.meter_readings SET requires_followup = true, followup_notes = 'check', dispute_reason = 'customer call', triggers_correction_workflow = true
@@ -406,6 +417,31 @@ SELECT pg_temp.refuses_at('P9b a replacement for another customer''s bounced pay
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, nsf_original_payment_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-9b', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-12', 20, 'check',
              DATE '2026-02-12', 'postmark', '00000000-0000-4000-8000-000000001962')$q$, '23503', 'is not a payment of this customer');
+-- r4 (Codex B1, Opus S1): the parent side. A refund cites C1's payment
+-- while it is still pending; the payment may not then move to C2.
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
+VALUES ('00000000-0000-4000-8000-0000000019f8', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending'),
+       ('00000000-0000-4000-8000-0000000019f9', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT2', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending'),
+       ('00000000-0000-4000-8000-0000000019fa', '00000000-0000-4000-8000-0000000019a1', 'R4-LONE', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending');
+INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
+VALUES ('00000000-0000-4000-8000-0000000019a1', 'R4-REFUND', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-02', -5, 'refund', DATE '2026-02-02', 'other', '00000000-0000-4000-8000-0000000019f8');
+INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, nsf_original_payment_id)
+VALUES ('00000000-0000-4000-8000-0000000019a1', 'R4-REPL', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-02', 20, 'check', DATE '2026-02-02', 'postmark', '00000000-0000-4000-8000-0000000019f9');
+SELECT pg_temp.refuses_at('P9c a refunded payment moved to another customer',
+  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019f8'$q$, '23503', 'payments_refunds_payment_id_fkey');
+SELECT pg_temp.refuses_at('P9d a replaced (bounced) payment moved to another customer',
+  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019f9'$q$, '23503', 'payments_nsf_original_payment_id_fkey');
+UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019fa';
+DO $$ BEGIN RAISE NOTICE 'PASS P9e: a pending payment nothing cites may still be corrected to another customer'; END $$;
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status, refunds_payment_id)
+VALUES ('00000000-0000-4000-8000-0000000019fc', '00000000-0000-4000-8000-0000000019a1', 'R4-PEND-REF', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-03', -5, 'refund', 'pending', '00000000-0000-4000-8000-0000000019f8');
+SELECT pg_temp.refuses_at('P9g a pending refund retargeted at another customer''s payment',
+  $q$UPDATE public.payments SET refunds_payment_id = '00000000-0000-4000-8000-0000000019fa' WHERE id = '00000000-0000-4000-8000-0000000019fc'$q$, '23503', 'is not a payment of this customer');
+-- An existing row is visible and of its own customer, so only the CHECK
+-- refuses a pending refund pointed at itself (an INSERT is refused earlier,
+-- by the lineage trigger: the row does not exist yet).
+SELECT pg_temp.refuses_at('P9f a pending refund pointed at itself',
+  $q$UPDATE public.payments SET refunds_payment_id = '00000000-0000-4000-8000-0000000019fc' WHERE id = '00000000-0000-4000-8000-0000000019fc'$q$, '23514', 'payments_lineage_not_self_check');
 RESET ROLE;
 
 
@@ -630,6 +666,18 @@ SELECT pg_temp.refuses('J8 a completed import cancelled (to free the file)', $q$
 -- r3 (Opus S2): a finished job's stored file and counts are its record.
 SELECT pg_temp.refuses_at('J10 a completed import''s stored file repointed', $q$UPDATE public.import_jobs SET source_file_url = 's3://f/other.csv' WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001', 'source_file_url');
 SELECT pg_temp.refuses_at('J10b a completed import''s committed rows rewritten', $q$UPDATE public.import_jobs SET committed_rows = 99 WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001', 'row counts');
+-- r4 (Codex r3 S2): the size, a count cleared to NULL, and the other final
+-- statuses; and finishing a job may write its counts and file in that write.
+SELECT pg_temp.refuses_at('J10c a completed import''s file size rewritten', $q$UPDATE public.import_jobs SET source_file_size_bytes = 1 WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001', 'source_file_size_bytes');
+SELECT pg_temp.refuses_at('J10d a completed import''s count cleared', $q$UPDATE public.import_jobs SET error_rows = NULL WHERE id = '00000000-0000-4000-8000-0000000019b5'$q$, '23001', 'row counts');
+SELECT pg_temp.refuses_at('J10e a failed import''s counts rewritten', $q$UPDATE public.import_jobs SET total_rows = 7 WHERE id = '00000000-0000-4000-8000-0000000019b3'$q$, '23001', 'row counts');
+INSERT INTO public.import_jobs (id, tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy)
+VALUES ('00000000-0000-4000-8000-0000000019b7', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'payments', 'csv', 'mar.csv', 'h-mar', 'partial_commit');
+UPDATE public.import_jobs SET status = 'partial', total_rows = 10, committed_rows = 8, held_rows = 2, source_file_url = 's3://f/mar.csv', source_file_size_bytes = 512
+ WHERE id = '00000000-0000-4000-8000-0000000019b7';
+DO $$ BEGIN RAISE NOTICE 'PASS J10f: finishing a job writes its final counts and file in the same write'; END $$;
+SELECT pg_temp.refuses_at('J10h a finished import''s summary rewritten', $q$UPDATE public.import_jobs SET import_summary = '{"x":1}' WHERE id = '00000000-0000-4000-8000-0000000019b7'$q$, '23001', 'import_summary');
+SELECT pg_temp.refuses_at('J10g a partial import''s held rows released after finish', $q$UPDATE public.import_jobs SET held_rows = 0, committed_rows = 10 WHERE id = '00000000-0000-4000-8000-0000000019b7'$q$, '23001', 'row counts');
 SELECT pg_temp.refuses('J9 the same file imported again after completion',
   $q$INSERT INTO public.import_jobs (tenant_id, initiated_by, import_type, source_type, source_filename, source_file_hash, error_handling_policy, idempotency_key)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019b1', 'payments', 'csv', 'feb-again.csv', 'h-feb', 'all_or_nothing', 'again')$q$, '23505');

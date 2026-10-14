@@ -35,6 +35,15 @@
 --   comment no longer describes the dropped column; the rider lock order
 --   names headers-before-edges; R15-R18 record what was left on purpose.
 --
+-- Revision r4 (review round 3: Opus ready, Fable ready, Codex not yet):
+--   refund and replacement lineage are composite foreign keys on (id,
+--   tenant_id, customer_id): a cited payment cannot move to another customer
+--   (Codex B1 / Opus S1); a payment cannot cite itself. A read in locked or
+--   void_released must carry the lock flag (a table CHECK, every role). A
+--   finished import job's counts, summary, errors and completion time are
+--   its snapshot at finish. The money-out rule is stated for every negative
+--   row (chargebacks included), not refunds alone.
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -119,7 +128,8 @@
 --     renamed copy of a file already imported is refused — the
 --     idempotency_key (filename-based, or caller-supplied) no longer decides
 --     that alone. A job's file identity is write-once; a finished job's
---     status, stored file and row counts are final.
+--     status, stored file and row counts are final (a snapshot at finish;
+--     the staging rows remain the live record of held rows).
 --   * CI-098. import_type gains ach_return, lockbox and amr.
 --   Programs
 --   * CI-062. program_types.requires_attestation (true for
@@ -221,7 +231,12 @@
 --       channel: one processor transaction arriving by webhook and again in
 --       an imported settlement file posts twice (the core matches across
 --       channels); a zero-amount row is not counted; a pending row's amount
---       is editable, so its slot is held only while its sign is.
+--       is editable, so its slot is held only while its sign is. Intake must
+--       not read a unique_violation on payments_provider_refund_once as a
+--       harmless redelivery without comparing the rows: a chargeback reusing
+--       a refunded charge's id is a distinct event and needs its own id.
+--       Likewise an ACH re-presentment is a new transaction with its own id;
+--       one reusing the original's id is refused as a duplicate receipt.
 --   R18. CI-025: on a consumed read, status is follow-up work (whitelisted),
 --       but populate_reading_calculations takes the "previous" read by
 --       status = 'active', so marking a consumed read disputed changes the
@@ -483,6 +498,13 @@ ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER a_enforce_reading_born_u
 ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER trg_enforce_reading_validation_workflow;
 ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER trg_populate_reading_calculations;
 ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER dry_run_no_read_locks;
+ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER trg_populate_reading_location;
+-- r4 (Opus r3 N3): a read in locked or void_released carries the lock flag,
+-- for every role — a history load included — so no consumed read escapes
+-- Block 2 by a missing flag.
+ALTER TABLE public.meter_readings
+    ADD CONSTRAINT meter_readings_consumed_flag_check
+        CHECK (validation_status NOT IN ('locked', 'void_released') OR billing_period_locked);
 COMMENT ON COLUMN public.meter_readings.voided_from_invoice_id IS
     'Set during a void operation to preserve the invoice that originally locked this read, before locked_by_invoice_id is cleared. Enables full audit traversal: read -> voided invoice -> correction invoice. Written only by a void (v5.4.2-19); it holds the latest void — a read voided again after a re-lock names the second bill, and invoice_events keeps both.';
 
@@ -656,7 +678,7 @@ CREATE UNIQUE INDEX payments_provider_refund_once
     ON public.payments (tenant_id, source_system, provider_transaction_id)
     WHERE provider_transaction_id IS NOT NULL AND amount < 0;
 COMMENT ON INDEX public.payments_provider_refund_once IS
-    'v5.4.2-19 r3 (CI-055). One money-out row (a refund, any negative payment) per processor transaction per source, so a refund delivered twice cannot pay out twice. A refund may carry its original''s id once; a further (partial) refund carries the processor''s id for that refund. A zero-amount row is not counted.';
+    'v5.4.2-19 r3 (CI-055). One money-out row per processor transaction per source — every negative row: a refund, a chargeback, a reversal recorded as its own row — so one delivered twice cannot pay out twice. A money-out row may carry its original''s id once; any further one (a second partial refund, a chargeback after a refund) carries the processor''s own id for that event (a dispute id, a refund id), or a chargeback is recorded as status reversed on the original. A zero-amount row is not counted.';
 
 -- r3 (Fable S2, Opus PR3): the payment a refund or a replacement cites is the
 -- same customer's. A positive check (visible AND same tenant AND same
@@ -689,6 +711,22 @@ DROP TRIGGER IF EXISTS a_enforce_payment_lineage ON public.payments;
 CREATE TRIGGER a_enforce_payment_lineage BEFORE INSERT OR UPDATE OF refunds_payment_id, nsf_original_payment_id, customer_id, tenant_id ON public.payments
     FOR EACH ROW EXECUTE FUNCTION public.enforce_payment_lineage();
 ALTER TABLE public.payments ENABLE ALWAYS TRIGGER a_enforce_payment_lineage;
+-- r4 (Codex B1, Opus S1): the trigger checks from the citing row only; a
+-- cited payment still pending could then move to another customer. The
+-- edges are now composite foreign keys on (id, tenant_id, customer_id), so
+-- the cited row's customer cannot change while anything cites it (NO
+-- ACTION), and the key lock serialises a concurrent citation against a move.
+-- A payment does not cite itself.
+ALTER TABLE public.payments
+    ADD CONSTRAINT payments_id_tenant_customer_key UNIQUE (id, tenant_id, customer_id),
+    DROP CONSTRAINT payments_refunds_payment_id_fkey,
+    DROP CONSTRAINT payments_nsf_original_payment_id_fkey,
+    ADD CONSTRAINT payments_refunds_payment_id_fkey
+        FOREIGN KEY (refunds_payment_id, tenant_id, customer_id) REFERENCES public.payments (id, tenant_id, customer_id),
+    ADD CONSTRAINT payments_nsf_original_payment_id_fkey
+        FOREIGN KEY (nsf_original_payment_id, tenant_id, customer_id) REFERENCES public.payments (id, tenant_id, customer_id),
+    ADD CONSTRAINT payments_lineage_not_self_check
+        CHECK (refunds_payment_id IS DISTINCT FROM id AND nsf_original_payment_id IS DISTINCT FROM id);
 
 CREATE OR REPLACE FUNCTION public.enforce_payment_effective_date() RETURNS trigger
     LANGUAGE plpgsql
@@ -1098,6 +1136,10 @@ BEGIN
            IS DISTINCT FROM (OLD.total_rows, OLD.processed_rows, OLD.committed_rows, OLD.held_rows, OLD.error_rows, OLD.warning_rows, OLD.skipped_rows) THEN
             v_changed := v_changed || 'row counts'::text;
         END IF;
+        -- r4 (Fable r3 S3): the summary and errors reported at finish, and when.
+        IF NEW.import_summary    IS DISTINCT FROM OLD.import_summary    THEN v_changed := v_changed || 'import_summary'::text; END IF;
+        IF NEW.validation_errors IS DISTINCT FROM OLD.validation_errors THEN v_changed := v_changed || 'validation_errors'::text; END IF;
+        IF NEW.completed_at      IS DISTINCT FROM OLD.completed_at      THEN v_changed := v_changed || 'completed_at'::text; END IF;
     END IF;
     IF cardinality(v_changed) > 0 THEN
         RAISE EXCEPTION USING
@@ -1109,7 +1151,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_import_job_record() IS
-    'v5.4.2-19 r2 (CI-118). BEFORE UPDATE on import_jobs: tenant, initiator, import and source type, file name, file hash, preview flag, idempotency key and created_at are write-once; complete, partial, failed and cancelled are final statuses, and a finished job''s stored file (URL, size) and row counts are frozen with it (r3).';
+    'v5.4.2-19 r2 (CI-118). BEFORE UPDATE on import_jobs: tenant, initiator, import and source type, file name, file hash, preview flag, idempotency key and created_at are write-once; complete, partial, failed and cancelled are final statuses, and a finished job''s stored file (URL, size), row counts, summary, validation errors and completed_at are frozen with it (r3, r4) — a snapshot at finish; staging rows stay the live record.';
 DROP TRIGGER IF EXISTS a_enforce_import_job_record ON public.import_jobs;
 CREATE TRIGGER a_enforce_import_job_record BEFORE UPDATE ON public.import_jobs
     FOR EACH ROW EXECUTE FUNCTION public.enforce_import_job_record();
