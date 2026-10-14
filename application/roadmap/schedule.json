@@ -7,7 +7,8 @@
   "scenario": "low",
   "start": "2026-05-13",
   "end": "2026-08-18",
-  "critical": false
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P1",
@@ -16,8 +17,9 @@
   "status": "in_progress",
   "scenario": "low",
   "start": "2026-08-18",
-  "end": "2026-11-18",
-  "critical": true
+  "end": "2026-11-04",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P2",
@@ -25,9 +27,10 @@
   "track": "Specification",
   "status": "partial",
   "scenario": "low",
-  "start": "2026-11-18",
-  "end": "2027-01-06",
-  "critical": true
+  "start": "2026-11-04",
+  "end": "2026-11-25",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P3",
@@ -35,9 +38,10 @@
   "track": "Specification",
   "status": "todo",
   "scenario": "low",
-  "start": "2027-01-06",
-  "end": "2027-01-13",
-  "critical": true
+  "start": "2026-11-25",
+  "end": "2026-12-02",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P4",
@@ -45,9 +49,10 @@
   "track": "Platform",
   "status": "todo",
   "scenario": "low",
-  "start": "2027-01-06",
-  "end": "2027-01-27",
-  "critical": true
+  "start": "2026-11-25",
+  "end": "2026-12-09",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P5",
@@ -55,9 +60,10 @@
   "track": "Core",
   "status": "todo",
   "scenario": "low",
-  "start": "2027-01-20",
-  "end": "2027-05-26",
-  "critical": true
+  "start": "2026-12-09",
+  "end": "2027-03-03",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P6",
@@ -65,9 +71,10 @@
   "track": "Frontend",
   "status": "partial",
   "scenario": "low",
-  "start": "2027-03-03",
-  "end": "2027-06-09",
-  "critical": false
+  "start": "2027-02-03",
+  "end": "2027-03-31",
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P7",
@@ -75,9 +82,10 @@
   "track": "Integrations",
   "status": "todo",
   "scenario": "low",
-  "start": "2027-04-14",
-  "end": "2027-06-09",
-  "critical": false
+  "start": "2027-03-17",
+  "end": "2027-04-14",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P8",
@@ -85,9 +93,10 @@
   "track": "Quality",
   "status": "todo",
   "scenario": "low",
-  "start": "2027-06-09",
-  "end": "2027-06-30",
-  "critical": false
+  "start": "2027-04-14",
+  "end": "2027-04-28",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P9",
@@ -95,9 +104,10 @@
   "track": "Platform",
   "status": "todo",
   "scenario": "low",
-  "start": "2027-05-12",
-  "end": "2027-06-23",
-  "critical": false
+  "start": "2027-02-03",
+  "end": "2027-03-03",
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P10",
@@ -107,7 +117,8 @@
   "scenario": "low",
   "start": "2027-04-28",
   "end": "2027-07-07",
-  "critical": true
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P11",
@@ -117,7 +128,8 @@
   "scenario": "low",
   "start": "2027-07-07",
   "end": "2027-09-01",
-  "critical": true
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P12",
@@ -127,7 +139,8 @@
   "scenario": "low",
   "start": "2027-09-01",
   "end": "2027-09-29",
-  "critical": true
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P0",
@@ -137,7 +150,8 @@
   "scenario": "likely",
   "start": "2026-05-13",
   "end": "2026-08-18",
-  "critical": false
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P1",
@@ -146,8 +160,9 @@
   "status": "in_progress",
   "scenario": "likely",
   "start": "2026-08-18",
-  "end": "2026-12-09",
-  "critical": true
+  "end": "2026-11-18",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P2",
@@ -155,9 +170,10 @@
   "track": "Specification",
   "status": "partial",
   "scenario": "likely",
-  "start": "2026-12-09",
-  "end": "2027-02-17",
-  "critical": true
+  "start": "2026-11-18",
+  "end": "2027-01-06",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P3",
@@ -165,9 +181,10 @@
   "track": "Specification",
   "status": "todo",
   "scenario": "likely",
-  "start": "2027-02-17",
-  "end": "2027-03-03",
-  "critical": true
+  "start": "2027-01-06",
+  "end": "2027-01-13",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P4",
@@ -175,9 +192,10 @@
   "track": "Platform",
   "status": "todo",
   "scenario": "likely",
-  "start": "2027-02-17",
-  "end": "2027-03-24",
-  "critical": false
+  "start": "2027-01-06",
+  "end": "2027-01-27",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P5",
@@ -185,9 +203,10 @@
   "track": "Core",
   "status": "todo",
   "scenario": "likely",
-  "start": "2027-03-03",
-  "end": "2027-09-01",
-  "critical": true
+  "start": "2027-01-20",
+  "end": "2027-04-28",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P6",
@@ -195,29 +214,32 @@
   "track": "Frontend",
   "status": "partial",
   "scenario": "likely",
-  "start": "2027-04-14",
-  "end": "2027-09-01",
-  "critical": false
+  "start": "2027-03-03",
+  "end": "2027-05-26",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P7",
   "name": "Integrations",
   "track": "Integrations",
+  "status": "todo",
+  "scenario": "likely",
+  "start": "2027-04-14",
+  "end": "2027-05-26",
+  "critical": false,
+  "after_ready": false
+ },
+ {
+  "phase": "P8",
+  "name": "Test data and release testing",
+  "track": "Quality",
   "status": "todo",
   "scenario": "likely",
   "start": "2027-05-26",
-  "end": "2027-08-18",
-  "critical": false
- },
- {
-  "phase": "P8",
-  "name": "Test data and release testing",
-  "track": "Quality",
-  "status": "todo",
-  "scenario": "likely",
-  "start": "2027-09-01",
-  "end": "2027-09-29",
-  "critical": true
+  "end": "2027-06-16",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P9",
@@ -225,9 +247,10 @@
   "track": "Platform",
   "status": "todo",
   "scenario": "likely",
-  "start": "2027-06-23",
-  "end": "2027-08-18",
-  "critical": false
+  "start": "2027-03-03",
+  "end": "2027-04-14",
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P10",
@@ -235,9 +258,10 @@
   "track": "Customer",
   "status": "todo",
   "scenario": "likely",
-  "start": "2027-06-09",
-  "end": "2027-09-15",
-  "critical": false
+  "start": "2027-06-16",
+  "end": "2027-09-22",
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P11",
@@ -245,9 +269,10 @@
   "track": "Customer",
   "status": "todo",
   "scenario": "likely",
-  "start": "2027-09-29",
-  "end": "2028-01-05",
-  "critical": true
+  "start": "2027-09-22",
+  "end": "2027-12-15",
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P12",
@@ -255,9 +280,10 @@
   "track": "Customer",
   "status": "todo",
   "scenario": "likely",
-  "start": "2028-01-05",
-  "end": "2028-02-16",
-  "critical": true
+  "start": "2027-12-15",
+  "end": "2028-02-09",
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P0",
@@ -267,7 +293,8 @@
   "scenario": "high",
   "start": "2026-05-13",
   "end": "2026-08-18",
-  "critical": false
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P1",
@@ -276,8 +303,9 @@
   "status": "in_progress",
   "scenario": "high",
   "start": "2026-08-18",
-  "end": "2027-01-20",
-  "critical": true
+  "end": "2026-12-09",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P2",
@@ -285,9 +313,10 @@
   "track": "Specification",
   "status": "partial",
   "scenario": "high",
-  "start": "2027-01-20",
-  "end": "2027-04-14",
-  "critical": true
+  "start": "2026-12-09",
+  "end": "2027-02-17",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P3",
@@ -295,9 +324,10 @@
   "track": "Specification",
   "status": "todo",
   "scenario": "high",
-  "start": "2027-04-14",
-  "end": "2027-05-05",
-  "critical": true
+  "start": "2027-02-17",
+  "end": "2027-03-03",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P4",
@@ -305,9 +335,10 @@
   "track": "Platform",
   "status": "todo",
   "scenario": "high",
-  "start": "2027-04-14",
-  "end": "2027-06-09",
-  "critical": false
+  "start": "2027-02-17",
+  "end": "2027-03-24",
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P5",
@@ -315,9 +346,10 @@
   "track": "Core",
   "status": "todo",
   "scenario": "high",
-  "start": "2027-05-05",
-  "end": "2028-02-23",
-  "critical": true
+  "start": "2027-03-03",
+  "end": "2027-08-04",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P6",
@@ -325,9 +357,10 @@
   "track": "Frontend",
   "status": "partial",
   "scenario": "high",
-  "start": "2027-06-16",
-  "end": "2028-01-26",
-  "critical": false
+  "start": "2027-04-14",
+  "end": "2027-08-18",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P7",
@@ -335,9 +368,10 @@
   "track": "Integrations",
   "status": "todo",
   "scenario": "high",
-  "start": "2027-07-28",
-  "end": "2027-12-01",
-  "critical": false
+  "start": "2027-05-26",
+  "end": "2027-08-04",
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P8",
@@ -345,9 +379,10 @@
   "track": "Quality",
   "status": "todo",
   "scenario": "high",
-  "start": "2028-02-23",
-  "end": "2028-04-05",
-  "critical": true
+  "start": "2027-08-18",
+  "end": "2027-09-15",
+  "critical": true,
+  "after_ready": false
  },
  {
   "phase": "P9",
@@ -355,9 +390,10 @@
   "track": "Platform",
   "status": "todo",
   "scenario": "high",
-  "start": "2027-08-25",
-  "end": "2027-11-17",
-  "critical": false
+  "start": "2027-04-14",
+  "end": "2027-06-23",
+  "critical": false,
+  "after_ready": false
  },
  {
   "phase": "P10",
@@ -365,9 +401,10 @@
   "track": "Customer",
   "status": "todo",
   "scenario": "high",
-  "start": "2027-08-11",
-  "end": "2028-01-12",
-  "critical": false
+  "start": "2027-09-15",
+  "end": "2028-02-16",
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P11",
@@ -375,9 +412,10 @@
   "track": "Customer",
   "status": "todo",
   "scenario": "high",
-  "start": "2028-04-05",
-  "end": "2028-07-26",
-  "critical": true
+  "start": "2028-02-16",
+  "end": "2028-06-07",
+  "critical": false,
+  "after_ready": true
  },
  {
   "phase": "P12",
@@ -385,8 +423,9 @@
   "track": "Customer",
   "status": "todo",
   "scenario": "high",
-  "start": "2028-07-26",
-  "end": "2028-09-20",
-  "critical": true
+  "start": "2028-06-07",
+  "end": "2028-08-02",
+  "critical": false,
+  "after_ready": true
  }
 ]

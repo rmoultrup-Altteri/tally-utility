@@ -2,7 +2,7 @@
 """Turn application/roadmap/phases.json into dated schedules for the dashboard.
 
 Writes schedule.json (one row per phase per scenario) and golive.json
-(one row per scenario) next to phases.json. Re-run after editing phases.json.
+(one row per scenario: the ready-to-onboard date, the first customer's go-live) next to phases.json. Re-run after editing phases.json.
 """
 import json
 import sys
@@ -76,27 +76,31 @@ def main() -> int:
     today = date.fromisoformat(src["as_of"])
     phases = src["phases"]
     golive_phase = next(p["id"] for p in phases if p.get("milestone_at_start") == "Go-live")
+    ready_phase = next(p["id"] for p in phases if p.get("milestone_at_start") == "Ready to onboard")
 
     schedule_rows, golive_rows = [], []
     for idx, scenario in enumerate(SCENARIOS):
         dates = schedule(phases, idx, today)
-        cp = critical_path(phases, dates, golive_phase)
+        # The headline date is "ready to onboard"; the critical path is the one that sets it.
+        cp = critical_path(phases, dates, ready_phase)
         for p in phases:
             start, end = dates[p["id"]]
             schedule_rows.append({
                 "phase": p["id"], "name": p["name"], "track": p["track"], "status": p["status"],
                 "scenario": scenario, "start": start.isoformat(), "end": end.isoformat(),
-                "critical": p["id"] in cp,
+                "critical": p["id"] in cp and p["id"] != ready_phase,
+                "after_ready": dates[p["id"]][0] >= dates[ready_phase][0],
             })
-        go = dates[golive_phase][0]
+        ready, go = dates[ready_phase][0], dates[golive_phase][0]
         golive_rows.append({
-            "scenario": scenario, "go_live": go.isoformat(),
-            "weeks_from_now": round((go - today).days / 7), "critical_path": " > ".join(cp[:-1]),
+            "scenario": scenario, "ready_to_onboard": ready.isoformat(),
+            "weeks_to_ready": round((ready - today).days / 7), "go_live": go.isoformat(),
+            "onboarding_weeks": round((go - ready).days / 7), "critical_path": " > ".join(cp[:-1]),
         })
 
     phase_rows = [{
         "phase": p["id"], "name": p["name"], "track": p["track"], "status": p["status"],
-        "owner": p["owner"], "gate_step": p["gate_step"], "summary": p["summary"],
+        "owner": p["owner"], "gate_step": p["gate_step"], "summary": p["summary"], "basis": p.get("basis"),
         "weeks_low": p.get("weeks", [None] * 3)[0], "weeks_likely": p.get("weeks", [None] * 3)[1],
         "weeks_high": p.get("weeks", [None] * 3)[2],
         "progress_done": p.get("progress", {}).get("done"), "progress_total": p.get("progress", {}).get("total"),
@@ -109,7 +113,8 @@ def main() -> int:
     (ROADMAP / "schedule.json").write_text(json.dumps(schedule_rows, indent=1) + "\n")
     (ROADMAP / "golive.json").write_text(json.dumps(golive_rows, indent=1) + "\n")
     for row in golive_rows:
-        print(f"{row['scenario']:>6}: go-live {row['go_live']} ({row['weeks_from_now']} wk)  path {row['critical_path']}")
+        print(f"{row['scenario']:>6}: ready {row['ready_to_onboard']} ({row['weeks_to_ready']} wk), "
+              f"first customer live {row['go_live']} (+{row['onboarding_weeks']} wk)  path {row['critical_path']}")
     return 0
 
 

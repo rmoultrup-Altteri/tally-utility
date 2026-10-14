@@ -3,176 +3,579 @@
   "weeks_note": "Durations are working weeks from the phase's start: low / likely / high. Dependencies: 'finish' = starts when that phase finishes; 'start' = starts lag_weeks after that phase starts.",
   "phases": [
     {
-      "id": "P0", "name": "Domain research and planning", "track": "Foundation", "gate_step": null,
-      "status": "done", "owner": "Ryan + Kyle",
-      "actual_start": "2026-05-13", "actual_end": "2026-08-18",
+      "id": "P0",
+      "name": "Domain research and planning",
+      "track": "Foundation",
+      "gate_step": null,
+      "status": "done",
+      "owner": "Ryan + Kyle",
+      "actual_start": "2026-05-13",
+      "actual_end": "2026-08-18",
       "summary": "Domain knowledge base, 135 canonical invariants, 500-feature list, Kyle's rulings, tech stack.",
       "parts": [
-        {"name": "Gas billing knowledge base", "status": "done"},
-        {"name": "135 canonical invariants", "status": "done"},
-        {"name": "Feature list (439 required, 61 nice-to-have)", "status": "done"},
-        {"name": "Tech stack decided", "status": "done"}
+        {
+          "name": "Gas billing knowledge base",
+          "status": "done"
+        },
+        {
+          "name": "135 canonical invariants",
+          "status": "done"
+        },
+        {
+          "name": "Feature list (439 required, 61 nice-to-have)",
+          "status": "done"
+        },
+        {
+          "name": "Tech stack decided",
+          "status": "done"
+        }
       ]
     },
     {
-      "id": "P1", "name": "Schema at parity with the invariants", "track": "Schema", "gate_step": 1,
-      "status": "in_progress", "owner": "Ryan + Claude",
-      "actual_start": "2026-08-18", "remaining_from": "2026-10-14",
-      "weeks": [5, 8, 12], "depends": [],
-      "progress": {"done": 55, "total": 135, "unit": "invariants", "basis": "parity measurement 2026-10-13 (REP+PROT 34, REP 21)"},
+      "id": "P1",
+      "name": "Schema at parity with the invariants",
+      "track": "Schema",
+      "gate_step": 1,
+      "status": "in_progress",
+      "owner": "Ryan + Claude",
+      "actual_start": "2026-08-18",
+      "remaining_from": "2026-10-14",
+      "weeks": [
+        3,
+        5,
+        8
+      ],
+      "depends": [],
+      "progress": {
+        "done": 55,
+        "total": 135,
+        "unit": "invariants",
+        "basis": "parity measurement 2026-10-13 (REP+PROT 34, REP 21)"
+      },
       "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 answers unblock tax jurisdictions, franchise fees and the PGA billing side.",
       "parts": [
-        {"name": "Wave 1: close holes in what is built", "status": "done"},
-        {"name": "Wave 2: finance structures and cash handling", "status": "next"},
-        {"name": "Tax jurisdictions, tax stack, franchise fees (Kyle answered)", "status": "unblocked"},
-        {"name": "PGA billing side only (Kyle answered)", "status": "unblocked"},
-        {"name": "Wave 3: disputes and collections records", "status": "todo"},
-        {"name": "Wave 4: program enrollment lifecycle", "status": "waiting"},
-        {"name": "Wave 5: communications", "status": "todo"},
-        {"name": "Wave 6: rate-assignment and occupancy history", "status": "waiting"},
-        {"name": "Wave 7: rule-terms extensions", "status": "waiting"},
-        {"name": "Fix the old meter-reading defect (from -05)", "status": "todo"}
-      ]
+        {
+          "name": "Wave 1: close holes in what is built",
+          "status": "done"
+        },
+        {
+          "name": "Wave 2: finance structures and cash handling",
+          "status": "next"
+        },
+        {
+          "name": "Tax jurisdictions, tax stack, franchise fees (Kyle answered)",
+          "status": "unblocked"
+        },
+        {
+          "name": "PGA billing side only (Kyle answered)",
+          "status": "unblocked"
+        },
+        {
+          "name": "Wave 3: disputes and collections records",
+          "status": "todo"
+        },
+        {
+          "name": "Wave 4: program enrollment lifecycle",
+          "status": "waiting"
+        },
+        {
+          "name": "Wave 5: communications",
+          "status": "todo"
+        },
+        {
+          "name": "Wave 6: rate-assignment and occupancy history",
+          "status": "waiting"
+        },
+        {
+          "name": "Wave 7: rule-terms extensions",
+          "status": "waiting"
+        },
+        {
+          "name": "Fix the old meter-reading defect (from -05)",
+          "status": "todo"
+        }
+      ],
+      "basis": "Measured: about one medium schema patch per working day including review; about 8 patches left plus decision waits."
     },
     {
-      "id": "P2", "name": "Scenarios and testing strategy", "track": "Specification", "gate_step": 2,
-      "status": "partial", "owner": "Ryan + Claude, Kyle validates",
-      "weeks": [5, 8, 12], "depends": [{"phase": "P1", "type": "finish"}],
+      "id": "P2",
+      "name": "Scenarios and testing strategy",
+      "track": "Specification",
+      "gate_step": 2,
+      "status": "partial",
+      "owner": "Ryan + Claude, Kyle validates",
+      "weeks": [
+        3,
+        5,
+        8
+      ],
+      "depends": [
+        {
+          "phase": "P1",
+          "type": "finish"
+        }
+      ],
       "summary": "Write the 200-390 scenarios the core must pass, have Kyle check the numbers, and choose how they become tests.",
       "parts": [
-        {"name": "26 date-tracking scenarios", "status": "done"},
-        {"name": "28 invariant cases-to-cover docs", "status": "done"},
-        {"name": "60 decision tables, 80 workflows", "status": "done"},
-        {"name": "14 fixture catalogs", "status": "done"},
-        {"name": "Scenario prose for each invariant", "status": "todo"},
-        {"name": "State machines, exception paths, persona matrix", "status": "todo"},
-        {"name": "Worked bills with dollar figures (Kyle checks)", "status": "todo"},
-        {"name": "Coverage audit against the 135 invariants", "status": "todo"},
-        {"name": "Testing strategy", "status": "todo"}
-      ]
+        {
+          "name": "26 date-tracking scenarios",
+          "status": "done"
+        },
+        {
+          "name": "28 invariant cases-to-cover docs",
+          "status": "done"
+        },
+        {
+          "name": "60 decision tables, 80 workflows",
+          "status": "done"
+        },
+        {
+          "name": "14 fixture catalogs",
+          "status": "done"
+        },
+        {
+          "name": "Scenario prose for each invariant",
+          "status": "todo"
+        },
+        {
+          "name": "State machines, exception paths, persona matrix",
+          "status": "todo"
+        },
+        {
+          "name": "Worked bills with dollar figures (Kyle checks)",
+          "status": "todo"
+        },
+        {
+          "name": "Coverage audit against the 135 invariants",
+          "status": "todo"
+        },
+        {
+          "name": "Testing strategy",
+          "status": "todo"
+        }
+      ],
+      "basis": "Claude drafts at schema pace; the limit is Kyle checking the dollar figures and the 200-390 scenario count."
     },
     {
-      "id": "P3", "name": "Core build plan", "track": "Specification", "gate_step": 3,
-      "status": "todo", "owner": "Ryan + Claude",
-      "weeks": [1, 2, 3], "depends": [{"phase": "P2", "type": "finish"}],
+      "id": "P3",
+      "name": "Core build plan",
+      "track": "Specification",
+      "gate_step": 3,
+      "status": "todo",
+      "owner": "Ryan + Claude",
+      "weeks": [
+        1,
+        1,
+        2
+      ],
+      "depends": [
+        {
+          "phase": "P2",
+          "type": "finish"
+        }
+      ],
       "summary": "Break the C# core into ordered build phases, each with its scenarios as the finish line. Choose the launch feature set.",
       "parts": [
-        {"name": "Launch feature set chosen from the 439 required features", "status": "todo"},
-        {"name": "Core sub-phases, order and exit tests", "status": "todo"}
-      ]
+        {
+          "name": "Launch feature set chosen from the 439 required features",
+          "status": "todo"
+        },
+        {
+          "name": "Core sub-phases, order and exit tests",
+          "status": "todo"
+        }
+      ],
+      "basis": "Judgment: one planning document plus the launch-feature cut."
     },
     {
-      "id": "P4", "name": "Platform foundation", "track": "Platform", "gate_step": null,
-      "status": "todo", "owner": "Ryan + Claude",
-      "weeks": [3, 5, 8], "depends": [{"phase": "P3", "type": "start", "lag_weeks": 0}],
+      "id": "P4",
+      "name": "Platform foundation",
+      "track": "Platform",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Ryan + Claude",
+      "weeks": [
+        2,
+        3,
+        5
+      ],
+      "depends": [
+        {
+          "phase": "P3",
+          "type": "start",
+          "lag_weeks": 0
+        }
+      ],
       "summary": "AWS environments, infrastructure as code, CI/CD, staff login, the .NET solution, and database access that sets the tenant on every connection.",
       "parts": [
-        {"name": "Login provider chosen", "status": "todo"},
-        {"name": "Hosting and environments (dev, test, prod)", "status": "todo"},
-        {"name": "CI/CD pipeline", "status": "todo"},
-        {"name": ".NET solution and tenant-scoped data access", "status": "todo"},
-        {"name": "Logging and monitoring", "status": "todo"}
-      ]
+        {
+          "name": "Login provider chosen",
+          "status": "todo"
+        },
+        {
+          "name": "Hosting and environments (dev, test, prod)",
+          "status": "todo"
+        },
+        {
+          "name": "CI/CD pipeline",
+          "status": "todo"
+        },
+        {
+          "name": ".NET solution and tenant-scoped data access",
+          "status": "todo"
+        },
+        {
+          "name": "Logging and monitoring",
+          "status": "todo"
+        }
+      ],
+      "basis": "Judgment at AI pace; depends on the login and hosting decisions."
     },
     {
-      "id": "P5", "name": "Core billing engine (C#)", "track": "Core", "gate_step": 4,
-      "status": "todo", "owner": "Ryan + Claude",
-      "weeks": [18, 26, 40], "depends": [{"phase": "P3", "type": "finish"}, {"phase": "P4", "type": "start", "lag_weeks": 2}],
+      "id": "P5",
+      "name": "Core billing engine (C#)",
+      "track": "Core",
+      "gate_step": 4,
+      "status": "todo",
+      "owner": "Ryan + Claude",
+      "weeks": [
+        10,
+        14,
+        22
+      ],
+      "depends": [
+        {
+          "phase": "P3",
+          "type": "finish"
+        },
+        {
+          "phase": "P4",
+          "type": "start",
+          "lag_weeks": 2
+        }
+      ],
       "summary": "The billing engine and API, built in sub-phases planned in P3. Each sub-phase finishes when its scenarios pass.",
       "parts": [
-        {"name": "Rate calculation (tariffs, PGA, heating value, WNA, taxes, franchise)", "status": "todo"},
-        {"name": "Meter reads, validation, estimation, exceptions", "status": "todo"},
-        {"name": "Billing run and bill issue", "status": "todo"},
-        {"name": "Cancel-rebill and backbilling", "status": "todo"},
-        {"name": "Payments, ledger, deposits, refunds", "status": "todo"},
-        {"name": "Collections, disconnects, programs, disputes", "status": "todo"},
-        {"name": "Accounting export, periods, tax liability", "status": "todo"},
-        {"name": "Notices and bill documents", "status": "todo"},
-        {"name": "API (OpenAPI contract)", "status": "todo"}
-      ]
+        {
+          "name": "Rate calculation (tariffs, PGA, heating value, WNA, taxes, franchise)",
+          "status": "todo"
+        },
+        {
+          "name": "Meter reads, validation, estimation, exceptions",
+          "status": "todo"
+        },
+        {
+          "name": "Billing run and bill issue",
+          "status": "todo"
+        },
+        {
+          "name": "Cancel-rebill and backbilling",
+          "status": "todo"
+        },
+        {
+          "name": "Payments, ledger, deposits, refunds",
+          "status": "todo"
+        },
+        {
+          "name": "Collections, disconnects, programs, disputes",
+          "status": "todo"
+        },
+        {
+          "name": "Accounting export, periods, tax liability",
+          "status": "todo"
+        },
+        {
+          "name": "Notices and bill documents",
+          "status": "todo"
+        },
+        {
+          "name": "API (OpenAPI contract)",
+          "status": "todo"
+        }
+      ],
+      "basis": "Schema pace used as the stand-in (no C# written yet). Re-measure after the first core sub-phase."
     },
     {
-      "id": "P6", "name": "Frontend hardening and integration", "track": "Frontend", "gate_step": null,
-      "status": "partial", "owner": "Kyle + Ryan",
-      "weeks": [14, 20, 30], "depends": [{"phase": "P5", "type": "start", "lag_weeks": 6}],
+      "id": "P6",
+      "name": "Frontend hardening and integration",
+      "track": "Frontend",
+      "gate_step": null,
+      "status": "partial",
+      "owner": "Kyle + Ryan",
+      "weeks": [
+        8,
+        12,
+        18
+      ],
+      "depends": [
+        {
+          "phase": "P5",
+          "type": "start",
+          "lag_weeks": 6
+        }
+      ],
       "summary": "Take the prototype (36 screens on made-up data) to production: real login, roles, the generated API client, error states, accessibility.",
       "parts": [
-        {"name": "Prototype: 36 screens on made-up data", "status": "done"},
-        {"name": "Decide: harden the prototype or rebuild from it", "status": "todo"},
-        {"name": "Wire screens to the API", "status": "todo"},
-        {"name": "Roles, permissions, audit views", "status": "todo"},
-        {"name": "Accessibility and browser testing", "status": "todo"}
-      ]
+        {
+          "name": "Prototype: 36 screens on made-up data",
+          "status": "done"
+        },
+        {
+          "name": "Decide: harden the prototype or rebuild from it",
+          "status": "todo"
+        },
+        {
+          "name": "Wire screens to the API",
+          "status": "todo"
+        },
+        {
+          "name": "Roles, permissions, audit views",
+          "status": "todo"
+        },
+        {
+          "name": "Accessibility and browser testing",
+          "status": "todo"
+        }
+      ],
+      "basis": "Judgment at AI pace; runs alongside the core once the API exists."
     },
     {
-      "id": "P7", "name": "Integrations", "track": "Integrations", "gate_step": null,
-      "status": "todo", "owner": "Ryan + Claude",
-      "weeks": [8, 12, 18], "depends": [{"phase": "P5", "type": "start", "lag_weeks": 12}],
+      "id": "P7",
+      "name": "Integrations",
+      "track": "Integrations",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Ryan + Claude",
+      "weeks": [
+        4,
+        6,
+        10
+      ],
+      "depends": [
+        {
+          "phase": "P5",
+          "type": "start",
+          "lag_weeks": 12
+        }
+      ],
       "summary": "The outside systems a utility cannot run without. Vendors depend on the first customer's contracts.",
       "parts": [
-        {"name": "Payment processor and bank files", "status": "todo"},
-        {"name": "Bill print and mail vendor", "status": "todo"},
-        {"name": "Meter-reading file import", "status": "todo"},
-        {"name": "General ledger export", "status": "todo"},
-        {"name": "Comptroller tax-rate file job (operator approval)", "status": "todo"}
-      ]
+        {
+          "name": "Payment processor and bank files",
+          "status": "todo"
+        },
+        {
+          "name": "Bill print and mail vendor",
+          "status": "todo"
+        },
+        {
+          "name": "Meter-reading file import",
+          "status": "todo"
+        },
+        {
+          "name": "General ledger export",
+          "status": "todo"
+        },
+        {
+          "name": "Comptroller tax-rate file job (operator approval)",
+          "status": "todo"
+        },
+        {
+          "name": "Data conversion toolkit (import templates and checks)",
+          "status": "todo"
+        }
+      ],
+      "basis": "Judgment at AI pace; generic adapters only, vendor-specific work happens during onboarding."
     },
     {
-      "id": "P8", "name": "Test data and release testing", "track": "Quality", "gate_step": null,
-      "status": "todo", "owner": "Ryan + Claude",
-      "weeks": [3, 4, 6], "depends": [{"phase": "P5", "type": "finish"}, {"phase": "P6", "type": "finish"}, {"phase": "P7", "type": "finish"}],
+      "id": "P8",
+      "name": "Test data and release testing",
+      "track": "Quality",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Ryan + Claude",
+      "weeks": [
+        2,
+        3,
+        4
+      ],
+      "depends": [
+        {
+          "phase": "P5",
+          "type": "finish"
+        },
+        {
+          "phase": "P6",
+          "type": "finish"
+        },
+        {
+          "phase": "P7",
+          "type": "finish"
+        }
+      ],
       "summary": "A synthetic utility with a year of history, end-to-end tests, and a full billing-run load test. The fixtures are built from P2 onward; this phase is the final pass.",
       "parts": [
-        {"name": "Synthetic utility (meters, accounts, 13 months of reads)", "status": "todo"},
-        {"name": "Scenario suite green end to end", "status": "todo"},
-        {"name": "Billing-run load test", "status": "todo"}
-      ]
+        {
+          "name": "Synthetic utility (meters, accounts, 13 months of reads)",
+          "status": "todo"
+        },
+        {
+          "name": "Scenario suite green end to end",
+          "status": "todo"
+        },
+        {
+          "name": "Billing-run load test",
+          "status": "todo"
+        }
+      ],
+      "basis": "Judgment: final pass, since fixtures are built during P2 and P5."
     },
     {
-      "id": "P9", "name": "Security and operations readiness", "track": "Platform", "gate_step": null,
-      "status": "todo", "owner": "Ryan",
-      "weeks": [6, 8, 12], "depends": [{"phase": "P5", "type": "start", "lag_weeks": 16}],
+      "id": "P9",
+      "name": "Security and operations readiness",
+      "track": "Platform",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Ryan",
+      "weeks": [
+        4,
+        6,
+        10
+      ],
+      "depends": [
+        {
+          "phase": "P5",
+          "type": "start",
+          "lag_weeks": 6
+        }
+      ],
       "summary": "Backups and disaster recovery, monitoring, an outside penetration test, incident runbooks, and SOC 2 groundwork.",
       "parts": [
-        {"name": "Backups and recovery tested", "status": "todo"},
-        {"name": "Penetration test", "status": "todo"},
-        {"name": "Incident and support runbooks", "status": "todo"},
-        {"name": "SOC 2 groundwork", "status": "todo"}
-      ]
+        {
+          "name": "Backups and recovery tested",
+          "status": "todo"
+        },
+        {
+          "name": "Penetration test",
+          "status": "todo"
+        },
+        {
+          "name": "Incident and support runbooks",
+          "status": "todo"
+        },
+        {
+          "name": "SOC 2 groundwork",
+          "status": "todo"
+        }
+      ],
+      "basis": "Calendar-bound: the outside penetration test and recovery drills are booked with vendors."
     },
     {
-      "id": "P10", "name": "First customer: conversion and setup", "track": "Customer", "gate_step": null,
-      "status": "todo", "owner": "Ryan + Kyle",
-      "weeks": [10, 14, 20], "depends": [{"phase": "P5", "type": "start", "lag_weeks": 14}],
-      "summary": "Needs a signed customer. Convert their data from the old system, load their tariffs and ordinances, and train their staff.",
+      "id": "P10",
+      "name": "First customer: conversion and setup",
+      "track": "Customer",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Ryan + Kyle",
+      "weeks": [
+        10,
+        14,
+        20
+      ],
+      "depends": [
+        {
+          "phase": "P8",
+          "type": "finish"
+        },
+        {
+          "phase": "P9",
+          "type": "finish"
+        }
+      ],
+      "summary": "Starts at the ready-to-onboard date. Convert the customer's data from the old system, load their tariffs and ordinances, and train their staff.",
       "parts": [
-        {"name": "First customer signed", "status": "todo"},
-        {"name": "Data conversion from the old billing system", "status": "todo"},
-        {"name": "Tariffs, taxes and ordinances loaded", "status": "todo"},
-        {"name": "Staff training", "status": "todo"}
-      ]
+        {
+          "name": "Data conversion from the old billing system",
+          "status": "todo"
+        },
+        {
+          "name": "Tariffs, taxes and ordinances loaded",
+          "status": "todo"
+        },
+        {
+          "name": "Staff training",
+          "status": "todo"
+        }
+      ],
+      "basis": "Calendar-bound: the customer staff and old-system vendor set the pace.",
+      "milestone_at_start": "Ready to onboard"
     },
     {
-      "id": "P11", "name": "Parallel billing runs", "track": "Customer", "gate_step": null,
-      "status": "todo", "owner": "Ryan + Kyle + customer",
-      "weeks": [8, 12, 16], "depends": [{"phase": "P8", "type": "finish"}, {"phase": "P9", "type": "finish"}, {"phase": "P10", "type": "finish"}],
+      "id": "P11",
+      "name": "Parallel billing runs",
+      "track": "Customer",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Ryan + Kyle + customer",
+      "weeks": [
+        8,
+        12,
+        16
+      ],
+      "depends": [
+        {
+          "phase": "P10",
+          "type": "finish"
+        }
+      ],
       "summary": "Bill the customer's real cycles on both systems and reconcile every difference. 2 to 4 monthly cycles.",
       "parts": [
-        {"name": "Cycle 1 reconciled", "status": "todo"},
-        {"name": "Cycle 2 reconciled", "status": "todo"},
-        {"name": "Go/no-go sign-off", "status": "todo"}
-      ]
+        {
+          "name": "Cycle 1 reconciled",
+          "status": "todo"
+        },
+        {
+          "name": "Cycle 2 reconciled",
+          "status": "todo"
+        },
+        {
+          "name": "Go/no-go sign-off",
+          "status": "todo"
+        }
+      ],
+      "basis": "Calendar-bound: two to four of the customer's monthly billing cycles."
     },
     {
-      "id": "P12", "name": "Go-live and stabilization", "track": "Customer", "gate_step": null,
-      "status": "todo", "owner": "Everyone",
-      "weeks": [4, 6, 8], "depends": [{"phase": "P11", "type": "finish"}],
+      "id": "P12",
+      "name": "Go-live and stabilization",
+      "track": "Customer",
+      "gate_step": null,
+      "status": "todo",
+      "owner": "Everyone",
+      "weeks": [
+        4,
+        6,
+        8
+      ],
+      "depends": [
+        {
+          "phase": "P11",
+          "type": "finish"
+        }
+      ],
       "milestone_at_start": "Go-live",
       "summary": "Cut over, then close support for the first live billing cycles.",
       "parts": [
-        {"name": "Cutover", "status": "todo"},
-        {"name": "First live cycle billed and paid", "status": "todo"}
-      ]
+        {
+          "name": "Cutover",
+          "status": "todo"
+        },
+        {
+          "name": "First live cycle billed and paid",
+          "status": "todo"
+        }
+      ],
+      "basis": "Calendar-bound: the first live cycles."
     }
   ]
 }

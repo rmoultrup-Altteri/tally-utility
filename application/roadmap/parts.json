@@ -245,6 +245,11 @@
   "status": "todo"
  },
  {
+  "phase": "P7",
+  "part": "Data conversion toolkit (import templates and checks)",
+  "status": "todo"
+ },
+ {
   "phase": "P8",
   "part": "Synthetic utility (meters, accounts, 13 months of reads)",
   "status": "todo"
@@ -277,11 +282,6 @@
  {
   "phase": "P9",
   "part": "SOC 2 groundwork",
-  "status": "todo"
- },
- {
-  "phase": "P10",
-  "part": "First customer signed",
   "status": "todo"
  },
  {
