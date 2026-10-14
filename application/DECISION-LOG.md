@@ -6,6 +6,27 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (CI-014) — Ryan: 17 more tables join the no-hard-delete set; 6 stay deletable
+
+**What:** Ryan (2026-10-14): "yes, go with the default". The live catalog (the -19 build) showed `tally_app` with DELETE on 29 public tables.
+- **The six bill tables are not touched.** `invoices`, `invoice_line_items`, `invoice_events`, `invoice_calculation_snapshots`, `invoice_line_item_bases` and `invoice_snapshot_references` keep their own CI-012 guards: a draft can be discarded, an issued bill never.
+- **Join `enforce_no_hard_delete` (17), with `tally_app` losing DELETE:**
+  - AI activity: `ai_sessions`, `ai_suggestions`, `ai_tool_calls`.
+  - Setup that history points at: `billing_cycles`, `read_routes`, `jurisdictions`, `communities`, `deposit_utility_categories`.
+  - What was printed or authorised: `bill_messages`, `auto_pay_settings`.
+  - Numbering: `tenant_sequences`. Deleting a counter could reissue a bill number.
+  - Operations: `read_cycle_meters`, `alerts`, `service_location_acquisitions` (already append-only; the guard makes the refusal uniform).
+  - Rate and gas-cost setup: `rate_item_dependencies`, `pga_monitoring_settings`.
+- **Stay deletable (6):** `import_staging`, `import_column_mappings`, `import_mapping_templates` (import working data; a stuck import must be cleanable), `materialized_view_refresh_log` (housekeeping), and `custom_field_definitions` / `custom_location_types` with a narrower guard.
+  - **The narrower guard:** a delete is refused while anything still uses the label. Nothing has an FK to these two tables (checked), so the guard reads the places that hold the label's key. The drafting finds them; `custom_field_definitions` is read at tu.sql:975.
+
+*Why this and not the alternatives:* each addition is one array entry on the existing guard, and the tables are empty. What stays deletable can lose history in the meantime.
+- **Rejected:** locking the custom labels fully. They are tenant preferences with an `archived` status, and a label nobody uses is safe to delete.
+
+*Where it lives:* this entry; the wave that lands CI-014 in `application/step1-sequencing-2026-10-13.md`.
+
+---
+
 ## 2026-10-14 (CI-017) — Ryan: every reversal that undoes exactly one thing must name it
 
 **What:** Ryan (2026-10-14): "yes, go with the default". The link to the predecessor becomes required wherever the act always undoes exactly one thing:
