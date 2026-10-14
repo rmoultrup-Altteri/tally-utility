@@ -162,8 +162,11 @@ SELECT set_config('app.user_id', '', true);
 SELECT pg_temp.refuses_at('S4d an empty user',
   $q$SELECT public.assert_reference_version('rate_schedules', '00000000-0000-4000-8000-000000002041', 1)$q$, '22P02', 'invalid input syntax for type uuid');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000020b1', true);
+RESET ROLE;
 SELECT pg_temp.ok('S4e a refused check leaves the version and writes no receipt',
-  (SELECT version FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002041') = 1);
+  (SELECT version FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002041') = 1
+  AND NOT EXISTS (SELECT 1 FROM public.reference_version_receipts));
+SET ROLE tally_app;
 -- S5: the check, then the writes: a first version, a close and successor, activation.
 SELECT pg_temp.ok('S5a the check returns the bumped version',
   public.assert_reference_version('rate_schedules', '00000000-0000-4000-8000-000000002041', 1) = 2);
@@ -224,7 +227,10 @@ SELECT pg_temp.refuses_at('S10e the owner edits a receipt',
   $q$UPDATE public.reference_version_receipts SET version = 99$q$, '23001', 'append-only');
 SELECT pg_temp.refuses_at('S10f the owner deletes a receipt',
   $q$DELETE FROM public.reference_version_receipts$q$, '23001', 'never hard-deleted');
-SELECT pg_temp.ok('S10g the database stamps the receipt''s transaction and time',
+-- (The owner supplies a wrong transaction and time, for an entity that does not exist; the database stamps over both.)
+INSERT INTO public.reference_version_receipts (xact, header_table, entity_id, version, tenant_id, at)
+VALUES ('1'::xid8, 'rate_items', '00000000-0000-4000-8000-0000000020fe', 99, '00000000-0000-4000-8000-0000000020a1', now() - interval '1 year');
+SELECT pg_temp.ok('S10g the database stamps the receipt''s transaction and time, whatever is supplied',
   (SELECT bool_and(xact = pg_current_xact_id() AND at = now()) FROM public.reference_version_receipts));
 -- S11: no role is exempt: the owner (a superuser) meets the guard too.
 SELECT pg_temp.refuses_at('S11 the owner writes a version with no check',
@@ -232,15 +238,15 @@ SELECT pg_temp.refuses_at('S11 the owner writes a version with no check',
      VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
 -- S13: each part of the receipt test binds. The owner plants receipts with
--- triggers off (session_replication_role = replica skips the stamp), each
+-- the stamp trigger disabled (inside this rolled-back transaction), each
 -- wrong in exactly one part, for entities no check has touched; the
 -- application's write must still be refused.
-SET LOCAL session_replication_role = replica;
+ALTER TABLE public.reference_version_receipts DISABLE TRIGGER a_stamp_reference_version_receipt;
 INSERT INTO public.reference_version_receipts (xact, header_table, entity_id, version, tenant_id, at) VALUES
   (pg_current_xact_id(), 'wna_zones', '00000000-0000-4000-8000-000000002062', 1, '00000000-0000-4000-8000-0000000020a1', now() - interval '1 day'),
   ((pg_current_xact_id()::text::bigint + 1000)::text::xid8, 'rate_schedules', '00000000-0000-4000-8000-000000002042', 1, '00000000-0000-4000-8000-0000000020a1', now()),
   (pg_current_xact_id(), 'rate_items', '00000000-0000-4000-8000-000000002051', 6, '00000000-0000-4000-8000-0000000020a1', now());
-SET LOCAL session_replication_role = origin;
+ALTER TABLE public.reference_version_receipts ENABLE ALWAYS TRIGGER a_stamp_reference_version_receipt;
 SET ROLE tally_app;
 SELECT pg_temp.refuses_at('S13a a receipt of this transaction''s id but another start time (a restored id)',
   $q$INSERT INTO public.wna_zone_versions (tenant_id, wna_zone_id, zone_name, effective_date, change_type)
@@ -254,16 +260,34 @@ SELECT pg_temp.refuses_at('S13c a receipt of this transaction for another versio
   $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
      VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
+-- A receipt right in every part but the header table: RS2's uuid under rate_items.
+RESET ROLE;
+ALTER TABLE public.reference_version_receipts DISABLE TRIGGER a_stamp_reference_version_receipt;
+INSERT INTO public.reference_version_receipts (xact, header_table, entity_id, version, tenant_id, at) VALUES
+  (pg_current_xact_id(), 'rate_items', '00000000-0000-4000-8000-000000002042', 1, '00000000-0000-4000-8000-0000000020a1', now());
+ALTER TABLE public.reference_version_receipts ENABLE ALWAYS TRIGGER a_stamp_reference_version_receipt;
+SET ROLE tally_app;
+SELECT pg_temp.refuses_at('S13e a receipt for the same uuid under another header table',
+  $q$INSERT INTO public.rate_schedule_versions (tenant_id, rate_schedule_id, name, service_type, customer_type, effective_date, change_type)
+     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002042', 'RS2', 'gas', 'residential', DATE '2026-01-01', 'initial')$q$,
+  '23001', 'only after the version check');
 -- Z2 is at version 1; plant a receipt right in every part but the entity.
 RESET ROLE;
-SET LOCAL session_replication_role = replica;
+ALTER TABLE public.reference_version_receipts DISABLE TRIGGER a_stamp_reference_version_receipt;
 INSERT INTO public.reference_version_receipts (xact, header_table, entity_id, version, tenant_id, at) VALUES
   (pg_current_xact_id(), 'wna_zones', '00000000-0000-4000-8000-0000000020ff', 1, '00000000-0000-4000-8000-0000000020a1', now());
-SET LOCAL session_replication_role = origin;
+ALTER TABLE public.reference_version_receipts ENABLE ALWAYS TRIGGER a_stamp_reference_version_receipt;
 SET ROLE tally_app;
 SELECT pg_temp.refuses_at('S13d a receipt of this transaction and version for another entity',
   $q$UPDATE public.wna_zones SET status = 'archived' WHERE id = '00000000-0000-4000-8000-000000002062'$q$,
   '23001', 'lifecycle change needs the version check');
+-- S14: MERGE meets the guard as INSERT does.
+SELECT pg_temp.refuses_at('S14 a MERGE that inserts a version with no check',
+  $q$MERGE INTO public.wna_zone_versions v
+     USING (SELECT '00000000-0000-4000-8000-000000002062'::uuid AS z) s ON v.wna_zone_id = s.z
+     WHEN NOT MATCHED THEN INSERT (tenant_id, wna_zone_id, zone_name, effective_date, change_type)
+       VALUES ('00000000-0000-4000-8000-0000000020a1', s.z, 'Z2', DATE '2026-01-01', 'initial')$q$,
+  '23001', 'only after the version check');
 RESET ROLE;
 
 -- S12: a header is born at version 1; the core cannot bump a token.
@@ -285,6 +309,7 @@ INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, locatio
   ('00000000-0000-4000-8000-000000002001', '00000000-0000-4000-8000-0000000020a1', 'I1', '00000000-0000-4000-8000-0000000020c1', '00000000-0000-4000-8000-0000000020d1', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'draft', 100.00),
   ('00000000-0000-4000-8000-000000002002', '00000000-0000-4000-8000-0000000020a1', 'I2', '00000000-0000-4000-8000-0000000020c1', '00000000-0000-4000-8000-0000000020d1', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 50.00),
   ('00000000-0000-4000-8000-000000002003', '00000000-0000-4000-8000-0000000020a1', 'I3', '00000000-0000-4000-8000-0000000020c1', '00000000-0000-4000-8000-0000000020d1', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 20.00),
+  ('00000000-0000-4000-8000-000000002008', '00000000-0000-4000-8000-0000000020a2', 'I8', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 80.00),
   ('00000000-0000-4000-8000-000000002009', '00000000-0000-4000-8000-0000000020a2', 'I9', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 70.00);
 -- I1 carries a line, so the void meets the line and base guards too.
 INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount) VALUES
@@ -379,6 +404,12 @@ SELECT pg_temp.refuses_at('V4d a charge inserted already billed onto the void bi
   $q$INSERT INTO public.adhoc_charges (tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class, service_type, status, billed_on_invoice_id, billed_at)
      VALUES ('00000000-0000-4000-8000-0000000020a1', 'A9', '00000000-0000-4000-8000-0000000020c1', 'tap_fee', 'tap', 1.00, 'regulated', 'gas', 'billed', '00000000-0000-4000-8000-000000002001', now())$q$,
   '23001', 'names a void invoice');
+SELECT pg_temp.refuses_at('V4e a charge billed onto a bill the caller cannot see (r1 F1: another tenant''s)',
+  $q$UPDATE public.adhoc_charges SET status = 'billed', billed_on_invoice_id = '00000000-0000-4000-8000-000000002008', billed_at = now() WHERE id = '00000000-0000-4000-8000-000000002024'$q$,
+  '23001', 'names no invoice of this row''s tenant');
+SELECT pg_temp.refuses_at('V4g a pending charge carrying a bill pointer (r1 F3)',
+  $q$UPDATE public.adhoc_charges SET billed_on_invoice_id = '00000000-0000-4000-8000-000000002003' WHERE id = '00000000-0000-4000-8000-000000002024'$q$,
+  '23514', 'adhoc_charges_billed_names_its_bill');
 SELECT pg_temp.admits('V4c a charge billed onto a live bill is admitted',
   $q$UPDATE public.adhoc_charges SET status = 'billed', billed_on_invoice_id = '00000000-0000-4000-8000-000000002003', billed_at = now() WHERE id = '00000000-0000-4000-8000-000000002023'$q$);
 -- V5: the void, by another tenant's user, by no user, by a user that does not exist: not found, nothing written.
@@ -405,6 +436,9 @@ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000020b9', true);
 SELECT pg_temp.admits('V6 a platform administrator voids tenant 2''s bill',
   $q$SELECT public.void_invoice('00000000-0000-4000-8000-000000002009', '00000000-0000-4000-8000-0000000020b9', 'system_error', 'battery-20 V6', true)$q$);
 SELECT pg_temp.ok('V6b it is void', (SELECT status FROM public.invoices WHERE id = '00000000-0000-4000-8000-000000002009') = 'void');
+SELECT pg_temp.refuses_at('V4f a platform administrator bills tenant 1''s charge onto tenant 2''s live bill',
+  $q$UPDATE public.adhoc_charges SET status = 'billed', billed_on_invoice_id = '00000000-0000-4000-8000-000000002008', billed_at = now() WHERE id = '00000000-0000-4000-8000-000000002024'$q$,
+  '23001', 'names no invoice of this row''s tenant');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000020b1', true);
 -- V7: a second void of a void bill is refused before any side effect.
 SELECT pg_temp.refuses_at('V7 a second void of I1',
@@ -424,10 +458,10 @@ SELECT pg_temp.refuses_at('V9b the void role points a charge at another bill',
   '23001', 'a void clears billed_on_invoice_id');
 SELECT pg_temp.refuses_at('V9c the void role moves a charge''s run',
   $q$UPDATE public.adhoc_charges SET status = 'void_pending_rebill', voided_from_invoice_id = billed_on_invoice_id, billed_on_invoice_id = NULL, billed_at = NULL, billed_by_billing_run_id = NULL WHERE id = '00000000-0000-4000-8000-000000002022'$q$,
-  '23001', 'a void clears billed_on_invoice_id');
+  '42501', 'permission denied');  -- r2: outside tally_void's column grants
 SELECT pg_temp.refuses_at('V10 the void role edits a billed charge''s amount',
-  $q$UPDATE public.adhoc_charges SET amount = 1 WHERE id = '00000000-0000-4000-8000-000000002022'$q$, '23001', 'identity is immutable');
-SELECT pg_temp.refuses_at('V11 the void role inserts an invoice born void',
+  $q$UPDATE public.adhoc_charges SET amount = 1 WHERE id = '00000000-0000-4000-8000-000000002022'$q$, '42501', 'permission denied');  -- r2: outside its column grants
+SELECT pg_temp.refuses_at('V11 the void role cannot insert invoices at all (a bill born void is V2d)',
   $q$INSERT INTO public.invoices (tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, status, voided_at)
      VALUES ('00000000-0000-4000-8000-0000000020a1', 'IW', '00000000-0000-4000-8000-0000000020c1', '00000000-0000-4000-8000-0000000020d1', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'void', now())$q$,
   '42501', 'permission denied');

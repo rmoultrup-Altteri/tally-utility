@@ -179,10 +179,10 @@ DO $$ BEGIN RAISE NOTICE 'PASS RW6: follow-up and dispute fields stay editable';
 -- owner; the owner session takes that role to write as the void does.
 RESET ROLE;
 SET ROLE tally_void;
-SELECT pg_temp.refuses('R4 void that also edits the value', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, reading_value = 52 WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
+SELECT pg_temp.refuses('R4 void that also edits the value', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, reading_value = 52 WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '42501');  -- v5.4.2-20: outside tally_void's column grants
 SELECT pg_temp.refuses('R5 void that keeps the bill pointer', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('R5b void that points at another bill', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = '00000000-0000-4000-8000-000000001902', locked_by_invoice_id = NULL WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
-SELECT pg_temp.refuses('R5c void that moves the run', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, locked_by_billing_run_id = '00000000-0000-4000-8000-0000000019f2' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
+SELECT pg_temp.refuses('R5c void that moves the run', $q$UPDATE public.meter_readings SET validation_status = 'void_released', voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, locked_by_billing_run_id = '00000000-0000-4000-8000-0000000019f2' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '42501');  -- v5.4.2-20: outside tally_void's column grants
 -- R6: void_invoice()'s exact write passes.
 UPDATE public.meter_readings SET voided_from_invoice_id = locked_by_invoice_id, locked_by_invoice_id = NULL, validation_status = 'void_released'
  WHERE id = '00000000-0000-4000-8000-000000001911';

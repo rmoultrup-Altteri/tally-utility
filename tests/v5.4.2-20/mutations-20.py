@@ -10,10 +10,11 @@ and runs the script that owns the named check:
   APPLY:<phrase>               the patch itself must refuse (its tail runs the
                                invariants), with that phrase
 
-CAUGHT only when the named check prints its own FAIL line. The battery stops
-at the first failing check, so a mutation an EARLIER check catches is
-reported as missed: its named check is wrong, or a guard is redundant — fix
-the name or remove the duplicate, never loosen the rule.
+CAUGHT only when the FIRST FAIL line printed is the named check's (r2,
+Codex S4: the race script runs on after a failure, so the first one is the
+one that counts). A mutation an EARLIER check catches is reported as missed:
+its named check is wrong, or a guard is redundant — fix the name or remove
+the duplicate, never loosen the rule.
 
     python3 tests/v5.4.2-20/mutations-20.py [M07 M12 ...]
 """
@@ -35,6 +36,14 @@ def rep(old: str, new: str) -> Callable[[str], str]:
     def m(s: str) -> str:
         assert s.count(old) == 1, f"mutation anchor not unique/found ({s.count(old)}): {old[:90]!r}"
         return s.replace(old, new, 1)
+    return m
+
+
+def both(*fs: Callable[[str], str]) -> Callable[[str], str]:
+    def m(s: str) -> str:
+        for f in fs:
+            s = f(s)
+        return s
     return m
 
 
@@ -61,11 +70,14 @@ MUTATIONS = [
     ("M07", "the version guard admits everything", "S2",
      rep("    IF NOT public.reference_version_receipt_held(TG_ARGV[0], v_id) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('%s: a version of",
          "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('%s: a version of")),
-    ("M08", "the zone versions carry no guard", "APPLY:lacks the enabled version-receipt guard",
-     rep("CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions\n    FOR EACH ROW EXECUTE FUNCTION public.enforce_reference_version_receipt('wna_zones', 'wna_zone_id');\n", "")),
-    ("M09", "the guard fires on INSERT only (a close needs no check)", "T5",
-     rep("CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_schedule_versions",
-         "CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT ON public.rate_schedule_versions")),
+    ("M08", "the zone versions carry no guard", "APPLY:a seal guard is missing, changed, or not ENABLE ALWAYS",
+     both(rep("CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions\n    FOR EACH ROW EXECUTE FUNCTION public.enforce_reference_version_receipt('wna_zones', 'wna_zone_id');\n", ""),
+          rep("ALTER TABLE public.wna_zone_versions ENABLE ALWAYS TRIGGER a0_enforce_reference_version_receipt;\n", ""))),
+    ("M09", "the guard fires on INSERT only (a close needs no check)", "APPLY:a seal guard is missing, changed, or not ENABLE ALWAYS",
+     rep("CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_schedule_versions\n",
+         "CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT ON public.rate_schedule_versions\n")),
+    ("M09b", "the version guard admits a close (the shape check aside)", "T5",
+     rep("    IF NOT public.reference_version_receipt_held(TG_ARGV[0], v_id) THEN\n", "    IF TG_OP = 'INSERT' AND NOT public.reference_version_receipt_held(TG_ARGV[0], v_id) THEN\n")),
     ("M10", "tally_app keeps table-level UPDATE on the headers", "APPLY:writable outside assert_reference_version",
      rep("REVOKE UPDATE ON public.rate_schedules, public.rate_items, public.wna_zones FROM tally_app;\n", "")),
     ("M11", "the version column is granted back", "APPLY:writable outside assert_reference_version",
@@ -80,7 +92,7 @@ MUTATIONS = [
     ("M14", "the core keeps EXECUTE on the check", "APPLY:tally_core can execute SECURITY DEFINER",
      rep("REVOKE ALL ON FUNCTION public.assert_reference_version(text, uuid, integer) FROM PUBLIC, tally_app, tally_core;",
          "REVOKE ALL ON FUNCTION public.assert_reference_version(text, uuid, integer) FROM PUBLIC, tally_app;")),
-    ("M15", "the receipts keep the default grant to tally_app", "APPLY:writable by tally_app",
+    ("M15", "the receipts keep the default grant to tally_app", "APPLY:reachable by tally_app",
      rep("REVOKE ALL ON public.reference_version_receipts FROM PUBLIC, tally_app, tally_core;\n", "")),
     ("M16", "a receipt may be edited", "S10e",
      rep("    IF TG_OP <> 'INSERT' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = 'reference_version_receipts is append-only",
@@ -119,12 +131,14 @@ MUTATIONS = [
      rep("    IF v_status = 'void' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('%s: %s names a void invoice",
          "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('%s: %s names a void invoice")),
     ("M30", "the attach guard takes no lock", "RC3",
-     rep("    SELECT i.status INTO v_status FROM public.invoices i WHERE i.id = v_invoice FOR SHARE;",
-         "    SELECT i.status INTO v_status FROM public.invoices i WHERE i.id = v_invoice;")),
-    ("M31", "the attach guard does not fire on a charge inserted billed", "V4d",
-     rep("CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges",
-         "CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE UPDATE OF billed_on_invoice_id ON public.adhoc_charges")),
-    ("M32", "the void does not lock the bill", "RC5",
+     rep("    SELECT i.status, i.tenant_id INTO v_status, v_tenant FROM public.invoices i WHERE i.id = v_invoice FOR SHARE;",
+         "    SELECT i.status, i.tenant_id INTO v_status, v_tenant FROM public.invoices i WHERE i.id = v_invoice;")),
+    ("M31", "the attach guard does not fire on a charge inserted billed", "APPLY:a seal guard is missing, changed, or not ENABLE ALWAYS",
+     rep("CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges\n",
+         "CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE UPDATE OF billed_on_invoice_id ON public.adhoc_charges\n")),
+    ("M31b", "the attach guard skips an INSERT (the shape check aside)", "V4d",
+     rep("    IF v_invoice IS NULL\n       OR (TG_OP = 'UPDATE'", "    IF v_invoice IS NULL OR TG_OP = 'INSERT'\n       OR (TG_OP = 'UPDATE'")),
+    ("M32", "the void does not lock the bill (an attach it waited for is stranded)", "RC4",
      rep("    WHERE id = p_invoice_id\n    FOR UPDATE;", "    WHERE id = p_invoice_id;")),
     ("M33", "the void stays the superuser's", "APPLY:no longer owns",
      rep("ALTER FUNCTION public.void_invoice(uuid, uuid, text, text, boolean) OWNER TO tally_void;\n", "")),
@@ -136,11 +150,33 @@ MUTATIONS = [
      rep("    v_is_void_operation := current_user = 'tally_void';",
          "    v_is_void_operation := current_user = 'tally_void' OR coalesce(current_setting('app.void_operation', true) = 'true', false);")),
     ("M37", "the void's role cannot write the ledger", "V1",
-     rep("GRANT SELECT, INSERT ON public.account_ledger, public.invoice_events TO tally_void;",
-         "GRANT SELECT, INSERT ON public.invoice_events TO tally_void;")),
+     both(rep("GRANT INSERT ON public.account_ledger, public.invoice_events TO tally_void;",
+              "GRANT INSERT ON public.invoice_events TO tally_void;"),
+          rep('"table public.account_ledger INSERT", ', ""))),
     ("M38", "the void's role cannot release reads", "V1",
-     rep("GRANT SELECT, UPDATE ON public.invoices, public.meter_readings, public.adhoc_charges TO tally_void;",
-         "GRANT SELECT, UPDATE ON public.invoices, public.adhoc_charges TO tally_void;\nGRANT SELECT ON public.meter_readings TO tally_void;")),
+     both(rep("GRANT UPDATE (voided_from_invoice_id, locked_by_invoice_id, validation_status) ON public.meter_readings TO tally_void;\n", ""),
+          rep('"column public.meter_readings.locked_by_invoice_id UPDATE", "column public.meter_readings.validation_status UPDATE", "column public.meter_readings.voided_from_invoice_id UPDATE", ', ""))),
+    # ---- r2
+    ("M39", "the attach guard admits a bill the caller cannot see", "V4e",
+     rep("    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF FOUND AND v_tenant IS DISTINCT FROM NEW.tenant_id THEN")),
+    ("M40", "the attach guard admits another tenant's bill", "V4f",
+     rep("    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF NOT FOUND THEN")),
+    ("M41", "a pending charge may carry a bill pointer", "V4g",
+     rep("ALTER TABLE public.adhoc_charges ADD CONSTRAINT adhoc_charges_billed_names_its_bill\n    CHECK ((status = 'billed') = (billed_on_invoice_id IS NOT NULL));\n", "")),
+    ("M42", "the void runs at any isolation level", "T7",
+     rep("    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "    IF false THEN")),
+    ("M43", "the attach guard on charges is origin-only", "APPLY:a seal guard is missing, changed, or not ENABLE ALWAYS",
+     rep("ALTER TABLE public.adhoc_charges ENABLE ALWAYS TRIGGER a_enforce_attach_to_live_invoice;\n", "")),
+    ("M44", "the void's role may write users", "APPLY:holds other privileges than it is granted",
+     tail("GRANT UPDATE (display_name) ON public.users TO tally_void;")),
+    ("M45", "the check's role may void", "APPLY:holds other privileges than it is granted",
+     tail("GRANT EXECUTE ON FUNCTION public.void_invoice(uuid, uuid, text, text, boolean) TO tally_seal;")),
+    ("M46", "the application holds a column grant on the receipts", "APPLY:reachable by tally_app",
+     tail("GRANT INSERT (header_table) ON public.reference_version_receipts TO tally_app;")),
+    ("M47", "a definer named like an RLS helper, elsewhere, is the core's", "APPLY:tally_core can execute SECURITY DEFINER",
+     tail("CREATE SCHEMA m47; CREATE FUNCTION m47.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = '' AS 'SELECT true'; GRANT USAGE ON SCHEMA m47 TO tally_core; GRANT EXECUTE ON FUNCTION m47.is_platform_admin() TO tally_core;")),
+    ("M48", "the check's role owns an overload of its function", "APPLY:which is not one of its pinned SECURITY DEFINER",
+     tail("CREATE FUNCTION public.assert_reference_version(p_table text, p_id uuid) RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS 'SELECT 1'; ALTER FUNCTION public.assert_reference_version(text, uuid) OWNER TO tally_seal; REVOKE ALL ON FUNCTION public.assert_reference_version(text, uuid) FROM PUBLIC, tally_app;")),
 ]
 
 
@@ -196,7 +232,8 @@ def main() -> int:
         text = out.stdout + out.stderr
         first = next((l for l in text.splitlines() if "FAIL" in l or "ERROR" in l), "")
         first = re.sub(r"^psql:[^:]+:\d+: ", "", first)[:140]
-        if re.search(rf"FAIL {re.escape(check)}[a-z]?[:\s]", text):
+        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"FAIL [A-Z]+\d", l)]
+        if fails and re.match(rf"FAIL {re.escape(check)}[a-z]?[:\s]", fails[0]):
             print(f"{mid} caught at {check}: {what}")
         else:
             print(f"{mid} MISSED ({check}): {what}  [first: {first}]")

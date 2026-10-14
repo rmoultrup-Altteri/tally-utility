@@ -162,6 +162,10 @@ A payment's identity (customer, date, amount, method, channel, source, external 
 - A write that attaches a read (`locked_by_invoice_id`) or a charge (`billed_on_invoice_id`) to a bill takes `FOR SHARE` on it. It waits for a void in flight, then is refused if the bill is now void.
 - A void that waits behind an attach releases what was attached.
 - A voided bill takes no new reads or charges: bill them on its correction.
+- **Isolation (r2):** call `void_invoice()` at READ COMMITTED. Any other level is refused (`invalid_transaction_state`), because an older snapshot would miss a charge attached while the void waited. An attach at REPEATABLE READ behind a void fails to serialise (40001); retry it.
+- **Deadlock:** a transaction that already holds a row attached to a bill (an edit of a billed charge, say) and then attaches another can deadlock with a void of that bill. PostgreSQL aborts one (40P01) and nothing is left half-done. Retry the aborted transaction.
+- **Which bill:** a read or charge names only a bill of its own tenant that the caller can see. Anything else is refused, a platform administrator included.
+- **Billed means billed on a bill:** a charge is `billed` if and only if it names its bill (`adhoc_charges_billed_names_its_bill`). Set the pointer and the status in one write.
 
 **History loads.** Only a superuser may INSERT a bill already `void`.
 

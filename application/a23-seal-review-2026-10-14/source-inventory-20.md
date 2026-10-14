@@ -68,6 +68,7 @@ Every requirement below is a row of the battery, or of an invariant the CI runs.
     - `voided_from_invoice_id` changes only under the void role.
   - **Invoices:** `status = 'void'` is written only by an UPDATE under the void role, never by an INSERT. [C-B2]
 - **V3.** The tenant check in `void_invoice()` is NULL-safe, and its refusal names no invoice number. [O-B1, C-B3, O-S6]
+  - *As drafted (r1, kept in r2):* row-level security is the check. The owner, `tally_void`, does not bypass it (asserted). The explicit comparison was removed as a duplicate the mutation tests could not kill.
   - RLS now hides other tenants: with a `tally_void` owner, a not-found is the refusal.
   - The explicit check is kept as defence and fails closed when the caller's tenant is NULL.
 - **V4.** The void locks the invoice before reading its status. [C-B6]

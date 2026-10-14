@@ -10,6 +10,17 @@
 --              (requirements R1-R5, S1-S7, V1-V4, O1-O5, each tagged with
 --              the review finding it comes from).
 --
+-- Revision r2 (review round 1: Opus, Fable, Codex all "not yet";
+--   tests/v5.4.2-20/review/review-findings-20-r1.md):
+--   the attach guard refuses a bill the caller cannot see, or of another
+--   tenant than the row (F1); void_invoice() runs only at READ COMMITTED
+--   (F2); a charge is billed if and only if it names its bill (F3); every
+--   new guard is ENABLE ALWAYS (F4, D-2026-08-20-27); the invariant checks
+--   exact identities, an exact privilege allowlist per seal role, and the
+--   shape and state of every guard trigger (F5); tally_void's grants are
+--   column-level and minimal (F6); the lock-order note states the deadlock
+--   a caller can meet (F7).
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -42,7 +53,9 @@
 --     and wna_zone_versions, and every lifecycle move of a header (status,
 --     archive_reason, activated_at, archived_at), is refused unless this
 --     transaction holds a receipt for that entity at its current version
---     (reference_version_receipt_held()). No role is exempt.
+--     (reference_version_receipt_held()). No role is exempt; the receipt
+--     is the only door for ordinary writers (an administrator who can
+--     write the receipts or disable triggers is outside this boundary).
 --   * tally_core loses EXECUTE on assert_reference_version(): a read-only
 --     core cannot bump a token through a definer.
 --
@@ -74,8 +87,14 @@
 --   the version rows. The receipt is written after the header lock.
 --   Void: the invoice (FOR UPDATE), then its reads and charges.
 --   Attach: the read or charge row, then the invoice (FOR SHARE). The void's
---   UPDATEs match only rows already committed as attached, so an attach in
---   flight is not waited on by the void, and the two cannot deadlock.
+--   UPDATEs match only rows already committed as attached, so a void does
+--   not wait on an attach in flight. A transaction that already holds a
+--   row ATTACHED to the bill (an edit of a billed charge, say) and then
+--   attaches another can deadlock with a void: PostgreSQL aborts one of the
+--   two (40P01) and nothing is stranded. Retry the aborted transaction
+--   (races/seal-20.sh RC6). The void runs only at READ COMMITTED: under a
+--   snapshot older than its lock it would miss an attach that committed
+--   while it waited (r1 F2).
 --
 -- ----------------------------------------------------------------------------
 -- Residuals (left on purpose)
@@ -104,12 +123,13 @@
 --   R7. Schedule composition (rate_schedule_items, rate_item_dependencies)
 --       is outside the token, by the D1-1 design (Opus S8).
 --   R8. A charge INSERTed with voided_from_invoice_id set is not refused
---       (the charge guard is UPDATE-only); no path writes one. Candidate
---       for the CI-017 lineage patch.
+--       (the charge guard is UPDATE-only); no sanctioned workflow writes
+--       one, though a direct INSERT can. Candidate for the CI-017 lineage
+--       patch.
 --   R9. Receipts are permanent. They prove a check ran, not that an edit
 --       followed (Codex S1).
 --
--- Tests. battery-20 (G, S, V), races/seal-20.sh (RC1-RC5, T1-T5) and
+-- Tests. battery-20 (G, S, V), races/seal-20.sh (RC1-RC6, RC3b, T1-T7) and
 --   mutations-20.py (each guard and invariant caught at its named check).
 --   Three older batteries change with it. battery-10 and battery-11 voided
 --   bills with no app.user_id: they passed only through the Opus B1 hole,
@@ -200,6 +220,10 @@ CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.reference_version_receipts
     FOR EACH ROW EXECUTE FUNCTION public.enforce_no_hard_delete();
 CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.reference_version_receipts
     FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+-- F4: guards fire under replication apply too (D-2026-08-20-27).
+ALTER TABLE public.reference_version_receipts ENABLE ALWAYS TRIGGER a_stamp_reference_version_receipt;
+ALTER TABLE public.reference_version_receipts ENABLE ALWAYS TRIGGER no_hard_delete;
+ALTER TABLE public.reference_version_receipts ENABLE ALWAYS TRIGGER no_truncate;
 
 
 -- ----------------------------------------------------------------------------
@@ -269,8 +293,9 @@ BEGIN
     END IF;
     -- at = now() binds the receipt to this transaction's start as well as
     -- its id: after a dump and restore the id counter can meet an old
-    -- receipt's id again, never its start time (O-S4). The version binds it
-    -- to the header's current generation (C-Q2).
+    -- receipt's id again, but not, by ordinary means, its start time
+    -- (O-S4). The version binds it to the header's current generation
+    -- (C-Q2); the table and the entity name the header row.
     RETURN EXISTS (SELECT 1 FROM public.reference_version_receipts r
                     WHERE r.xact = v_xact
                       AND r.header_table = p_table
@@ -317,6 +342,11 @@ CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON p
     FOR EACH ROW EXECUTE FUNCTION public.enforce_reference_version_receipt('rate_items', 'rate_item_id');
 CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions
     FOR EACH ROW EXECUTE FUNCTION public.enforce_reference_version_receipt('wna_zones', 'wna_zone_id');
+ALTER TABLE public.rate_schedule_versions ENABLE ALWAYS TRIGGER a0_enforce_reference_version_receipt;
+ALTER TABLE public.rate_item_versions ENABLE ALWAYS TRIGGER a0_enforce_reference_version_receipt;
+ALTER TABLE public.wna_zone_versions ENABLE ALWAYS TRIGGER a0_enforce_reference_version_receipt;
+-- (A version row's entity column is frozen by the bitemporal guard, so the
+-- NEW row's entity is the row's entity on UPDATE too.)
 
 -- A header is born at version 1 (C-B1): the counter is the database's.
 CREATE FUNCTION public.enforce_reference_header_birth() RETURNS trigger
@@ -339,6 +369,9 @@ CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.rate_items
     FOR EACH ROW EXECUTE FUNCTION public.enforce_reference_header_birth();
 CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.wna_zones
     FOR EACH ROW EXECUTE FUNCTION public.enforce_reference_header_birth();
+ALTER TABLE public.rate_schedules ENABLE ALWAYS TRIGGER enforce_reference_header_birth;
+ALTER TABLE public.rate_items ENABLE ALWAYS TRIGGER enforce_reference_header_birth;
+ALTER TABLE public.wna_zones ENABLE ALWAYS TRIGGER enforce_reference_header_birth;
 
 -- The header guard: a lifecycle move needs the receipt too (S7).
 CREATE OR REPLACE FUNCTION public.enforce_reference_header()
@@ -608,9 +641,10 @@ BEGIN
     END IF;
 
     -- v5.4.2-20 (C-B2): the void's disposition, exactly. Leaving billed as
-    -- tally_void clears the three billing pointers, records the bill it
-    -- leaves in voided_from_invoice_id, and keeps the run that billed it.
-    -- Anything else the role writes falls to the rules below.
+    -- tally_void clears the three billing pointers and records the bill it
+    -- leaves in voided_from_invoice_id. (The run that billed it, and the
+    -- charge's identity, are outside tally_void's column grants.) Anything
+    -- else the role writes falls to the rules below.
     v_void_disposition := v_void_op AND OLD.status = 'billed'
                           AND NEW.status IN ('pending', 'void_pending_rebill');
     IF v_void_disposition
@@ -618,10 +652,9 @@ BEGIN
                 AND NEW.billed_on_invoice_id IS NULL
                 AND NEW.billed_on_line_item_id IS NULL
                 AND NEW.billed_at IS NULL
-                AND NEW.voided_from_invoice_id IS NOT DISTINCT FROM OLD.billed_on_invoice_id
-                AND NEW.billed_by_billing_run_id IS NOT DISTINCT FROM OLD.billed_by_billing_run_id) THEN
+                AND NEW.voided_from_invoice_id IS NOT DISTINCT FROM OLD.billed_on_invoice_id) THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('adhoc charge %s: a void clears billed_on_invoice_id, billed_on_line_item_id and billed_at, sets voided_from_invoice_id to the bill it leaves and keeps billed_by_billing_run_id (CI-013, v5.4.2-20)', OLD.charge_number),
+            MESSAGE = format('adhoc charge %s: a void clears billed_on_invoice_id, billed_on_line_item_id and billed_at and sets voided_from_invoice_id to the bill it leaves (CI-013, v5.4.2-20)', OLD.charge_number),
             ERRCODE = 'restrict_violation';
     END IF;
     -- voided_from_invoice_id is written by a void and by nothing else.
@@ -804,12 +837,22 @@ CREATE FUNCTION public.enforce_attach_to_live_invoice() RETURNS trigger
 DECLARE
     v_invoice uuid := (to_jsonb(NEW) ->> TG_ARGV[0])::uuid;
     v_status  text;
+    v_tenant  uuid;
 BEGIN
     IF v_invoice IS NULL
        OR (TG_OP = 'UPDATE' AND (to_jsonb(OLD) ->> TG_ARGV[0])::uuid IS NOT DISTINCT FROM v_invoice) THEN
         RETURN NEW;
     END IF;
-    SELECT i.status INTO v_status FROM public.invoices i WHERE i.id = v_invoice FOR SHARE;
+    SELECT i.status, i.tenant_id INTO v_status, v_tenant FROM public.invoices i WHERE i.id = v_invoice FOR SHARE;
+    -- r2 (F1): a bill the caller cannot see is refused, not left to the
+    -- foreign key (which checks only the id): tenant 1 billed a charge onto
+    -- tenant 2's void bill. A bill of another tenant than the row is refused
+    -- too: a platform administrator sees both.
+    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: %s names no invoice of this row''s tenant visible to the caller (CI-012, v5.4.2-20)', TG_TABLE_NAME, TG_ARGV[0]),
+            ERRCODE = 'restrict_violation';
+    END IF;
     IF v_status = 'void' THEN
         RAISE EXCEPTION USING
             MESSAGE = format('%s: %s names a void invoice; a voided bill takes no new reads or charges — bill them on its correction (CI-012, v5.4.2-20)', TG_TABLE_NAME, TG_ARGV[0]),
@@ -819,12 +862,20 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_attach_to_live_invoice() IS
-    'v5.4.2-20 (A-23, Codex B6). BEFORE INSERT OR UPDATE OF the invoice pointer (TG_ARGV[0]) on meter_readings (locked_by_invoice_id) and adhoc_charges (billed_on_invoice_id): setting it to an invoice takes FOR SHARE on that invoice and refuses a void one. void_invoice() holds the invoice FOR UPDATE, so an attach racing a void waits for it and then sees void; a void racing an attach waits for the attach and then releases what it attached. An invoice the caller cannot see is left to the foreign key.';
+    'v5.4.2-20 (A-23, Codex B6). BEFORE INSERT OR UPDATE OF the invoice pointer (TG_ARGV[0]) on meter_readings (locked_by_invoice_id) and adhoc_charges (billed_on_invoice_id): setting it to an invoice takes FOR SHARE on that invoice and refuses a void one, one the caller cannot see, and one of another tenant than the row. void_invoice() holds the invoice FOR UPDATE, so an attach racing a void waits for it and then sees void; a void racing an attach waits for the attach and then releases what it attached (both at READ COMMITTED; the void refuses any other level). A charge is billed only with its pointer (adhoc_charges_billed_names_its_bill), so entering billed always passes here.';
 REVOKE ALL ON FUNCTION public.enforce_attach_to_live_invoice() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF locked_by_invoice_id ON public.meter_readings
     FOR EACH ROW EXECUTE FUNCTION public.enforce_attach_to_live_invoice('locked_by_invoice_id');
 CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges
     FOR EACH ROW EXECUTE FUNCTION public.enforce_attach_to_live_invoice('billed_on_invoice_id');
+ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER a_enforce_attach_to_live_invoice;
+ALTER TABLE public.adhoc_charges ENABLE ALWAYS TRIGGER a_enforce_attach_to_live_invoice;
+-- r2 (F3, Codex B1): a charge is billed if and only if it names its bill.
+-- Without it a pending charge could carry a pointer to a live bill, keep it
+-- through that bill's void (the void releases only billed charges), and then
+-- be marked billed with the pointer unchanged, never meeting the guard.
+ALTER TABLE public.adhoc_charges ADD CONSTRAINT adhoc_charges_billed_names_its_bill
+    CHECK ((status = 'billed') = (billed_on_invoice_id IS NOT NULL));
 
 CREATE OR REPLACE FUNCTION public.void_invoice(p_invoice_id uuid, p_voided_by uuid DEFAULT NULL::uuid, p_void_reason_code text DEFAULT NULL::text, p_void_reason_notes text DEFAULT NULL::text, p_rebill_expected boolean DEFAULT true)
  RETURNS jsonb
@@ -858,6 +909,14 @@ BEGIN
     -- (enforce_attach_to_live_invoice). Lock order: the invoice, then its
     -- reads and charges. The owner, tally_void, is subject to RLS: another
     -- tenant's invoice is not found.
+    -- r2 (F2): only at READ COMMITTED. Under an older snapshot the release
+    -- of reads and charges below would miss one attached while this waited
+    -- for the lock, and the bill would be void with it still attached.
+    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('void_invoice() runs at READ COMMITTED (this transaction is %s): a void under an older snapshot misses what was attached to the bill while it waited for the lock (v5.4.2-20)', pg_catalog.current_setting('transaction_isolation')),
+            ERRCODE = 'invalid_transaction_state';
+    END IF;
     SELECT * INTO v_invoice
     FROM public.invoices
     WHERE id = p_invoice_id
@@ -1138,26 +1197,98 @@ ALTER FUNCTION public.void_invoice(uuid, uuid, text, text, boolean) OWNER TO tal
 REVOKE ALL ON FUNCTION public.void_invoice(uuid, uuid, text, text, boolean) FROM PUBLIC, tally_app, tally_core;
 GRANT EXECUTE ON FUNCTION public.void_invoice(uuid, uuid, text, text, boolean) TO tally_app;
 
--- What void_invoice() and the triggers its writes fire read and write
--- (enumerated by an end-to-end run as tally_app).
-GRANT SELECT, UPDATE ON public.invoices, public.meter_readings, public.adhoc_charges TO tally_void;
-GRANT SELECT, INSERT ON public.account_ledger, public.invoice_events TO tally_void;
-GRANT SELECT ON public.billing_runs TO tally_void;
+-- What void_invoice() and the triggers its writes fire read and write,
+-- exactly (r2 F6: column-level UPDATE; enumerated by end-to-end runs for
+-- every reason code, a held bill, an empty bill and a platform admin;
+-- assert_seal_role_invariants() holds the role to this list).
+GRANT SELECT ON public.invoices, public.meter_readings, public.adhoc_charges, public.account_ledger TO tally_void;
+GRANT UPDATE (status, voided_at, voided_by, void_reason_code, void_reason_notes, void_rebill_expected, updated_at)
+    ON public.invoices TO tally_void;
+GRANT UPDATE (voided_from_invoice_id, locked_by_invoice_id, validation_status) ON public.meter_readings TO tally_void;
+GRANT UPDATE (status, voided_from_invoice_id, billed_on_invoice_id, billed_on_line_item_id, billed_at, target_billing_period, updated_at)
+    ON public.adhoc_charges TO tally_void;
+GRANT INSERT ON public.account_ledger, public.invoice_events TO tally_void;
 
 
 -- ----------------------------------------------------------------------------
 -- 6. The invariants (R4, R5, O4, O5)
 -- ----------------------------------------------------------------------------
+-- The privileges a role holds directly, as text, schema-qualified (so the
+-- rendering does not depend on any search_path): its own functions excluded.
+CREATE FUNCTION public.seal_role_privileges(p_role text) RETURNS text[]
+    LANGUAGE sql
+    STABLE
+    SET search_path = public, pg_temp
+    AS $$
+    SELECT coalesce(array_agg(g ORDER BY g), '{}') FROM (
+        SELECT 'table ' || n.nspname || '.' || c.relname || ' ' || a.privilege_type AS g
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(c.relacl) a
+         WHERE a.grantee = p_role::regrole
+        UNION ALL
+        SELECT 'column ' || n.nspname || '.' || c.relname || '.' || t.attname || ' ' || a.privilege_type
+          FROM pg_attribute t JOIN pg_class c ON c.oid = t.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(t.attacl) a
+         WHERE a.grantee = p_role::regrole AND NOT t.attisdropped
+        UNION ALL
+        SELECT 'function ' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') ' || a.privilege_type
+          FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace, aclexplode(p.proacl) a
+         WHERE a.grantee = p_role::regrole AND p.proowner <> p_role::regrole
+           AND n.nspname NOT LIKE 'pg\_temp\_%'   -- a session's own temporary functions die with it
+        UNION ALL
+        SELECT 'schema ' || n.nspname || ' ' || a.privilege_type
+          FROM pg_namespace n, aclexplode(n.nspacl) a
+         WHERE a.grantee = p_role::regrole
+        UNION ALL
+        SELECT 'database ' || d.datname || ' ' || a.privilege_type
+          FROM pg_database d, aclexplode(d.datacl) a
+         WHERE a.grantee = p_role::regrole AND d.datname = current_database()
+        UNION ALL
+        SELECT 'type ' || n.nspname || '.' || y.typname || ' ' || a.privilege_type
+          FROM pg_type y JOIN pg_namespace n ON n.oid = y.typnamespace, aclexplode(y.typacl) a
+         WHERE a.grantee = p_role::regrole
+    ) x;
+$$;
+COMMENT ON FUNCTION public.seal_role_privileges(text) IS
+    'v5.4.2-20 r2. Every privilege the role holds directly in this database (tables, columns, functions it does not own outside a session''s temporary schema, schemas, the database, types), as sorted text. assert_seal_role_invariants() compares it with the exact list each seal role is granted.';
+REVOKE ALL ON FUNCTION public.seal_role_privileges(text) FROM PUBLIC, tally_app, tally_core;
+
 CREATE FUNCTION public.assert_seal_role_invariants() RETURNS void
     LANGUAGE plpgsql
     STABLE
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_bad  text;
-    r      text;
-    c_owns CONSTANT jsonb := '{"tally_seal": ["assert_reference_version", "reference_version_receipt_held"],
-                               "tally_void": ["void_invoice"]}';
+    v_bad    text;
+    r        text;
+    v_have   text[];
+    v_want   text[];
+    -- Exactly what each role owns (r2 F5: exact identities, not names).
+    c_owns   CONSTANT jsonb := jsonb_build_object(
+        'tally_seal', jsonb_build_array('public.assert_reference_version(text,uuid,integer)'::regprocedure::oid,
+                                        'public.reference_version_receipt_held(text,uuid)'::regprocedure::oid),
+        'tally_void', jsonb_build_array('public.void_invoice(uuid,uuid,text,text,boolean)'::regprocedure::oid));
+    -- Exactly what each role is granted (r2 F5/F6): anything more or less raises.
+    c_grants CONSTANT jsonb := jsonb_build_object(
+        'tally_seal', '["column public.rate_items.updated_at UPDATE", "column public.rate_items.version UPDATE", "column public.rate_schedules.updated_at UPDATE", "column public.rate_schedules.version UPDATE", "column public.wna_zones.updated_at UPDATE", "column public.wna_zones.version UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.rate_items SELECT", "table public.rate_schedules SELECT", "table public.reference_version_receipts INSERT", "table public.reference_version_receipts SELECT", "table public.wna_zones SELECT"]'::jsonb,
+        'tally_void', '["column public.adhoc_charges.billed_at UPDATE", "column public.adhoc_charges.billed_on_invoice_id UPDATE", "column public.adhoc_charges.billed_on_line_item_id UPDATE", "column public.adhoc_charges.status UPDATE", "column public.adhoc_charges.target_billing_period UPDATE", "column public.adhoc_charges.updated_at UPDATE", "column public.adhoc_charges.voided_from_invoice_id UPDATE", "column public.invoices.status UPDATE", "column public.invoices.updated_at UPDATE", "column public.invoices.void_reason_code UPDATE", "column public.invoices.void_reason_notes UPDATE", "column public.invoices.void_rebill_expected UPDATE", "column public.invoices.voided_at UPDATE", "column public.invoices.voided_by UPDATE", "column public.meter_readings.locked_by_invoice_id UPDATE", "column public.meter_readings.validation_status UPDATE", "column public.meter_readings.voided_from_invoice_id UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.account_ledger INSERT", "table public.account_ledger SELECT", "table public.adhoc_charges SELECT", "table public.invoice_events INSERT", "table public.invoices SELECT", "table public.meter_readings SELECT"]'::jsonb);
+    -- Every guard of the two seals, by its exact definition, enabled ALWAYS
+    -- (D-2026-08-20-27: a replication apply does not skip it).
+    c_triggers CONSTANT text[] := ARRAY['CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_items'', ''rate_item_id'')',
+        'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_schedules'', ''rate_schedule_id'')',
+        'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''wna_zones'', ''wna_zone_id'')',
+        'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''billed_on_invoice_id'')',
+        'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF locked_by_invoice_id ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''locked_by_invoice_id'')',
+        'CREATE TRIGGER a_stamp_reference_version_receipt BEFORE INSERT OR UPDATE ON public.reference_version_receipts FOR EACH ROW EXECUTE FUNCTION stamp_reference_version_receipt()',
+        'CREATE TRIGGER enforce_adhoc_charge_immutable BEFORE UPDATE ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_immutable()',
+        'CREATE TRIGGER enforce_invoice_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION enforce_invoice_immutable()',
+        'CREATE TRIGGER enforce_reference_header BEFORE DELETE OR UPDATE ON public.rate_items FOR EACH ROW EXECUTE FUNCTION enforce_reference_header(''item_code'', ''rate_item_versions'', ''rate_item_id'')',
+        'CREATE TRIGGER enforce_reference_header BEFORE DELETE OR UPDATE ON public.rate_schedules FOR EACH ROW EXECUTE FUNCTION enforce_reference_header(''code'', ''rate_schedule_versions'', ''rate_schedule_id'')',
+        'CREATE TRIGGER enforce_reference_header BEFORE DELETE OR UPDATE ON public.wna_zones FOR EACH ROW EXECUTE FUNCTION enforce_reference_header(''zone_code'', ''wna_zone_versions'', ''wna_zone_id'')',
+        'CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.rate_items FOR EACH ROW EXECUTE FUNCTION enforce_reference_header_birth()',
+        'CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.rate_schedules FOR EACH ROW EXECUTE FUNCTION enforce_reference_header_birth()',
+        'CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.wna_zones FOR EACH ROW EXECUTE FUNCTION enforce_reference_header_birth()',
+        'CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.reference_version_receipts FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.reference_version_receipts FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER trg_enforce_reading_validation_workflow BEFORE UPDATE ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_reading_validation_workflow()'];
 BEGIN
     FOREACH r IN ARRAY ARRAY['tally_seal', 'tally_void'] LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
@@ -1184,65 +1315,65 @@ BEGIN
                 MESSAGE = format('%s is a member of %s: it belongs to no role (v5.4.2-20)', r, v_bad),
                 ERRCODE = 'invalid_grant_operation';
         END IF;
-        IF EXISTS (SELECT 1 FROM pg_default_acl d, aclexplode(d.defaclacl) a
-                    WHERE a.grantee = r::regrole OR d.defaclrole = r::regrole) THEN
+        IF EXISTS (SELECT 1 FROM pg_default_acl d WHERE d.defaclrole = r::regrole)
+           OR EXISTS (SELECT 1 FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE a.grantee = r::regrole) THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('%s holds or sets a default privilege: its grants are explicit (v5.4.2-20)', r),
                 ERRCODE = 'invalid_grant_operation';
         END IF;
+        -- No code of its own: effective privileges, through PUBLIC as well.
         SELECT string_agg(n.nspname, ', ' ORDER BY 1) INTO v_bad
           FROM pg_namespace n
-         WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
-           AND has_schema_privilege(r, n.oid, 'CREATE');
+         WHERE has_schema_privilege(r, n.oid, 'CREATE');
         IF has_database_privilege(r, current_database(), 'TEMP') OR has_database_privilege(r, current_database(), 'CREATE')
            OR v_bad IS NOT NULL THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('%s can define code (TEMP, CREATE on the database, or CREATE on schema %s) — after a TEMPLATE clone, revoke TEMP from PUBLIC (v5.4.2-20)', r, coalesce(v_bad, 'none')),
                 ERRCODE = 'invalid_grant_operation';
         END IF;
-        -- It owns exactly its functions, each a pinned definer, and no relation.
+        -- It owns exactly its functions, each a definer pinned to public, pg_temp, and no relation or type.
         SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
           FROM pg_proc p
          WHERE p.proowner = r::regrole
-           AND NOT (p.pronamespace = 'public'::regnamespace
-                    AND (c_owns -> r) ? p.proname
+           AND NOT ((c_owns -> r) ? p.oid::text
                     AND p.prosecdef
-                    AND p.proconfig @> ARRAY['search_path=public, pg_temp']);
+                    AND coalesce(p.proconfig @> ARRAY['search_path=public, pg_temp'], false));
         IF v_bad IS NOT NULL THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('%s owns %s, which is not one of its pinned SECURITY DEFINER functions (v5.4.2-20)', r, v_bad),
                 ERRCODE = 'invalid_grant_operation';
         END IF;
-        SELECT string_agg(f, ', ' ORDER BY f) INTO v_bad
+        SELECT string_agg(f::oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
           FROM jsonb_array_elements_text(c_owns -> r) f
-         WHERE NOT EXISTS (SELECT 1 FROM pg_proc p
-                            WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f AND p.proowner = r::regrole);
+         WHERE NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = f::oid AND p.proowner = r::regrole);
         IF v_bad IS NOT NULL THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('%s no longer owns %s: a DROP and CREATE reverts the owner to its creator — ALTER FUNCTION ... OWNER TO %s (v5.4.2-20)', r, v_bad, r),
                 ERRCODE = 'invalid_grant_operation';
         END IF;
-        IF EXISTS (SELECT 1 FROM pg_class c WHERE c.relowner = r::regrole) THEN
-            RAISE EXCEPTION USING MESSAGE = format('%s owns a relation (v5.4.2-20)', r), ERRCODE = 'invalid_grant_operation';
+        IF EXISTS (SELECT 1 FROM pg_class c WHERE c.relowner = r::regrole)
+           OR EXISTS (SELECT 1 FROM pg_type y WHERE y.typowner = r::regrole)
+           OR EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspowner = r::regrole) THEN
+            RAISE EXCEPTION USING MESSAGE = format('%s owns a relation, type or schema (v5.4.2-20)', r), ERRCODE = 'invalid_grant_operation';
         END IF;
-        -- R6: the users fences stand aside inside a definer; neither role touches users.
-        IF has_table_privilege(r, 'public.users', 'INSERT') OR has_table_privilege(r, 'public.users', 'UPDATE')
-           OR has_table_privilege(r, 'public.users', 'DELETE') THEN
-            RAISE EXCEPTION USING MESSAGE = format('%s can write users (v5.4.2-20 R6)', r), ERRCODE = 'invalid_grant_operation';
+        -- Exactly its grants (this also keeps both roles off users: R6).
+        v_have := public.seal_role_privileges(r);
+        SELECT coalesce(array_agg(x ORDER BY x), '{}') INTO v_want FROM jsonb_array_elements_text(c_grants -> r) x;
+        IF EXISTS (SELECT 1 FROM unnest(v_have) x WHERE x <> ALL (v_want))
+           OR EXISTS (SELECT 1 FROM unnest(v_want) x WHERE x <> ALL (v_have)) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s holds other privileges than it is granted (v5.4.2-20): extra %s; missing %s', r,
+                                 (SELECT coalesce(string_agg(x, '; '), 'none') FROM unnest(v_have) x WHERE x <> ALL (v_want)),
+                                 (SELECT coalesce(string_agg(x, '; '), 'none') FROM unnest(v_want) x WHERE x <> ALL (v_have))),
+                ERRCODE = 'invalid_grant_operation';
         END IF;
     END LOOP;
-
-    -- The application and the core cannot become either role.
-    IF pg_has_role('tally_app', 'tally_seal', 'MEMBER') OR pg_has_role('tally_app', 'tally_void', 'MEMBER')
-       OR pg_has_role('tally_core', 'tally_seal', 'MEMBER') OR pg_has_role('tally_core', 'tally_void', 'MEMBER') THEN
-        RAISE EXCEPTION USING MESSAGE = 'tally_app or tally_core can become a seal role (v5.4.2-20)', ERRCODE = 'invalid_grant_operation';
-    END IF;
 
     -- R5: the core executes no definer but the two RLS helpers (O-B4, C-B4).
     SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
       FROM pg_proc p
-     WHERE p.prosecdef AND p.proname NOT IN ('get_user_tenant_id', 'is_platform_admin')
-       AND p.pronamespace NOT IN ('pg_catalog'::regnamespace, 'information_schema'::regnamespace)
+     WHERE p.prosecdef
+       AND p.oid NOT IN ('public.get_user_tenant_id()'::regprocedure, 'public.is_platform_admin()'::regprocedure)
        AND has_function_privilege('tally_core', p.oid, 'EXECUTE');
     IF v_bad IS NOT NULL THEN
         RAISE EXCEPTION USING
@@ -1250,14 +1381,19 @@ BEGIN
             ERRCODE = 'invalid_grant_operation';
     END IF;
 
-    -- O5: no write path around the check.
-    IF has_table_privilege('tally_app', 'public.reference_version_receipts', 'INSERT')
-       OR has_table_privilege('tally_app', 'public.reference_version_receipts', 'UPDATE')
-       OR has_table_privilege('tally_app', 'public.reference_version_receipts', 'DELETE')
-       OR has_table_privilege('tally_app', 'public.reference_version_receipts', 'TRUNCATE')
-       OR has_table_privilege('tally_core', 'public.reference_version_receipts', 'INSERT')
-       OR has_table_privilege('public', 'public.reference_version_receipts', 'INSERT') THEN
-        RAISE EXCEPTION USING MESSAGE = 'reference_version_receipts is writable by tally_app, tally_core or PUBLIC (v5.4.2-20)', ERRCODE = 'invalid_grant_operation';
+    -- O5: nothing around the check. No privilege at all on the receipts for
+    -- the application, the core or PUBLIC, column grants included.
+    SELECT string_agg(g || ' ' || p, ', ' ORDER BY 1) INTO v_bad
+      FROM unnest(ARRAY['tally_app', 'tally_core', 'public']) g,
+           unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) p
+     WHERE has_any_column_privilege(g, 'public.reference_version_receipts', p);
+    IF v_bad IS NOT NULL
+       OR has_table_privilege('tally_app', 'public.reference_version_receipts', 'DELETE, TRUNCATE')
+       OR has_table_privilege('tally_core', 'public.reference_version_receipts', 'DELETE, TRUNCATE')
+       OR has_table_privilege('public', 'public.reference_version_receipts', 'DELETE, TRUNCATE') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('reference_version_receipts is reachable by tally_app, tally_core or PUBLIC (%s) (v5.4.2-20)', coalesce(v_bad, 'DELETE or TRUNCATE')),
+            ERRCODE = 'invalid_grant_operation';
     END IF;
     SELECT string_agg(t, ', ' ORDER BY t) INTO v_bad
       FROM unnest(ARRAY['rate_schedules', 'rate_items', 'wna_zones']) t
@@ -1270,7 +1406,9 @@ BEGIN
             ERRCODE = 'invalid_grant_operation';
     END IF;
 
-    -- O4: the caller-settable void setting of v5.4.2-01 is read by no function.
+    -- O4, lexically: no function in public names the caller-settable void
+    -- setting of v5.4.2-01 (a constructed name would pass; the guards key on
+    -- the role, so such a function would change nothing they admit).
     SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
       FROM pg_proc p
      WHERE p.pronamespace = 'public'::regnamespace
@@ -1281,22 +1419,21 @@ BEGIN
             ERRCODE = 'invalid_grant_operation';
     END IF;
 
-    -- The three version tables and the three headers carry their guards.
-    SELECT string_agg(t, ', ' ORDER BY t) INTO v_bad
-      FROM unnest(ARRAY['rate_schedule_versions', 'rate_item_versions', 'wna_zone_versions']) t
+    -- Every guard, exactly as defined, enabled ALWAYS.
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
+      FROM unnest(c_triggers) d
      WHERE NOT EXISTS (SELECT 1 FROM pg_trigger g
-                        WHERE g.tgrelid = ('public.' || t)::regclass
-                          AND g.tgfoid = 'public.enforce_reference_version_receipt()'::regprocedure
-                          AND g.tgenabled = 'O');
+                        WHERE NOT g.tgisinternal AND g.tgenabled = 'A'
+                          AND pg_get_triggerdef(g.oid) = d);
     IF v_bad IS NOT NULL THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('%s lacks the enabled version-receipt guard (v5.4.2-20)', v_bad),
+            MESSAGE = format(E'a seal guard is missing, changed, or not ENABLE ALWAYS (v5.4.2-20):\n  %s', v_bad),
             ERRCODE = 'invalid_grant_operation';
     END IF;
 END;
 $$;
 COMMENT ON FUNCTION public.assert_seal_role_invariants() IS
-    'v5.4.2-20. Raises unless: tally_seal and tally_void exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions and no relation, and cannot write users; tally_app and tally_core cannot become them; tally_core executes no definer but the two RLS helpers; nothing but assert_reference_version() can write the receipts or a header version; no function reads the old void setting; the version tables carry their enabled guard. Run in the patch tail and in CI.';
+    'v5.4.2-20 (r2). Raises unless: tally_seal and tally_void exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; no public function names the old void setting (a lexical test); and every guard of the two seals exists exactly as defined and ENABLE ALWAYS. Run in the patch tail and in CI.';
 REVOKE ALL ON FUNCTION public.assert_seal_role_invariants() FROM PUBLIC, tally_app, tally_core;
 
 DO $$ BEGIN

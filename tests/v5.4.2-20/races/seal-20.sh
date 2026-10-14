@@ -11,6 +11,11 @@
 #        AND disposes of the charge A attached: nothing is stranded.
 #   RC5  A voids H3 and holds; B voids H3, waits, then is refused before any
 #        side effect: one reversal.
+#   RC3b (r2) A voids H4 and holds; B, at REPEATABLE READ, bills a charge onto
+#        H4, waits, then fails to serialise.
+#   RC6  (r2) A edits a charge already billed on H5, then attaches another to
+#        H5; B voids H5 between the two. They deadlock; PostgreSQL aborts one
+#        and no charge is left billed on a void bill.
 #   T1   a receipt from a committed transaction admits nothing later.
 #   T2   autocommit: the check and the write as two statements are refused.
 #   T3   a session that never set app.user_id (Opus B1): the void and the
@@ -19,6 +24,8 @@
 #   T4   a read-only transaction holds no receipt and the test raises nothing.
 #   T5   a committed version row is closed in a later transaction with no
 #        check: refused (the guard fires on UPDATE as on INSERT).
+#   T6   (r2) COPY by the application into a version table: refused.
+#   T7   (r2) a void at REPEATABLE READ: refused before it locks anything.
 # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -40,7 +47,12 @@ Z=00000000-0000-4000-8000-0000000020ea
 H1=00000000-0000-4000-8000-0000000020f1
 H2=00000000-0000-4000-8000-0000000020f2
 H3=00000000-0000-4000-8000-0000000020f3
+H4=00000000-0000-4000-8000-0000000020f4
+H5=00000000-0000-4000-8000-0000000020f5
 H9=00000000-0000-4000-8000-0000000020f9
+A3=00000000-0000-4000-8000-0000000020c3
+C5=00000000-0000-4000-8000-0000000020c5
+D5=00000000-0000-4000-8000-0000000020c6
 A1=00000000-0000-4000-8000-0000000020c1
 A2=00000000-0000-4000-8000-0000000020c2
 A_OUT=$(mktemp); B_OUT=$(mktemp)
@@ -62,10 +74,16 @@ INSERT INTO public.wna_zones (id, tenant_id, zone_code) VALUES ('$Z', '$T', 'Z-R
 $(held "$H1" "$T" "$C" "$L" R20-H1)
 $(held "$H2" "$T" "$C" "$L" R20-H2)
 $(held "$H3" "$T" "$C" "$L" R20-H3)
+$(held "$H4" "$T" "$C" "$L" R20-H4)
+$(held "$H5" "$T" "$C" "$L" R20-H5)
 $(held "$H9" "$T2" "$C2" "$L2" R20-H9)
 INSERT INTO public.adhoc_charges (id, tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class, service_type) VALUES
   ('$A1', '$T', 'R20-A1', '$C', 'tap_fee', 'tap', 5.00, 'regulated', 'gas'),
-  ('$A2', '$T', 'R20-A2', '$C', 'tap_fee', 'tap', 6.00, 'regulated', 'gas');
+  ('$A2', '$T', 'R20-A2', '$C', 'tap_fee', 'tap', 6.00, 'regulated', 'gas'),
+  ('$A3', '$T', 'R20-A3', '$C', 'tap_fee', 'tap', 7.00, 'regulated', 'gas'),
+  ('$C5', '$T', 'R20-C5', '$C', 'tap_fee', 'tap', 8.00, 'regulated', 'gas'),
+  ('$D5', '$T', 'R20-D5', '$C', 'tap_fee', 'tap', 9.00, 'regulated', 'gas');
+UPDATE public.adhoc_charges SET status = 'billed', billed_on_invoice_id = '$H5', billed_at = now() WHERE id = '$C5';
 SQL
 
 waiting() {
@@ -79,7 +97,7 @@ echo 0
 }
 APP="SET LOCAL app.user_id = '$U'; SET ROLE tally_app;"
 
-two() {  # $1 A's statement, $2 B's statement, $3 A's end (default COMMIT)
+two() {  # $1 A's statement, $2 B's statement, $3 A's end (default COMMIT), $4 B's isolation (default READ COMMITTED)
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 SET application_name = 'race20_a';
 BEGIN;
@@ -92,7 +110,7 @@ APID=$!
 sleep 1
 "${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
 SET application_name = 'race20_b';
-BEGIN;
+BEGIN ISOLATION LEVEL ${4:-READ COMMITTED};
 $APP
 $2
 COMMIT;
@@ -140,6 +158,35 @@ check "RC5 two voids of one bill: the second waits, then is refused" "P0001" "is
 N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.account_ledger WHERE reference_id = '$H3' AND transaction_type = 'void_reversal'")
 if [ "$N" = "1" ]; then echo "PASS RC5b one reversal"; else echo "FAIL RC5b: $N reversals"; fail=1; fi
 
+two "$(void "$H4")" "$(bill "$A3" "$H4")" "COMMIT" "REPEATABLE READ"
+check "RC3b a charge billed at REPEATABLE READ onto a bill being voided: waits, then fails to serialise" "40001" "could not serialize"
+
+# RC6: A holds a child of H5 (an edit of billed C5), B's void of H5 waits on
+# it, then A's attach of D5 waits on B: a deadlock. Either may be aborted.
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race20_a';
+BEGIN;
+$APP
+UPDATE public.adhoc_charges SET updated_at = clock_timestamp() WHERE id = '$C5';
+SELECT pg_sleep(2);
+$(bill "$D5" "$H5")
+COMMIT;
+SQL
+APID=$!
+sleep 1
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
+SET application_name = 'race20_b';
+BEGIN;
+$APP
+$(void "$H5")
+COMMIT;
+SQL
+wait $APID
+DL=$(cat "$A_OUT" "$B_OUT" | grep -c "40P01")
+N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.adhoc_charges c JOIN public.invoices i ON i.id = c.billed_on_invoice_id WHERE c.status = 'billed' AND i.status = 'void'")
+if [ "$DL" -ge 1 ] && [ "$N" = "0" ]; then echo "PASS RC6 an attach after a child edit deadlocks with a void: one is aborted, nothing is left on a void bill"
+else echo "FAIL RC6: deadlocks=$DL, charges billed on a void bill=$N; A: $(cat "$A_OUT") B: $(cat "$B_OUT")"; fail=1; fi
+
 ver() { echo "INSERT INTO public.wna_zone_versions (tenant_id, wna_zone_id, zone_name, effective_date, change_type) VALUES ('$T', '$Z', 'Z', DATE '2026-01-01', 'initial');"; }
 "${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: T1 check"; exit 2; }
 BEGIN; $APP SELECT public.assert_reference_version('wna_zones', '$Z', 1); COMMIT;
@@ -176,6 +223,16 @@ one "T5 a committed version closed later with no check" "only after the version 
 BEGIN; $APP
 UPDATE public.rate_schedule_versions SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'race-20 T5' WHERE rate_schedule_id = '$S2';
 COMMIT;
+SQL
+
+one "T6 COPY by the application into a version table" "COPY FROM not supported with row-level security" <<SQL
+SET app.user_id = '$U'; SET ROLE tally_app;
+COPY public.wna_zone_versions (tenant_id, wna_zone_id, zone_name, effective_date, change_type) FROM STDIN;
+$T	$Z	Z	2026-01-01	initial
+\.
+SQL
+one "T7 a void at REPEATABLE READ" "runs at READ COMMITTED" <<SQL
+BEGIN ISOLATION LEVEL REPEATABLE READ; $APP $(void "$H2") COMMIT;
 SQL
 
 exit $fail
