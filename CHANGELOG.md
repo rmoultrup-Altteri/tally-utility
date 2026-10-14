@@ -4,6 +4,74 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-14 — Kyle's tax and gas-cost answers logged; Ryan's four wave-1 calls; v5.4.2-20 (the version check and the void, sealed) designed, reviewed over three rounds, mirrored
+
+**What was done:**
+- **Orientation:** the -17 handoff was stale; -17, -15 and -19 had already been mirrored. Codex r4 was not re-run.
+- **Kyle's answers** (GBM `45dfff6`) are logged in `application/DECISION-LOG.md` and in GBM manifest Section BO (`9696beb`). The gas-cost carve-out is closed: billing side only. GBM Section BN and the marketing page were committed (`11ce5c5`).
+- **Ryan's calls, each logged:**
+  - **CI-016:** which bill lines carry their arithmetic (`546e703`).
+  - **CI-017:** a single-predecessor reversal names it; a refund names a payment or a credit (`2f9920a`).
+  - **CI-014:** 17 more tables refuse DELETE; 6 stay deletable (`5ed1985`).
+  - **CI-011 / A-23:** seal both.
+- **Design review** of the seal (`application/a23-seal-review-2026-10-14/`):
+  - **Opus:** sound with changes. It reproduced a **live cross-tenant void**: a caller with no `app.user_id` voided another tenant's bill (a NULL tenant compare in a superuser definer).
+  - **Fable:** sound with changes.
+  - **Codex:** seal both, but not as first written.
+  - **Ryan:** "go ahead and draft it" (the corrected design).
+- **`sql/v5.4.2-20-seal-version-check-and-void.sql`:**
+  - **r1** (`2f5cb52`):
+    - `tally_seal` and `tally_void` roles;
+    - receipts, the version-row and lifecycle guards, header birth at version 1, column-level header grants;
+    - `void_invoice()` owned by `tally_void`, with the guards keyed on `current_user`, and the GUC removed;
+    - FOR UPDATE in the void, plus the attach guard;
+    - `assert_seal_role_invariants()`.
+  - **r2** (`e7b9e14`): the attach guard refuses an invisible or cross-tenant bill; the void runs at READ COMMITTED only; CHECK billed-names-its-bill; every guard ENABLE ALWAYS; an exact privilege allowlist and trigger-shape invariant; column-level void grants.
+  - **r3** (`8dade73`): the invariant also covers the CHECK, the bitemporal guards, grant options and PUBLIC privileges; harness hardening.
+- **Review rounds:**
+  - **r1:** all three "not yet". The blocking items were in the attach protocol (all three) and ENABLE ALWAYS (Codex).
+  - **r2:** all ready.
+  - **r3**, diff-scoped: all ready (`1696835`).
+- **Tests:**
+  - battery-20: 80;
+  - `races/seal-20.sh`: 19;
+  - `mutations-20.py`: 53/53;
+  - batteries -10 and -11 now name the void's caller (they passed only through the closed hole); battery-19 uses the check and `tally_void`.
+- **Mirror** (`6a520ae`):
+  - **`sql/tu.sql`:** 38,016 → **39,349** lines (md5 `e13f0d72…`), byte-identical body.
+  - **Build check:** zero init errors; catalog identity of 11,215 lines equal to the patched clone; `tests/ci.sh --build` 26/26.
+  - **Docs:** DEPLOY-VERIFICATION entry; AC-12 rewritten, AC-42 new.
+
+**Failed approaches / mechanisms:**
+- **A void receipt:** it lives until commit and reopens the -01 window. Use role identity.
+- **A column-only REVOKE:** a no-op under the table grant.
+- **An attach guard that skips an invisible bill:** the FK checks only the id.
+- **A REPEATABLE READ void:** a stale snapshot misses a committed attach.
+- **A pointer-change-only trigger:** bypassed with the pointer unchanged.
+- **Origin-only triggers:** skipped in replica mode.
+- **Three duplicate checks** made mutations miss; removed.
+- **Replica-mode forgery** stopped working with ALWAYS triggers. Use DISABLE TRIGGER in the rolled-back battery.
+- **`now()`** doesn't move within a transaction. Use `clock_timestamp()`.
+- **jsonb oid comparison:** use `?` on the text form.
+- **An edit script** that aborted on file 1 silently skipped file 2.
+- **`docker logs` ERROR counts** include the tests' deliberate refusals. Count only before init completes.
+
+**Decisions made without Ryan (by standing rules):**
+- **Two owner roles,** not one.
+- **Lifecycle moves need the check.**
+- **The redundant clauses** were removed (the void's tenant compare, the duplicate stamping, the run clause).
+- **Fable's r1 S5 and Codex's composite tenant FKs** were not taken (the latter is -19 R11).
+- **The psql-variable wart** was mirrored as reviewed, to be fixed in the next patch.
+
+**Next:**
+- **Ask Ryan** the caller-identity question (R1).
+- **The next patch,** v5.4.2-21: CI-016, CI-017 and CI-014, plus the three -20 notes.
+- **GBM parity docs** for -20.
+- **Reply to Kyle** on D-2.
+- **Wave 2.**
+
+---
+
 ## 2026-10-13 (evening) — hardening batch 1 (-19, wave 1 of step 1): five revisions, mirrored into tu.sql on Ryan's approval
 
 **What was done:**
