@@ -1,0 +1,237 @@
+--- tests/v5.4.2-20/review/patch-20-frozen-r2.sql	2026-10-14 14:02:14
++++ tests/v5.4.2-20/review/patch-20-frozen-r3.sql	2026-10-14 14:15:05
+@@ -21,6 +21,13 @@
+ --   column-level and minimal (F6); the lock-order note states the deadlock
+ --   a caller can meet (F7).
+ --
++-- Revision r3 (review round 2: Opus, Fable ready, Codex approve; their
++--   should-fix items): the invariant also asserts the billed-names-its-bill
++--   CHECK and the version tables' bitemporal guards, counts grant options,
++--   and refuses any table or column privilege held by PUBLIC (which every
++--   role inherits); the temporary-schema exclusion covers non-definer
++--   functions only.
++--
+ -- ----------------------------------------------------------------------------
+ -- What changes
+ -- ----------------------------------------------------------------------------
+@@ -1221,34 +1228,34 @@
+     SET search_path = public, pg_temp
+     AS $$
+     SELECT coalesce(array_agg(g ORDER BY g), '{}') FROM (
+-        SELECT 'table ' || n.nspname || '.' || c.relname || ' ' || a.privilege_type AS g
++        SELECT 'table ' || n.nspname || '.' || c.relname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END AS g
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(c.relacl) a
+          WHERE a.grantee = p_role::regrole
+         UNION ALL
+-        SELECT 'column ' || n.nspname || '.' || c.relname || '.' || t.attname || ' ' || a.privilege_type
++        SELECT 'column ' || n.nspname || '.' || c.relname || '.' || t.attname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
+           FROM pg_attribute t JOIN pg_class c ON c.oid = t.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(t.attacl) a
+          WHERE a.grantee = p_role::regrole AND NOT t.attisdropped
+         UNION ALL
+-        SELECT 'function ' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') ' || a.privilege_type
++        SELECT 'function ' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
+           FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace, aclexplode(p.proacl) a
+          WHERE a.grantee = p_role::regrole AND p.proowner <> p_role::regrole
+-           AND n.nspname NOT LIKE 'pg\_temp\_%'   -- a session's own temporary functions die with it
++           AND NOT (n.nspname LIKE 'pg\_temp\_%' AND NOT p.prosecdef)   -- a session's own invoker helpers die with it
+         UNION ALL
+-        SELECT 'schema ' || n.nspname || ' ' || a.privilege_type
++        SELECT 'schema ' || n.nspname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
+           FROM pg_namespace n, aclexplode(n.nspacl) a
+          WHERE a.grantee = p_role::regrole
+         UNION ALL
+-        SELECT 'database ' || d.datname || ' ' || a.privilege_type
++        SELECT 'database ' || d.datname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
+           FROM pg_database d, aclexplode(d.datacl) a
+          WHERE a.grantee = p_role::regrole AND d.datname = current_database()
+         UNION ALL
+-        SELECT 'type ' || n.nspname || '.' || y.typname || ' ' || a.privilege_type
++        SELECT 'type ' || n.nspname || '.' || y.typname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
+           FROM pg_type y JOIN pg_namespace n ON n.oid = y.typnamespace, aclexplode(y.typacl) a
+          WHERE a.grantee = p_role::regrole
+     ) x;
+ $$;
+ COMMENT ON FUNCTION public.seal_role_privileges(text) IS
+-    'v5.4.2-20 r2. Every privilege the role holds directly in this database (tables, columns, functions it does not own outside a session''s temporary schema, schemas, the database, types), as sorted text. assert_seal_role_invariants() compares it with the exact list each seal role is granted.';
++    'v5.4.2-20 r2. Every privilege the role holds directly in this database (tables, columns, functions it does not own (a session''s temporary invoker helpers aside), schemas, the database, types), with grant options, as sorted text. assert_seal_role_invariants() compares it with the exact list each seal role is granted.';
+ REVOKE ALL ON FUNCTION public.seal_role_privileges(text) FROM PUBLIC, tally_app, tally_core;
+ 
+ CREATE FUNCTION public.assert_seal_role_invariants() RETURNS void
+@@ -1271,12 +1278,17 @@
+         'tally_seal', '["column public.rate_items.updated_at UPDATE", "column public.rate_items.version UPDATE", "column public.rate_schedules.updated_at UPDATE", "column public.rate_schedules.version UPDATE", "column public.wna_zones.updated_at UPDATE", "column public.wna_zones.version UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.rate_items SELECT", "table public.rate_schedules SELECT", "table public.reference_version_receipts INSERT", "table public.reference_version_receipts SELECT", "table public.wna_zones SELECT"]'::jsonb,
+         'tally_void', '["column public.adhoc_charges.billed_at UPDATE", "column public.adhoc_charges.billed_on_invoice_id UPDATE", "column public.adhoc_charges.billed_on_line_item_id UPDATE", "column public.adhoc_charges.status UPDATE", "column public.adhoc_charges.target_billing_period UPDATE", "column public.adhoc_charges.updated_at UPDATE", "column public.adhoc_charges.voided_from_invoice_id UPDATE", "column public.invoices.status UPDATE", "column public.invoices.updated_at UPDATE", "column public.invoices.void_reason_code UPDATE", "column public.invoices.void_reason_notes UPDATE", "column public.invoices.void_rebill_expected UPDATE", "column public.invoices.voided_at UPDATE", "column public.invoices.voided_by UPDATE", "column public.meter_readings.locked_by_invoice_id UPDATE", "column public.meter_readings.validation_status UPDATE", "column public.meter_readings.voided_from_invoice_id UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.account_ledger INSERT", "table public.account_ledger SELECT", "table public.adhoc_charges SELECT", "table public.invoice_events INSERT", "table public.invoices SELECT", "table public.meter_readings SELECT"]'::jsonb);
+     -- Every guard of the two seals, by its exact definition, enabled ALWAYS
+-    -- (D-2026-08-20-27: a replication apply does not skip it).
++    -- (D-2026-08-20-27: a replication apply does not skip it). r3 (Opus S2):
++    -- with the version tables' bitemporal guards, which freeze a version
++    -- row's entity (the receipt guard reads NEW's entity on that basis).
+     c_triggers CONSTANT text[] := ARRAY['CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_items'', ''rate_item_id'')',
+         'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_schedules'', ''rate_schedule_id'')',
+         'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''wna_zones'', ''wna_zone_id'')',
+         'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''billed_on_invoice_id'')',
+         'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF locked_by_invoice_id ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''locked_by_invoice_id'')',
++        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''rate_item_id'', ''rate_items'')',
++        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''rate_schedule_id'', ''rate_schedules'')',
++        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''wna_zone_id'', ''wna_zones'')',
+         'CREATE TRIGGER a_stamp_reference_version_receipt BEFORE INSERT OR UPDATE ON public.reference_version_receipts FOR EACH ROW EXECUTE FUNCTION stamp_reference_version_receipt()',
+         'CREATE TRIGGER enforce_adhoc_charge_immutable BEFORE UPDATE ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_immutable()',
+         'CREATE TRIGGER enforce_invoice_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION enforce_invoice_immutable()',
+@@ -1419,6 +1431,32 @@
+             ERRCODE = 'invalid_grant_operation';
+     END IF;
+ 
++    -- r3 (Codex S1): PUBLIC, which every role inherits, holds no table or
++    -- column privilege in public, so the seal roles' privileges are exactly
++    -- their own lists above.
++    SELECT string_agg(DISTINCT c.relname, ', ') INTO v_bad
++      FROM pg_class c
++     WHERE c.relnamespace = 'public'::regnamespace
++       AND (EXISTS (SELECT 1 FROM aclexplode(c.relacl) a WHERE a.grantee = 0)
++            OR EXISTS (SELECT 1 FROM pg_attribute t, aclexplode(t.attacl) a
++                        WHERE t.attrelid = c.oid AND NOT t.attisdropped AND a.grantee = 0));
++    IF v_bad IS NOT NULL THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('PUBLIC holds a table or column privilege on %s: every role, the seal roles included, would inherit it (v5.4.2-20)', v_bad),
++            ERRCODE = 'invalid_grant_operation';
++    END IF;
++
++    -- r3 (Opus S1, Codex S2): the CHECK that keeps a billed charge on its bill.
++    IF NOT EXISTS (SELECT 1 FROM pg_constraint k
++                    WHERE k.conrelid = 'public.adhoc_charges'::regclass
++                      AND k.conname = 'adhoc_charges_billed_names_its_bill'
++                      AND k.contype = 'c' AND k.convalidated
++                      AND pg_get_constraintdef(k.oid) = 'CHECK (((status = ''billed''::text) = (billed_on_invoice_id IS NOT NULL)))') THEN
++        RAISE EXCEPTION USING
++            MESSAGE = 'adhoc_charges_billed_names_its_bill is missing, changed or not validated (v5.4.2-20)',
++            ERRCODE = 'invalid_grant_operation';
++    END IF;
++
+     -- Every guard, exactly as defined, enabled ALWAYS.
+     SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
+       FROM unnest(c_triggers) d
+@@ -1433,7 +1471,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.assert_seal_role_invariants() IS
+-    'v5.4.2-20 (r2). Raises unless: tally_seal and tally_void exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; no public function names the old void setting (a lexical test); and every guard of the two seals exists exactly as defined and ENABLE ALWAYS. Run in the patch tail and in CI.';
++    'v5.4.2-20 (r2). Raises unless: tally_seal and tally_void exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges, grant options included (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; no public function names the old void setting (a lexical test); every guard of the two seals exists exactly as defined and ENABLE ALWAYS; PUBLIC holds no table or column privilege in public; and adhoc_charges_billed_names_its_bill is present and validated. Run in the patch tail and in CI.';
+ REVOKE ALL ON FUNCTION public.assert_seal_role_invariants() FROM PUBLIC, tally_app, tally_core;
+ 
+ DO $$ BEGIN
+--- tests/v5.4.2-20/review/battery-20-frozen-r2.sql	2026-10-14 14:02:14
++++ tests/v5.4.2-20/review/battery-20-frozen-r3.sql	2026-10-14 14:15:05
+@@ -227,6 +227,8 @@
+   $q$UPDATE public.reference_version_receipts SET version = 99$q$, '23001', 'append-only');
+ SELECT pg_temp.refuses_at('S10f the owner deletes a receipt',
+   $q$DELETE FROM public.reference_version_receipts$q$, '23001', 'never hard-deleted');
++SELECT pg_temp.refuses_at('S10h the owner empties the receipts',
++  $q$TRUNCATE public.reference_version_receipts$q$, '23001', 'never hard-deleted');
+ -- (The owner supplies a wrong transaction and time, for an entity that does not exist; the database stamps over both.)
+ INSERT INTO public.reference_version_receipts (xact, header_table, entity_id, version, tenant_id, at)
+ VALUES ('1'::xid8, 'rate_items', '00000000-0000-4000-8000-0000000020fe', 99, '00000000-0000-4000-8000-0000000020a1', now() - interval '1 year');
+@@ -311,7 +313,7 @@
+   ('00000000-0000-4000-8000-000000002003', '00000000-0000-4000-8000-0000000020a1', 'I3', '00000000-0000-4000-8000-0000000020c1', '00000000-0000-4000-8000-0000000020d1', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 20.00),
+   ('00000000-0000-4000-8000-000000002008', '00000000-0000-4000-8000-0000000020a2', 'I8', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 80.00),
+   ('00000000-0000-4000-8000-000000002009', '00000000-0000-4000-8000-0000000020a2', 'I9', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 70.00);
+--- I1 carries a line, so the void meets the line and base guards too.
++-- I1 carries a line (the line and base guards exit on the void transition; the void must not trip them).
+ INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount) VALUES
+   ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002001', 'gas', 'base_charge', 'customer charge', 100.00);
+ UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-000000002001';
+--- tests/v5.4.2-20/review/seal-20-frozen-r2.sh	2026-10-14 14:02:14
++++ tests/v5.4.2-20/review/seal-20-frozen-r3.sh	2026-10-14 14:15:05
+@@ -25,7 +25,8 @@
+ #   T5   a committed version row is closed in a later transaction with no
+ #        check: refused (the guard fires on UPDATE as on INSERT).
+ #   T6   (r2) COPY by the application into a version table: refused.
+-#   T7   (r2) a void at REPEATABLE READ: refused before it locks anything.
++#   T7   (r2) a void at REPEATABLE READ: refused before it locks anything;
++#        T7b (r3) at SERIALIZABLE, and T7c inside a savepoint, the same.
+ # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
+ # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
+ # Runs against a THROWAWAY clone (it commits rows).
+@@ -234,5 +235,11 @@
+ one "T7 a void at REPEATABLE READ" "runs at READ COMMITTED" <<SQL
+ BEGIN ISOLATION LEVEL REPEATABLE READ; $APP $(void "$H2") COMMIT;
+ SQL
++one "T7b a void at SERIALIZABLE" "runs at READ COMMITTED" <<SQL
++BEGIN ISOLATION LEVEL SERIALIZABLE; $APP $(void "$H2") COMMIT;
++SQL
++one "T7c a void at REPEATABLE READ inside a savepoint" "runs at READ COMMITTED" <<SQL
++BEGIN ISOLATION LEVEL REPEATABLE READ; $APP SAVEPOINT s; $(void "$H2") COMMIT;
++SQL
+ 
+ exit $fail
+diff --git a/tests/v5.4.2-20/mutations-20.py b/tests/v5.4.2-20/mutations-20.py
+index 319216d..c60fcec 100644
+--- a/tests/v5.4.2-20/mutations-20.py
++++ b/tests/v5.4.2-20/mutations-20.py
+@@ -161,7 +161,7 @@ MUTATIONS = [
+      rep("    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF FOUND AND v_tenant IS DISTINCT FROM NEW.tenant_id THEN")),
+     ("M40", "the attach guard admits another tenant's bill", "V4f",
+      rep("    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF NOT FOUND THEN")),
+-    ("M41", "a pending charge may carry a bill pointer", "V4g",
++    ("M41", "a pending charge may carry a bill pointer (the CHECK is never made)", "APPLY:adhoc_charges_billed_names_its_bill is missing",
+      rep("ALTER TABLE public.adhoc_charges ADD CONSTRAINT adhoc_charges_billed_names_its_bill\n    CHECK ((status = 'billed') = (billed_on_invoice_id IS NOT NULL));\n", "")),
+     ("M42", "the void runs at any isolation level", "T7",
+      rep("    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "    IF false THEN")),
+@@ -175,6 +175,13 @@ MUTATIONS = [
+      tail("GRANT INSERT (header_table) ON public.reference_version_receipts TO tally_app;")),
+     ("M47", "a definer named like an RLS helper, elsewhere, is the core's", "APPLY:tally_core can execute SECURITY DEFINER",
+      tail("CREATE SCHEMA m47; CREATE FUNCTION m47.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = '' AS 'SELECT true'; GRANT USAGE ON SCHEMA m47 TO tally_core; GRANT EXECUTE ON FUNCTION m47.is_platform_admin() TO tally_core;")),
++    # ---- r3
++    ("M50", "a version table's bitemporal guard is disabled", "APPLY:a seal guard is missing, changed, or not ENABLE ALWAYS",
++     tail("ALTER TABLE public.wna_zone_versions DISABLE TRIGGER a_enforce_bitemporal_assertion;")),
++    ("M51", "the void's role may pass its grant on", "APPLY:holds other privileges than it is granted",
++     tail("GRANT SELECT ON public.invoices TO tally_void WITH GRANT OPTION;")),
++    ("M52", "PUBLIC holds a column privilege every role inherits", "APPLY:PUBLIC holds a table or column privilege",
++     tail("GRANT UPDATE (display_name) ON public.users TO PUBLIC;")),
+     ("M48", "the check's role owns an overload of its function", "APPLY:which is not one of its pinned SECURITY DEFINER",
+      tail("CREATE FUNCTION public.assert_reference_version(p_table text, p_id uuid) RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS 'SELECT 1'; ALTER FUNCTION public.assert_reference_version(text, uuid) OWNER TO tally_seal; REVOKE ALL ON FUNCTION public.assert_reference_version(text, uuid) FROM PUBLIC, tally_app;")),
+ ]
+@@ -184,6 +191,11 @@ def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
+     return subprocess.run(cmd, input=inp, capture_output=True, text=True)
+ 
+ 
++def sh_ordered(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
++    """stdout and stderr in one stream, in the order written (r3, Codex S3)."""
++    return subprocess.run(cmd, input=inp, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
++
++
+ def runner(check: str) -> tuple[list[str], str | None]:
+     if re.fullmatch(r"(RC\d|T\d)", check):
+         return [str(HERE / "races/seal-20.sh"), DB], None
+@@ -205,10 +217,14 @@ def main() -> int:
+             print(f"{mid} ANCHOR-ERROR: {exc}")
+             missed += 1
+             continue
+-        for q in (f"DROP DATABASE IF EXISTS {DB}", f"CREATE DATABASE {DB} TEMPLATE tally"):
+-            sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", "postgres", "-qc", q])
++        setup = [sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-qc", q])
++                 for q in (f"DROP DATABASE IF EXISTS {DB}", f"CREATE DATABASE {DB} TEMPLATE tally")]
+         # A TEMPLATE clone does not copy the database ACL: revoke TEMP again.
+-        sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-qc", f"REVOKE TEMP ON DATABASE {DB} FROM PUBLIC, tally_app, tally_core"])
++        setup.append(sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-qc", f"REVOKE TEMP ON DATABASE {DB} FROM PUBLIC, tally_app, tally_core"]))
++        if any(x.returncode for x in setup):
++            print(f"{mid} SETUP-ERROR: {next(x.stderr.strip() for x in setup if x.returncode)[:140]}")
++            missed += 1
++            continue
+         a = sh(["docker", "exec", "-i", "-e", "PGOPTIONS=-c search_path= -c check_function_bodies=on", "tally-pg",
+                 "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"], patched)
+         if a.returncode:
+@@ -228,11 +244,12 @@ def main() -> int:
+             missed += 1
+             continue
+         cmd, inp = runner(check)
+-        out = sh(cmd, inp)
+-        text = out.stdout + out.stderr
++        out = sh_ordered(cmd, inp)
++        text = out.stdout
+         first = next((l for l in text.splitlines() if "FAIL" in l or "ERROR" in l), "")
+         first = re.sub(r"^psql:[^:]+:\d+: ", "", first)[:140]
+-        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"FAIL [A-Z]+\d", l)]
++        # The first line that reports any failure, infrastructure errors included, must be the named check's.
++        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"FAIL [A-Z]+\d|ERROR|SETUP FAIL", l)]
+         if fails and re.match(rf"FAIL {re.escape(check)}[a-z]?[:\s]", fails[0]):
+             print(f"{mid} caught at {check}: {what}")
+         else:

@@ -227,6 +227,8 @@ SELECT pg_temp.refuses_at('S10e the owner edits a receipt',
   $q$UPDATE public.reference_version_receipts SET version = 99$q$, '23001', 'append-only');
 SELECT pg_temp.refuses_at('S10f the owner deletes a receipt',
   $q$DELETE FROM public.reference_version_receipts$q$, '23001', 'never hard-deleted');
+SELECT pg_temp.refuses_at('S10h the owner empties the receipts',
+  $q$TRUNCATE public.reference_version_receipts$q$, '23001', 'never hard-deleted');
 -- (The owner supplies a wrong transaction and time, for an entity that does not exist; the database stamps over both.)
 INSERT INTO public.reference_version_receipts (xact, header_table, entity_id, version, tenant_id, at)
 VALUES ('1'::xid8, 'rate_items', '00000000-0000-4000-8000-0000000020fe', 99, '00000000-0000-4000-8000-0000000020a1', now() - interval '1 year');
@@ -311,7 +313,7 @@ INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, locatio
   ('00000000-0000-4000-8000-000000002003', '00000000-0000-4000-8000-0000000020a1', 'I3', '00000000-0000-4000-8000-0000000020c1', '00000000-0000-4000-8000-0000000020d1', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 20.00),
   ('00000000-0000-4000-8000-000000002008', '00000000-0000-4000-8000-0000000020a2', 'I8', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 80.00),
   ('00000000-0000-4000-8000-000000002009', '00000000-0000-4000-8000-0000000020a2', 'I9', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 70.00);
--- I1 carries a line, so the void meets the line and base guards too.
+-- I1 carries a line (the line and base guards exit on the void transition; the void must not trip them).
 INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount) VALUES
   ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002001', 'gas', 'base_charge', 'customer charge', 100.00);
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-000000002001';

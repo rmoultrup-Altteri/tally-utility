@@ -25,7 +25,8 @@
 #   T5   a committed version row is closed in a later transaction with no
 #        check: refused (the guard fires on UPDATE as on INSERT).
 #   T6   (r2) COPY by the application into a version table: refused.
-#   T7   (r2) a void at REPEATABLE READ: refused before it locks anything.
+#   T7   (r2) a void at REPEATABLE READ: refused before it locks anything;
+#        T7b (r3) at SERIALIZABLE, and T7c inside a savepoint, the same.
 # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -233,6 +234,12 @@ $T	$Z	Z	2026-01-01	initial
 SQL
 one "T7 a void at REPEATABLE READ" "runs at READ COMMITTED" <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ; $APP $(void "$H2") COMMIT;
+SQL
+one "T7b a void at SERIALIZABLE" "runs at READ COMMITTED" <<SQL
+BEGIN ISOLATION LEVEL SERIALIZABLE; $APP $(void "$H2") COMMIT;
+SQL
+one "T7c a void at REPEATABLE READ inside a savepoint" "runs at READ COMMITTED" <<SQL
+BEGIN ISOLATION LEVEL REPEATABLE READ; $APP SAVEPOINT s; $(void "$H2") COMMIT;
 SQL
 
 exit $fail

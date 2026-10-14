@@ -161,7 +161,7 @@ MUTATIONS = [
      rep("    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF FOUND AND v_tenant IS DISTINCT FROM NEW.tenant_id THEN")),
     ("M40", "the attach guard admits another tenant's bill", "V4f",
      rep("    IF NOT FOUND OR v_tenant IS DISTINCT FROM NEW.tenant_id THEN", "    IF NOT FOUND THEN")),
-    ("M41", "a pending charge may carry a bill pointer", "V4g",
+    ("M41", "a pending charge may carry a bill pointer (the CHECK is never made)", "APPLY:adhoc_charges_billed_names_its_bill is missing",
      rep("ALTER TABLE public.adhoc_charges ADD CONSTRAINT adhoc_charges_billed_names_its_bill\n    CHECK ((status = 'billed') = (billed_on_invoice_id IS NOT NULL));\n", "")),
     ("M42", "the void runs at any isolation level", "T7",
      rep("    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "    IF false THEN")),
@@ -175,6 +175,13 @@ MUTATIONS = [
      tail("GRANT INSERT (header_table) ON public.reference_version_receipts TO tally_app;")),
     ("M47", "a definer named like an RLS helper, elsewhere, is the core's", "APPLY:tally_core can execute SECURITY DEFINER",
      tail("CREATE SCHEMA m47; CREATE FUNCTION m47.is_platform_admin() RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path = '' AS 'SELECT true'; GRANT USAGE ON SCHEMA m47 TO tally_core; GRANT EXECUTE ON FUNCTION m47.is_platform_admin() TO tally_core;")),
+    # ---- r3
+    ("M50", "a version table's bitemporal guard is disabled", "APPLY:a seal guard is missing, changed, or not ENABLE ALWAYS",
+     tail("ALTER TABLE public.wna_zone_versions DISABLE TRIGGER a_enforce_bitemporal_assertion;")),
+    ("M51", "the void's role may pass its grant on", "APPLY:holds other privileges than it is granted",
+     tail("GRANT SELECT ON public.invoices TO tally_void WITH GRANT OPTION;")),
+    ("M52", "PUBLIC holds a column privilege every role inherits", "APPLY:PUBLIC holds a table or column privilege",
+     tail("GRANT UPDATE (display_name) ON public.users TO PUBLIC;")),
     ("M48", "the check's role owns an overload of its function", "APPLY:which is not one of its pinned SECURITY DEFINER",
      tail("CREATE FUNCTION public.assert_reference_version(p_table text, p_id uuid) RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS 'SELECT 1'; ALTER FUNCTION public.assert_reference_version(text, uuid) OWNER TO tally_seal; REVOKE ALL ON FUNCTION public.assert_reference_version(text, uuid) FROM PUBLIC, tally_app;")),
 ]
@@ -182,6 +189,11 @@ MUTATIONS = [
 
 def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, input=inp, capture_output=True, text=True)
+
+
+def sh_ordered(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
+    """stdout and stderr in one stream, in the order written (r3, Codex S3)."""
+    return subprocess.run(cmd, input=inp, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
 def runner(check: str) -> tuple[list[str], str | None]:
@@ -205,10 +217,14 @@ def main() -> int:
             print(f"{mid} ANCHOR-ERROR: {exc}")
             missed += 1
             continue
-        for q in (f"DROP DATABASE IF EXISTS {DB}", f"CREATE DATABASE {DB} TEMPLATE tally"):
-            sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", "postgres", "-qc", q])
+        setup = [sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-qc", q])
+                 for q in (f"DROP DATABASE IF EXISTS {DB}", f"CREATE DATABASE {DB} TEMPLATE tally")]
         # A TEMPLATE clone does not copy the database ACL: revoke TEMP again.
-        sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-qc", f"REVOKE TEMP ON DATABASE {DB} FROM PUBLIC, tally_app, tally_core"])
+        setup.append(sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-qc", f"REVOKE TEMP ON DATABASE {DB} FROM PUBLIC, tally_app, tally_core"]))
+        if any(x.returncode for x in setup):
+            print(f"{mid} SETUP-ERROR: {next(x.stderr.strip() for x in setup if x.returncode)[:140]}")
+            missed += 1
+            continue
         a = sh(["docker", "exec", "-i", "-e", "PGOPTIONS=-c search_path= -c check_function_bodies=on", "tally-pg",
                 "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"], patched)
         if a.returncode:
@@ -228,11 +244,12 @@ def main() -> int:
             missed += 1
             continue
         cmd, inp = runner(check)
-        out = sh(cmd, inp)
-        text = out.stdout + out.stderr
+        out = sh_ordered(cmd, inp)
+        text = out.stdout
         first = next((l for l in text.splitlines() if "FAIL" in l or "ERROR" in l), "")
         first = re.sub(r"^psql:[^:]+:\d+: ", "", first)[:140]
-        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"FAIL [A-Z]+\d", l)]
+        # The first line that reports any failure, infrastructure errors included, must be the named check's.
+        fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"FAIL [A-Z]+\d|ERROR|SETUP FAIL", l)]
         if fails and re.match(rf"FAIL {re.escape(check)}[a-z]?[:\s]", fails[0]):
             print(f"{mid} caught at {check}: {what}")
         else:

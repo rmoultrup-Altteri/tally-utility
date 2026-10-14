@@ -21,6 +21,13 @@
 --   column-level and minimal (F6); the lock-order note states the deadlock
 --   a caller can meet (F7).
 --
+-- Revision r3 (review round 2: Opus, Fable ready, Codex approve; their
+--   should-fix items): the invariant also asserts the billed-names-its-bill
+--   CHECK and the version tables' bitemporal guards, counts grant options,
+--   and refuses any table or column privilege held by PUBLIC (which every
+--   role inherits); the temporary-schema exclusion covers non-definer
+--   functions only.
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -1221,34 +1228,34 @@ CREATE FUNCTION public.seal_role_privileges(p_role text) RETURNS text[]
     SET search_path = public, pg_temp
     AS $$
     SELECT coalesce(array_agg(g ORDER BY g), '{}') FROM (
-        SELECT 'table ' || n.nspname || '.' || c.relname || ' ' || a.privilege_type AS g
+        SELECT 'table ' || n.nspname || '.' || c.relname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END AS g
           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(c.relacl) a
          WHERE a.grantee = p_role::regrole
         UNION ALL
-        SELECT 'column ' || n.nspname || '.' || c.relname || '.' || t.attname || ' ' || a.privilege_type
+        SELECT 'column ' || n.nspname || '.' || c.relname || '.' || t.attname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
           FROM pg_attribute t JOIN pg_class c ON c.oid = t.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(t.attacl) a
          WHERE a.grantee = p_role::regrole AND NOT t.attisdropped
         UNION ALL
-        SELECT 'function ' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') ' || a.privilege_type
+        SELECT 'function ' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
           FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace, aclexplode(p.proacl) a
          WHERE a.grantee = p_role::regrole AND p.proowner <> p_role::regrole
-           AND n.nspname NOT LIKE 'pg\_temp\_%'   -- a session's own temporary functions die with it
+           AND NOT (n.nspname LIKE 'pg\_temp\_%' AND NOT p.prosecdef)   -- a session's own invoker helpers die with it
         UNION ALL
-        SELECT 'schema ' || n.nspname || ' ' || a.privilege_type
+        SELECT 'schema ' || n.nspname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
           FROM pg_namespace n, aclexplode(n.nspacl) a
          WHERE a.grantee = p_role::regrole
         UNION ALL
-        SELECT 'database ' || d.datname || ' ' || a.privilege_type
+        SELECT 'database ' || d.datname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
           FROM pg_database d, aclexplode(d.datacl) a
          WHERE a.grantee = p_role::regrole AND d.datname = current_database()
         UNION ALL
-        SELECT 'type ' || n.nspname || '.' || y.typname || ' ' || a.privilege_type
+        SELECT 'type ' || n.nspname || '.' || y.typname || ' ' || a.privilege_type || CASE WHEN a.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END
           FROM pg_type y JOIN pg_namespace n ON n.oid = y.typnamespace, aclexplode(y.typacl) a
          WHERE a.grantee = p_role::regrole
     ) x;
 $$;
 COMMENT ON FUNCTION public.seal_role_privileges(text) IS
-    'v5.4.2-20 r2. Every privilege the role holds directly in this database (tables, columns, functions it does not own outside a session''s temporary schema, schemas, the database, types), as sorted text. assert_seal_role_invariants() compares it with the exact list each seal role is granted.';
+    'v5.4.2-20 r2. Every privilege the role holds directly in this database (tables, columns, functions it does not own (a session''s temporary invoker helpers aside), schemas, the database, types), with grant options, as sorted text. assert_seal_role_invariants() compares it with the exact list each seal role is granted.';
 REVOKE ALL ON FUNCTION public.seal_role_privileges(text) FROM PUBLIC, tally_app, tally_core;
 
 CREATE FUNCTION public.assert_seal_role_invariants() RETURNS void
@@ -1271,12 +1278,17 @@ DECLARE
         'tally_seal', '["column public.rate_items.updated_at UPDATE", "column public.rate_items.version UPDATE", "column public.rate_schedules.updated_at UPDATE", "column public.rate_schedules.version UPDATE", "column public.wna_zones.updated_at UPDATE", "column public.wna_zones.version UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.rate_items SELECT", "table public.rate_schedules SELECT", "table public.reference_version_receipts INSERT", "table public.reference_version_receipts SELECT", "table public.wna_zones SELECT"]'::jsonb,
         'tally_void', '["column public.adhoc_charges.billed_at UPDATE", "column public.adhoc_charges.billed_on_invoice_id UPDATE", "column public.adhoc_charges.billed_on_line_item_id UPDATE", "column public.adhoc_charges.status UPDATE", "column public.adhoc_charges.target_billing_period UPDATE", "column public.adhoc_charges.updated_at UPDATE", "column public.adhoc_charges.voided_from_invoice_id UPDATE", "column public.invoices.status UPDATE", "column public.invoices.updated_at UPDATE", "column public.invoices.void_reason_code UPDATE", "column public.invoices.void_reason_notes UPDATE", "column public.invoices.void_rebill_expected UPDATE", "column public.invoices.voided_at UPDATE", "column public.invoices.voided_by UPDATE", "column public.meter_readings.locked_by_invoice_id UPDATE", "column public.meter_readings.validation_status UPDATE", "column public.meter_readings.voided_from_invoice_id UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.account_ledger INSERT", "table public.account_ledger SELECT", "table public.adhoc_charges SELECT", "table public.invoice_events INSERT", "table public.invoices SELECT", "table public.meter_readings SELECT"]'::jsonb);
     -- Every guard of the two seals, by its exact definition, enabled ALWAYS
-    -- (D-2026-08-20-27: a replication apply does not skip it).
+    -- (D-2026-08-20-27: a replication apply does not skip it). r3 (Opus S2):
+    -- with the version tables' bitemporal guards, which freeze a version
+    -- row's entity (the receipt guard reads NEW's entity on that basis).
     c_triggers CONSTANT text[] := ARRAY['CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_items'', ''rate_item_id'')',
         'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_schedules'', ''rate_schedule_id'')',
         'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''wna_zones'', ''wna_zone_id'')',
         'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''billed_on_invoice_id'')',
         'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF locked_by_invoice_id ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''locked_by_invoice_id'')',
+        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''rate_item_id'', ''rate_items'')',
+        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''rate_schedule_id'', ''rate_schedules'')',
+        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''wna_zone_id'', ''wna_zones'')',
         'CREATE TRIGGER a_stamp_reference_version_receipt BEFORE INSERT OR UPDATE ON public.reference_version_receipts FOR EACH ROW EXECUTE FUNCTION stamp_reference_version_receipt()',
         'CREATE TRIGGER enforce_adhoc_charge_immutable BEFORE UPDATE ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_immutable()',
         'CREATE TRIGGER enforce_invoice_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION enforce_invoice_immutable()',
@@ -1419,6 +1431,32 @@ BEGIN
             ERRCODE = 'invalid_grant_operation';
     END IF;
 
+    -- r3 (Codex S1): PUBLIC, which every role inherits, holds no table or
+    -- column privilege in public, so the seal roles' privileges are exactly
+    -- their own lists above.
+    SELECT string_agg(DISTINCT c.relname, ', ') INTO v_bad
+      FROM pg_class c
+     WHERE c.relnamespace = 'public'::regnamespace
+       AND (EXISTS (SELECT 1 FROM aclexplode(c.relacl) a WHERE a.grantee = 0)
+            OR EXISTS (SELECT 1 FROM pg_attribute t, aclexplode(t.attacl) a
+                        WHERE t.attrelid = c.oid AND NOT t.attisdropped AND a.grantee = 0));
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('PUBLIC holds a table or column privilege on %s: every role, the seal roles included, would inherit it (v5.4.2-20)', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
+    -- r3 (Opus S1, Codex S2): the CHECK that keeps a billed charge on its bill.
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint k
+                    WHERE k.conrelid = 'public.adhoc_charges'::regclass
+                      AND k.conname = 'adhoc_charges_billed_names_its_bill'
+                      AND k.contype = 'c' AND k.convalidated
+                      AND pg_get_constraintdef(k.oid) = 'CHECK (((status = ''billed''::text) = (billed_on_invoice_id IS NOT NULL)))') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = 'adhoc_charges_billed_names_its_bill is missing, changed or not validated (v5.4.2-20)',
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
     -- Every guard, exactly as defined, enabled ALWAYS.
     SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
       FROM unnest(c_triggers) d
@@ -1433,7 +1471,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.assert_seal_role_invariants() IS
-    'v5.4.2-20 (r2). Raises unless: tally_seal and tally_void exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; no public function names the old void setting (a lexical test); and every guard of the two seals exists exactly as defined and ENABLE ALWAYS. Run in the patch tail and in CI.';
+    'v5.4.2-20 (r2). Raises unless: tally_seal and tally_void exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges, grant options included (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; no public function names the old void setting (a lexical test); every guard of the two seals exists exactly as defined and ENABLE ALWAYS; PUBLIC holds no table or column privilege in public; and adhoc_charges_billed_names_its_bill is present and validated. Run in the patch tail and in CI.';
 REVOKE ALL ON FUNCTION public.assert_seal_role_invariants() FROM PUBLIC, tally_app, tally_core;
 
 DO $$ BEGIN
