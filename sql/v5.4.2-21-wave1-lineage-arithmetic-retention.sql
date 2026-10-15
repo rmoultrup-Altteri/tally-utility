@@ -31,6 +31,10 @@
 --   (Fable B1); binding or switching a platform administrator takes a
 --   platform administrator (Opus B1).
 --
+-- Revision r4 (review round 3: Opus, Fable "not yet" on the same item):
+--   taking a user out of tenant_admin or platform_admin is switching it off,
+--   and is guarded as such (Opus B1, Fable B1).
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -137,6 +141,14 @@
 --   R9. line_item_carries_base, the surcharge sibling's base rule, still
 --       classifies at the period end, not a correction's elected date
 --       (Fable r2, pre-existing); a follow-up.
+--   R10. "Current knowledge" is the issuing transaction's start (now()), as
+--       for the surcharge sibling: a reclassification committed while the
+--       issuance is open is not seen (Codex r3 N3). A historical-mode rebill
+--       of an item reclassified since must carry the figures its current
+--       class needs, and an item whose version at the date was retracted
+--       with no replacement cannot be reissued at all — only rebilled at
+--       current knowledge (Opus r3, Codex r3 N2). The fail-safe side, by
+--       ruling.
 --
 -- Tests. battery-21 (one row per requirement), races/labels-21.sh, and
 --   mutations-21.py. The invariants assert_no_hard_delete_invariants() and
@@ -1040,8 +1052,13 @@ BEGIN
     IF current_user <> 'tally_app' THEN
         RETURN NEW;
     END IF;
+    -- r4 (Opus r3 B1, Fable r3 B1): a demotion switches an administrator off
+    -- as surely as is_active does; taking a user out of tenant_admin or
+    -- platform_admin is guarded as switching it off. (Granting a role is the
+    -- -13 grant guards'.)
     IF NOT ((TG_OP = 'INSERT' AND NEW.cognito_sub IS NOT NULL)
-            OR (TG_OP = 'UPDATE' AND (NEW.cognito_sub IS DISTINCT FROM OLD.cognito_sub OR NEW.is_active IS DISTINCT FROM OLD.is_active))) THEN
+            OR (TG_OP = 'UPDATE' AND (NEW.cognito_sub IS DISTINCT FROM OLD.cognito_sub OR NEW.is_active IS DISTINCT FROM OLD.is_active
+                                      OR (OLD.role IN ('tenant_admin', 'platform_admin') AND NEW.role IS DISTINCT FROM OLD.role)))) THEN
         RETURN NEW;
     END IF;
     -- r3 (Opus r2 B1): a platform administrator is bound, revived or switched
@@ -1051,22 +1068,22 @@ BEGIN
     IF NEW.role = 'platform_admin' OR (TG_OP = 'UPDATE' AND OLD.role = 'platform_admin') THEN
         IF NOT public.is_platform_admin() THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('user %s: only a platform administrator binds a platform administrator''s identity or switches one on or off (R1, v5.4.2-21)', NEW.id),
+                MESSAGE = format('user %s: only a platform administrator binds a platform administrator''s identity, switches one on or off, or demotes one (R1, v5.4.2-21)', NEW.id),
                 ERRCODE = 'insufficient_privilege';
         END IF;
     ELSIF NOT public.session_is_supervisor() THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('user %s: only a supervisor (tenant_admin or platform administrator) binds a Cognito identity or switches a user on or off — a session that could bind or revive an administrator could promote itself (R1, v5.4.2-21)', NEW.id),
+            MESSAGE = format('user %s: only a supervisor (tenant_admin or platform administrator) binds a Cognito identity, switches a user on or off, or demotes a tenant_admin — a session that could bind or revive an administrator could promote itself (R1, v5.4.2-21)', NEW.id),
             ERRCODE = 'insufficient_privilege';
     END IF;
     RETURN NEW;
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_user_binding_by_supervisor() IS
-    'v5.4.2-21 r2 (R1). BEFORE INSERT OR UPDATE OF cognito_sub, is_active on users: for tally_app, binding a Cognito identity (on insert or update) and changing is_active either way require session_is_supervisor(), and is_platform_admin() when the user is (or was) a platform administrator (r3). Other roles (the owner''s load or repair) stand aside, as in enforce_tenant_admin_grant.';
+    'v5.4.2-21 r2 (R1). BEFORE INSERT OR UPDATE OF cognito_sub, is_active, role on users: for tally_app, binding a Cognito identity (on insert or update), changing is_active either way, and taking a user out of tenant_admin or platform_admin (r4) require session_is_supervisor(), and is_platform_admin() when the user is (or was) a platform administrator (r3). Other roles (the owner''s load or repair) stand aside, as in enforce_tenant_admin_grant.';
 REVOKE ALL ON FUNCTION public.enforce_user_binding_by_supervisor() FROM PUBLIC, tally_app, tally_core;
 DROP TRIGGER IF EXISTS a_enforce_user_binding_by_supervisor ON public.users;
-CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active ON public.users
+CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active, role ON public.users
     FOR EACH ROW EXECUTE FUNCTION public.enforce_user_binding_by_supervisor();
 ALTER TABLE public.users ENABLE ALWAYS TRIGGER a_enforce_user_binding_by_supervisor;
 
@@ -1416,7 +1433,7 @@ DECLARE
         'CREATE CONSTRAINT TRIGGER enforce_invoice_line_arithmetic AFTER INSERT OR UPDATE ON public.invoices DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_invoice_line_arithmetic()',
         'CREATE TRIGGER a_enforce_adhoc_charge_born_unvoided BEFORE INSERT ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_born_unvoided()',
         'CREATE TRIGGER a_enforce_user_cognito_sub_write_once BEFORE UPDATE OF cognito_sub ON public.users FOR EACH ROW EXECUTE FUNCTION enforce_user_cognito_sub_write_once()',
-        'CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active ON public.users FOR EACH ROW EXECUTE FUNCTION enforce_user_binding_by_supervisor()',
+        'CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active, role ON public.users FOR EACH ROW EXECUTE FUNCTION enforce_user_binding_by_supervisor()',
         'CREATE TRIGGER a_enforce_rate_item_dependency BEFORE INSERT OR UPDATE ON public.rate_item_dependencies FOR EACH ROW EXECUTE FUNCTION enforce_rate_item_dependency()'];
 BEGIN
     SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad

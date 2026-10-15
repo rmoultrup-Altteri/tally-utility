@@ -671,11 +671,22 @@ SELECT pg_temp.refuses_at('U3h a tenant administrator revives a platform adminis
   $q$UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021ba'$q$, '42501', 'only a platform administrator');
 SELECT pg_temp.refuses_at('U3i a tenant administrator switches a platform administrator off',
   $q$UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021b9'$q$, '42501', 'only a platform administrator');
+SELECT pg_temp.refuses_at('U3k a tenant administrator demotes a platform administrator',
+  $q$UPDATE public.users SET role = 'operator' WHERE id = '00000000-0000-4000-8000-0000000021b9'$q$, '42501', 'only a platform administrator');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+SELECT pg_temp.refuses_at('U3l an operator demotes its tenant administrator',
+  $q$UPDATE public.users SET role = 'operator' WHERE id = '00000000-0000-4000-8000-0000000021b4'$q$, '42501', 'only a supervisor');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b9', true);
-SELECT pg_temp.admits('U3j a platform administrator revives one, and switches it off again',
-  $q$UPDATE public.users SET is_active = NOT is_active WHERE id = '00000000-0000-4000-8000-0000000021ba'$q$);
+UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021ba';
+SELECT pg_temp.ok('U3j a platform administrator revives one',
+  (SELECT is_active FROM public.users WHERE id = '00000000-0000-4000-8000-0000000021ba'));
 UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021ba';
+SELECT pg_temp.ok('U3j … and switches it off again',
+  (SELECT NOT is_active FROM public.users WHERE id = '00000000-0000-4000-8000-0000000021ba'));
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b4', true);
+UPDATE public.users SET role = 'operator' WHERE id = '00000000-0000-4000-8000-0000000021b6';
+SELECT pg_temp.ok('U3m a supervisor demotes a tenant administrator',
+  (SELECT role = 'operator' FROM public.users WHERE id = '00000000-0000-4000-8000-0000000021b6'));
 RESET ROLE;
 SELECT pg_temp.admits('U1f a superuser repairs a binding',
   $q$UPDATE public.users SET cognito_sub = 'sub-op1-repaired' WHERE id = '00000000-0000-4000-8000-0000000021b1'$q$);

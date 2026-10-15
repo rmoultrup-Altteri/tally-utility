@@ -100,7 +100,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - Format: `^[0-9A-Za-z_-]{1,128}$`.
   - Nullable: service users (AC-43) have none.
   - Write-once: once set, it never changes or clears (trigger, ENABLE ALWAYS).
-- **U3 (r2, F4; r3).** For `tally_app`, binding a Cognito identity (insert or update) and changing `is_active` either way require `session_is_supervisor()`. When the user is, or was, a platform administrator, they require `is_platform_admin()` (Opus r2 B1). A user is bound when a supervisor provisions it. The owner (a superuser load or repair) stands aside, and may also repair a binding (F13).
+- **U3 (r2, F4; r3).** For `tally_app`, binding a Cognito identity (insert or update) and changing `is_active` either way require `session_is_supervisor()`. When the user is, or was, a platform administrator, they require `is_platform_admin()` (Opus r2 B1). Taking a user out of tenant_admin or platform_admin is switching it off and is guarded the same way (r4; Opus r3 B1, Fable r3 B1). A user is bound when a supervisor provisions it. The owner (a superuser load or repair) stands aside, and may also repair a binding (F13).
 - **U2.** `get_user_tenant_id()` and `is_platform_admin()` require `is_active`. A deactivated user's `app.user_id` sees no tenant row.
   - Same signatures, owners and grants; still SECURITY DEFINER, pinned to `''`.
 

@@ -140,7 +140,8 @@ SQL
 if echo "$OUT" | grep -q "closes a cycle"; then echo "PASS LR5 A on B re-added while B on A is live: refused"
 else echo "FAIL LR5: $OUT"; fail=1; fi
 
-# LR6: A holds a customers write longer than the guard waits.
+# LR6: A holds a write longer than the guard waits; B is seen blocked by A,
+# gives up after 5 s (55P03), and its own lock_timeout survives (r4, Codex r3 S1).
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 SET application_name = 'race21_a';
 BEGIN;
@@ -152,20 +153,30 @@ SQL
 APID=$!
 sleep 1
 T0=$(date +%s)
-OUT=$("${PSQL[@]}" 2>&1 <<SQL
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
 SET application_name = 'race21_b';
 BEGIN;
 $APP
-DELETE FROM public.custom_field_definitions WHERE id = '$K4';
+SET LOCAL lock_timeout = '1700ms';
+DO \$\$ BEGIN
+  DELETE FROM public.custom_field_definitions WHERE id = '$K4';
+EXCEPTION WHEN lock_not_available THEN
+  RAISE NOTICE 'TIMEOUT 55P03, lock_timeout now %', current_setting('lock_timeout');
+END \$\$;
 COMMIT;
 SQL
-)
+BPID=$!
+sleep 1
+WAITED=$(waiting)
+wait $BPID
 EL=$(( $(date +%s) - T0 ))
 wait $APID
-if echo "$OUT" | grep -q "55P03" && [ "$EL" -ge 4 ] && [ "$EL" -le 7 ]; then echo "PASS LR6 a label delete gives up after its lock wait (${EL}s)"
-else echo "FAIL LR6: after ${EL}s: $OUT"; fail=1; fi
+OUT=$(cat "$B_OUT")
+if [ "$WAITED" -ge 1 ] && echo "$OUT" | grep -q "TIMEOUT 55P03, lock_timeout now 1700ms" && [ "$EL" -ge 4 ] && [ "$EL" -le 7 ]; then echo "PASS LR6 a label delete blocked by a writer gives up after its lock wait; the caller's setting survives (${EL}s)"
+else echo "FAIL LR6: waited=$WAITED after ${EL}s: $OUT"; fail=1; fi
 
-# LR7: the location-type branch.
+# LR7: A holds a write longer than the guard waits; B is seen blocked by A,
+# gives up after 5 s (55P03), and its own lock_timeout survives (r4, Codex r3 S1).
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 SET application_name = 'race21_a';
 BEGIN;
@@ -177,18 +188,27 @@ SQL
 APID=$!
 sleep 1
 T0=$(date +%s)
-OUT=$("${PSQL[@]}" 2>&1 <<SQL
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
 SET application_name = 'race21_b';
 BEGIN;
 $APP
-DELETE FROM public.custom_location_types WHERE id = '$K5';
+SET LOCAL lock_timeout = '1700ms';
+DO \$\$ BEGIN
+  DELETE FROM public.custom_location_types WHERE id = '$K5';
+EXCEPTION WHEN lock_not_available THEN
+  RAISE NOTICE 'TIMEOUT 55P03, lock_timeout now %', current_setting('lock_timeout');
+END \$\$;
 COMMIT;
 SQL
-)
+BPID=$!
+sleep 1
+WAITED=$(waiting)
+wait $BPID
 EL=$(( $(date +%s) - T0 ))
 wait $APID
-if echo "$OUT" | grep -q "55P03" && [ "$EL" -ge 4 ] && [ "$EL" -le 7 ]; then echo "PASS LR7 a location-type delete gives up after its lock wait (${EL}s)"
-else echo "FAIL LR7: after ${EL}s: $OUT"; fail=1; fi
+OUT=$(cat "$B_OUT")
+if [ "$WAITED" -ge 1 ] && echo "$OUT" | grep -q "TIMEOUT 55P03, lock_timeout now 1700ms" && [ "$EL" -ge 4 ] && [ "$EL" -le 7 ]; then echo "PASS LR7 the same for a location type against a writer of service_locations (${EL}s)"
+else echo "FAIL LR7: waited=$WAITED after ${EL}s: $OUT"; fail=1; fi
 
 # AR1: T0 — the rider is fixed; a bill is drafted with a rider line and no figures.
 "${PSQL[@]}" >/dev/null <<SQL || { echo "FAIL AR1: setup T0"; fail=1; }
