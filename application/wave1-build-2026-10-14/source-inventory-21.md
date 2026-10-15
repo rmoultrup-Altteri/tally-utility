@@ -22,6 +22,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   Existing `no_truncate` triggers are replaced in place.
 - **D2.** `tally_app` loses DELETE and TRUNCATE on the 16.
 - **D3.** The 6 bill tables and the 4 import/housekeeping tables are untouched (DL CI-014).
+- **D5 (r2, F10).** `assert_wave1_guard_invariants()` checks the arithmetic, born-unvoided, Cognito write-once, supervisor and dependency guards, by exact definition and ENABLE ALWAYS. The retention invariant also checks the labels' key freeze and `no_truncate`.
 - **D4.** An invariant (`assert_no_hard_delete_invariants()`, patch tail and CI) fails if:
   - any of the 16 lacks either trigger, or has one not ENABLE ALWAYS;
   - `tally_app` holds DELETE on a public table outside the 12 deletable.
@@ -38,6 +39,8 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - **Deadlock:** a transaction that writes the entity table and then deletes the same label can deadlock with another delete of that label; PostgreSQL aborts one (40P01).
 - **L4.** The guard is invoker-rights, so RLS applies. A caller sees only its tenant's rows, and RLS hides another tenant's label from its DELETE in the first place.
 - **L5.** `no_truncate` on both tables; `tally_app` loses TRUNCATE if held. Both guards ENABLE ALWAYS.
+- **L6 (r2, F3).** A label's key is write-once for every role: `tenant_id`, `entity_type` and `field_key` on definitions, `tenant_id` and `type_key` on location types. A rename is a new label plus an archived old one.
+- **L7 (r2, F8).** The guard waits at most 5 s for its lock (55P03). It is a deletion-time check, not referential integrity: a write after the delete may still use the key.
 
 ## K: rate dependencies are retired, not deleted (CI-014 drafting, -19 R4)
 
@@ -46,7 +49,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - CHECK: the reason holds at least one `[[:alnum:]]` (memory `blank-checks-whitelist-alnum`).
 - **K2.** An insert is born live: all three are NULL.
 - **K3.** An UPDATE may do one thing only: retire a live dependency.
-  - The database stamps `retired_at := now()`; the caller's value is ignored.
+  - The database stamps `retired_at := now()` and `retired_by` from `app.user_id` (r2, F9); the caller's values are ignored.
   - Every other column is write-once, and a retirement is permanent.
 - **K4.** The UNIQUE `(rate_schedule_id, dependent_rate_item_id, base_rate_item_id)` becomes a unique index on live rows only, so a retired edge can be re-added.
 - **K5.** The cycle walk counts live dependencies only. A retirement skips the cycle check but still bumps the schedule mutex (lock order unchanged).
@@ -62,8 +65,9 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - When `service_type = 'gas'`, it also requires `gas_meter_factor`, `gas_ccf_used`, `gas_therms_billed` and `gas_commodity_rate`.
 - **A3.** `base_charge` requires `rate`.
   - `coverage_start`, `coverage_end`, `days_covered`, `days_in_period` and `partial_period_policy_applied` are all set or all NULL. NULL means the full period.
-- **A4.** `surcharge` must name its `rate_item_id` (drafting: a line that cannot be classified cannot be shown to need nothing; fail safe).
-  - If the item's `calculation_type`, read through `rate_item_as_of(item, period_end, now())` (the siblings' coordinate), is `per_unit_usage` or `tiered_usage`, A2 applies, including the gas columns on a gas line.
+- **A4.** `surcharge` must name its `rate_item_id`, and the item must have a version visible at the bill's coordinate (drafting: a line that cannot be classified cannot be shown to need nothing; fail safe; r2, F1).
+  - If that version's `calculation_type` is `per_unit_usage` or `tiered_usage`, the line needs `usage_quantity`, `usage_unit` and `rate`. On a gas line it also needs the meter factor, Ccf and therms. The commodity rate is the usage line's, not the rider's (r2, F11).
+- **A4b (r2, F2).** The coordinate is the bill's calculation snapshot's `(valid_at, recorded_at)`, which has been validated and frozen since -10. A correction's coordinate may be an elected rate date. With no snapshot, the snapshot check refuses the issuance.
 - **A5.** Every other kind needs nothing new (DL).
 - **A6.** Drafting: on a gas usage line, `rate` and `gas_commodity_rate` are two figures, both required, never required equal (memory `two-fields-both-the-money`). The check verifies presence, not the product (memory `schema-represents-core-evaluates`).
 
@@ -72,6 +76,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
 - **G1.** Correction invoice: `CHECK (invoice_type <> 'correction' OR replaces_invoice_id IS NOT NULL)`, at insert.
   - "The replaced bill is void" is already refused at issue by `calculation_snapshot_coordinate_violation(…, true)`, along with "it was issued". The battery proves it; no duplicate guard.
 - **G2.** Ledger: `CHECK (transaction_type <> 'void_reversal' OR (reverses_ledger_entry_id IS NOT NULL AND reversal_reason ~ '[[:alnum:]]'))`.
+- **G2b (r2, F6, F7).** `reference_type = 'invoice_void'` if and only if `transaction_type = 'void_reversal'`; an entry is reversed by a void at most once (a partial UNIQUE index).
 - **G3.** The ledger's self-FK becomes `(reverses_ledger_entry_id, tenant_id) → account_ledger(id, tenant_id)`. A reversal of another tenant's row is refused; the FK bypasses RLS, so the pair is the check.
 - **G4.** Refund: a new column, `payments.refunds_customer_credit_id`.
   - FK `(refunds_customer_credit_id, tenant_id, customer_id) → customer_credits(id, tenant_id, customer_id)`, with a new UNIQUE on `customer_credits` for its target.
@@ -84,7 +89,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
 
 ## V: the void's reversal (DL CI-017 / void_invoice)
 
-- **V1.** A posted bill (`first_issued_at` set): `void_invoice()` finds the bill's charge entry (`reference_type = 'invoice'`, `reference_id` = the bill, `transaction_type = 'charge'`, earliest). If none exists it refuses (P0002) before writing anything, and the reversal names the entry it finds.
+- **V1.** A posted bill (`first_issued_at` set): `void_invoice()` finds the bill's charge entry: the bill's tenant and customer (r2, F5), `reference_type = 'invoice'`, `reference_id` = the bill, `transaction_type = 'charge'`, the earliest. If none exists it refuses (P0002) before writing anything, and the reversal names the entry it finds.
 - **V2.** A never-posted bill (voided from `held`): no ledger entry. The payload's `ledger_entry_id`, `reverses_ledger_entry_id` and `reversal_amount` are NULL, and so is the event's `reversal_amount`.
 - **V3.** Unchanged: the owner (`tally_void`), the grants, the READ COMMITTED pin, the lock order. `assert_seal_role_invariants()` still passes.
 - **V4.** Residual: the reversal's amount stays `-(amount_due)`, not the named charge's amount. A bill with several charge entries reverses as one (memory `two-fields-both-the-money`; the core owns posting).
@@ -95,6 +100,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - Format: `^[0-9A-Za-z_-]{1,128}$`.
   - Nullable: service users (AC-43) have none.
   - Write-once: once set, it never changes or clears (trigger, ENABLE ALWAYS).
+- **U3 (r2, F4).** For `tally_app`, binding a Cognito identity (insert or update) and changing `is_active` either way require `session_is_supervisor()`. A user is bound when a supervisor provisions it. The owner (a superuser load or repair) stands aside, and may also repair a binding (F13).
 - **U2.** `get_user_tenant_id()` and `is_platform_admin()` require `is_active`. A deactivated user's `app.user_id` sees no tenant row.
   - Same signatures, owners and grants; still SECURITY DEFINER, pinned to `''`.
 

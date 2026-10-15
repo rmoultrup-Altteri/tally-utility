@@ -404,6 +404,7 @@ The database refuses each of those writes unless the transaction holds the check
 - **One path:** a single middleware sets it. No other code sets or changes it.
 - **No user:** for work with no human caller (jobs, imports), name a dedicated service user. Never borrow a real user or a platform admin.
 - **Never the empty string:** an empty `app.user_id` raises on the `::uuid` cast in the RLS helpers.
+- **Binding (v5.4.2-21 r2):** a user's `cognito_sub` is written by a supervisor's session (tenant_admin or platform admin) when the user is provisioned. Cognito's admin create returns the sub. A new user's own first login cannot bind it, and a supervisor also switches users on or off (`is_active`). Once set, a binding never changes.
 ---
 
 ## Meter test history

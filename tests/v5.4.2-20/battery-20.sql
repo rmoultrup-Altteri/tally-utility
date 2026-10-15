@@ -314,8 +314,9 @@ INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, locatio
   ('00000000-0000-4000-8000-000000002008', '00000000-0000-4000-8000-0000000020a2', 'I8', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 80.00),
   ('00000000-0000-4000-8000-000000002009', '00000000-0000-4000-8000-0000000020a2', 'I9', '00000000-0000-4000-8000-0000000020c2', '00000000-0000-4000-8000-0000000020d2', '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 70.00);
 -- I1 carries a line (the line and base guards exit on the void transition; the void must not trip them).
-INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount) VALUES
-  ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002001', 'gas', 'base_charge', 'customer charge', 100.00);
+-- v5.4.2-21 (CI-016): the base line carries its rate (Fable r1 N5).
+INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate) VALUES
+  ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002001', 'gas', 'base_charge', 'customer charge', 100.00, 100.00);
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-000000002001';
 -- v5.4.2-21 (CI-017): I1 is posted (first_issued_at stamped above), so its
 -- charge is on the ledger, and the void's reversal names it.

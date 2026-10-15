@@ -124,6 +124,7 @@ step "core role invariants" q "$BASE" -c "SELECT public.assert_core_role_invaria
 step "seal role invariants" q "$BASE" -c "SELECT public.assert_seal_role_invariants()"
 step "rule table invariants" q "$BASE" -c "SELECT public.assert_rule_table_invariants()"
 step "retention invariants" q "$BASE" -c "SELECT public.assert_no_hard_delete_invariants()"
+step "wave-1 guard invariants" q "$BASE" -c "SELECT public.assert_wave1_guard_invariants()"
 
 printf '%s\n' "${results[@]}"
 echo "ci: $([ $fail -eq 0 ] && echo 'all pass' || echo 'FAILURES')"

@@ -8,6 +8,8 @@
 #   LR4  A retires A-on-B and holds; B adds B-on-A, waits on the schedule
 #        header, then passes: it sees the retirement (K5).
 #   LR5  After LR4 commits, re-adding A-on-B is refused: B-on-A is live.
+#   LR6  A writes customers and holds 8 s; B's label delete gives up after
+#        the guard's 5 s lock wait (55P03) instead of stalling every writer.
 # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -24,6 +26,7 @@ IB=00000000-0000-4000-8000-0000000021e6
 K1=00000000-0000-4000-8000-0000000021e7
 K2=00000000-0000-4000-8000-0000000021e8
 K3=00000000-0000-4000-8000-0000000021e9
+K4=00000000-0000-4000-8000-0000000021eb
 D1=00000000-0000-4000-8000-0000000021ea
 A_OUT=$(mktemp); B_OUT=$(mktemp)
 trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
@@ -37,7 +40,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES ('$IA', '$T', 'R
 INSERT INTO public.custom_field_definitions (id, tenant_id, entity_type, field_key, field_label, field_type) VALUES
   ('$K1', '$T', 'customers', 'k_one', 'One', 'text'),
   ('$K2', '$T', 'customers', 'k_two', 'Two', 'text'),
-  ('$K3', '$T', 'customers', 'k_three', 'Three', 'text');
+  ('$K3', '$T', 'customers', 'k_three', 'Three', 'text'),
+  ('$K4', '$T', 'customers', 'k_four', 'Four', 'text');
 INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES ('$D1', '$T', '$S', '$IA', '$IB');
 SQL
 
@@ -94,6 +98,10 @@ verdict "LR1 a label deleted while a writer using it is open: waits, then is ref
 two "DELETE FROM public.custom_field_definitions WHERE id = '$K2';" \
     "INSERT INTO public.customers (tenant_id, customer_number, metadata) VALUES ('$T', 'R21-C2', '{\"k_two\": 1}');"
 verdict "LR2 a write while a label delete is open waits for its commit" 0
+# By design (a deletion-time check, not referential integrity): the write
+# landed after the delete, and its key now has no definition.
+N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.customers WHERE metadata ? 'k_two'")/$("${PSQL[@]}" -c "SELECT count(*) FROM public.custom_field_definitions WHERE id = '$K2'")
+if [ "$N" = "1/0" ]; then echo "PASS LR2b the late write keeps a key whose label is gone (the stated scope)"; else echo "FAIL LR2b: customers/labels = $N"; fail=1; fi
 
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ;
@@ -118,5 +126,30 @@ SQL
 )
 if echo "$OUT" | grep -q "closes a cycle"; then echo "PASS LR5 A on B re-added while B on A is live: refused"
 else echo "FAIL LR5: $OUT"; fail=1; fi
+
+# LR6: A holds a customers write longer than the guard waits.
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race21_a';
+BEGIN;
+$APP
+INSERT INTO public.customers (tenant_id, customer_number) VALUES ('$T', 'R21-C6');
+SELECT pg_sleep(8);
+COMMIT;
+SQL
+APID=$!
+sleep 1
+T0=$(date +%s)
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+SET application_name = 'race21_b';
+BEGIN;
+$APP
+DELETE FROM public.custom_field_definitions WHERE id = '$K4';
+COMMIT;
+SQL
+)
+EL=$(( $(date +%s) - T0 ))
+wait $APID
+if echo "$OUT" | grep -q "55P03" && [ "$EL" -ge 4 ] && [ "$EL" -le 7 ]; then echo "PASS LR6 a label delete gives up after its lock wait (${EL}s)"
+else echo "FAIL LR6: after ${EL}s: $OUT"; fail=1; fi
 
 exit $fail

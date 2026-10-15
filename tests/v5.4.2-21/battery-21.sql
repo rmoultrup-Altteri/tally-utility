@@ -46,14 +46,35 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'FAIL %: refused with % (%)', p_label, SQLSTATE, SQLERRM;
 END $$;
--- issue(): move a draft into an issued status and run ONLY the arithmetic
--- check now (the snapshot and surcharge checks stay deferred, and are
--- discarded with the subtransaction). p_state NULL means it must pass.
+-- snap(): a calculation snapshot of a bill at (p_valid, p_rec), its lines as they are.
+CREATE FUNCTION pg_temp.snap(p_inv uuid, p_valid date, p_rec timestamptz) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE i public.invoices%ROWTYPE;
+BEGIN
+  SELECT * INTO i FROM public.invoices WHERE id = p_inv;
+  INSERT INTO public.invoice_calculation_snapshots
+    (tenant_id, invoice_id, billing_run_id, valid_at, recorded_at, snapshot_schema_version, formula_version,
+     rate_inputs, gas_factors, wna_inputs, tax_inputs, read_inputs, customer_inputs, period_inputs, line_items)
+  VALUES (i.tenant_id, i.id, i.billing_run_id, p_valid, p_rec, 'v1', 'bat21',
+     '{"rate_schedule_id":null,"rate_schedule_version_id":null,"rate_schedule_code":null,"customer_type":null,"partial_period_policy":null,"items":[]}',
+     '{"pga_factor":null,"btu_factor":null,"pressure_factor":null,"temperature_factor":null,"meter_multiplier":null,"factor_stack_intermediates":{}}',
+     '{"applied":false}', '{"jurisdictions":[],"exemptions":[],"franchise_fees":[]}', '{"reads":[]}',
+     jsonb_build_object('customer_id', i.customer_id, 'customer_class', null, 'location_id', i.location_id, 'premise_zones', '{}'::jsonb),
+     jsonb_build_object('period_start', i.period_start, 'period_end', i.period_end, 'days_in_period', i.period_end - i.period_start + 1, 'proration_policy', null),
+     (SELECT coalesce(jsonb_agg(jsonb_build_object('invoice_line_item_id', l.id, 'charge_type', l.charge_type, 'amount', l.amount)), '[]'::jsonb)
+        FROM public.invoice_line_items l WHERE l.invoice_id = i.id));
+END $$;
+-- issue(): snapshot a draft at its period end (unless it has a snapshot),
+-- move it into an issued status and run ONLY the arithmetic check now (the
+-- other deferred checks are discarded with the subtransaction). The check
+-- reads the snapshot's coordinate (r2). p_state NULL means it must pass.
 CREATE FUNCTION pg_temp.issue(p_label text, p_inv uuid, p_state text, p_guard text) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE v_state text; v_msg text;
 BEGIN
   BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.invoice_calculation_snapshots WHERE invoice_id = p_inv) THEN
+      PERFORM pg_temp.snap(p_inv, (SELECT period_end FROM public.invoices WHERE id = p_inv), now());
+    END IF;
     UPDATE public.invoices SET status = 'pending' WHERE id = p_inv;
     SET CONSTRAINTS enforce_invoice_line_arithmetic IMMEDIATE;
     RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'issued';
@@ -72,7 +93,8 @@ BEGIN
   RAISE EXCEPTION 'FAIL %: got % (%), expected % with %', p_label, v_state, v_msg, p_state, p_guard;
 END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean),
-                          pg_temp.admits(text, text), pg_temp.issue(text, uuid, text, text) TO tally_app;
+                          pg_temp.admits(text, text), pg_temp.issue(text, uuid, text, text),
+                          pg_temp.snap(uuid, date, timestamptz) TO tally_app;
 
 -- ------------------------------------------------------------------ fixtures
 INSERT INTO public.tenants (id, name, slug) VALUES
@@ -82,6 +104,10 @@ INSERT INTO public.users (id, tenant_id, display_name, email, role, is_active, c
   ('00000000-0000-4000-8000-0000000021b1', '00000000-0000-4000-8000-0000000021a1', 'Op1', 'op1@bat21.test', 'operator', true, 'sub-op1'),
   ('00000000-0000-4000-8000-0000000021b2', '00000000-0000-4000-8000-0000000021a2', 'Op2', 'op2@bat21.test', 'operator', true, 'sub-op2'),
   ('00000000-0000-4000-8000-0000000021b3', '00000000-0000-4000-8000-0000000021a1', 'Svc', 'svc@bat21.test', 'operator', true, NULL),
+  ('00000000-0000-4000-8000-0000000021b4', '00000000-0000-4000-8000-0000000021a1', 'Sup', 'sup@bat21.test', 'tenant_admin', true, 'sub-sup'),
+  ('00000000-0000-4000-8000-0000000021b5', '00000000-0000-4000-8000-0000000021a1', 'NewAdmin', 'newadmin@bat21.test', 'tenant_admin', true, NULL),
+  ('00000000-0000-4000-8000-0000000021b6', '00000000-0000-4000-8000-0000000021a1', 'OffAdmin', 'offadmin@bat21.test', 'tenant_admin', false, NULL),
+  ('00000000-0000-4000-8000-0000000021b9', '00000000-0000-4000-8000-0000000021a1', 'Admin', 'admin@bat21.test', 'platform_admin', true, 'sub-admin'),
   ('00000000-0000-4000-8000-0000000021b8', '00000000-0000-4000-8000-0000000021a1', 'Gone', 'gone@bat21.test', 'operator', false, 'sub-gone'),
   ('00000000-0000-4000-8000-0000000021ba', '00000000-0000-4000-8000-0000000021a1', 'OldAdmin', 'oldadmin@bat21.test', 'platform_admin', false, NULL);
 INSERT INTO public.customers (id, tenant_id, customer_number, customer_type, metadata) VALUES
@@ -98,7 +124,9 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-000000002152', '00000000-0000-4000-8000-0000000021a1', 'B'),
   ('00000000-0000-4000-8000-000000002153', '00000000-0000-4000-8000-0000000021a1', 'PU'),
   ('00000000-0000-4000-8000-000000002154', '00000000-0000-4000-8000-0000000021a1', 'TU'),
-  ('00000000-0000-4000-8000-000000002155', '00000000-0000-4000-8000-0000000021a1', 'FX');
+  ('00000000-0000-4000-8000-000000002155', '00000000-0000-4000-8000-0000000021a1', 'FX'),
+  ('00000000-0000-4000-8000-000000002156', '00000000-0000-4000-8000-0000000021a1', 'JF'),
+  ('00000000-0000-4000-8000-000000002159', '00000000-0000-4000-8000-0000000021a2', 'T2PU');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, remaining_amount) VALUES
   ('00000000-0000-4000-8000-000000002161', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'overpayment', 40, 40),
   ('00000000-0000-4000-8000-000000002162', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'goodwill', 5, 5),
@@ -118,6 +146,16 @@ INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, servi
   ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002153', 'Per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'initial', NULL),
   ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002154', 'Tiered', 'gas', 'tiered_usage', 'regulated', DATE '2026-01-01', 'initial', '{"tiers": []}'),
   ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002155', 'Fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial', NULL);
+-- JF: fixed in January, per unit from February (the correction case, A7).
+SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-000000002156', 1);
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, expiry_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'January fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', DATE '2026-01-31', 'initial'),
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'February per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-02-01', NULL, 'initial');
+-- Tenant 2's per-unit item (invisible to tenant 1, A4h).
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b2', true);
+SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-000000002159', 1);
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-000000002159', 'T2 per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'initial');
 
 -- draft(): a draft bill of tenant 1 for January.
 CREATE FUNCTION pg_temp.draft(p_id uuid, p_num text) RETURNS void LANGUAGE sql AS $$
@@ -203,6 +241,25 @@ SELECT pg_temp.ok('L4 another tenant''s caller cannot reach the label (RLS)',
   EXISTS (SELECT 1 FROM public.custom_location_types WHERE id = '00000000-0000-4000-8000-0000000021f4'));
 SELECT pg_temp.refuses_at('L1e the owner meets the in-use guard too',
   $q$DELETE FROM public.custom_field_definitions WHERE id = '00000000-0000-4000-8000-0000000021f9'$q$, '23001', 'is in use');
+-- L6 (r2, Opus B3, Fable B1): a label's key is write-once, so an in-use
+-- label cannot be renamed or re-pointed out from under its values.
+INSERT INTO public.customers (id, tenant_id, customer_number, metadata) VALUES
+  ('00000000-0000-4000-8000-0000000021c3', '00000000-0000-4000-8000-0000000021a1', 'B21-C3', '{"acct_tier": "gold"}');
+INSERT INTO public.custom_field_definitions (id, tenant_id, entity_type, field_key, field_label, field_type) VALUES
+  ('00000000-0000-4000-8000-0000000021f8', '00000000-0000-4000-8000-0000000021a1', 'customers', 'acct_tier', 'Tier', 'text');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+SELECT pg_temp.refuses_at('L6a an in-use field label renamed',
+  $q$UPDATE public.custom_field_definitions SET field_key = 'acct_tier_x' WHERE id = '00000000-0000-4000-8000-0000000021f8'$q$, '23001', 'keeps its key');
+SELECT pg_temp.refuses_at('L6b an in-use field label moved to a table with no metadata',
+  $q$UPDATE public.custom_field_definitions SET entity_type = 'billing_runs' WHERE id = '00000000-0000-4000-8000-0000000021f8'$q$, '23001', 'keeps its key');
+SELECT pg_temp.refuses_at('L6c an in-use location type renamed',
+  $q$UPDATE public.custom_location_types SET type_key = 'kiosk_old' WHERE id = '00000000-0000-4000-8000-0000000021f4'$q$, '23001', 'keeps its key');
+SELECT pg_temp.admits('L6d a label''s wording and status change freely',
+  $q$UPDATE public.custom_field_definitions SET field_label = 'Account tier', status = 'archived' WHERE id = '00000000-0000-4000-8000-0000000021f8'$q$);
+RESET ROLE;
+SELECT pg_temp.refuses_at('L6e the owner moves a label to another tenant',
+  $q$UPDATE public.custom_location_types SET tenant_id = '00000000-0000-4000-8000-0000000021a2' WHERE id = '00000000-0000-4000-8000-0000000021f4'$q$, '23001', 'keeps its key');
 -- The owner sees every tenant: the guard itself must keep to the label's tenant.
 INSERT INTO public.custom_field_definitions (id, tenant_id, entity_type, field_key, field_label, field_type) VALUES
   ('00000000-0000-4000-8000-0000000021f6', '00000000-0000-4000-8000-0000000021a1', 'customers', 't2_only', 'T2 key', 'text');
@@ -227,6 +284,8 @@ SELECT pg_temp.refuses_at('K2 a dependency born retired',
   $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, retired_reason)
      VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002152', '00000000-0000-4000-8000-000000002153', 'why')$q$,
   '23514', 'born live');
+SELECT pg_temp.refuses_at('K3a2 an edit carried inside a retirement',
+  $q$UPDATE public.rate_item_dependencies SET notes = 'edited', retired_reason = 'and retired' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'write-once');
 SELECT pg_temp.refuses_at('K3a a live dependency edited',
   $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'write-once');
 SELECT pg_temp.refuses_at('K3b an update that is not a retirement',
@@ -242,12 +301,16 @@ UPDATE public.rate_schedules SET updated_at = '2000-01-01' WHERE id = '00000000-
 SET LOCAL session_replication_role = origin;
 SELECT pg_temp.ok('K5-fixture the header is back-dated', (SELECT updated_at < now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002141'));
 SET ROLE tally_app;
-UPDATE public.rate_item_dependencies SET retired_reason = 'battery-21 K3', retired_at = '2000-01-01', retired_by = '00000000-0000-4000-8000-0000000021b1'
+UPDATE public.rate_item_dependencies SET retired_reason = 'battery-21 K3', retired_at = '2000-01-01', retired_by = '00000000-0000-4000-8000-0000000021b2'
  WHERE id = '00000000-0000-4000-8000-000000002191';
 SELECT pg_temp.ok('K3c a retirement is stamped by the database, whatever is supplied',
   (SELECT retired_at = now() FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'));
+SELECT pg_temp.ok('K3e who retired it is the session''s user, not another tenant''s id supplied',
+  (SELECT retired_by = '00000000-0000-4000-8000-0000000021b1' FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'));
 SELECT pg_temp.ok('K5a a retirement takes the schedule header (the mutex)',
   (SELECT updated_at = now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002141'));
+SELECT pg_temp.refuses_at('K3d2 a retired row''s reason rewritten',
+  $q$UPDATE public.rate_item_dependencies SET retired_reason = 'another reason' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'permanent');
 SELECT pg_temp.refuses_at('K3d a retirement is permanent',
   $q$UPDATE public.rate_item_dependencies SET retired_at = NULL, retired_reason = NULL WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'permanent');
 SELECT pg_temp.admits('K4 the retired dependency is added again (live rows are unique)',
@@ -295,6 +358,9 @@ BEGIN
     ('A4d a tiered surcharge with no rate',           'water', 'surcharge',    '{"rate_item_id": "00000000-0000-4000-8000-000000002154", "usage_quantity": 5, "usage_unit": "kgal"}', 'missing rate'),
     ('A4e a gas per-unit surcharge needs the gas figures', 'gas', 'surcharge', '{"rate_item_id": "00000000-0000-4000-8000-000000002153", "usage_quantity": 5, "usage_unit": "ccf", "rate": 0.1}', 'missing gas_meter_factor'),
     ('A4f a per-unit surcharge, complete',            'water', 'surcharge',    '{"rate_item_id": "00000000-0000-4000-8000-000000002153", "usage_quantity": 5, "usage_unit": "kgal", "rate": 0.1}', NULL),
+    ('A4g a surcharge whose item has no version at the bill''s coordinate', 'gas', 'surcharge', '{"rate_item_id": "00000000-0000-4000-8000-000000002152"}',              'missing a classification'),
+    ('A4h a surcharge naming another tenant''s per-unit item', 'gas', 'surcharge', '{"rate_item_id": "00000000-0000-4000-8000-000000002159"}',                          'missing a classification'),
+    ('A4j a gas rider carries no commodity rate',    'gas',   'surcharge',    '{"rate_item_id": "00000000-0000-4000-8000-000000002153", "usage_quantity": 5, "usage_unit": "ccf", "rate": 0.1, "gas_meter_factor": 1.02, "gas_ccf_used": 5, "gas_therms_billed": 5.1}', NULL),
     ('A5 a late fee carries its amount only',         'gas',   'late_fee',     '{}'::jsonb,                                                                             NULL)
   ) AS x(label, service, kind, cols, guard) LOOP
     n := n + 1;
@@ -304,6 +370,36 @@ BEGIN
     PERFORM pg_temp.issue(c.label, v_id, CASE WHEN c.guard IS NULL THEN NULL ELSE '23514' END, c.guard);
   END LOOP;
 END $$;
+-- A7 (r2, Codex B2): a correction is priced at its elected rate date. JF is
+-- fixed in January and per unit from February; a January correction elected
+-- at 2026-02-28 carries a JF surcharge with no figures: refused, because the
+-- check reads the snapshot's coordinate, not the period end.
+RESET ROLE;
+SELECT pg_temp.draft('00000000-0000-4000-8000-0000000021ac', 'B21-ORIG');
+SELECT pg_temp.snap('00000000-0000-4000-8000-0000000021ac', DATE '2026-01-31', now());
+UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000021ac';
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-01', 'charge', 'B21-ORIG', 30.00, 'invoice', '00000000-0000-4000-8000-0000000021ac');
+INSERT INTO public.meters (id, tenant_id, meter_number, location_id, service_type) VALUES
+  ('00000000-0000-4000-8000-0000000021ee', '00000000-0000-4000-8000-0000000021a1', 'B21-M1', '00000000-0000-4000-8000-0000000021d1', 'gas');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+SELECT public.void_invoice('00000000-0000-4000-8000-0000000021ac', '00000000-0000-4000-8000-0000000021b1', 'wrong_rate', 'battery-21 A7', true);
+INSERT INTO public.billing_runs (id, tenant_id, run_number, billing_period, period_start, period_end, run_type, status, started_at, correction_rate_mode) VALUES
+  ('00000000-0000-4000-8000-0000000021fa', '00000000-0000-4000-8000-0000000021a1', 'B21-RUNC', '2026-01', DATE '2026-01-01', DATE '2026-01-31', 'correction', 'in_progress', now(), 'historical');
+INSERT INTO public.correction_run_targets (tenant_id, billing_run_id, voided_invoice_id, meter_id, customer_id, rate_date_mode, rate_date_override) VALUES
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021fa', '00000000-0000-4000-8000-0000000021ac', '00000000-0000-4000-8000-0000000021ee',
+   '00000000-0000-4000-8000-0000000021c1', 'custom', DATE '2026-02-28');
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due,
+                             billing_run_id, invoice_type, replaces_invoice_id) VALUES
+  ('00000000-0000-4000-8000-0000000021ad', '00000000-0000-4000-8000-0000000021a1', 'B21-CORR', '00000000-0000-4000-8000-0000000021c1', '00000000-0000-4000-8000-0000000021d1',
+   DATE '2026-02-01', '2026-01', DATE '2026-01-01', DATE '2026-01-31', DATE '2026-02-20', 10, '00000000-0000-4000-8000-0000000021fa', 'correction', '00000000-0000-4000-8000-0000000021ac');
+SELECT pg_temp.line('00000000-0000-4000-8000-0000000021ad', 'gas', 'surcharge', '{"rate_item_id": "00000000-0000-4000-8000-000000002156"}');
+SELECT pg_temp.snap('00000000-0000-4000-8000-0000000021ad', DATE '2026-02-28', now());
+SELECT pg_temp.ok('A7-fixture the line needs nothing at the period end, and its figures at the elected date',
+  public.invoice_line_arithmetic_gap((SELECT l FROM public.invoice_line_items l WHERE l.invoice_id = '00000000-0000-4000-8000-0000000021ad'), DATE '2026-01-31', now()) IS NULL
+  AND public.invoice_line_arithmetic_gap((SELECT l FROM public.invoice_line_items l WHERE l.invoice_id = '00000000-0000-4000-8000-0000000021ad'), DATE '2026-02-28', now()) IS NOT NULL);
+SELECT pg_temp.issue('A7 a correction priced at its elected rate date is checked there', '00000000-0000-4000-8000-0000000021ad', '23514', 'missing usage_quantity');
 -- A1: the gate. A draft edited stays a draft: no refusal; a held bill
 -- voided is a discard (V2 below); an incomplete line on an issued bill
 -- cannot appear (A-4 freezes it).
@@ -330,24 +426,36 @@ SELECT pg_temp.refuses_at('G1 a correction that names no bill',
              DATE '2026-02-01', '2026-01', DATE '2026-01-01', DATE '2026-01-31', DATE '2026-02-20')$q$,
   '23514', 'invoices_correction_names_replaced_check');
 SELECT pg_temp.refuses_at('G2a a void_reversal that names nothing',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'wrong_rate')$q$,
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'invoice_void', 'wrong_rate')$q$,
   '23514', 'account_ledger_void_reversal_lineage_check');
 SELECT pg_temp.refuses_at('G2b a void_reversal with a blank reason',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, '00000000-0000-4000-8000-000000002171', ' - ')$q$,
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'invoice_void', '00000000-0000-4000-8000-000000002171', ' - ')$q$,
   '23514', 'account_ledger_void_reversal_lineage_check');
 SELECT pg_temp.refuses_at('G2c a void_reversal with no reason',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, '00000000-0000-4000-8000-000000002171')$q$,
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'invoice_void', '00000000-0000-4000-8000-000000002171')$q$,
   '23514', 'account_ledger_void_reversal_lineage_check');
 SELECT pg_temp.refuses_at('G3 a reversal of another tenant''s entry',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -70, '00000000-0000-4000-8000-000000002179', 'wrong_rate')$q$,
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -70, 'invoice_void', '00000000-0000-4000-8000-000000002179', 'wrong_rate')$q$,
   '23503', 'account_ledger_reverses_ledger_entry_fkey');
 SELECT pg_temp.admits('G2d a void_reversal that names its entry and a reason',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, '00000000-0000-4000-8000-000000002171', 'wrong_rate')$q$);
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'invoice_void', '00000000-0000-4000-8000-000000002171', 'wrong_rate')$q$);
+SELECT pg_temp.refuses_at('G2e the void''s reversal filed as an adjustment, with no link',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'adjustment', 'x', -30, 'invoice_void')$q$,
+  '23514', 'account_ledger_void_reversal_reference_check');
+SELECT pg_temp.refuses_at('G2f a void_reversal not filed against an invoice void',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'manual', '00000000-0000-4000-8000-000000002171', 'wrong_rate')$q$,
+  '23514', 'account_ledger_void_reversal_reference_check');
+SELECT pg_temp.refuses_at('G2g the same entry reversed twice',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-03', 'void_reversal', 'x', -30, 'invoice_void', '00000000-0000-4000-8000-000000002171', 'wrong_rate')$q$,
+  '23505', 'account_ledger_one_void_reversal_per_entry');
 -- Refunds.
 SELECT pg_temp.refuses_at('G4a a refund that names no source',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method)
@@ -387,9 +495,13 @@ RESET ROLE;
 SELECT pg_temp.admits('G6b a superuser''s history load may carry it',
   $q$INSERT INTO public.adhoc_charges (tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class, service_type, voided_from_invoice_id)
      VALUES ('00000000-0000-4000-8000-0000000021a1', 'B21-X2', '00000000-0000-4000-8000-0000000021c1', 'tap_fee', 'tap', 5, 'regulated', 'gas', '00000000-0000-4000-8000-0000000021aa')$q$);
-SELECT pg_temp.ok('G7 every lineage column is indexed',
-  (SELECT count(*) = 5 FROM pg_indexes WHERE schemaname = 'public' AND indexname IN
-     ('idx_invoices_replaces_invoice', 'idx_account_ledger_reverses', 'idx_payments_refunds_payment', 'idx_payments_nsf_original', 'idx_payments_refunds_credit')));
+SELECT pg_temp.ok('G7 every lineage column is indexed, on that column',
+  (SELECT count(*) = 5 FROM pg_indexes WHERE schemaname = 'public' AND (indexname, indexdef) IN (
+     ('idx_invoices_replaces_invoice', 'CREATE INDEX idx_invoices_replaces_invoice ON public.invoices USING btree (replaces_invoice_id) WHERE (replaces_invoice_id IS NOT NULL)'),
+     ('idx_account_ledger_reverses', 'CREATE INDEX idx_account_ledger_reverses ON public.account_ledger USING btree (reverses_ledger_entry_id) WHERE (reverses_ledger_entry_id IS NOT NULL)'),
+     ('idx_payments_refunds_payment', 'CREATE INDEX idx_payments_refunds_payment ON public.payments USING btree (refunds_payment_id) WHERE (refunds_payment_id IS NOT NULL)'),
+     ('idx_payments_nsf_original', 'CREATE INDEX idx_payments_nsf_original ON public.payments USING btree (nsf_original_payment_id) WHERE (nsf_original_payment_id IS NOT NULL)'),
+     ('idx_payments_refunds_credit', 'CREATE INDEX idx_payments_refunds_credit ON public.payments USING btree (refunds_customer_credit_id) WHERE (refunds_customer_credit_id IS NOT NULL)'))));
 
 -- ====================================================================== V. the void's reversal
 -- VP posted with its charge; VN posted with none; VH held, never posted.
@@ -400,6 +512,8 @@ SELECT pg_temp.draft('00000000-0000-4000-8000-0000000021c7', 'B21-VH');
 UPDATE public.invoices SET status = 'held', hold_reason = 'battery-21' WHERE id = '00000000-0000-4000-8000-0000000021c7';
 -- The held bill carries a line without its arithmetic: a discard is no issuance (A1).
 SELECT pg_temp.line('00000000-0000-4000-8000-0000000021c7', 'gas', 'base_charge', '{}');
+-- … and a snapshot, so the check would reach its lines if a discard were an issuance.
+SELECT pg_temp.snap('00000000-0000-4000-8000-0000000021c7', DATE '2026-01-31', now());
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
   ('00000000-0000-4000-8000-000000002175', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-01', 'charge', 'B21-VP', 30.00, 'invoice', '00000000-0000-4000-8000-0000000021c5');
 SELECT pg_temp.ok('V0 the fixture: two posted bills and one never posted',
@@ -423,9 +537,34 @@ SELECT pg_temp.ok('V1b exactly one reversal, naming the charge, with the reason'
 SELECT pg_temp.refuses_at('V1c a posted bill with no charge on the ledger',
   $q$SELECT public.void_invoice('00000000-0000-4000-8000-0000000021c6', '00000000-0000-4000-8000-0000000021b1', 'wrong_rate', 'battery-21 V1c', true)$q$,
   'P0002', 'has no charge entry');
-SELECT pg_temp.ok('V1d the refused void wrote nothing',
+SELECT pg_temp.ok('V1d the refused void left the bill and the ledger as they were',
   (SELECT status = 'pending' FROM public.invoices WHERE id = '00000000-0000-4000-8000-0000000021c6')
   AND NOT EXISTS (SELECT 1 FROM public.account_ledger WHERE reference_id = '00000000-0000-4000-8000-0000000021c6'));
+-- V1e-g (r2, Opus S1): the charge is the bill's customer's and tenant's;
+-- of two, the earliest (then the smaller id) is named.
+RESET ROLE;
+SELECT pg_temp.draft('00000000-0000-4000-8000-0000000021c8', 'B21-VC');
+SELECT pg_temp.draft('00000000-0000-4000-8000-0000000021c9', 'B21-VT');
+SELECT pg_temp.draft('00000000-0000-4000-8000-0000000021ca', 'B21-VG');
+UPDATE public.invoices SET status = 'pending' WHERE id IN ('00000000-0000-4000-8000-0000000021c8', '00000000-0000-4000-8000-0000000021c9', '00000000-0000-4000-8000-0000000021ca');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-000000002176', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c2', DATE '2026-02-01', 'charge', 'filed under C2', 0.01, 'invoice', '00000000-0000-4000-8000-0000000021c8'),
+  ('00000000-0000-4000-8000-000000002178', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-01', 'charge', 'VT second', 30.00, 'invoice', '00000000-0000-4000-8000-0000000021c9'),
+  ('00000000-0000-4000-8000-000000002177', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-01', 'charge', 'VT first', 30.00, 'invoice', '00000000-0000-4000-8000-0000000021c9'),
+  ('00000000-0000-4000-8000-00000000217a', '00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-01', 'charge', 'filed under T2', 30.00, 'invoice', '00000000-0000-4000-8000-0000000021ca');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+SELECT pg_temp.refuses_at('V1e a charge filed under another customer is not this bill''s',
+  $q$SELECT public.void_invoice('00000000-0000-4000-8000-0000000021c8', '00000000-0000-4000-8000-0000000021b1', 'wrong_rate', 'battery-21 V1e', true)$q$,
+  'P0002', 'has no charge entry');
+SELECT pg_temp.ok('V1f of two charges in one instant, the smaller id is named',
+  (public.void_invoice('00000000-0000-4000-8000-0000000021c9', '00000000-0000-4000-8000-0000000021b1', 'wrong_rate', 'battery-21 V1f', true)
+     ->> 'reverses_ledger_entry_id') = '00000000-0000-4000-8000-000000002177');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b9', true);
+SELECT pg_temp.refuses_at('V1g a platform administrator''s void ignores a charge filed under another tenant',
+  $q$SELECT public.void_invoice('00000000-0000-4000-8000-0000000021ca', '00000000-0000-4000-8000-0000000021b9', 'wrong_rate', 'battery-21 V1g', true)$q$,
+  'P0002', 'has no charge entry');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
 DO $$
 DECLARE v jsonb;
 BEGIN
@@ -459,17 +598,40 @@ DO $$ BEGIN RAISE NOTICE 'PASS V3: the void''s seal invariant holds after the re
 
 -- ====================================================================== U. identity
 SET ROLE tally_app;
+-- U3 (r2, Opus B2): an operator binds no one and switches no one on or off.
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+SELECT pg_temp.refuses_at('U3a an operator binds its second account to an unbound administrator',
+  $q$UPDATE public.users SET cognito_sub = 'operators-second-account' WHERE id = '00000000-0000-4000-8000-0000000021b5'$q$, '42501', 'only a supervisor');
+SELECT pg_temp.refuses_at('U3b an operator binds a service user',
+  $q$UPDATE public.users SET cognito_sub = 'operators-second-account' WHERE id = '00000000-0000-4000-8000-0000000021b3'$q$, '42501', 'only a supervisor');
+SELECT pg_temp.refuses_at('U3c an operator revives a deactivated administrator',
+  $q$UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021b6'$q$, '42501', 'only a supervisor');
+SELECT pg_temp.refuses_at('U3d an operator switches its supervisor off',
+  $q$UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021b4'$q$, '42501', 'only a supervisor');
+SELECT pg_temp.refuses_at('U3e an operator creates a user already bound',
+  $q$INSERT INTO public.users (id, tenant_id, display_name, email, role, cognito_sub)
+     VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000021a1', 'X', 'x@bat21.test', 'operator', 'operators-second-account')$q$, '42501', 'only a supervisor');
+-- A supervisor provisions.
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b4', true);
 SELECT pg_temp.refuses_at('U1a a Cognito identity bound twice',
   $q$UPDATE public.users SET cognito_sub = 'sub-op1' WHERE id = '00000000-0000-4000-8000-0000000021b3'$q$, '23505', 'users_cognito_sub_key');
 SELECT pg_temp.refuses_at('U1b a subject that is not one',
   $q$UPDATE public.users SET cognito_sub = 'two words' WHERE id = '00000000-0000-4000-8000-0000000021b3'$q$, '23514', 'users_cognito_sub_format_check');
-SELECT pg_temp.admits('U1c a user is bound once',
+SELECT pg_temp.admits('U1c a supervisor binds a user once',
   $q$UPDATE public.users SET cognito_sub = '3f1c9a7e-0000-4000-8000-00000000abcd' WHERE id = '00000000-0000-4000-8000-0000000021b3'$q$);
-SELECT pg_temp.refuses_at('U1d a binding is never changed',
+SELECT pg_temp.refuses_at('U1d a binding is never changed, by a supervisor either',
   $q$UPDATE public.users SET cognito_sub = 'sub-other' WHERE id = '00000000-0000-4000-8000-0000000021b1'$q$, '23001', 'write-once');
 SELECT pg_temp.refuses_at('U1e a binding is never cleared',
   $q$UPDATE public.users SET cognito_sub = NULL WHERE id = '00000000-0000-4000-8000-0000000021b1'$q$, '23001', 'write-once');
+SELECT pg_temp.admits('U3f a supervisor revives a deactivated administrator',
+  $q$UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021b6'$q$);
+SELECT pg_temp.admits('U3g a supervisor switches a user off',
+  $q$UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021b6'$q$);
+RESET ROLE;
+SELECT pg_temp.admits('U1f a superuser repairs a binding',
+  $q$UPDATE public.users SET cognito_sub = 'sub-op1-repaired' WHERE id = '00000000-0000-4000-8000-0000000021b1'$q$);
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
 SELECT pg_temp.ok('U2a an active user has a tenant and sees its customers',
   public.get_user_tenant_id() = '00000000-0000-4000-8000-0000000021a1' AND EXISTS (SELECT 1 FROM public.customers));
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b8', true);
@@ -489,6 +651,9 @@ SELECT pg_temp.refuses_at('N2 the PUBLIC clause names a relation',
 REVOKE SELECT ON public.alerts FROM PUBLIC;
 SELECT pg_temp.ok('N3 the invariant says its trigger strings are PostgreSQL 16''s rendering',
   strpos(pg_get_functiondef('public.assert_seal_role_invariants()'::regprocedure), 'PostgreSQL 16''s rendering') > 0);
+
+SELECT public.assert_wave1_guard_invariants();
+DO $$ BEGIN RAISE NOTICE 'PASS W1: the wave-1 guard invariant holds'; END $$;
 
 DO $$ BEGIN RAISE NOTICE 'battery-21: complete'; END $$;
 ROLLBACK;

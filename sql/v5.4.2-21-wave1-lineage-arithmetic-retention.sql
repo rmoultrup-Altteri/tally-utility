@@ -10,6 +10,20 @@
 -- Spec:        application/wave1-build-2026-10-14/source-inventory-21.md
 --              (requirements D, L, K, A, G, V, U, N, T).
 --
+-- Revision r2 (review round 1: Opus, Fable, Codex all "not yet";
+--   tests/v5.4.2-21/review/review-findings-21-r1.md):
+--   a surcharge whose rate item has no version visible at the bill's
+--   coordinate needs its figures (all three, B1); the arithmetic is read at
+--   the bill's snapshot coordinate, not (period_end, now()) (Codex B2); a
+--   label's key, entity and tenant are write-once (Opus B3, Fable B1); a
+--   supervisor binds an identity and switches a user on or off (Opus B2);
+--   the void's charge is the bill's customer's (Opus S1); the void's
+--   reversal is one act under one name, at most once per entry (Opus S2,
+--   Fable S3); the label lock waits at most 5 s and the deadlock note is
+--   corrected (all three); retired_by is the session's user (Opus S4, Fable
+--   N7); a gas rider does not carry the commodity rate (Fable S4); the
+--   invariants watch every new guard (Codex S1, Fable S2).
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -21,7 +35,13 @@
 --   * custom_field_definitions and custom_location_types stay deletable, but
 --     a delete is refused while the label is in use (L1, L2). The guard locks
 --     the entity table in SHARE mode before it looks, and runs only at READ
---     COMMITTED (L3).
+--     COMMITTED (L3). A label's key, entity and tenant are write-once (r2).
+--     This is a deletion-time check, not referential integrity: a write that
+--     commits after the delete, or one later in the deleting transaction,
+--     may still use the key.
+--   * Consequence: a tenant, a customer (auto_pay_settings) or a read cycle
+--     instance (read_cycle_meters) with a retained child can no longer be
+--     deleted by anyone.
 --   * rate_item_dependencies is retired, not deleted: retired_at (stamped by
 --     the database), retired_by, retired_reason. A dependency is write-once
 --     except for its retirement; uniqueness and the cycle check count live
@@ -30,15 +50,18 @@
 --
 --   Bill-line arithmetic (CI-016)
 --   * At issue (a deferred check beside the snapshot and surcharge checks),
---     a usage line carries quantity, unit and rate (and on gas the factor,
---     Ccf, therms and commodity rate); a base line its rate, and its five
---     coverage columns all or none; a surcharge names its rate item, and a
---     per-unit one carries what a usage line does (A1-A6).
+--     read at the bill's snapshot coordinate, a usage line carries quantity,
+--     unit and rate (and on gas the factor, Ccf, therms and commodity rate);
+--     a base line its rate, and its five coverage columns all or none; a
+--     surcharge names a rate item with a version visible there, and a
+--     per-unit one carries quantity, unit and rate (on gas also the factor,
+--     Ccf and therms) (A1-A6).
 --
 --   Lineage (CI-017)
 --   * A correction names the bill it replaces (G1).
 --   * A void_reversal names the entry it reverses, of its own tenant, with a
---     reason (G2, G3).
+--     reason (G2, G3); only a void_reversal is filed against an invoice void,
+--     and an entry is reversed by a void at most once (r2).
 --   * A refund names exactly one source: the payment it returns, or the
 --     customer credit it pays out (new: refunds_customer_credit_id) (G4).
 --   * A charge is never born with voided_from_invoice_id (G6, -20 R8).
@@ -50,8 +73,11 @@
 --     never posted (voided from held) gets no ledger entry (V1, V2).
 --
 --   Identity (R1, AC-43)
---   * users.cognito_sub: unique, write-once once set, nullable for service
---     users (U1).
+--   * users.cognito_sub: unique, write-once once set (except a superuser
+--     repair), nullable for service users (U1). For the application, binding
+--     an identity and switching a user on or off take a supervisor (r2): a
+--     user is bound when a supervisor provisions it, not at its own first
+--     login.
 --   * The RLS helpers see only an active user (U2).
 --
 --   The -20 notes
@@ -63,11 +89,16 @@
 -- Lock order and isolation
 -- ----------------------------------------------------------------------------
 --   A label delete holds the label row, then SHARE on its entity table.
---   Writers of the entity table never lock labels, so the two cannot
---   deadlock, except a transaction that writes the entity table and then
---   deletes the same label as another delete: PostgreSQL aborts one (40P01);
---   retry it. Writes to that entity table wait while a label delete is
---   uncommitted: label deletes are rare administrative acts.
+--   SHARE conflicts with every writer of that table, across tenants, and
+--   with maintenance (VACUUM, ANALYZE, CREATE INDEX CONCURRENTLY): every
+--   INSERT, UPDATE, DELETE or COPY on customers, invoices or payments waits
+--   while a label delete of that entity is uncommitted, and also while one
+--   is still waiting for its lock. The guard waits at most 5 s (55P03).
+--   Keep label deletes short, in their own transaction.
+--   Deadlock: two transactions that have each written the entity table and
+--   then each delete any label of that entity deadlock; so do two that
+--   delete labels and then write the table. PostgreSQL aborts one (40P01);
+--   retry the whole transaction.
 --   A retirement takes the schedule header (the -19 mutex), as an insert does.
 --
 -- ----------------------------------------------------------------------------
@@ -76,18 +107,25 @@
 --   R1. The void reverses -(amount_due), not the named charge's amount; a
 --       bill with several charge entries names the earliest (V4). Posting is
 --       the core's.
---   R2. A void_reversal must name an entry, not a charge of the same bill:
---       void_invoice() writes the right one; another writer of a
---       void_reversal is not otherwise fenced (G2).
+--   R2. A void_reversal must name an entry of its tenant, at most once, not
+--       necessarily a charge of the same bill or customer: void_invoice()
+--       writes the right one; another writer of a void_reversal is not
+--       otherwise fenced (G2). The same customer was not ruled for the FK.
 --   R3. rate_item_dependencies is still not effective-dated (-19 R4); a
 --       retirement is transaction time only.
 --   R4. The arithmetic check verifies that the figures are carried, not that
 --       they multiply out: tiers, minimums and rounding are the core's.
 --   R5. The -20 REVOKE TEMP line in tu.sql keeps its psql variable until Ryan
 --       decides at mirror time whether the mirrored line may be replaced (N1).
+--   R6. "Posted" is first_issued_at for every bill the application writes. A
+--       superuser load stands outside it: it sets the stamp with the bill, or
+--       the bill voids as a discard.
+--   R7. Not mutation-tested: the issued-to-issued skip in the arithmetic gate
+--       and its FOR SHARE on the lines (the siblings' model).
 --
 -- Tests. battery-21 (one row per requirement), races/labels-21.sh, and
---   mutations-21.py. Older batteries that void a posted bill now plant its
+--   mutations-21.py. The invariants assert_no_hard_delete_invariants() and
+--   assert_wave1_guard_invariants() run in the tail and in CI. Older batteries that void a posted bill now plant its
 --   charge entry first (T4).
 --
 -- PRECONDITION. v5.4.2-20 applied (tu.sql). Applied by a superuser, under
@@ -136,6 +174,10 @@ DECLARE
     v_table  regclass;
     v_key    text;
     v_in_use boolean;
+    -- r2 (Opus S3): a delete waiting for SHARE queues every later writer of
+    -- the entity table behind it; it gives up after this long (55P03).
+    c_lock_wait CONSTANT text := '5s';
+    v_saved  text := pg_catalog.current_setting('lock_timeout');
 BEGIN
     -- The lock below makes every writer of the entity table finish first and
     -- every new one wait; only a snapshot taken after it sees them all.
@@ -153,13 +195,17 @@ BEGIN
                                            WHERE a.attrelid = v_table AND a.attname = 'metadata' AND NOT a.attisdropped) THEN
             RETURN OLD;
         END IF;
+        PERFORM pg_catalog.set_config('lock_timeout', c_lock_wait, true);
         EXECUTE format('LOCK TABLE %s IN SHARE MODE', v_table);
+        PERFORM pg_catalog.set_config('lock_timeout', v_saved, true);
         EXECUTE format('SELECT EXISTS (SELECT 1 FROM %s e WHERE e.tenant_id = $1 AND e.metadata ? $2)', v_table)
            INTO v_in_use USING OLD.tenant_id, v_key;
     ELSE
         v_key   := OLD.type_key;
         v_table := 'public.service_locations'::regclass;
+        PERFORM pg_catalog.set_config('lock_timeout', c_lock_wait, true);
         LOCK TABLE public.service_locations IN SHARE MODE;
+        PERFORM pg_catalog.set_config('lock_timeout', v_saved, true);
         SELECT EXISTS (SELECT 1 FROM public.service_locations l
                         WHERE l.tenant_id = OLD.tenant_id AND l.location_type = OLD.type_key)
           INTO v_in_use;
@@ -173,13 +219,45 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_custom_label_unused() IS
-    'v5.4.2-21 (CI-014). BEFORE DELETE on custom_field_definitions and custom_location_types: refused while a row of the same tenant uses the label (a metadata key on the entity table the definition names; service_locations.location_type for a location type). Takes SHARE on the entity table first (writers finish, new ones wait) and runs only at READ COMMITTED. Invoker rights: RLS applies.';
+    'v5.4.2-21 (CI-014). BEFORE DELETE on custom_field_definitions and custom_location_types: refused while a row of the same tenant uses the label (a metadata key on the entity table the definition names; service_locations.location_type for a location type). Takes SHARE on the entity table first (writers finish, new ones wait), waiting at most 5 s (55P03), and runs only at READ COMMITTED. Invoker rights: RLS applies. A deletion-time check, not referential integrity: a write after the delete commits, or later in the deleting transaction, may still use the key.';
 REVOKE ALL ON FUNCTION public.enforce_custom_label_unused() FROM PUBLIC, tally_app, tally_core;
+
+-- r2 (Opus B3, Fable B1): a label is its key. Renaming or re-pointing an
+-- in-use label lost its values exactly as a delete did; the key columns are
+-- write-once for every role. A renamed label is a new definition, and the
+-- old one is archived (or deleted once unused).
+CREATE OR REPLACE FUNCTION public.enforce_custom_label_key_frozen() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $fn$
+DECLARE
+    v_moved boolean;
+BEGIN
+    -- One branch per table: a record field is resolved when its expression runs.
+    IF TG_TABLE_NAME = 'custom_field_definitions' THEN
+        v_moved := (NEW.tenant_id, NEW.entity_type, NEW.field_key) IS DISTINCT FROM (OLD.tenant_id, OLD.entity_type, OLD.field_key);
+    ELSE
+        v_moved := (NEW.tenant_id, NEW.type_key) IS DISTINCT FROM (OLD.tenant_id, OLD.type_key);
+    END IF;
+    IF v_moved THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: label %s keeps its key, entity and tenant — add a new label and archive this one (CI-014, v5.4.2-21)', TG_TABLE_NAME, OLD.id),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    RETURN NEW;
+END;
+$fn$;
+COMMENT ON FUNCTION public.enforce_custom_label_key_frozen() IS
+    'v5.4.2-21 r2 (CI-014). BEFORE UPDATE on custom_field_definitions (tenant_id, entity_type, field_key) and custom_location_types (tenant_id, type_key): the key columns are write-once for every role, so an in-use label cannot be renamed or re-pointed out from under its values.';
+REVOKE ALL ON FUNCTION public.enforce_custom_label_key_frozen() FROM PUBLIC, tally_app, tally_core;
 
 DO $$
 DECLARE t text;
 BEGIN
     FOREACH t IN ARRAY ARRAY['custom_field_definitions', 'custom_location_types'] LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_custom_label_key_frozen ON public.%I', t);
+        EXECUTE format('CREATE TRIGGER a_enforce_custom_label_key_frozen BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_custom_label_key_frozen()', t);
+        EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_enforce_custom_label_key_frozen', t);
         EXECUTE format('DROP TRIGGER IF EXISTS a_enforce_custom_label_unused ON public.%I', t);
         EXECUTE format('CREATE TRIGGER a_enforce_custom_label_unused BEFORE DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_custom_label_unused()', t);
         EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_enforce_custom_label_unused', t);
@@ -244,6 +322,9 @@ BEGIN
                 ERRCODE = 'restrict_violation';
         END IF;
         NEW.retired_at := now();
+        -- r2 (Opus S4, Fable N7): who retired it is the session's user, as
+        -- the database knows it, never a caller-chosen id.
+        NEW.retired_by := NULLIF(pg_catalog.current_setting('app.user_id', true), '')::uuid;
         -- The mutex, as an insert takes it (one lock order); a retirement
         -- removes an edge and cannot close a cycle.
         UPDATE public.rate_schedules s SET updated_at = now() WHERE s.id = NEW.rate_schedule_id;
@@ -311,7 +392,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_rate_item_dependency() IS
-    'v5.4.2-19 (CI-101), v5.4.2-21 (CI-014). BEFORE INSERT OR UPDATE on rate_item_dependencies. INSERT: born live; refuses a schedule or item of another tenant, and a dependency that closes a cycle among the schedule''s live dependencies (any length). UPDATE: only the retirement of a live dependency (reason required, retired_at stamped by the database); every other column is write-once and a retirement is permanent. Both serialise on the schedule header (a row-version mutex: rate_schedules.updated_at), so concurrent halves of a cycle cannot both pass at any isolation level.';
+    'v5.4.2-19 (CI-101), v5.4.2-21 (CI-014). BEFORE INSERT OR UPDATE on rate_item_dependencies. INSERT: born live; refuses a schedule or item of another tenant, and a dependency that closes a cycle among the schedule''s live dependencies (any length). UPDATE: only the retirement of a live dependency (reason required; retired_at and retired_by stamped by the database, the latter from app.user_id); every other column is write-once and a retirement is permanent. Both serialise on the schedule header (a row-version mutex: rate_schedules.updated_at), so concurrent halves of a cycle cannot both pass at any isolation level.';
 
 
 -- ----------------------------------------------------------------------------
@@ -333,7 +414,14 @@ BEGIN
             RETURN 'rate_item_id (a surcharge names its rate item)';
         END IF;
         SELECT v.calculation_type INTO v_calc FROM public.rate_item_as_of(p_line.rate_item_id, p_valid_at, p_recorded_at) v;
-        v_per_unit := coalesce(v_calc IN ('per_unit_usage', 'tiered_usage'), false);
+        -- r2 (all three reviewers, B1): no version visible at the coordinate
+        -- (none effective then, or an item this caller cannot see) is not
+        -- "fixed": a line that cannot be classified needs its figures.
+        -- calculation_type is NOT NULL, so NULL means exactly no version.
+        IF v_calc IS NULL THEN
+            RETURN format('a classification: rate item %s has no version visible at (%s, %s)', p_line.rate_item_id, p_valid_at, p_recorded_at);
+        END IF;
+        v_per_unit := v_calc IN ('per_unit_usage', 'tiered_usage');
     END IF;
     IF v_per_unit THEN
         IF p_line.usage_quantity IS NULL THEN v_missing := v_missing || 'usage_quantity'::text; END IF;
@@ -343,7 +431,9 @@ BEGIN
             IF p_line.gas_meter_factor   IS NULL THEN v_missing := v_missing || 'gas_meter_factor'::text; END IF;
             IF p_line.gas_ccf_used       IS NULL THEN v_missing := v_missing || 'gas_ccf_used'::text; END IF;
             IF p_line.gas_therms_billed  IS NULL THEN v_missing := v_missing || 'gas_therms_billed'::text; END IF;
-            IF p_line.gas_commodity_rate IS NULL THEN v_missing := v_missing || 'gas_commodity_rate'::text; END IF;
+            -- The commodity rate is the usage line's; a rider's own rate is
+            -- `rate` (r2, Fable S4).
+            IF p_line.charge_type = 'usage_charge' AND p_line.gas_commodity_rate IS NULL THEN v_missing := v_missing || 'gas_commodity_rate'::text; END IF;
         END IF;
     ELSIF p_line.charge_type = 'base_charge' THEN
         IF p_line.rate IS NULL THEN v_missing := v_missing || 'rate'::text; END IF;
@@ -355,7 +445,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.invoice_line_arithmetic_gap(public.invoice_line_items, date, timestamp with time zone) IS
-    'v5.4.2-21 (CI-016). What a bill line lacks of the arithmetic it must carry at issue, or NULL. usage_charge: usage_quantity, usage_unit, rate (gas: also gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate). base_charge: rate, and the five coverage columns all or none (none = the full period). surcharge: its rate_item_id, and when the item is per_unit_usage or tiered_usage at (p_valid_at, p_recorded_at), what a usage line carries. Every other kind: nothing. Presence only; the product is the core''s.';
+    'v5.4.2-21 (CI-016). What a bill line lacks of the arithmetic it must carry at issue, or NULL. usage_charge: usage_quantity, usage_unit, rate (gas: also gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate). base_charge: rate, and the five coverage columns all or none (none = the full period). surcharge: its rate_item_id and a version of it visible at (p_valid_at, p_recorded_at); when that version is per_unit_usage or tiered_usage, usage_quantity, usage_unit and rate (gas: also the meter factor, Ccf and therms; the commodity rate is the usage line''s). Every other kind: nothing. Presence only; the product is the core''s. tally_app executes it: the issuance check calls it with the caller''s rights, so RLS decides which rate items are visible.';
 REVOKE ALL ON FUNCTION public.invoice_line_arithmetic_gap(public.invoice_line_items, date, timestamp with time zone) FROM PUBLIC, tally_core;
 
 CREATE OR REPLACE FUNCTION public.enforce_invoice_line_arithmetic() RETURNS trigger
@@ -365,6 +455,7 @@ CREATE OR REPLACE FUNCTION public.enforce_invoice_line_arithmetic() RETURNS trig
 DECLARE
     v_line public.invoice_line_items%ROWTYPE;
     v_gap  text;
+    v_snap public.invoice_calculation_snapshots%ROWTYPE;
 BEGIN
     -- Gated as its siblings: only the move into an issued status, and not a
     -- void (a discard of a draft or held bill).
@@ -377,12 +468,21 @@ BEGIN
     IF TG_OP = 'UPDATE' AND NEW.status = 'void' THEN
         RETURN NULL;
     END IF;
-    -- The lines are locked, as the siblings lock them: a concurrent line edit
-    -- waits for this transaction.
+    -- r2 (Codex B2): the arithmetic of the price actually calculated is read
+    -- at the bill's own coordinate, its snapshot's (valid_at, recorded_at):
+    -- since v5.4.2-10 that pair is validated and frozen (a correction's may
+    -- be an elected rate date and the original's knowledge instant). No
+    -- snapshot: enforce_invoice_has_snapshot refuses the issuance; there is
+    -- no fallback onto live coordinates.
+    SELECT * INTO v_snap FROM public.invoice_calculation_snapshots s WHERE s.invoice_id = NEW.id;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+    -- The lines are locked, as the siblings lock them: a concurrent edit of
+    -- an existing line waits for this transaction.
     PERFORM 1 FROM public.invoice_line_items l WHERE l.invoice_id = NEW.id FOR SHARE;
     FOR v_line IN SELECT l.* FROM public.invoice_line_items l WHERE l.invoice_id = NEW.id ORDER BY l.line_order, l.id LOOP
-        -- The siblings' coordinate: current knowledge at the period end.
-        v_gap := public.invoice_line_arithmetic_gap(v_line, NEW.period_end, now());
+        v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, v_snap.recorded_at);
         IF v_gap IS NOT NULL THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('invoice %s cannot be issued: line %s (%s, %s) does not carry its arithmetic — missing %s (CI-016, v5.4.2-21)', NEW.invoice_number, v_line.line_order, v_line.charge_type, v_line.description, v_gap),
@@ -393,7 +493,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_invoice_line_arithmetic() IS
-    'v5.4.2-21 (CI-016). Deferred AFTER INSERT OR UPDATE on invoices: on the move into an issued status (not a void), every line must carry its arithmetic (invoice_line_arithmetic_gap at the bill''s period_end, now()). Locks the lines FOR SHARE.';
+    'v5.4.2-21 (CI-016). Deferred AFTER INSERT OR UPDATE on invoices: on the move into an issued status (not a void), every line must carry its arithmetic (invoice_line_arithmetic_gap at the bill''s calculation snapshot''s valid_at, recorded_at — the coordinate the price was calculated at). Without a snapshot it defers to enforce_invoice_has_snapshot. Locks the lines FOR SHARE. A superuser''s load of a bill born issued is checked too.';
 REVOKE ALL ON FUNCTION public.enforce_invoice_line_arithmetic() FROM PUBLIC, tally_app, tally_core;
 
 DROP TRIGGER IF EXISTS enforce_invoice_line_arithmetic ON public.invoices;
@@ -417,6 +517,14 @@ ALTER TABLE public.account_ledger
     ADD CONSTRAINT account_ledger_void_reversal_lineage_check
         CHECK (transaction_type <> 'void_reversal'
                OR (reverses_ledger_entry_id IS NOT NULL AND coalesce(reversal_reason ~ '[[:alnum:]]', false)));
+-- r2 (Opus S2): the void's reversal is one act under one name. An
+-- adjustment filed against an invoice void would carry no link.
+ALTER TABLE public.account_ledger
+    ADD CONSTRAINT account_ledger_void_reversal_reference_check
+        CHECK (coalesce(reference_type = 'invoice_void', false) = (transaction_type = 'void_reversal'));
+-- r2 (Fable S3): an entry is reversed by a void at most once.
+CREATE UNIQUE INDEX account_ledger_one_void_reversal_per_entry
+    ON public.account_ledger (reverses_ledger_entry_id) WHERE transaction_type = 'void_reversal';
 ALTER TABLE public.account_ledger DROP CONSTRAINT account_ledger_reverses_ledger_entry_id_fkey;
 ALTER TABLE public.account_ledger
     ADD CONSTRAINT account_ledger_reverses_ledger_entry_fkey
@@ -665,6 +773,7 @@ BEGIN
         SELECT l.id INTO v_original_ledger_entry_id
           FROM public.account_ledger l
          WHERE l.tenant_id        = v_invoice.tenant_id
+           AND l.customer_id      = v_invoice.customer_id   -- r2 (Opus S1)
            AND l.reference_type   = 'invoice'
            AND l.reference_id     = p_invoice_id
            AND l.transaction_type = 'charge'
@@ -859,7 +968,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.void_invoice(uuid, uuid, text, text, boolean) IS
-    'Atomically voids an invoice — the ONLY way to set invoices.status = ''void'' outside a superuser''s history load. Locks the invoice, releases its locked reads, disposes of its billed ad-hoc charges and logs the event. A posted bill (first_issued_at set) must have its charge entry on account_ledger: the void posts the void_reversal naming it (reverses_ledger_entry_id, reversal_reason; CI-017), and is refused (P0002) before writing anything if the charge is missing. A bill never posted (voided from held) gets no ledger entry; its reversal_amount is NULL (v5.4.2-21, Ryan 2026-10-14). Since v5.4.2-20 it runs as tally_void, a role subject to RLS that no caller can become: the read, charge and invoice guards admit its writes because they run as tally_void, and only while it runs. An invoice the caller cannot see, or a caller with no tenant, gets "Invoice not found" (P0002). Returns the customer''s summed ledger balance as credit_balance.';
+    'Atomically voids an invoice — the ONLY way to set invoices.status = ''void'' outside a superuser''s history load. Locks the invoice, releases its locked reads, disposes of its billed ad-hoc charges and logs the event. A posted bill (first_issued_at set) must have its charge entry on account_ledger, of the bill''s tenant and customer: the void posts the void_reversal naming it (reverses_ledger_entry_id, reversal_reason; CI-017), and is refused (P0002) before writing anything if the charge is missing. A bill never posted (voided from held) gets no ledger entry; its reversal_amount is NULL (v5.4.2-21, Ryan 2026-10-14). A superuser load that brings in a posted bill sets first_issued_at with it, or the bill voids as a discard. Since v5.4.2-20 it runs as tally_void, a role subject to RLS that no caller can become: the read, charge and invoice guards admit its writes because they run as tally_void, and only while it runs. An invoice the caller cannot see, or a caller with no tenant, gets "Invoice not found" (P0002). Returns the customer''s summed ledger balance as credit_balance.';
 
 
 -- ----------------------------------------------------------------------------
@@ -870,7 +979,7 @@ ALTER TABLE public.users
     ADD CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub),
     ADD CONSTRAINT users_cognito_sub_format_check CHECK (cognito_sub ~ '^[0-9A-Za-z_-]{1,128}$');
 COMMENT ON COLUMN public.users.cognito_sub IS
-    'v5.4.2-21 (R1, AC-43). The Cognito subject (the verified token''s sub) this user is. The application sets app.user_id to the user whose cognito_sub is the token''s sub, and nothing else. Unique; write-once once set; NULL for a service user, which has no Cognito identity.';
+    'v5.4.2-21 (R1, AC-43). The Cognito subject (the verified token''s sub) this user is. The application sets app.user_id to the user whose cognito_sub is the token''s sub, and nothing else. Unique; written by a supervisor''s session (r2); write-once once set, except a superuser repair; NULL for a service user, which has no Cognito identity.';
 
 CREATE OR REPLACE FUNCTION public.enforce_user_cognito_sub_write_once() RETURNS trigger
     LANGUAGE plpgsql
@@ -893,6 +1002,44 @@ DROP TRIGGER IF EXISTS a_enforce_user_cognito_sub_write_once ON public.users;
 CREATE TRIGGER a_enforce_user_cognito_sub_write_once BEFORE UPDATE OF cognito_sub ON public.users
     FOR EACH ROW EXECUTE FUNCTION public.enforce_user_cognito_sub_write_once();
 ALTER TABLE public.users ENABLE ALWAYS TRIGGER a_enforce_user_cognito_sub_write_once;
+
+-- r2 (Opus B2): who may bind an identity, or switch a user on or off. A
+-- binding is write-once, but nothing guarded who set it: an operator could
+-- bind its own second Cognito account to an unbound tenant_admin (or
+-- reactivate a deactivated one), and session_is_supervisor() would then
+-- answer true — the self-promotion enforce_tenant_admin_grant refuses
+-- (v5.4.2-13). And U2 makes is_active a wall: an operator could switch its
+-- supervisors off. For the application, binding any user and changing any
+-- user's is_active take a supervisor; the owner (a superuser load or repair)
+-- stands aside, as in enforce_tenant_admin_grant. Consequence for onboarding
+-- (AC-43): a user's binding is written by a supervisor's session when the
+-- user is provisioned (Cognito's admin create returns the sub), not by the
+-- new user's own first login.
+CREATE OR REPLACE FUNCTION public.enforce_user_binding_by_supervisor() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $fn$
+BEGIN
+    IF current_user <> 'tally_app' THEN
+        RETURN NEW;
+    END IF;
+    IF ((TG_OP = 'INSERT' AND NEW.cognito_sub IS NOT NULL)
+        OR (TG_OP = 'UPDATE' AND (NEW.cognito_sub IS DISTINCT FROM OLD.cognito_sub OR NEW.is_active IS DISTINCT FROM OLD.is_active)))
+       AND NOT public.session_is_supervisor() THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('user %s: only a supervisor (tenant_admin or platform administrator) binds a Cognito identity or switches a user on or off — a session that could bind or revive an administrator could promote itself (R1, v5.4.2-21)', NEW.id),
+            ERRCODE = 'insufficient_privilege';
+    END IF;
+    RETURN NEW;
+END;
+$fn$;
+COMMENT ON FUNCTION public.enforce_user_binding_by_supervisor() IS
+    'v5.4.2-21 r2 (R1). BEFORE INSERT OR UPDATE OF cognito_sub, is_active on users: for tally_app, binding a Cognito identity (on insert or update) and changing is_active either way require session_is_supervisor(). Other roles (the owner''s load or repair) stand aside, as in enforce_tenant_admin_grant.';
+REVOKE ALL ON FUNCTION public.enforce_user_binding_by_supervisor() FROM PUBLIC, tally_app, tally_core;
+DROP TRIGGER IF EXISTS a_enforce_user_binding_by_supervisor ON public.users;
+CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active ON public.users
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_user_binding_by_supervisor();
+ALTER TABLE public.users ENABLE ALWAYS TRIGGER a_enforce_user_binding_by_supervisor;
 
 -- U2. Only an active user has a tenant, or is a platform administrator.
 CREATE OR REPLACE FUNCTION public.get_user_tenant_id() RETURNS uuid
@@ -1190,16 +1337,21 @@ BEGIN
             MESSAGE = format('a retention guard is missing, changed or not ENABLE ALWAYS (CI-014, v5.4.2-21): %s', v_bad),
             ERRCODE = 'invalid_grant_operation';
     END IF;
-    -- The label guards.
-    SELECT string_agg(t, ', ' ORDER BY t) INTO v_bad
-      FROM unnest(ARRAY['custom_field_definitions', 'custom_location_types']) t
+    -- The label guards: in use, keys frozen, never emptied (r2: Codex S1,
+    -- Fable S2).
+    SELECT string_agg(t || ' ' || g, ', ' ORDER BY t, g) INTO v_bad
+      FROM unnest(ARRAY['custom_field_definitions', 'custom_location_types']) t,
+           unnest(ARRAY['a_enforce_custom_label_unused', 'a_enforce_custom_label_key_frozen', 'no_truncate']) g
      WHERE NOT EXISTS (
             SELECT 1 FROM pg_catalog.pg_trigger x
-             WHERE x.tgrelid = ('public.' || t)::regclass AND NOT x.tgisinternal AND x.tgenabled = 'A'
-               AND pg_catalog.pg_get_triggerdef(x.oid) = format('CREATE TRIGGER a_enforce_custom_label_unused BEFORE DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION enforce_custom_label_unused()', t));
+             WHERE x.tgrelid = ('public.' || t)::regclass AND x.tgname = g AND NOT x.tgisinternal AND x.tgenabled = 'A'
+               AND pg_catalog.pg_get_triggerdef(x.oid) = CASE g
+                    WHEN 'a_enforce_custom_label_unused' THEN format('CREATE TRIGGER a_enforce_custom_label_unused BEFORE DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION enforce_custom_label_unused()', t)
+                    WHEN 'a_enforce_custom_label_key_frozen' THEN format('CREATE TRIGGER a_enforce_custom_label_key_frozen BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION enforce_custom_label_key_frozen()', t)
+                    ELSE format('CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.%I FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()', t) END);
     IF v_bad IS NOT NULL THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('the in-use guard is missing, changed or not ENABLE ALWAYS on %s (CI-014, v5.4.2-21)', v_bad),
+            MESSAGE = format('a label guard is missing, changed or not ENABLE ALWAYS: %s (CI-014, v5.4.2-21)', v_bad),
             ERRCODE = 'invalid_grant_operation';
     END IF;
     -- tally_app deletes nothing else, and truncates nothing.
@@ -1216,10 +1368,46 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.assert_no_hard_delete_invariants() IS
-    'v5.4.2-21 (CI-014). Raises unless: the sixteen retained tables each carry no_hard_delete and no_truncate exactly as defined and ENABLE ALWAYS; the two custom-label tables carry the in-use guard likewise; and tally_app holds DELETE on no public table outside the twelve deletable ones and TRUNCATE on none. Run in the patch tail and in CI.';
+    'v5.4.2-21 (CI-014). Raises unless: the sixteen retained tables each carry no_hard_delete and no_truncate exactly as defined and ENABLE ALWAYS; the two custom-label tables carry the in-use guard, the key freeze and no_truncate likewise; and tally_app holds DELETE on no public table outside the twelve deletable ones and TRUNCATE on none. It checks tally_app''s privileges only (tally_core is assert_core_role_invariants''s, PUBLIC assert_seal_role_invariants''s), and the triggers'' definitions and state, not the bodies of the functions they call. Run in the patch tail and in CI.';
 REVOKE ALL ON FUNCTION public.assert_no_hard_delete_invariants() FROM PUBLIC, tally_app, tally_core;
 
+-- ----------------------------------------------------------------------------
+-- 10. The wave-1 guard invariant (r2, Fable S2)
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.assert_wave1_guard_invariants() RETURNS void
+    LANGUAGE plpgsql
+    STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $fn$
+DECLARE
+    v_bad text;
+    -- PostgreSQL 16's rendering by pg_get_triggerdef: re-capture on a major
+    -- upgrade, after checking each trigger is unchanged.
+    c_triggers CONSTANT text[] := ARRAY[
+        'CREATE CONSTRAINT TRIGGER enforce_invoice_line_arithmetic AFTER INSERT OR UPDATE ON public.invoices DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_invoice_line_arithmetic()',
+        'CREATE TRIGGER a_enforce_adhoc_charge_born_unvoided BEFORE INSERT ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_born_unvoided()',
+        'CREATE TRIGGER a_enforce_user_cognito_sub_write_once BEFORE UPDATE OF cognito_sub ON public.users FOR EACH ROW EXECUTE FUNCTION enforce_user_cognito_sub_write_once()',
+        'CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active ON public.users FOR EACH ROW EXECUTE FUNCTION enforce_user_binding_by_supervisor()',
+        'CREATE TRIGGER a_enforce_rate_item_dependency BEFORE INSERT OR UPDATE ON public.rate_item_dependencies FOR EACH ROW EXECUTE FUNCTION enforce_rate_item_dependency()'];
+BEGIN
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
+      FROM unnest(c_triggers) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g
+                        WHERE NOT g.tgisinternal AND g.tgenabled = 'A'
+                          AND pg_catalog.pg_get_triggerdef(g.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format(E'a wave-1 guard is missing, changed, or not ENABLE ALWAYS (v5.4.2-21):\n  %s', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+END;
+$fn$;
+COMMENT ON FUNCTION public.assert_wave1_guard_invariants() IS
+    'v5.4.2-21 r2. Raises unless the guards of v5.4.2-21 outside retention — the bill-line arithmetic check, the born-unvoided charge guard, the Cognito write-once and supervisor guards, and the rate-dependency guard (with its retirement) — exist exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS. Checks the triggers, not the bodies of their functions. Run in the patch tail and in CI.';
+REVOKE ALL ON FUNCTION public.assert_wave1_guard_invariants() FROM PUBLIC, tally_app, tally_core;
+
 DO $$ BEGIN
+    PERFORM public.assert_wave1_guard_invariants();
     PERFORM public.assert_no_hard_delete_invariants();
     PERFORM public.assert_seal_role_invariants();
     PERFORM public.assert_core_role_invariants();

@@ -468,6 +468,9 @@ SELECT pg_temp.refuses('C7: a category''s law class is never changed: tariffs an
 SELECT pg_temp.refuses('C8: … and is never deleted',
   format($q$DELETE FROM public.deposit_utility_categories WHERE tenant_id = %L AND category_code = 'renter'$q$, :'t1'),
   '42501', 'permission denied', 'tally_app', :'u1');
+SELECT pg_temp.refuses('C8b: … and the owner meets the -15 guard behind the grant',
+  format($q$DELETE FROM public.deposit_utility_categories WHERE tenant_id = %L AND category_code = 'renter'$q$, :'t1'),
+  '23001', 'is never deleted', NULL, NULL);
 SELECT pg_temp.ok('C9: each utility sees its own categories and not another''s',
   pg_temp.count_as('SELECT 1 FROM public.deposit_utility_categories', 'tally_app', :'u1') = 3
   AND pg_temp.count_as('SELECT 1 FROM public.deposit_utility_categories', 'tally_app', :'u2') = 1);

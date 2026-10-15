@@ -6,6 +6,16 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (-21 review round 1) — drafting calls settled by standing rule, reported to Ryan
+
+**What:** three reviewers on -21 r1 (`tests/v5.4.2-21/review/review-findings-21-r1.md`). Two calls go beyond the decisions as written:
+- **Supervisor binds (Opus B2).** For the application, binding a user's Cognito identity and switching a user on or off require a supervisor. An operator could otherwise bind its own second account to an unbound administrator and promote itself, which is the act `enforce_tenant_admin_grant` (v5.4.2-13) refuses. Consequence: users are bound when a supervisor provisions them (Cognito's admin create returns the sub), not at their own first login (AC-43).
+- **A gas rider carries no commodity rate (Fable S4).** "As for usage_charge" in CI-016 is read as quantity, unit and rate, plus the gas quantities. The commodity rate is the usage line's figure; requiring it on a rider would force a number that is not the rider's.
+
+*Why:* memory rules "guard the act, not the label" and "a wrong figure is worse than a blank" (the CI-017 rationale). *Where it lives:* v5.4.2-21 r2.
+
+---
+
 ## 2026-10-14 (CI-017, void_invoice) — Ryan: a void reverses the posted charge, or posts nothing
 
 **What:** Ryan (2026-10-14): "yes, go with the default". The CI-017 entry below assumed `void_invoice()` already names the ledger entry it reverses. It names it only when it finds one; it finds none today (nothing posts a bill's charge yet), and it also posts a reversal for a bill voided straight from `held`.
