@@ -1,8 +1,8 @@
-# Handoff: v5.4.2-20 mirrored (the version check and the void, sealed); Kyle answered; Ryan's four wave-1 calls decided
+# Handoff: v5.4.2-21 mirrored (wave 1 built: retention, bill-line arithmetic, lineage, the void's reversal, Cognito binding); R1 decided
 
-**Generated**: 2026-10-14 15:20
-**Branch**: `main` at `6a520ae`, pushed. gas-billing-memory `main` at `11ce5c5`, pushed (`Clippings/` uncommitted on purpose: never commit it).
-**Status**: Ready for the next piece. Nothing is in review and nothing is pending in CI (`PENDING=()`).
+**Generated**: 2026-10-14 22:00
+**Branch**: `main` at `d584e61`, pushed. gas-billing-memory `main` at `11ce5c5` (`Clippings/` uncommitted on purpose: never commit it).
+**Status**: Ready for the next piece. Nothing is in review, nothing pending in CI (`PENDING=()`).
 
 ## Goal
 
@@ -14,45 +14,39 @@ Reach the C# core build. Ryan's gate, in order:
 
 ## Completed (this session)
 
-- [x] **Kyle answered the tax-jurisdiction and gas-cost brief.** His file is `gas-billing-memory/application/kyle-decisions-2026-10-14-tax-jurisdictions-and-gas-cost.md` (`45dfff6`).
-  - Logged in `application/DECISION-LOG.md` and in GBM ingestion manifest Section BO.
-  - The gas-cost carve-out is closed: billing side only, so CI-033 and CI-036 are to be re-read as such.
-  - Kyle asked where D-2 lives: Part 2 of `gas-billing-memory/application/kyle-decisions-2026-08-18-coda-items.md`. **This has not been sent to him.**
-- [x] **GBM housekeeping:** Section BN and `marketing/state-and-differentiators-2026-10-02.md` committed (`11ce5c5`).
-- [x] **Ryan's four wave-1 calls, all logged in `application/DECISION-LOG.md` (2026-10-14):**
-  - **CI-016:** which bill lines must carry their arithmetic at issue. Usage, base and per-unit surcharges do; every other kind is the amount only.
-  - **CI-017:** a reversal that undoes one thing must name it. A refund names a payment or a customer credit; that FK does not exist yet.
-  - **CI-014:** 17 more tables refuse DELETE; 6 stay deletable. The custom labels are refused while in use.
-  - **CI-011 / A-23:** seal the version check and the void, built as -20 below.
-  **CI-016, CI-017 and CI-014 are decided but NOT built.**
-- [x] **A-23 design review**, with three reviewers (`application/a23-seal-review-2026-10-14/`: brief, three reviews, `source-inventory-20.md`).
-- [x] **`sql/v5.4.2-20-seal-version-check-and-void.sql`**, r3, 1,488 lines, md5 `0ae593499b0dbf52a5bf306b8e7f3eee`:
-  - **Review:** three rounds (r1 all "not yet"; r2 all ready; r3 diff-scoped, all ready).
-  - **Mirrored:** `sql/tu.sql` 38,016 → **39,349** lines, md5 `e13f0d72ffdcf65782e789a58ed4cb32`.
-  - **Build check:** fresh build, zero init errors; catalog identity of 11,215 lines equal to the patched clone; `tests/ci.sh --build` 26/26.
-  - **Docs:** `sql/DEPLOY-VERIFICATION.md` has the -20 entry; AC-12 rewritten and AC-42 new in `application/APPLICATION-CONTRACTS.md`.
+- [x] **R1, the caller identity (decided by Ryan).** The database trusts the app's Cognito-verified identity; there is no database-side session.
+  - **AC-43** (`application/APPLICATION-CONTRACTS.md`): `app.user_id` is set only from the verified token's `sub`, with `SET LOCAL`, in one middleware path. It is never resolved by email.
+  - Logged in `application/DECISION-LOG.md`.
+- [x] **The void's reversal (decided by Ryan: "yes, go with the default").**
+  - A posted bill (`first_issued_at` set) must have its charge entry, and the reversal names it; with none, the void is refused.
+  - A never-posted bill (voided from `held`) writes no ledger entry.
+- [x] **`sql/v5.4.2-21-wave1-lineage-arithmetic-retention.sql`**, r4, 1,468 lines, md5 `649db2b7094e585adde761f69a89a126`.
+  - **Inventory:** `application/wave1-build-2026-10-14/source-inventory-21.md`.
+  - **Review:** four rounds (`tests/v5.4.2-21/review/`, findings files r1–r3). r4: Opus, Fable and Codex all ready.
+  - **Mirrored:** `sql/tu.sql` 39,349 → **40,652** lines, md5 `3b1433a315ecc97be284525333185932`.
+  - **Build check:** a fresh build with zero init errors. Its `pg_dump --schema-only` (with privileges) is identical to a patched clone of the -20 build. `tests/ci.sh --build` passes 30/30. `DEPLOY-VERIFICATION.md` has the entry.
 - [x] **Tests:**
-  - `tests/v5.4.2-20/battery-20.sql`, 80 checks;
-  - `tests/v5.4.2-20/races/seal-20.sh`, 19 cases (RC1–RC6, RC3b, T1–T7c);
-  - `tests/v5.4.2-20/mutations-20.py`, 53/53;
-  - batteries -10, -11 and -19 adjusted (see the warnings).
+  - `tests/v5.4.2-21/battery-21.sql`, 143 checks;
+  - `races/labels-21.sh`, 9 cases (LR1–LR7, LR2b, AR1);
+  - `mutations-21.py`, 68/68;
+  - batteries -10, -11, -13, -15, -19 and -20, and the -20 races, adjusted (see the patch header).
+- [x] **CI** has new steps: battery-21, races -21, the retention invariants and the wave-1 guard invariants. `PENDING` markers can now be `table.column`.
 
 ## Not Yet Done
 
-- [ ] **Ask Ryan:** Codex's identity question (-20 residual R1). `app.user_id` is caller-asserted, so any code running as `tally_app` can claim another real user, a platform admin included. Every tenant wall rests on it. One decision, in plain language, with a default.
-- [ ] **Build the three decided calls** as the next patch: CI-016 (a deferred check at issue, by `charge_type`), CI-017 (lineage required; a new refund→`customer_credits` FK) and CI-014 (17 tables into `enforce_no_hard_delete`; the custom-label in-use guard). The decision-log entries carry the exact lists and what is left to drafting.
-- [ ] **Fold the three -20 notes** into that patch:
-  - convert `REVOKE TEMP ON DATABASE :"DBNAME" FROM PUBLIC` to `EXECUTE format(... current_database())`; it is the only psql variable in tu.sql, and redundant;
-  - the PUBLIC-clause message says "relation";
-  - a header comment: the trigger-definition strings in `assert_seal_role_invariants()` are PostgreSQL 16's rendering, so re-capture them on a major upgrade.
-- [ ] **Update GBM for -20:** CI-011's grade, A-23 item 1, AC-12/R14 in the parity docs and `canonical-invariants.md`, plus an ingestion-manifest section (memory `log-changes-for-wiki-ingestion`).
-- [ ] **Reply to Kyle** with where D-2 lives (above).
-- [ ] **Wave 2** of `application/step1-sequencing-2026-10-13.md` (finance-released structures and cash). Kyle's answers now also release A-8 tax jurisdictions and the franchise-fee rework.
+- [ ] **Update GBM for -20 and -21** (two patches behind):
+  - CI-011, CI-014, CI-016 and CI-017 grades;
+  - A-23 item 1;
+  - AC-12, AC-42 and AC-43 in the parity docs and `canonical-invariants.md`;
+  - an ingestion-manifest section per patch (memory `log-changes-for-wiki-ingestion`).
+- [ ] **Reply to Kyle** with where D-2 lives: Part 2 of `gas-billing-memory/application/kyle-decisions-2026-08-18-coda-items.md`. Not sent.
+- [ ] **Wave 2** of `application/step1-sequencing-2026-10-13.md` (finance-released structures and cash). Kyle's answers also release A-8 tax jurisdictions and the franchise-fee rework.
 - [ ] **The -05 defect** (Fable -19 r1 N6): a non-estimated read inserted past `pending` fails on `meters_last_validated_actual_reading_id_fkey`. It needs its own small patch.
+- [ ] **-21 residual R9:** `line_item_carries_base` still classifies at the period end, not a correction's elected date. Fix it by the same rule: the date from the snapshot's `valid_at`, the knowledge from `now()`.
 - [ ] **Carried over:**
-  - backbilling tariff table;
+  - the backbilling tariff table;
   - the GitHub Actions bump (`checkout@v4`, `setup-python@v5`, Node 20 warnings);
-  - Florida 25-7.083 text;
+  - the Florida 25-7.083 text;
   - the waiver-determination rewrite;
   - low-confidence measurement rows;
   - the -15 r8 follow-ups;
@@ -60,62 +54,54 @@ Reach the C# core build. Ryan's gate, in order:
 
 ## Failed Approaches (Don't Repeat These)
 
-- **A receipt for the void.** It stays valid until commit, which reopens the window v5.4.2-01 closed: a charge attached to the voided bill later in the same transaction could be released with it. Use `current_user = 'tally_void'` in the guards; the window is exactly the call.
-- **Column-only `REVOKE UPDATE (version)`.** It is a no-op while the table-level grant stands. Revoke table UPDATE, then GRANT the sanctioned columns back, and keep `updated_at` (the `rate_item_dependencies` mutex writes it).
-- **The attach guard "leaving an invisible bill to the FK".** The FK checks only the id, so tenant 1 billed onto tenant 2's void bill. Refuse NOT FOUND, and refuse a tenant mismatch (a platform admin sees both).
-- **A void at REPEATABLE READ.** Its child UPDATEs use the old snapshot and miss an attach that committed while it waited for the lock. `void_invoice()` refuses anything but READ COMMITTED.
-- **A trigger only on "pointer changed".** A pending charge could carry a pointer through the bill's void and then be marked billed, unchanged. CHECK `adhoc_charges_billed_names_its_bill`.
-- **New guards left origin-only.** `session_replication_role = replica` skips them, contrary to D-2026-08-20-27. `ALTER TABLE … ENABLE ALWAYS TRIGGER` every guard.
-- **Duplicate checks:**
-  - the void's explicit tenant compare duplicated RLS;
-  - the stamp of xact/at was done in both the function and the trigger;
-  - the charge guard's "keeps run" duplicated the column grants.
-  Each made a mutation miss; removed (memory `test-the-boundary` / redundant-guard rule).
-- **Battery forgery via `session_replication_role = replica`.** It stopped working once the stamp trigger was ALWAYS. Use `ALTER TABLE … DISABLE TRIGGER` inside the rolled-back battery.
-- **One planted receipt shared across S13 cases.** A mutation got caught at the wrong case. Plant each forgery just before its own case.
-- **`now()` for an `updated_at` touch in one transaction.** The value does not change. Use `clock_timestamp()`.
-- **Comparing jsonb-stored oids with `@> to_jsonb(oid::bigint)`.** jsonb holds the oid as a string. Use `(c_owns -> r) ? p.oid::text`.
-- **A python edit script that asserts on file 1, then edits file 2.** The abort silently skipped file 2's edits. Check each file's edit landed.
-- **Counting `ERROR:` in `docker logs` after a CI run.** The tests' deliberate refusals are logged too. Count only before "PostgreSQL init process complete".
+- **`coalesce(v_calc IN (...), false)` for "is this rider per unit":** when no version is visible (none effective at the date, or another tenant's item hidden by RLS) it reads "unknown" as "fixed", and the line issues with no figures. Refuse when `v_calc IS NULL`.
+- **Classifying at `(period_end, now())`:** a correction priced at an elected rate date was misread (Codex r1 B2).
+- **Classifying at the snapshot's `(valid_at, recorded_at)`:** `recorded_at` is the caller's to pick inside `[created_at, now()]`, so a backdated instant hid a retracted classification (Fable r2 B1). Use `(valid_at, now())` (memory `date-from-snapshot-knowledge-from-now`).
+- **Guarding only the label DELETE:** an in-use label was renamed or re-pointed (`field_key`, `entity_type`, `tenant_id`, `type_key`) and then deleted, or simply left renamed. The keys are now write-once.
+- **A write-once Cognito binding with no rule on who sets it:** an operator bound its second account to an unbound tenant_admin and became a supervisor.
+- **Supervisor-only on the platform admin:** a tenant_admin revived a platform admin of its tenant.
+- **Guarding `is_active` but not `role`:** a role-only demotion switched any administrator off, even by an operator. Removing power through any column is the act to guard.
+- **A combined OR across both label tables' columns in one plpgsql expression:** the error was `record "new" has no field "type_key"`. Branch per table.
+- **A mutation runner that counts the first FAIL:** a weak earlier check caught M12/M16 for the wrong reason. Put the stronger check first (K3a2, K3d2).
+- **A wait loop that grep'd the Codex log for `error:`:** it matched Codex's own tool output and ended early. Wait on the `-o` file only.
+- **Battery fixtures that reset `updated_at`:** the BEFORE `set_updated_at` trigger overwrites it. Use `SET LOCAL session_replication_role = replica` for that one statement.
+- **`refuses_at` on another tenant's row as `tally_app`:** RLS hides it, so the result is "accepted" (zero rows). Target the caller's own tenant.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Two owner roles, `tally_seal` and `tally_void`: NOLOGIN, not BYPASSRLS, no members, an exact privilege allowlist | A superuser definer switches on about 12 superuser carve-outs and bypasses RLS. Separate roles because the void guards key on `current_user` |
-| Receipts for the version check (Opus, Fable), not Codex's write API | It keeps the app's calling shape and was tested against every bypass. The write API is the next step if the version tables get a second writer (R4) |
-| The receipt binds xact, `at = now()`, table + entity, and the header's current version | `at` covers xid reuse after a restore. Each binding has a forgery test (S13a–e) |
-| A header lifecycle move needs the check too | An archive is an edit of the entity (Fable S6) |
-| tally_void has column-level UPDATE only | Least privilege. Out-of-grant writes fail with 42501 (batteries -19 R4/R5c and -20 V9c/V10 expect it) |
-| The r3 round was diff-scoped (Ryan agreed) | r3 changed only the invariant and the tests |
-| Mirror the reviewed bytes even with the psql-variable wart | An unreviewed edit at mirror time is worse; the wart is noted for the next patch |
-| The invariant's PUBLIC clause refuses any table or column privilege to PUBLIC | Every role inherits PUBLIC, so the allowlist would otherwise be incomplete (Codex r2 S1) |
+| R1: trust the app's Cognito-verified identity (Ryan) | A compromised app server has the DB credentials anyway; a session table only narrows which users it can claim. Bugs are covered by one middleware path and `SET LOCAL` |
+| A supervisor binds identities, switches users and demotes admins; a platform admin does so for platform admins | Guard the act. A user is bound when a supervisor provisions it (Cognito admin create returns the sub). Reported to Ryan |
+| A gas rider needs no commodity rate | It is the usage line's figure; a rider's rate is `rate`. Reported to Ryan |
+| Rate dependencies are retired, not deleted | The table had no status; no-hard-delete would have frozen a wrong dependency forever |
+| One void reversal per entry; `invoice_void` if and only if `void_reversal` | Guard the act, not the label; it narrows -21 R2 cheaply |
+| The label guard: SHARE lock, READ COMMITTED only, 5 s lock wait | A no-writer-side handshake. It is a deletion-time check, not referential integrity (LR2b) |
+| The -20 `:"DBNAME"` line is left in tu.sql | Mirrored bodies are never edited; -21 carries the `current_database()` form |
 
 ## Current State
 
 **Working:**
-- `tally-pg` runs the **-20 build**: `tally` = `tu.sql` md5 `e13f0d72`.
-- `tests/ci.sh` passes, 26 steps.
+- `tally-pg` runs the **-21 build**: `tally` = tu.sql md5 `3b1433a3`.
+- `tests/ci.sh` passes 30 steps.
 - TEMP is revoked for `tally_app`, `tally_seal` and `tally_void`.
 
 **Broken:** nothing.
-**Uncommitted changes:** only this HANDOFF and the CHANGELOG entry (to be committed now). GBM: `Clippings/`, untracked, never commit.
+**Uncommitted changes:** this HANDOFF and the CHANGELOG entry (committed at wrap-up). GBM: `Clippings/`, untracked, never commit.
 
 ## Code Context
 
 ```sql
-public.assert_reference_version(p_table text, p_id uuid, p_expected_version int) RETURNS int
-  -- definer, owner tally_seal; P0002 not visible, 40001 stale; writes reference_version_receipts
-public.reference_version_receipt_held(p_table text, p_id uuid) RETURNS boolean
-  -- definer, owner tally_seal; this xact + at=now() + entity + current version
-public.void_invoice(uuid, uuid, text, text, boolean) RETURNS jsonb
-  -- definer, owner tally_void; READ COMMITTED only; FOR UPDATE on the bill; RLS is the tenant check
-public.enforce_attach_to_live_invoice()      -- trigger, TG_ARGV[0] = the pointer column; FOR SHARE on the bill
-public.seal_role_privileges(p_role text) RETURNS text[]
-public.assert_seal_role_invariants()         -- in the patch tail and in CI
+public.invoice_line_arithmetic_gap(p_line invoice_line_items, p_valid_at date, p_recorded_at timestamptz) RETURNS text  -- NULL = complete
+  -- called by enforce_invoice_line_arithmetic() (deferred, issuance only) as gap(line, snapshot.valid_at, now())
+public.enforce_custom_label_unused()        -- BEFORE DELETE on both label tables; SHARE lock, 5 s lock_timeout saved and restored
+public.enforce_custom_label_key_frozen()    -- BEFORE UPDATE; keys write-once for every role
+public.enforce_user_binding_by_supervisor() -- BEFORE INSERT OR UPDATE OF cognito_sub, is_active, role; tally_app only
+public.enforce_user_cognito_sub_write_once()
+public.assert_no_hard_delete_invariants()   -- CI
+public.assert_wave1_guard_invariants()      -- CI; exact trigger strings (PostgreSQL 16 rendering)
+void_invoice(...)                           -- Step 2.5: charge lookup by tenant + customer + reference; first_issued_at decides posted
 ```
-
-The guards admit the void's writes with `current_user = 'tally_void'`. A test that writes "as the void" does `RESET ROLE; SET ROLE tally_void;` from the superuser session. `GRANT EXECUTE` on the battery's `pg_temp` helpers to `tally_void` too.
 
 ## Resume Instructions
 
@@ -124,24 +110,20 @@ The guards admit the void's writes with `current_user = 'tally_void'`. A test th
    cd ~/code/tally-utility && git pull --ff-only
    cd ~/code/gas-billing-memory && git fetch && git log --oneline HEAD..origin/main
    ```
-   - Expected: tally-utility at `6a520ae` plus this wrap-up commit. Kyle may have pushed to GBM (memory `fetch-gbm-before-orienting`).
+   - Expected: tally-utility at `d584e61` plus the wrap-up commit. Kyle may have pushed to GBM (memory `fetch-gbm-before-orienting`).
 2. `tests/ci.sh`.
-   - Expected: `ci: all pass`, 26 steps.
+   - Expected: `ci: all pass`, 30 steps.
    - If tally-pg is gone: `tests/ci.sh --build`, about 5 minutes.
-3. Ask Ryan the identity question (R1): one decision, plain language, a default (memory `one-decision-at-a-time-plain-language`).
-4. Then the next patch (v5.4.2-21):
-   - CI-016, CI-017 and CI-014 from the decision log, plus the three -20 notes;
-   - source inventory first;
-   - strict-apply, battery, races, mutations;
-   - freeze, and all three reviewers before the mirror.
+3. Do the GBM update for -20 and -21 (bookkeeping, no decision needed).
+4. Then ask Ryan which comes next: wave 2, the -05 defect, or R9.
+   - One decision, in plain language, with a default (memory `one-decision-at-a-time-plain-language`).
 
 ## Warnings
 
-- **Never edit the frozen review copies or `tu.sql`'s mirrored body.** `tu.sql` is append-only and mirrors only on Ryan's approval.
-- **Revoke TEMP from PUBLIC, `tally_app` and `tally_core` after every `CREATE DATABASE … TEMPLATE`.** `assert_seal_role_invariants()` also fails if the seal roles can get TEMP through PUBLIC.
-- **`tally_seal` and `tally_void` are cluster-wide.** Reviewers must not create, alter or drop roles. A leftover reviewer role (`tally_definer`) was dropped this session; check `pg_roles` after reviews.
-- **The S13 forgery** disables `a_stamp_reference_version_receipt` inside the rolled-back battery transaction. It must be re-enabled with `ENABLE ALWAYS`, not `ENABLE`, or the invariant fails.
-- **`mutations-20.py` clones into `m20`.** Its catches are valid only when the first failure line of any kind is the named check's.
-- **The generator** for -20 lived in the session scratchpad and is gone. The patch file is now the source of truth; edit it directly in the next patch.
+- **Never edit the frozen review copies or tu.sql's mirrored body.** tu.sql is append-only and is mirrored only on Ryan's approval.
+- **Revoke TEMP from PUBLIC, `tally_app` and `tally_core` after every `CREATE DATABASE … TEMPLATE`.**
+- **Roles are cluster-wide.** Reviewers must not create, alter or drop roles.
+- **`tests/ci.sh --build` deletes the container,** and every scratch database with it. Dump anything you need first.
+- **Codex runs source-only** (no Docker): `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C <repo> -o <out> - < prompt`. You run its probes on a clone and append the outputs.
 - **Never `git add -A` in gas-billing-memory** (`Clippings/`).
 - **Ask Ryan one decision per message, in plain language.**
