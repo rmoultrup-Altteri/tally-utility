@@ -16,3 +16,9 @@
 | H2 | LR6/LR7 never observe B blocked by A, and do not check the caller's setting after a contended timeout. | Codex S1 | Both legs now run B in the background, observe `pg_blocking_pids`, and catch the 55P03 inside B, reading its own `lock_timeout` (1700ms survives). |
 | H3 | U3j treated a zero-row UPDATE as success. | Codex S2 | Reads back the state after each step. |
 | H4 | "Current knowledge" is the transaction's start; a historical rebill of a since-reclassified item must carry current figures, and one retracted without a replacement cannot be reissued. | Codex N2/N3, Opus | Residual R10, by the fail-safe ruling. |
+
+## Round 4 (r4, patch md5 `649db2b7`)
+
+Opus **ready**, Fable **ready**, Codex **ready** (source-only; its probe 01 was run by the author and matched every prediction).
+- **Fable's note:** AC-43 now says a session is never resolved by email or display name.
+- **Codex S1:** M53/M53b relabelled; both are still caught at LR6/LR7. This is a test-description change after the freeze, and the patch is unchanged.

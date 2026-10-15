@@ -399,7 +399,7 @@ The database refuses each of those writes unless the transaction holds the check
 ### AC-43 — Set `app.user_id` only from the verified Cognito token, with `SET LOCAL`, in one place — TRUSTED
 *Decided 2026-10-14 (-20 residual R1). The database cannot check this; it acts on whatever `app.user_id` says.*
 
-- **Source:** the user whose identity matches the `sub` of the Cognito token the middleware has just verified. Never take it from a request body, a header the client controls, a cache or a previous request.
+- **Source:** the user whose identity matches the `sub` of the Cognito token the middleware has just verified. Never take it from a request body, a header the client controls, a cache or a previous request. Never resolve the user by email or display name: those are editable by anyone with reach to the row, and only `users.cognito_sub` is bound and write-once (Fable -21 r4).
 - **Scope:** `SET LOCAL app.user_id` (or `set_config('app.user_id', …, true)`) inside each transaction. With a connection pool, a session-level `SET` leaks to the next request that borrows the connection, which then acts as the previous user.
 - **One path:** a single middleware sets it. No other code sets or changes it.
 - **No user:** for work with no human caller (jobs, imports), name a dedicated service user. Never borrow a real user or a platform admin.
