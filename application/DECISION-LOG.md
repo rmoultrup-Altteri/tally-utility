@@ -6,6 +6,26 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-14 (CI-017, void_invoice) — Ryan: a void reverses the posted charge, or posts nothing
+
+**What:** Ryan (2026-10-14): "yes, go with the default". The CI-017 entry below assumed `void_invoice()` already names the ledger entry it reverses. It names it only when it finds one; it finds none today (nothing posts a bill's charge yet), and it also posts a reversal for a bill voided straight from `held`.
+- **Posted bill** (`first_issued_at` set, stamped by the database on the first move into an issued status): the void requires the bill's charge entry on `account_ledger` (`reference_type = 'invoice'`, `transaction_type = 'charge'`) and the reversal names it. If there is none, the void is refused.
+- **Never-posted bill** (`first_issued_at` NULL, voided from `held`): the void writes no ledger entry. Nothing was charged.
+
+*Why this and not the alternatives:* the line is posting, not mailing: once posted the customer owes the money, so the charge belongs on the account whether or not the bill was delivered.
+- **Rejected:** keep posting a reversal with no link when no charge is found. It breaks the CI-017 rule.
+- **Rejected:** keep posting a reversal for a held bill. That is an existing defect: it credits the customer for a charge never made.
+
+*Where it lives:* `void_invoice()` in v5.4.2-21; this entry.
+
+---
+
+## 2026-10-14 (CI-014 drafting) — rate dependencies are retired, not deleted
+
+**What:** settled at drafting by standing rule (guards must act; design permanent), reported to Ryan. `rate_item_dependencies` has no status column, so joining the no-hard-delete set would freeze a wrong dependency forever. It gains `retired_at`, `retired_by` and `retired_reason`. A dependency is write-once except for its retirement, and the uniqueness and the cycle check count only live dependencies. Effective dating (-19 R4) stays open.
+
+---
+
 ## 2026-10-14 (-20 residual R1, Codex B3) — Ryan: the database trusts the app's verified identity; no database-side session
 
 **What:** Ryan (2026-10-14): "this app will be using Cognito as an auth provider. Every call to the app must have the token and pass verification at the AWS level and in app middleware. the user is tied to the token … if an attacker has comprimised the app server the database is comprimised as well."

@@ -274,25 +274,32 @@ DO $$ BEGIN RAISE NOTICE 'PASS Q4: a diamond (A on B, B on C, A on C) is a DAG a
 SELECT pg_temp.refuses('Q4b a 2-cycle (B on A while A on B)',
   $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019b0', '00000000-0000-4000-8000-0000000019a0')$q$, '23514');
+-- v5.4.2-21 (CI-014): a dependency is write-once except for its retirement,
+-- so the edit is refused before the cycle walk (restrict_violation).
 SELECT pg_temp.refuses('Q4d an edit that turns an edge into a cycle',
   $q$UPDATE public.rate_item_dependencies SET dependent_rate_item_id = '00000000-0000-4000-8000-0000000019c0', base_rate_item_id = '00000000-0000-4000-8000-0000000019a0'
-     WHERE id = '00000000-0000-4000-8000-000000001953'$q$, '23514');
+     WHERE id = '00000000-0000-4000-8000-000000001953'$q$, '23001');
 SELECT pg_temp.refuses('Q4e a dependency on another tenant''s rate item',
   $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019f0')$q$, '23503');
--- An edit that keeps the graph acyclic passes (D joins below C).
-UPDATE public.rate_item_dependencies SET base_rate_item_id = '00000000-0000-4000-8000-0000000019d0' WHERE id = '00000000-0000-4000-8000-000000001953';
-DO $$ BEGIN RAISE NOTICE 'PASS Q4f: an acyclic edit passes'; END $$;
+-- v5.4.2-21 (CI-014): a dependency is not edited but retired and re-added.
+-- Retiring A on C and adding A on D keeps the graph acyclic and passes.
+UPDATE public.rate_item_dependencies SET retired_reason = 'battery-19 Q4f: A moves from C to D' WHERE id = '00000000-0000-4000-8000-000000001953';
+INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES
+  ('00000000-0000-4000-8000-000000001954', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019d0');
+DO $$ BEGIN RAISE NOTICE 'PASS Q4f: a retire and re-add that keeps the graph acyclic passes'; END $$;
 -- r2 (Codex S2): with A no longer on C directly, C on A can only close the
 -- 3-hop cycle A on B on C on A — the walk must recurse past one hop.
 SELECT pg_temp.refuses('Q4c a 3-cycle with no shortcut (C on A while A on B on C)',
   $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019c0', '00000000-0000-4000-8000-0000000019a0')$q$, '23514');
--- Reversing the lone edge A on D to D on A passes: the walk excludes the row
--- being rewritten, or it would see the old edge and call this a 2-cycle.
-UPDATE public.rate_item_dependencies SET dependent_rate_item_id = '00000000-0000-4000-8000-0000000019d0', base_rate_item_id = '00000000-0000-4000-8000-0000000019a0'
- WHERE id = '00000000-0000-4000-8000-000000001953';
-DO $$ BEGIN RAISE NOTICE 'PASS Q4h: reversing a lone edge passes (the edited row is not its own cycle)'; END $$;
+-- Reversing the lone edge A on D to D on A passes once A on D is retired:
+-- the walk counts live dependencies only (v5.4.2-21), or it would see the
+-- retired edge and call this a 2-cycle.
+UPDATE public.rate_item_dependencies SET retired_reason = 'battery-19 Q4h: reversed' WHERE id = '00000000-0000-4000-8000-000000001954';
+INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
+  VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019a0');
+DO $$ BEGIN RAISE NOTICE 'PASS Q4h: reversing a lone edge passes (a retired edge is not part of a cycle)'; END $$;
 -- r3 (Fable N7): another tenant's schedule, not just another tenant's item.
 SELECT pg_temp.refuses_at('Q4i a dependency filed under another tenant''s schedule',
   $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
@@ -773,12 +780,14 @@ RESET ROLE;
 -- balance. C2 holds 1.00 (L8); its bill of 30.00 is charged and voided, so
 -- the balance after the reversal is 1.00 again. C1's rows and another
 -- tenant's must not count; a stub returning 0 would fail.
-INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, status, amount_due)
+-- v5.4.2-21 (CI-017): I4 is posted (the superuser load carries its stamp)
+-- and its charge names it, so the void reverses that charge.
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, status, amount_due, first_issued_at)
 VALUES ('00000000-0000-4000-8000-000000001904', '00000000-0000-4000-8000-0000000019a1', 'I4', '00000000-0000-4000-8000-0000000019c2', '00000000-0000-4000-8000-0000000019d1',
-        '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 30.00);
-INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
-  ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-01', 'charge', 'bill I4', 30.00),
-  ('00000000-0000-4000-8000-0000000019a2', '00000000-0000-4000-8000-0000000019c9', DATE '2026-02-01', 'charge', 'other tenant', 70.00);
+        '2026-02-01', '2026-01', '2026-01-01', '2026-01-31', '2026-02-20', 'pending', 30.00, now());
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-01', 'charge', 'bill I4', 30.00, 'invoice', '00000000-0000-4000-8000-000000001904'),
+  ('00000000-0000-4000-8000-0000000019a2', '00000000-0000-4000-8000-0000000019c9', DATE '2026-02-01', 'charge', 'other tenant', 70.00, NULL, NULL);
 SET ROLE tally_app;
 DO $$
 DECLARE v jsonb;

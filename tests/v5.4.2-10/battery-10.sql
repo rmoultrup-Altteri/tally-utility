@@ -50,8 +50,9 @@ BEGIN
                                invoice_date, billing_period, period_start, period_end, due_date)
   VALUES (p_id, '00000000-0000-4000-8000-00000000aa01', p_num, p_run, '00000000-0000-4000-8000-00000000ac01', '00000000-0000-4000-8000-00000000ad01',
           p_type, p_replaces, p_pe + 1, to_char(p_pe, 'YYYY-MM'), p_ps, p_pe, p_pe + 21);
-  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount)
-  VALUES ('00000000-0000-4000-8000-00000000aa01', p_id, 'gas', 'base_charge', 'Customer charge', 12.50);
+  -- v5.4.2-21 (CI-016): a base line carries its rate at issue.
+  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate)
+  VALUES ('00000000-0000-4000-8000-00000000aa01', p_id, 'gas', 'base_charge', 'Customer charge', 12.50, 12.50);
 END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.inv(uuid, text, uuid, text, uuid, date, date) TO tally_app;
 
@@ -69,6 +70,9 @@ SELECT pg_temp.inv('00000000-0000-4000-8000-00000000c001', 'INV-ORIG', '00000000
 UPDATE public.invoices SET created_at = '2025-07-01 09:05-05' WHERE id = '00000000-0000-4000-8000-00000000c001';  -- superuser: allowed (no snapshot yet; stamping is INSERT-only)
 SELECT pg_temp.snap('00000000-0000-4000-8000-00000000c001', '2025-06-30', '2025-07-01 09:10-05');
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000c001';
+-- v5.4.2-21 (CI-017): a posted bill's charge is on the ledger; its void reverses and names it.
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+SELECT tenant_id, customer_id, invoice_date, 'charge', 'INV-ORIG charge', 12.50, 'invoice', id FROM public.invoices WHERE id = '00000000-0000-4000-8000-00000000c001';
 DO $$ BEGIN RAISE NOTICE 'PASS F0b: original 2025 bill issued with a 2025 coordinate inside its (backdated) run window'; END $$;
 -- a NON-void issued bill, kept as the decoy for F22
 SELECT pg_temp.inv('00000000-0000-4000-8000-00000000c002', 'INV-LIVE', '00000000-0000-4000-8000-00000000b001', 'regular', NULL, '2025-06-01', '2025-06-30');
@@ -134,8 +138,8 @@ DO $$ DECLARE c timestamptz; BEGIN
   IF c <> now() THEN RAISE EXCEPTION 'F4 FAILED: created_at % not stamped', c; END IF;
   RAISE NOTICE 'PASS F4: caller-supplied invoices.created_at is overwritten with now()';
 END $$;
-INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount)
-VALUES ('00000000-0000-4000-8000-00000000aa01', '00000000-0000-4000-8000-00000000c104', 'gas', 'base_charge', 'Customer charge', 12.50);
+INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate)
+VALUES ('00000000-0000-4000-8000-00000000aa01', '00000000-0000-4000-8000-00000000c104', 'gas', 'base_charge', 'Customer charge', 12.50, 12.50);
 DO $$ BEGIN
   UPDATE public.invoices SET first_issued_at = '2020-01-01' WHERE id = '00000000-0000-4000-8000-00000000c104';
   RAISE EXCEPTION 'F29b FAILED: first_issued_at caller-written';
@@ -215,9 +219,10 @@ EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS F21c: re-homed draft stil
 -- F11: correction invoices need lineage, a correction run and a target row
 INSERT INTO public.billing_runs (id, tenant_id, run_number, billing_period, period_start, period_end, run_type, status, started_at, correction_rate_mode) VALUES
   ('00000000-0000-4000-8000-00000000b201', '00000000-0000-4000-8000-00000000aa01', 'RUN-C1', '2025-06', '2025-06-01', '2025-06-30', 'correction', 'in_progress', now(), 'historical');
-SELECT pg_temp.inv('00000000-0000-4000-8000-00000000c201', 'INV-CORR-NOLINK', '00000000-0000-4000-8000-00000000b201', 'correction', NULL, '2025-06-01', '2025-06-30');
+-- v5.4.2-21 (CI-017): refused at insert now (invoices_correction_names_replaced_check),
+-- before the snapshot's own refusal could be reached.
 DO $$ BEGIN
-  PERFORM pg_temp.snap('00000000-0000-4000-8000-00000000c201', '2025-06-30', now());
+  PERFORM pg_temp.inv('00000000-0000-4000-8000-00000000c201', 'INV-CORR-NOLINK', '00000000-0000-4000-8000-00000000b201', 'correction', NULL, '2025-06-01', '2025-06-30');
   RAISE EXCEPTION 'F11a FAILED: correction without replaces_invoice_id accepted';
 EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS F11a: correction without replaces_invoice_id refused'; END $$;
 SELECT pg_temp.inv('00000000-0000-4000-8000-00000000c202', 'INV-CORR-OFFRUN', NULL, 'correction', '00000000-0000-4000-8000-00000000c001', '2025-06-01', '2025-06-30');
@@ -328,6 +333,10 @@ DO $$ BEGIN
 EXCEPTION WHEN check_violation THEN RAISE NOTICE 'PASS F26: a second live correction of one void bill refused across runs'; END $$;
 -- F27: void the first correction (after issuing it) -> the bill may be corrected again
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000c204';
+-- v5.4.2-21 (CI-017): a posted bill's charge is on the ledger before its void.
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+SELECT tenant_id, customer_id, invoice_date, 'charge', invoice_number || ' charge', 12.50, 'invoice', id
+  FROM public.invoices WHERE id = '00000000-0000-4000-8000-00000000c204' AND first_issued_at IS NOT NULL;
 SELECT public.void_invoice('00000000-0000-4000-8000-00000000c204', '00000000-0000-4000-8000-00000000ab01', 'wrong_rate', 'battery: correct again', true);
 SELECT pg_temp.snap('00000000-0000-4000-8000-00000000c209', '2025-06-30', now());
 DO $$ BEGIN RAISE NOTICE 'PASS F27: once the earlier correction is void, a new correction of the same bill lands'; END $$;
@@ -335,6 +344,10 @@ DO $$ BEGIN RAISE NOTICE 'PASS F27: once the earlier correction is void, a new c
 -- F30: lineage — a correction of a correction leaves ONE live bill per lineage (round 3, Fable LOW-1 / Codex)
 --      c001 (void, root) <- c209 (live correction, issued in F17 below? no: issue it here) ; void c209 ; c211 replaces c209 (lands) ; c212 replaces c001 directly -> refused
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000c209';
+-- v5.4.2-21 (CI-017): a posted bill's charge is on the ledger before its void.
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+SELECT tenant_id, customer_id, invoice_date, 'charge', invoice_number || ' charge', 12.50, 'invoice', id
+  FROM public.invoices WHERE id = '00000000-0000-4000-8000-00000000c209' AND first_issued_at IS NOT NULL;
 SELECT public.void_invoice('00000000-0000-4000-8000-00000000c209', '00000000-0000-4000-8000-00000000ab01', 'wrong_read', 'battery: correct the correction', true);
 INSERT INTO public.correction_run_targets (id, tenant_id, billing_run_id, voided_invoice_id, meter_id, customer_id) VALUES
   ('00000000-0000-4000-8000-00000000d211', '00000000-0000-4000-8000-00000000aa01', '00000000-0000-4000-8000-00000000b203', '00000000-0000-4000-8000-00000000c209',
@@ -416,6 +429,10 @@ RESET ROLE;
 SELECT pg_temp.inv('00000000-0000-4000-8000-00000000c205', 'INV-CORR-2', '00000000-0000-4000-8000-00000000b201', 'correction', '00000000-0000-4000-8000-00000000c102', '2026-03-01', '2026-03-31');
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-00000000c102';
 SET LOCAL app.user_id = '00000000-0000-4000-8000-00000000ab01';   -- void_invoice checks the caller's tenant
+-- v5.4.2-21 (CI-017): a posted bill's charge is on the ledger before its void.
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+SELECT tenant_id, customer_id, invoice_date, 'charge', invoice_number || ' charge', 12.50, 'invoice', id
+  FROM public.invoices WHERE id = '00000000-0000-4000-8000-00000000c102' AND first_issued_at IS NOT NULL;
 SELECT public.void_invoice('00000000-0000-4000-8000-00000000c102', '00000000-0000-4000-8000-00000000ab01', 'wrong_read', 'battery', true);
 INSERT INTO public.correction_run_targets (id, tenant_id, billing_run_id, voided_invoice_id, meter_id, customer_id, rate_date_mode) VALUES
   ('00000000-0000-4000-8000-00000000d202', '00000000-0000-4000-8000-00000000aa01', '00000000-0000-4000-8000-00000000b201', '00000000-0000-4000-8000-00000000c102',

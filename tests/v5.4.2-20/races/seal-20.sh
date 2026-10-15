@@ -78,6 +78,11 @@ $(held "$H3" "$T" "$C" "$L" R20-H3)
 $(held "$H4" "$T" "$C" "$L" R20-H4)
 $(held "$H5" "$T" "$C" "$L" R20-H5)
 $(held "$H9" "$T2" "$C2" "$L2" R20-H9)
+-- v5.4.2-21 (CI-017): H3 stands in for a posted bill (a superuser sets the
+-- stamp) with its charge on the ledger, so its void posts one reversal.
+UPDATE public.invoices SET first_issued_at = now() WHERE id = '$H3';
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+  VALUES ('$T', '$C', '2026-02-01', 'charge', 'R20-H3 charge', 10.00, 'invoice', '$H3');
 INSERT INTO public.adhoc_charges (id, tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class, service_type) VALUES
   ('$A1', '$T', 'R20-A1', '$C', 'tap_fee', 'tap', 5.00, 'regulated', 'gas'),
   ('$A2', '$T', 'R20-A2', '$C', 'tap_fee', 'tap', 6.00, 'regulated', 'gas'),

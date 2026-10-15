@@ -58,8 +58,9 @@ BEGIN
   INSERT INTO public.invoices (id, tenant_id, invoice_number, billing_run_id, customer_id, location_id, invoice_type,
                                replaces_invoice_id, invoice_date, billing_period, period_start, period_end, due_date)
   VALUES (p_id, p_tenant, p_num, p_run, p_cust, p_loc, p_type, p_replaces, p_pe + 1, to_char(p_pe, 'YYYY-MM'), p_ps, p_pe, p_pe + 21);
-  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount)
-  VALUES (p_tenant, p_id, 'gas', 'base_charge', 'Customer charge', 12.50);
+  -- v5.4.2-21 (CI-016): a base line carries its rate at issue.
+  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate)
+  VALUES (p_tenant, p_id, 'gas', 'base_charge', 'Customer charge', 12.50, 12.50);
 END $$;
 
 GRANT EXECUTE ON FUNCTION pg_temp.inv(uuid, text, uuid, uuid, uuid, uuid, text, uuid, date, date) TO tally_app;
@@ -98,6 +99,10 @@ UPDATE public.meter_readings SET validation_status = 'locked', billing_period_lo
 
 -- issue, then void with a non-auto-revert reason so the charge parks
 UPDATE public.invoices SET status = 'pending' WHERE id IN ('00000000-0000-4000-8000-000000001101','00000000-0000-4000-8000-000000001102');
+-- v5.4.2-21 (CI-017): a posted bill's charge is on the ledger; its void reverses and names it.
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+SELECT tenant_id, customer_id, invoice_date, 'charge', invoice_number || ' charge', 12.50, 'invoice', id
+  FROM public.invoices WHERE id IN ('00000000-0000-4000-8000-000000001101','00000000-0000-4000-8000-000000001102');
 -- v5.4.2-20: each void names a caller of the bill's tenant (a caller with no user is refused, Opus B1).
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000011b1', true);
 SELECT public.void_invoice('00000000-0000-4000-8000-000000001101', '00000000-0000-4000-8000-0000000011b1', 'wrong_customer', 'battery-11 T1', true);
@@ -270,6 +275,9 @@ SELECT pg_temp.inv('00000000-0000-4000-8000-000000001104', 'T1-INV-2', '00000000
                    '00000000-0000-4000-8000-0000000011d1', 'regular', NULL, '2026-03-01', '2026-03-31');
 SELECT pg_temp.snap('00000000-0000-4000-8000-000000001104', '2026-03-31', now());
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-000000001104';
+-- v5.4.2-21 (CI-017): the posted bill's charge, which its void reverses.
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+SELECT tenant_id, customer_id, invoice_date, 'charge', 'T1-INV-2 charge', 12.50, 'invoice', id FROM public.invoices WHERE id = '00000000-0000-4000-8000-000000001104';
 DO $$
 DECLARE r jsonb;
 BEGIN

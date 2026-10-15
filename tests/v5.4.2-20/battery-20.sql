@@ -317,6 +317,10 @@ INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, locatio
 INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount) VALUES
   ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002001', 'gas', 'base_charge', 'customer charge', 100.00);
 UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-000000002001';
+-- v5.4.2-21 (CI-017): I1 is posted (first_issued_at stamped above), so its
+-- charge is on the ledger, and the void's reversal names it.
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-0000000020a9', '00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-0000000020c1', '2026-02-01', 'charge', 'I1 charge', 100.00, 'invoice', '00000000-0000-4000-8000-000000002001');
 INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, reading_value) VALUES
   ('00000000-0000-4000-8000-000000002011', '00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-0000000020e1', DATE '2026-01-31', 50),
   ('00000000-0000-4000-8000-000000002012', '00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-0000000020e2', DATE '2026-01-31', 60),

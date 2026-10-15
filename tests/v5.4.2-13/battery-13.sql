@@ -102,8 +102,10 @@ BEGIN
                                invoice_date, billing_period, period_start, period_end, due_date, amount_due)
   VALUES (v_id, v_t, 'B13P-' || left(v_id::text, 8), '00000000-0000-4000-8000-0000000013ff', p_customer, p_location, 'regular',
           p_pe + 1, to_char(p_pe, 'YYYY-MM'), p_ps, p_pe, p_pe + 21, p_amount);
-  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, meter_id, usage_quantity)
-  VALUES (v_t, v_id, 'gas', 'usage_charge', 'Gas', p_amount, p_meter, p_units);
+  -- v5.4.2-21 (CI-016): a gas usage line carries its arithmetic at issue.
+  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, meter_id, usage_quantity,
+                                         usage_unit, rate, gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate)
+  VALUES (v_t, v_id, 'gas', 'usage_charge', 'Gas', p_amount, p_meter, p_units, 'ccf', 1, 1, p_units, p_units, 1);
   PERFORM pg_temp.snap(v_id, p_pe, now());
   SET LOCAL session_replication_role = replica;
   UPDATE public.invoices SET status = 'sent', first_issued_at = now() WHERE id = v_id;

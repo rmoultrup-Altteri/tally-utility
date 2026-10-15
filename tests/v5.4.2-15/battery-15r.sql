@@ -463,9 +463,11 @@ SELECT pg_temp.refuses('C6: a category code that is not a code (blank, capitals,
 SELECT pg_temp.refuses('C7: a category''s law class is never changed: tariffs and deposits cite it',
   format($q$UPDATE public.deposit_utility_categories SET law_class = 'non_residential' WHERE tenant_id = %L AND category_code = 'renter'$q$, :'t1'),
   '23001', 'never edited', 'tally_app', :'u1');
+-- v5.4.2-21 (CI-014): tally_app holds no DELETE on the table; the
+-- no_hard_delete guard stands behind the grant (battery-21 D).
 SELECT pg_temp.refuses('C8: … and is never deleted',
   format($q$DELETE FROM public.deposit_utility_categories WHERE tenant_id = %L AND category_code = 'renter'$q$, :'t1'),
-  '23001', 'never deleted', 'tally_app', :'u1');
+  '42501', 'permission denied', 'tally_app', :'u1');
 SELECT pg_temp.ok('C9: each utility sees its own categories and not another''s',
   pg_temp.count_as('SELECT 1 FROM public.deposit_utility_categories', 'tally_app', :'u1') = 3
   AND pg_temp.count_as('SELECT 1 FROM public.deposit_utility_categories', 'tally_app', :'u2') = 1);
