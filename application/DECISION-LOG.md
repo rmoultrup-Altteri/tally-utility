@@ -6,6 +6,14 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-15 (parity record) — Ryan: the tally-utility measurement is the single live parity record; GBM's grades frozen at v5.4.2-12
+
+**What:** The grades in GBM `application/canonical-invariants.md` were last updated for v5.4.2-12 (2026-09-23). Since then, -13 through -21 landed without GBM re-grades (the handoff had said "two patches behind"). `application/invariant-parity-measurement-2026-10-13.md` is now the only live per-invariant record. It gets a dated update section after each mirrored patch; the first, 2026-10-15, covers -19, -20 and -21 and the unblocks from Kyle's 2026-10-14 and 2026-10-15 answers. GBM gets a pointer, not re-grades: a preamble note in the register (item 5), a frozen status line on `schema-parity-plan.md`, and ingestion manifest Sections BP (Kyle's 2026-10-15 decisions) and BQ (the freeze plus a table of patches -13 to -21).
+
+*Why:* since 2026-10-13, new documents are kept in tally-utility. A re-grade in GBM would duplicate the measurement and drift from it with every patch, and catching up eight patches would cost most of a session. Statements, scopes and rulings in the register stay canonical; only the enforcement grades moved. *Rejected:* re-grading GBM's register for all eight patches and keeping both in step. *Where it lives:* this entry; the measurement's update section; GBM manifest BQ.
+
+---
+
 ## 2026-10-14 (-21 review round 1) — drafting calls settled by standing rule, reported to Ryan
 
 **What:** three reviewers on -21 r1 (`tests/v5.4.2-21/review/review-findings-21-r1.md`). Two calls go beyond the decisions as written:

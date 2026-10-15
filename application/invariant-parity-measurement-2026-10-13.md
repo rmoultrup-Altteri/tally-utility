@@ -6,7 +6,87 @@
 
 **Classes.** REP+PROT — represented and its integrity part enforced. REP — represented; the invariant is the core's/app's to evaluate (scenario material). PARTIAL — something specific is missing (named). GAP — not represented, nothing blocks building it. BLOCKED — cannot be built until a named ruling (Kyle / Ryan / the finance gate). N/A — not a schema matter.
 
-## Headline
+**This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
+
+## Update — 2026-10-15 (after v5.4.2-19, -20 and -21; Kyle's 2026-10-14 and 2026-10-15 answers)
+
+**How this was graded.** Re-graded by the session, not re-measured by agents. Each touched CI was read against the patch's own header ("what changes" and "residuals"), the patch's four-round reviews, and its battery. tally-utility's live catalog was spot-checked for CI-014's remaining DELETE grants and the PGA columns. Only the CIs named below changed. Every other row of the full table stands as measured on 2026-10-13.
+
+| Class | 2026-10-13 | Now | Change |
+|---|---|---|---|
+| REP+PROT | 34 | **51** | +17 |
+| REP | 21 | **24** | +3 |
+| PARTIAL | 61 | **46** | −15 |
+| GAP | 12 | **13** | +1 |
+| BLOCKED | 7 | **0** | −7 |
+| N/A | 0 | **1** | +1 |
+| **Total** | 135 | 135 | |
+
+**Done for step 1** (REP+PROT + REP): **75 of 135**, plus CI-036 ruled out of platform scope. **Open: 59** (46 PARTIAL, 13 GAP). Nothing waits on a person any more. Kyle's answers settled every BLOCKED item, though some PARTIAL rows now carry a ruling that is not yet built.
+
+**Built by a patch (re-graded).**
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-011 | BLOCKED | REP+PROT | med | -20, K-01 | The version check is sealed. `tally_app` cannot write `version`; every version-row write and header lifecycle move needs a receipt from `assert_reference_version()` (owned by `tally_seal`) in the same transaction. K-01 settles Q-1: a stale save is refused and the person refreshes; no conflict record is stored. | -20 R2: the token is the caller's. K-01 applies to *every* edited record, not only the three reference headers; that wider check is not built (see "rulings not yet built"). |
+| CI-012 | REP+PROT | REP+PROT | high | -20 | The void's carve-out is no longer a caller-settable setting. `void_invoice()` runs as `tally_void`, and the guards admit `current_user = 'tally_void'` (the AC-12 caveat is gone). | — |
+| CI-014 | PARTIAL | REP+PROT | high | -21 | 16 tables refuse DELETE/TRUNCATE for every role, and `tally_app` loses DELETE on them. A custom label cannot be deleted while it is in use, and its keys are write-once. `rate_item_dependencies` is retired, not deleted. | Live: `tally_app` can still DELETE `custom_field_definitions`, `custom_location_types` (when unused), `import_column_mappings`, `import_mapping_templates`, `import_staging`, and the invoice tables (drafts only, under CI-012's guard). R-03 (2026-10-15, "all setup tables block deletes; retired with an end date") may reach the two label tables and the two import-mapping tables. That is a scoping question. |
+| CI-016 | PARTIAL | REP+PROT | high | -21 | A deferred check at issue, read at the snapshot date under current knowledge. A usage line carries quantity, unit and rate (on gas also factor, Ccf, therms and commodity rate). A base line carries its rate and coverage, all or none. A surcharge names a visible version, and a per-unit one carries its figures. | -21 R4: whether the figures multiply out is the core's job. R9: the base-rule sibling classifies at the period end. R-01 (one-off charges carry a reason code instead of a rate) is not checked on the line. `adhoc_charges.reason` exists. |
+| CI-019 | PARTIAL | REP+PROT | high | -19 | `running_balance` is dropped with its trigger. `account_balance_as_of(customer, on, recorded)` sums the ledger, and both coordinates are required. | — |
+| CI-022 | PARTIAL | REP | med | -19 | The database no longer writes `consumption`. Rollover and multiplier arithmetic are the core's. | -19 R8: no sign CHECK; whether a negative usage is ever legitimate is not ruled. |
+| CI-025 | PARTIAL | REP+PROT | med | -19, -20 | A read's values are frozen whenever `billing_period_locked` is true, `void_released` included. The void carve-out is narrowed to the two pointers and sealed (-20). | -19 R3: before the lock, a read stays editable by design (the review workflow). |
+| CI-031 | PARTIAL | REP+PROT | high | -19, -20 | The freeze keys on `billing_period_locked`; `locked_at` is stamped by the database; the void is sealed. An attach to a void bill is refused (-20). | — |
+| CI-041 | PARTIAL | REP+PROT | high | -19 | `wna_zone_versions` gains `deadband_value`, `deadband_measure` and `deadband_application`, all or none, frozen with the version. | Applying the deadband is the core's. |
+| CI-052 | PARTIAL | REP+PROT | med | -19 | `payments.return_code`: R plus two digits, only on nsf/reversed, required on an ACH nsf, write-once. | Lineage FKs are single-column; that is CI-116's general hole. |
+| CI-055 | PARTIAL | REP+PROT | high | -19 | One receipt and one refund per (tenant, source, processor transaction). A refund or replacement cites a payment of the same customer. | — |
+| CI-057 | PARTIAL | REP+PROT | high | -19 | A payment method's account identity is frozen. A change is a new row naming its predecessor and why, and a notice of change carries its code and receipt time. A superseded method cannot be reactivated. | The 6-banking-day timer is the core's. |
+| CI-058 | GAP | REP+PROT | high | -19 | `payments.effective_date` and `effective_date_method` are required once a payment takes effect, and write-once after it leaves pending. | -19 R6: no counter-receipt method; a cash payment at a window uses `other`. |
+| CI-062 | PARTIAL | REP+PROT | med | -19 | `program_types.requires_attestation`. An active attestation-type enrollment carries its document and receipt time; verification names its verifier and comes after receipt. | -19 R5: only `medical_certificate` requires attestation. |
+| CI-099 | PARTIAL | REP+PROT | high | -19 | `ai_audit_log` is append-only, with UPDATE revoked and `created_at` stamped by the database. An AI-created service order or charge must cite its audit row. | — |
+| CI-108 | PARTIAL | REP | high | -19 | The default is `true` again (Kyle T-3). | The core prorates. |
+| CI-118 | PARTIAL | REP+PROT | high | -19 | A file import names its file and hash, with one live commit per tenant and hash, so a renamed copy is refused. A finished job is final. | — |
+| CI-126 | PARTIAL | REP+PROT | med | -19 | `escheatment_events` is append-only, with UPDATE revoked and `created_at` stamped by the database. | Dormancy and remittance are the core's. |
+| CI-127 | PARTIAL | REP+PROT | high | -19 | A charge needing approval records its threshold; `requires_approval` and the threshold are write-once. | — |
+| CI-128 | PARTIAL | REP+PROT | high | -19 | `dedup_key` is NOT NULL and non-deferrable. Identity and first detection are write-once; the recurrence count never falls. | — |
+
+**Touched, class unchanged.**
+- **CI-013 (PARTIAL):** the caller-settable void setting is gone (-20). What is left is A-21: `payments`, `customer_credits` and `adhoc_charges` keep mutable lifecycle amounts. R-05 (2026-10-15) now rules it: they are add-only, and a correction is a reversal plus a new row.
+- **CI-017 (PARTIAL):** -21 makes a correction name its bill. A void reversal names its entry, at most once. A refund names exactly one source, a charge is never born voided, and every lineage column is indexed. Left: R-02 (2026-10-15) says *every* reversal names its entry and caps the total against it, which closes -21 R8 by ruling but is not built. **A design point for that patch:** a void reverses `-(amount_due)` (-21 R1). Under the cap, a bill that was partly reversed first and then voided would over-reverse. The void must reverse what is left, not the whole amount due.
+- **CI-068 (PARTIAL):** `dunning_events` is append-only and no longer cascades (-19). Left: no content-version reference, no gate against `disconnected` without the prior steps, and the sequence is not yet law rows (wave 3).
+- **CI-096 (PARTIAL):** `invoices.pdf_sha256` (-19). Left: retention binding, and "issuance requires an image" (wave 5).
+- **CI-098 (REP+PROT):** `import_type` gains `ach_return`, `lockbox` and `amr` (-19), which closes the measured note.
+- **CI-101 (PARTIAL):** a cycle or a cross-tenant dependency is refused (-19), and a dependency is retired, not deleted (-21). Left: not effective-dated; a retirement is transaction time only (-21 R3).
+- **CI-106 (REP):** coverage start ≤ end (-19). The span-in-period check is still not built.
+- **CI-116 (PARTIAL):** unchanged; 267 single-column cross-tenant FKs.
+
+**No longer blocked: re-graded on what exists.**
+
+| CI | Was | Now | Conf | Why |
+|---|---|---|---|---|
+| CI-033 | BLOCKED | REP | med | Kyle 2026-10-14 (6): billing side only. The PGA factor's history lives in `rate_item_versions` (bitemporal), and billed gas-cost revenue per period in `pga_monthly_reconciliations`. Gas purchases and the UAF cap are the utility's. |
+| CI-036 | BLOCKED | N/A | med | Same answer: the deferred account, carrying cost and true-up stay in the utility's accounting. The register text needs rewriting. `pga_monthly_reconciliations.deferred_balance_after` is now a column for a record the platform does not keep; whether to drop it is open. |
+| CI-044 | BLOCKED | PARTIAL | med | Kyle 2026-10-14: a jurisdiction is a place. Left: `franchise_fee_rules` keys on `city_name` (needs a place), a line-to-rule link, and the remittance record. |
+| CI-048 | BLOCKED | GAP | med | Finance gate released 2026-10-13 (D-2). Nothing built (wave 2). |
+| CI-076 | BLOCKED | PARTIAL | med | Finance gate released. `write_off` and the generic lineage exist. Left: a recovery type that cites its write-off, and an aging threshold row (wave 2). |
+| CI-110 | BLOCKED | GAP | med | Finance gate released. Under D-2 the accrual is never a row; periods and a close snapshot are needed (wave 2). |
+
+**The person-decisions listed below are now answered** (`gas-billing-memory/application/kyle-decisions-2026-10-15-waves-1-to-7-and-texas-first.md`). They change what the PARTIAL and GAP rows need, not their class:
+- Q-1, conflict surfacing (CI-011): K-01. A save is refused if the record changed since it was loaded; this covers every record.
+- Zone model (CI-020, 026): K-02. Tenant-defined zone sets per factor, effective-dated, assigned to a location or meter.
+- The supersede pair (CI-030, 031): K-03. A replacement read points to the one it replaces, which is marked superseded, with a required reason code.
+- Transport vocabulary and PSF (CI-037): K-04. Neutral internal terms plus a label table for each jurisdiction. PSF is a dated rule with amount, basis, timing and citation. There is no fixed Texas cap; confirm the amount against 16 TAC §8.201.
+- Q-5, earmarking and oldest-first (CI-049): K-05 and R-06. A payment is designated as a deposit or a bill; a bill payment goes oldest first, and the order within a bill is jurisdiction rule data. Overpayment credit needs an add-only approval record.
+- Rounding (CI-109): K-06. To the cent, half-up; rates and intermediate figures carry four decimals.
+- Prompt-pay discount and accessibility (CI-089, 097): K-06. No early-pay discounts; drop the rule type. Notices get a format-preference field and a record of the format sent.
+- Meter test fee (CI-091): K-06. Driven by the test outcome, with tolerance and fee as rule data.
+- City-owned gas (CI-078 to 081): K-07. Rules are entered per utility, with no assumed defaults; not required at launch.
+- Also answered: R-07 (program status history, lapse notice; CI-065), R-08 (the deceased status and hold, with a one-month review exception; CI-085), R-09 (dated customer rate-assignment history; CI-133, 104), R-10 (occupancy and meter install history; CI-120), R-11 (estimation, late fees and exclusions as dated rule data; CI-114, 054), and the standing rule "Texas first, never hard-coded Texas".
+
+**Rulings not yet built** (on top of the open rows): K-01's version check on every edited record; R-02's every-reversal lineage and cap; R-03 for setup tables still deletable; R-05's add-only payments, credits and charges; R-01's reason code on one-off lines; the R-06 credit approval record.
+
+**Register staleness closed by these patches:** CI-019 (`account_balance_as_of()` now exists), CI-108 (default restored), CI-068 (no longer UPDATE-able, no cascade), CI-098 (`import_type` values). Added: CI-036's text contradicts Kyle's 2026-10-14 answer.
+
+## Headline (as measured 2026-10-13, through v5.4.2-18 — superseded by the update above)
 
 | Class | CIs | Share |
 |---|---|---|
