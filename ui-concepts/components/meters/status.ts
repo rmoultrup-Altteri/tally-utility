@@ -29,6 +29,8 @@ export function accountTone(status: string): Tone {
       return 'void'
     case 'final_billed':
       return 'superseded'
+    case 'deceased':
+      return 'held'
     default:
       return 'failed'
   }

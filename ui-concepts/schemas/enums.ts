@@ -269,6 +269,8 @@ export const AnomalyType = z.enum([
   'disconnect_protection_expiring',
   'import_column_outlier_pattern',
   'import_low_confidence_mapping',
+  /* Not yet in `sql/tu.sql` (R-08, 2026-10-15). The CHECK constraint needs it before the API can store one. */
+  'deceased_account_review',
   'other',
 ])
 export type AnomalyType = z.infer<typeof AnomalyType>
@@ -289,6 +291,8 @@ export const CustomerStatus = z.enum([
   'final_billed',
   'collections',
   'closed',
+  /* Not yet in `sql/tu.sql` (R-08, 2026-10-15). Death is a status with a date, not a protection. */
+  'deceased',
 ])
 export type CustomerStatus = z.infer<typeof CustomerStatus>
 

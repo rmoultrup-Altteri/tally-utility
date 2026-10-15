@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
-import { Button, Panel, PanelHeader } from '@/components/ui/Panel'
+import { ConfigurePortletsButton, PortletBoard } from '@/components/dashboard/Portlets'
+import { Panel, PanelHeader } from '@/components/ui/Panel'
 import { StateBlock, StateFlag, toneRail } from '@/components/ui/State'
 import type { Tone } from '@/components/ui/State'
 import { Money } from '@/components/ui/Money'
@@ -20,7 +22,9 @@ import { rateUnitLabel } from '@/lib/vocabulary'
  * Built to the locked composition (T8-4 … T8-8). Four elements, in this order:
  * severity portlets placed by item type, a revenue pair with no ratio between
  * the figures, an AR aging strip aged by invoice, and a tariff rate card strip
- * showing what the last posted run actually billed at.
+ * showing what the last posted run actually billed at. That order is the
+ * shipped layout; Configure portlets lets each operator move, remove and add
+ * portlets from there (`components/dashboard/Portlets.tsx`).
  *
  * The rate card is the load-bearing one. It reads as-billed values rather than
  * live configuration, because those are different datasets that agree only if
@@ -44,173 +48,188 @@ export default function DashboardPage() {
             {tenant.name} · {count(tenant.meters)} meters · as of {stamp(asOf.recordedAt)}
           </>
         }
-        actions={<Button>Configure portlets</Button>}
+        actions={<ConfigurePortletsButton />}
       />
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
           <CycleStatus />
-          {/* T8-4 — placement by item type, six rows plus a "+N more". */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {portlets.map((p) => (
-              <Panel key={p.tier}>
-                <PanelHeader
-                  title={
-                    <span className="flex items-center gap-2">
-                      <span className={`inline-block h-3 w-rail ${railFor(p.tier)}`} aria-hidden />
-                      {p.tier}
-                    </span>
-                  }
-                  meta={
-                    <Link
-                      href={`/dashboard/items?tier=${p.tier}` as Route}
-                      className="text-accent-text hover:text-accent-text-hover underline"
-                    >
-                      {count(p.rows.reduce((n, r) => n + r.count, 0))} items
-                    </Link>
-                  }
-                />
-                <ul className="divide-y divide-rule-hair">
-                  {p.rows.map((row) => (
-                    <PortletLine key={row.itemType} row={row} />
-                  ))}
-                  {p.more > 0 ? (
-                    <li className="px-4 py-1.5">
-                      <Link
-                        href={`/dashboard/items?tier=${p.tier}` as Route}
-                        className="text-micro text-accent-text hover:text-accent-text-hover underline"
-                      >
-                        +{p.more} more types
-                      </Link>
-                    </li>
-                  ) : null}
-                </ul>
-              </Panel>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* T8-5 — two figures, a prior-month comparator, and no ratio. */}
-            <Panel>
-              <PanelHeader title="Revenue" meta={revenue.windowLabel} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-rule-solid">
-                <RevenueFigure
-                  label="Billed, net of voids"
-                  value={revenue.billedNetOfVoids}
-                  prior={revenue.billedPriorMonthSameDay}
-                  note={`Posted runs only — ${currentRun.run_number} counts once it posts. Voids subtract at their void date, so closed months never restate.`}
-                />
-                <RevenueFigure
-                  label="Collected"
-                  value={revenue.collected}
-                  prior={revenue.collectedPriorMonthSameDay}
-                  note="Posting date. Mostly against last month's invoices."
-                />
-              </div>
-              <div className="border-t border-rule-hair px-4 py-2.5">
-                <p className="text-micro text-ink-tertiary">
-                  No percentage is shown between these two. They are not a collection rate — the
-                  payments arriving this month are largely against last month&rsquo;s bills, and any
-                  ratio here would be read as one.
-                </p>
-              </div>
-            </Panel>
-
-            {/* T8-6 / T8-7 — aged by invoice; buckets must sum to the drilldowns. */}
-            <Panel>
-              <PanelHeader
-                title="Accounts receivable"
-                meta={`Aged by invoice · ${money(String(arAging.reduce((a, b) => a + Number(b.amount), 0)))} open`}
-              />
-              <div className="@container">
-                <div className="grid grid-cols-2 @[30rem]:grid-cols-4 gap-px bg-rule-hair">
-                  {arAging.map((b) => {
-                    const flagged = b.bucket === '90+ days'
-                    return (
-                      <Link
-                        key={b.bucket}
-                        href="/reports/ar_aging"
-                        title={`Open the AR aging report — ${b.bucket} by customer type, each line drilling to its invoices`}
-                        className={`block min-w-0 px-3 py-3 transition-colors duration-fast hover:bg-surface-sunken ${
-                          flagged ? 'bg-exception-critical-wash' : 'bg-surface-raised'
-                        }`}
-                      >
-                        <p className="field-label">{b.bucket}</p>
-                        <p
-                          className={`text-h3 @[36rem]:text-h2 mt-1 figures whitespace-nowrap ${
-                            flagged ? 'text-exception-critical-text' : 'text-ink-primary'
-                          }`}
-                        >
-                          {money(b.amount)}
-                        </p>
-                        <p className="text-micro text-ink-tertiary mt-0.5">
-                          {count(b.accounts)} accounts
-                        </p>
-                      </Link>
-                    )
-                  })}
-                </div>
-              </div>
-              <div className="border-t border-rule-hair px-4 py-2.5">
-                <p className="text-micro text-ink-tertiary">
-                  A customer with unpaid bills of different ages appears in more than one bucket. Each
-                  bucket opens the AR aging report, where every line drills to its invoices and sums
-                  back to it — the same figures Collections shows.
-                </p>
-              </div>
-            </Panel>
-          </div>
-
-          {/* T8-8 — as-billed, with drift. The point of the tile. */}
-          <Panel>
-            <PanelHeader
-              title="Tariff rate card"
-              meta={`${rateCard.scheduleCode} · ${rateCard.scheduleName} · as billed on ${rateCard.lastPostedRun}`}
-              actions={
-                <Link
-                  href="/rates"
-                  className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule-solid bg-surface-raised text-data font-medium text-ink-primary hover:bg-surface-sunken hover:border-rule-heavy transition-colors duration-fast"
-                >
-                  Full rate card
-                </Link>
-              }
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full text-data">
-                <caption className="sr-only">
-                  Rates the last posted run actually billed at, with drift against the current
-                  effective rate
-                </caption>
-                <thead>
-                  <tr className="border-b border-rule-heavy">
-                    <th className="field-label px-cell-x py-1.5 text-left">Charge</th>
-                    <th className="field-label px-cell-x py-1.5 text-right">As billed</th>
-                    <th className="field-label px-cell-x py-1.5 text-right border-l border-rule-solid">
-                      Current effective
-                    </th>
-                    <th className="field-label px-cell-x py-1.5 text-left">Drift</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rateCard.rows.map((row) => (
-                    <RateCardLine key={row.itemCode} row={row} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="border-t border-rule-hair px-4 py-2.5">
-              <p className="text-micro text-ink-secondary leading-relaxed">
-                These are the rates the last posted run <em>used</em>, read from the bill lines
-                themselves — not from current configuration. The two agree only while nothing has
-                changed since the run posted, and PGA and WNA reload monthly. A drift marker is not a
-                warning about this tile; it is a correction-run trigger.
-              </p>
-            </div>
-          </Panel>
+          <PortletBoard rendered={rendered()} />
         </div>
       </div>
     </AppShell>
   )
+}
+
+/**
+ * The portlets drawn here on the server, keyed by the ids `PortletBoard`
+ * arranges. Their content is unchanged by where the operator puts them.
+ */
+function rendered(): Record<string, ReactNode> {
+  return {
+    ...Object.fromEntries(
+      /* T8-4 — placement by item type, six rows plus a "+N more". */
+      portlets.map((p) => [
+        `tier-${p.tier}`,
+        <Panel key={p.tier}>
+          <PanelHeader
+            title={
+              <span className="flex items-center gap-2">
+                <span className={`inline-block h-3 w-rail ${railFor(p.tier)}`} aria-hidden />
+                {p.tier}
+              </span>
+            }
+            meta={
+              <Link
+                href={`/dashboard/items?tier=${p.tier}` as Route}
+                className="text-accent-text hover:text-accent-text-hover underline"
+              >
+                {count(p.rows.reduce((n, r) => n + r.count, 0))} items
+              </Link>
+            }
+          />
+          <ul className="divide-y divide-rule-hair">
+            {p.rows.map((row) => (
+              <PortletLine key={row.itemType} row={row} />
+            ))}
+            {p.more > 0 ? (
+              <li className="px-4 py-1.5">
+                <Link
+                  href={`/dashboard/items?tier=${p.tier}` as Route}
+                  className="text-micro text-accent-text hover:text-accent-text-hover underline"
+                >
+                  +{p.more} more types
+                </Link>
+              </li>
+            ) : null}
+          </ul>
+        </Panel>,
+      ]),
+    ),
+
+    /* T8-5 — two figures, a prior-month comparator, and no ratio. */
+    revenue: (
+      <Panel>
+        <PanelHeader title="Revenue" meta={revenue.windowLabel} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-rule-solid">
+          <RevenueFigure
+            label="Billed, net of voids"
+            value={revenue.billedNetOfVoids}
+            prior={revenue.billedPriorMonthSameDay}
+            note={`Posted runs only — ${currentRun.run_number} counts once it posts. Voids subtract at their void date, so closed months never restate.`}
+          />
+          <RevenueFigure
+            label="Collected"
+            value={revenue.collected}
+            prior={revenue.collectedPriorMonthSameDay}
+            note="Posting date. Mostly against last month's invoices."
+          />
+        </div>
+        <div className="border-t border-rule-hair px-4 py-2.5">
+          <p className="text-micro text-ink-tertiary">
+            No percentage is shown between these two. They are not a collection rate — the
+            payments arriving this month are largely against last month&rsquo;s bills, and any
+            ratio here would be read as one.
+          </p>
+        </div>
+      </Panel>
+    ),
+
+    /* T8-6 / T8-7 — aged by invoice; buckets must sum to the drilldowns. */
+    ar: (
+      <Panel>
+        <PanelHeader
+          title="Accounts receivable"
+          meta={`Aged by invoice · ${money(String(arAging.reduce((a, b) => a + Number(b.amount), 0)))} open`}
+        />
+        <div className="@container">
+          <div className="grid grid-cols-2 @[30rem]:grid-cols-4 gap-px bg-rule-hair">
+            {arAging.map((b) => {
+              const flagged = b.bucket === '90+ days'
+              return (
+                <Link
+                  key={b.bucket}
+                  href="/reports/ar_aging"
+                  title={`Open the AR aging report — ${b.bucket} by customer type, each line drilling to its invoices`}
+                  className={`block min-w-0 px-3 py-3 transition-colors duration-fast hover:bg-surface-sunken ${
+                    flagged ? 'bg-exception-critical-wash' : 'bg-surface-raised'
+                  }`}
+                >
+                  <p className="field-label">{b.bucket}</p>
+                  <p
+                    className={`text-h3 @[36rem]:text-h2 mt-1 figures whitespace-nowrap ${
+                      flagged ? 'text-exception-critical-text' : 'text-ink-primary'
+                    }`}
+                  >
+                    {money(b.amount)}
+                  </p>
+                  <p className="text-micro text-ink-tertiary mt-0.5">
+                    {count(b.accounts)} accounts
+                  </p>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+        <div className="border-t border-rule-hair px-4 py-2.5">
+          <p className="text-micro text-ink-tertiary">
+            A customer with unpaid bills of different ages appears in more than one bucket. Each
+            bucket opens the AR aging report, where every line drills to its invoices and sums
+            back to it — the same figures Collections shows.
+          </p>
+        </div>
+      </Panel>
+    ),
+
+    /* T8-8 — as-billed, with drift. The point of the tile. */
+    'rate-card': (
+      <Panel>
+        <PanelHeader
+          title="Tariff rate card"
+          meta={`${rateCard.scheduleCode} · ${rateCard.scheduleName} · as billed on ${rateCard.lastPostedRun}`}
+          actions={
+            <Link
+              href="/rates"
+              className="inline-flex items-center h-8 px-3.5 rounded-sm border border-rule-solid bg-surface-raised text-data font-medium text-ink-primary hover:bg-surface-sunken hover:border-rule-heavy transition-colors duration-fast"
+            >
+              Full rate card
+            </Link>
+          }
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-data">
+            <caption className="sr-only">
+              Rates the last posted run actually billed at, with drift against the current
+              effective rate
+            </caption>
+            <thead>
+              <tr className="border-b border-rule-heavy">
+                <th className="field-label px-cell-x py-1.5 text-left">Charge</th>
+                <th className="field-label px-cell-x py-1.5 text-right">As billed</th>
+                <th className="field-label px-cell-x py-1.5 text-right border-l border-rule-solid">
+                  Current effective
+                </th>
+                <th className="field-label px-cell-x py-1.5 text-left">Drift</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rateCard.rows.map((row) => (
+                <RateCardLine key={row.itemCode} row={row} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-rule-hair px-4 py-2.5">
+          <p className="text-micro text-ink-secondary leading-relaxed">
+            These are the rates the last posted run <em>used</em>, read from the bill lines
+            themselves — not from current configuration. The two agree only while nothing has
+            changed since the run posted, and PGA and WNA reload monthly. A drift marker is not a
+            warning about this tile; it is a correction-run trigger.
+          </p>
+        </div>
+      </Panel>
+    ),
+  }
 }
 
 /**

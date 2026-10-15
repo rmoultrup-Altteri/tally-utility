@@ -11,6 +11,7 @@ import { Money } from '@/components/ui/Money'
 import { AccountNumber } from '@/components/ui/RecordLink'
 import { Panel, PanelHeader } from '@/components/ui/Panel'
 import { ReportTable } from '@/components/reports/ReportTable'
+import { DeceasedGate } from '@/components/accounts/DeceasedGate'
 import { reportById } from '@/fixtures/reports'
 import {
   BYPASSES,
@@ -94,7 +95,10 @@ const CATEGORY_TONE: Record<BypassCategory | 'eligible', Tone> = {
 const arReport = reportById.get('ar_aging')!
 
 export default function CollectionsPage() {
-  const rows = worklist.map((row) => ({ row, verdict: evaluate(row) }))
+  const evaluated = worklist.map((row) => ({ row, verdict: evaluate(row) }))
+  /* An absolute bar keeps the account off the worklist entirely, as the stay does below. */
+  const rows = evaluated.filter((r) => r.verdict.category !== 'absolute')
+  const deceased = evaluated.filter((r) => r.row.bypasses.some((b) => b.code === 'deceased_hold'))
   const eligible = rows.filter((r) => r.verdict.eligible)
   const inGroup = (key: Group['key']) => rows.filter((r) => r.verdict.category === key).length
   const inForce = conditionsToday.filter((c) => c.state === 'in_force').length
@@ -211,7 +215,71 @@ export default function CollectionsPage() {
                 )
               })}
             />
-            <TableFooter shown={pipeline.modelled} total={pipeline.total} noun="accounts past due" />
+            <TableFooter shown={rows.length} total={pipeline.total} noun="accounts past due" />
+          </Collapsible>
+
+          {/* ==== R-08 — death is a status, and the hold bars everything ==== */}
+          <Collapsible
+            title="Deceased — held until changed over"
+            n={deceased.length}
+            summary="No shutoff and no collections activity until the account is changed over to a family member"
+          >
+            <div className="px-4 py-3 border-b border-rule-hair">
+              <p className="text-data text-ink-primary">
+                These accounts are held, not worked. No notice, call or field order goes out on them, and they
+                are kept off the worklist for the same reason the stayed accounts are. The hold ends when the
+                account is changed over, which needs all three proofs.
+              </p>
+            </div>
+            <ColumnTable
+              listId="collections-deceased"
+              caption="Deceased accounts held from all collections activity"
+              columns={DECEASED_COLUMNS}
+              rows={deceased.map(({ row }) => {
+                const hold = row.bypasses.find((b) => b.code === 'deceased_hold')!
+                return {
+                  key: row.id,
+                  cells: {
+                    rail: <Rail tone="critical" />,
+                    account: (
+                      <>
+                        {row.customerId ? (
+                          <Link
+                            href={`/customers/${row.customerId}` as Route}
+                            className="text-data text-ink-primary hover:text-accent-text hover:underline"
+                          >
+                            {row.name}
+                          </Link>
+                        ) : (
+                          <span className="text-data text-ink-primary">{row.name}</span>
+                        )}
+                        <p>
+                          <AccountNumber number={row.accountNumber} id={row.customerId ?? undefined} plainClassName="text-ink-tertiary" />
+                        </p>
+                      </>
+                    ),
+                    balance: <Money value={row.balance} />,
+                    stage: <span className="text-micro text-ink-secondary">{humanize(row.stage)}, frozen</span>,
+                    reason: (
+                      <>
+                        <StateFlag tone="critical">{BYPASSES.deceased_hold.label}</StateFlag>
+                        <p className="text-micro text-ink-secondary mt-0.5">{hold.detail}</p>
+                      </>
+                    ),
+                    nextAction: row.nextAction ? (
+                      <span className="text-micro text-accent-text">{row.nextAction}</span>
+                    ) : (
+                      <span className="text-ink-tertiary">—</span>
+                    ),
+                    address: (
+                      <span className="text-micro text-ink-secondary">
+                        {row.address}, {row.city}
+                      </span>
+                    ),
+                  },
+                }
+              })}
+            />
           </Collapsible>
 
           {/* ==== Not "blocked" — removed from collections entirely ==== */}
@@ -369,6 +437,16 @@ const WORKLIST_COLUMNS: ColumnDef[] = [
   { key: 'priorDisconnects', label: 'Prior disconnects', align: 'right', hidden: true },
   { key: 'disputed', label: 'Disputed', align: 'right', hidden: true },
   { key: 'nextAction', label: 'Next action', hidden: true },
+]
+
+const DECEASED_COLUMNS: ColumnDef[] = [
+  RAIL,
+  { key: 'account', label: 'Account', width: '18%' },
+  { key: 'balance', label: 'Balance', align: 'right', width: '9%' },
+  { key: 'stage', label: 'Stage', width: '12%' },
+  { key: 'reason', label: 'Why nothing goes out' },
+  { key: 'nextAction', label: 'Next action', width: '22%' },
+  { key: 'address', label: 'Service address', hidden: true },
 ]
 
 const STAYED_COLUMNS: ColumnDef[] = [
@@ -538,11 +616,11 @@ function worklistLine(row: WorklistRow, verdict: Verdict): ColumnRow {
           </div>
         ),
       eligible: (
-        <>
+        <DeceasedGate customerId={row.customerId}>
           <StateFlag tone={CATEGORY_TONE[category]}>{verdict.eligible ? 'Yes' : 'No'}</StateFlag>
           <p className="text-micro text-ink-secondary mt-0.5">{verdict.reason}</p>
           {row.nextAction ? <p className="text-micro text-accent-text mt-0.5">{row.nextAction}</p> : null}
-        </>
+        </DeceasedGate>
       ),
       deposit: Number(row.deposit) > 0 ? <Money value={row.deposit} /> : <span className="text-ink-tertiary">—</span>,
       class: <span className="text-micro text-ink-secondary">{row.isResidential ? 'Residential' : 'Commercial'}</span>,

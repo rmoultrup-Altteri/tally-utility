@@ -3,6 +3,9 @@ import type { Route } from 'next'
 import { notFound } from 'next/navigation'
 import { AppShell } from '@/components/shell/AppShell'
 import { AccountAlerts, AccountFields, AccountHeader } from '@/components/accounts/AccountDetail'
+import { AccountExceptions } from '@/components/accounts/AccountExceptions'
+import { DeceasedPanel } from '@/components/accounts/Deceased'
+import { RateScheduleHistory } from '@/components/accounts/RateSchedule'
 import { MeterLink } from '@/components/meters/MeterDetail'
 import { InvoiceDateText } from '@/components/bills/InvoiceEdit'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
@@ -12,7 +15,6 @@ import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
 import { customers, customerById, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
 import { readings } from '@/fixtures/reads'
 import { invoices } from '@/fixtures/billing'
-import { exceptions } from '@/fixtures/exceptions'
 import { date, dateShort } from '@/lib/format'
 
 /**
@@ -75,9 +77,6 @@ export default async function CustomerPage({
   const bills = invoices.filter((i) => i.customer_id === customer.id)
   /* The newest live bill, for the explanation link. */
   const latestBill = bills.find((i) => i.status !== 'void' && i.billing_period === 'Feb 2026') ?? bills.find((i) => i.status !== 'void' && i.billing_period === 'Jan 2026')
-  const openOnAccount = exceptions.filter(
-    (e) => e.customer_id === customer.id && e.status !== 'resolved',
-  )
 
   return (
     <AppShell current="Accounts">
@@ -161,27 +160,11 @@ export default async function CustomerPage({
             <UsageChart />
           </Panel>
 
-          {openOnAccount.length > 0 ? (
-            <Panel>
-              <PanelHeader
-                title="Open exceptions"
-                meta={`${openOnAccount.length} on this account`}
-              />
-              <ul className="divide-y divide-rule-hair">
-                {openOnAccount.map((e) => (
-                  <li key={e.id} className="flex items-baseline gap-3 px-4 py-2.5">
-                    <StateFlag tone={e.severity === 'critical' ? 'critical' : 'warning'}>
-                      {e.severity}
-                    </StateFlag>
-                    <span className="text-data text-ink-primary">{e.description}</span>
-                    <Link href="/" className="ml-auto text-micro text-accent-text underline">
-                      Open in queue
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-          ) : null}
+          <AccountExceptions customerId={customer.id} />
+
+          <DeceasedPanel customer={customer} />
+
+          <RateScheduleHistory customer={customer} />
 
           <Panel>
             <PanelHeader title="Bills" meta="Void bills stay on the account permanently" />

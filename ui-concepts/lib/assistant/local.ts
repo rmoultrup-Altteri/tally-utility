@@ -275,7 +275,7 @@ function count(view: TenantView, text: string, send: Send): string | null {
   if (entity === 'customers') {
     const t = TYPES.find((x) => lower.includes(x.replace('_', ' ')))
     if (t) where.customer_type = t === 'commercial' ? '~commercial' : t
-    for (const s of ['active', 'inactive', 'collections', 'closed']) if (new RegExp(`\\b${s}\\b`).test(lower)) where.status = s
+    for (const s of ['active', 'inactive', 'collections', 'closed', 'deceased']) if (new RegExp(`\\b${s}\\b`).test(lower)) where.status = s
   }
   if (entity === 'invoices') {
     for (const s of ['draft', 'held', 'sent', 'paid', 'overdue', 'void', 'partial']) if (new RegExp(`\\b${s}\\b`).test(lower)) where.status = s

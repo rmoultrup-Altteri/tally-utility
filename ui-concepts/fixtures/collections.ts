@@ -88,6 +88,7 @@ export type BypassCode =
   | 'designee_not_notified'
   | 'notice_immature'
   | 'notice_not_served'
+  | 'deceased_hold'
 
 /**
  * `absolute` conditions are prohibitions on all collections activity, not
@@ -108,6 +109,14 @@ export type Bypass = {
 }
 
 export const BYPASSES: Record<BypassCode, Bypass> = {
+  /* R-08: no shutoff and no collections activity until the account is changed over to a family member. */
+  deceased_hold: {
+    code: 'deceased_hold',
+    label: 'Deceased — held until changed over to a family member',
+    short: 'Deceased',
+    category: 'absolute',
+    citation: 'Utility policy · R-08',
+  },
   bankruptcy_stay: {
     code: 'bankruptcy_stay',
     label: 'Bankruptcy automatic stay',
@@ -331,19 +340,19 @@ export const worklist: WorklistRow[] = [
     balance: '430.18',
     pastDueDays: 104,
     stage: 'collections',
-    lastNotice: { type: 'Agency placement notice', sentAt: '2026-01-26', channel: 'Mail' },
+    /* Frozen where it stood on 2026-01-08, when the death was recorded. Nothing has been sent since. */
+    lastNotice: { type: 'Agency placement notice', sentAt: '2025-12-29', channel: 'Mail' },
     bypasses: [
       {
-        code: 'agency_pledge',
-        detail: 'Brazos Valley Community Action pledged $300.00 on 2026-02-09. Remittance not received.',
-        expires: '2026-03-11',
+        code: 'deceased_hold',
+        detail: 'Died 2026-01-02. Death certificate on file; obituary and will, conservatorship or spouse documentation outstanding.',
       },
       { code: 'notice_not_served', detail: 'Placed with the agency. No disconnect notice has been served this cycle.' },
       { code: 'temperature_hold', detail: 'Residential service, forecast 26°F.' },
     ],
     deposit: '0.00',
     priorDisconnects: 1,
-    nextAction: 'Confirm pledge remittance with agency',
+    nextAction: 'Chase the family for the outstanding proof — no update since 2026-01-13',
   },
   {
     id: 'wl-07',
@@ -696,20 +705,20 @@ export const auditTrail: AuditEntry[] = [
     actor: 'dunning-evaluator',
   },
   {
-    id: 'au-04',
-    at: '2026-02-13T09:18:00-06:00',
-    account: '100-290118',
-    action: 'Agency pledge recorded',
-    rationale: 'Brazos Valley Community Action pledge of $300.00 accepted; collections suspended pending remittance.',
-    source: 'operator',
-    actor: 'Dana Pearce',
-  },
-  {
     id: 'au-05',
     at: '2026-02-03T11:20:00-06:00',
     account: '100-274930',
     action: 'All collections activity stopped',
     rationale: 'Chapter 13 petition 26-30118-hdh13 filed 2026-02-02. Automatic stay under 11 USC §362.',
+    source: 'operator',
+    actor: 'Dana Pearce',
+  },
+  {
+    id: 'au-06',
+    at: '2026-01-08T10:41:00-06:00',
+    account: '100-290118',
+    action: 'All collections activity stopped',
+    rationale: 'Customer died 2026-01-02, reported by family. Deceased-account hold until the account is changed over to a family member.',
     source: 'operator',
     actor: 'Dana Pearce',
   },

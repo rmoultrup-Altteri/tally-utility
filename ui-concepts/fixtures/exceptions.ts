@@ -1,4 +1,18 @@
 import type { Exception } from '@/schemas/models'
+import { deceasedState, reviewException } from '@/lib/deceased'
+import { seedDeceasedSteps } from '@/fixtures/deceased'
+import { serviceLinks } from '@/fixtures/accounts'
+import { asOf } from '@/fixtures/tenant'
+
+/**
+ * The deceased-account review (R-08), raised by rule rather than written by
+ * hand: Wendell Fry's clock ran out on 13 February with nothing recorded
+ * since the death certificate came in.
+ */
+const fryReview = reviewException(deceasedState('cus-0006', seedDeceasedSteps)!, asOf.validAt, {
+  id: 'exc-0010',
+  meterId: serviceLinks.find((l) => l.customerId === 'cus-0006')?.meterId ?? null,
+})
 
 /**
  * The pre-mail exception queue for Cycle 04.
@@ -282,6 +296,7 @@ export const exceptions: Exception[] = [
     assigned_to: null,
     blocks_delivery: false,
   },
+  ...(fryReview ? [fryReview] : []),
 ]
 
 /** Consequence ordering: severity first, then money at risk. */

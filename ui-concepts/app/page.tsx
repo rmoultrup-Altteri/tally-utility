@@ -12,6 +12,7 @@ import { ColumnTable, type ColumnDef } from '@/components/table/Columns'
 import { ListStar } from '@/components/shell/Favorites'
 import { QueueFilterBar } from '@/components/queue/QueueFilters'
 import { WorkTabs } from '@/components/queue/WorkTabs'
+import { SuggestedAction } from '@/components/queue/SuggestedAction'
 import { applyFilters, describeFilters, isFiltered, parseFilters } from '@/lib/views'
 import { currentUser } from '@/fixtures/tenant'
 import { byConsequence, openExceptions, exceptions, blockingCount } from '@/fixtures/exceptions'
@@ -294,7 +295,7 @@ function ExceptionDetail({ exception: e }: { exception: (typeof exceptions)[numb
           <p className="field-label mb-2">Suggested action</p>
           {/* Presented, never applied. This is the trust boundary for the AI
               features — a wrong default here becomes a wrong bill. */}
-          <Button variant="primary">{e.suggested_action.label}</Button>
+          <SuggestedAction exception={e} />
           <p className="text-micro text-ink-secondary mt-2 leading-relaxed">
             {e.suggested_action.explanation}
           </p>

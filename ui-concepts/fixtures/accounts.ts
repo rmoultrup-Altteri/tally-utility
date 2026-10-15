@@ -124,7 +124,8 @@ export const customers: Customer[] = [
     company_name: null,
     email: 'wfry@example.com',
     phone: '(979) 555-0455',
-    status: 'collections',
+    /* Died 2026-01-02 while in collections. The steps are in `deceased.ts`. */
+    status: 'deceased',
     do_not_disconnect: false,
     disconnect_protection_type: null,
     disconnect_protection_expiry: null,

@@ -18,6 +18,10 @@ import {
   useLastStatusChange,
   type CustomerEdit,
 } from '@/lib/edits-store'
+import { DeceasedAction } from '@/components/accounts/Deceased'
+import { RateScheduleField } from '@/components/accounts/RateSchedule'
+import { useDeceased } from '@/lib/deceased-store'
+import { PROOFS, reviewOverdue } from '@/lib/deceased'
 import { asOf } from '@/fixtures/tenant'
 import { CustomerType, DisconnectProtectionType } from '@/schemas/enums'
 import { customerName, type Customer, type Meter, type ServiceLocation } from '@/schemas/models'
@@ -65,6 +69,7 @@ export function AccountHeader({
         actions={
           <>
             {actions}
+            <DeceasedAction base={base} current={customer} />
             <StatusButton verb={verb} onClick={() => setStatusOpen(true)} />
             <EditButton onClick={() => setOpen(true)} />
           </>
@@ -88,10 +93,25 @@ export function AccountHeader({
 export function AccountAlerts({ customer: base }: { customer: Customer }) {
   const customer = useCustomer(base)
   const changed = useLastStatusChange('customer', base.id)
+  const deceased = useDeceased(base.id)
+  const held = !!deceased?.holdActive
   const inactive = customer.status === 'inactive'
-  if (!inactive && !customer.do_not_disconnect && !customer.billing_hold) return null
+  if (!held && !inactive && !customer.do_not_disconnect && !customer.billing_hold) return null
   return (
     <div className="px-5 py-3 border-b border-rule-hair bg-surface space-y-2">
+      {held && deceased ? (
+        <StateBlock tone="critical">
+          <p className="text-data text-ink-primary">
+            <strong className="font-semibold">Deceased — account on hold.</strong> Died{' '}
+            {date(deceased.dateOfDeath)}. No shutoff and no collections activity until the account is
+            changed over to a family member. Proof on file:{' '}
+            {PROOFS.filter((p) => deceased.proofs[p.kind]).length} of {PROOFS.length}.{' '}
+            {reviewOverdue(deceased, asOf.validAt)
+              ? `No update since ${date(deceased.lastUpdateOn)} — review overdue.`
+              : `Review due ${date(deceased.reviewDueOn)} if nothing is recorded before then.`}
+          </p>
+        </StateBlock>
+      ) : null}
       {inactive ? (
         <StateBlock tone="void">
           <p className="text-data text-ink-primary">
@@ -138,6 +158,7 @@ export function AccountFields({ customer: base, location }: { customer: Customer
         <Money value={customer.deposit_amount} />
       </Field>
       <Field label="Tax exempt">{customer.is_tax_exempt ? 'Yes' : 'No'}</Field>
+      <RateScheduleField customerId={base.id} />
       <Field label="Phone">{customer.phone ?? '—'}</Field>
       <Field label="Email">{customer.email ?? '—'}</Field>
       <Field label="Premise">
