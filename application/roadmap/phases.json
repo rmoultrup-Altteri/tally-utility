@@ -52,7 +52,7 @@
         "unit": "invariants",
         "basis": "parity measurement 2026-10-13 (REP+PROT 34, REP 21)"
       },
-      "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 answers unblock tax jurisdictions, franchise fees and the PGA billing side.",
+      "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 answers unblock tax jurisdictions, franchise fees and the PGA billing side. Kyle's 2026-10-15 answers close R-01 to R-11 and K-01 to K-07, so waves 4, 6 and 7 are no longer waiting on a decision.",
       "parts": [
         {
           "name": "Wave 1: close holes in what is built",
@@ -76,7 +76,7 @@
         },
         {
           "name": "Wave 4: program enrollment lifecycle",
-          "status": "waiting"
+          "status": "todo"
         },
         {
           "name": "Wave 5: communications",
@@ -84,11 +84,11 @@
         },
         {
           "name": "Wave 6: rate-assignment and occupancy history",
-          "status": "waiting"
+          "status": "todo"
         },
         {
           "name": "Wave 7: rule-terms extensions",
-          "status": "waiting"
+          "status": "todo"
         },
         {
           "name": "Fix the old meter-reading defect (from -05)",

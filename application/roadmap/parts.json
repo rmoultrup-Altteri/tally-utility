@@ -47,7 +47,7 @@
  {
   "phase": "P1",
   "part": "Wave 4: program enrollment lifecycle",
-  "status": "waiting"
+  "status": "todo"
  },
  {
   "phase": "P1",
@@ -57,12 +57,12 @@
  {
   "phase": "P1",
   "part": "Wave 6: rate-assignment and occupancy history",
-  "status": "waiting"
+  "status": "todo"
  },
  {
   "phase": "P1",
   "part": "Wave 7: rule-terms extensions",
-  "status": "waiting"
+  "status": "todo"
  },
  {
   "phase": "P1",
