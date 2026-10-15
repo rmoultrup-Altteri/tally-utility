@@ -1,28 +1,53 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-20, verified 2026-10-14.** After v5.4.2-20: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **477 FKs** / **575 CHECKs** / **22 EXCLUDE** / **415 triggers** / **527 functions** / **709 indexes**. tu.sql **39,349 lines**, md5 `e13f0d72ffdcf65782e789a58ed4cb32` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-21, verified 2026-10-14.** After v5.4.2-21: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **479 FKs** / **582 CHECKs** / **22 EXCLUDE** / **455 triggers** / **536 functions** / **717 indexes**. tu.sql **40,652 lines**, md5 `3b1433a315ecc97be284525333185932` (the container init file matches by hash).
 
-**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-19, verified 2026-10-13.** After v5.4.2-19: **131 tables** / **9 views** / **4 matviews** / **101 policies** / **100 FORCE-RLS** / **476 FKs** / **573 CHECKs** / **22 EXCLUDE** / **404 triggers** / **520 functions** / **708 indexes**. tu.sql **38,016 lines**, md5 `785baf90675ccfe597330d208a010820` (the container init file matches by hash).
+**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-20, verified 2026-10-14.** After v5.4.2-20: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **477 FKs** / **575 CHECKs** / **22 EXCLUDE** / **415 triggers** / **527 functions** / **709 indexes**. tu.sql **39,349 lines**, md5 `e13f0d72ffdcf65782e789a58ed4cb32` (the container init file matches by hash).
+## v5.4.2-21 — wave 1 built: retention (CI-014), bill-line arithmetic (CI-016), lineage (CI-017); the void's reversal; identity follow-ups (R1); the -20 notes (Ryan 2026-10-14 "ok go ahead with -21"; mirror approved by Ryan 2026-10-14 "yes, mirror it")
+`sql/v5.4.2-21-wave1-lineage-arithmetic-retention.sql` (1,468 lines, md5 `649db2b7094e585adde761f69a89a126`, r4), mirrored into tu.sql (39,349 → **40,652**: a pure append of a blank line, a 4-line banner and the 1,298-line body; 1,303 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 169–1466.
 
-**Previous: through v5.4.2-18 (v5.4.2-15 mirrored), verified 2026-10-13.** After v5.4.2-15: **130 tables** / **9 views** / **4 matviews** / **101 policies** / **100 FORCE-RLS** / **474 FKs** / **545 CHECKs** / **22 EXCLUDE** / **385 triggers** / **507 functions** / **700 indexes**. tu.sql **36,712 lines**, md5 `95f79924acda06445b518db545365e61` (the container init file matches by hash).
+**What changes** (the patch header lists each item; residuals R1–R10 are left on purpose):
+- **Retention (CI-014):**
+  - 16 tables refuse DELETE and TRUNCATE for every role (ALWAYS), and `tally_app` loses both.
+  - The custom labels are refused while in use. The guard takes SHARE on the entity table, waits at most 5 s and runs only at READ COMMITTED. Their keys are write-once.
+  - `rate_item_dependencies` is retired, with the time and the retiring user stamped by the database, not deleted.
+- **Bill-line arithmetic (CI-016):** a deferred check at issue, at the snapshot's `valid_at` under current knowledge. A surcharge whose rate item has no visible version there is refused.
+- **Lineage (CI-017):**
+  - A correction names its bill.
+  - A `void_reversal` names its entry, of its own tenant, with a reason. It is filed against `invoice_void`, at most once per entry.
+  - A refund names exactly one source (new: `refunds_customer_credit_id`).
+  - A charge is never born with a void's pointer.
+  - Every lineage column is indexed.
+- **The void:** a posted bill's void names its charge, of the bill's tenant and customer, or is refused. A never-posted bill's void writes no ledger entry.
+- **Identity:**
+  - `users.cognito_sub` is unique and write-once.
+  - For the application, binding, `is_active` and removing an administrator role require a supervisor. For a platform administrator, a platform administrator.
+  - The RLS helpers require an active user.
+- **Invariants:** `assert_no_hard_delete_invariants()` and `assert_wave1_guard_invariants()` (CI steps). `assert_seal_role_invariants()` says "relation" and notes PostgreSQL 16's rendering.
+- **Contracts:** AC-43 is new (`application/APPLICATION-CONTRACTS.md`).
+- **Older batteries:** -10, -11, -13, -15, -19 and -20 and the -20 races were adjusted for the new rules. The patch header lists them.
 
-**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-14 + v5.4.2-16 + v5.4.2-17 + v5.4.2-18, verified 2026-10-10 (v5.4.2-15 was not yet mirrored).** After v5.4.2-18: **117 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **436 FKs** / **497 CHECKs** / **20 EXCLUDE** / **349 triggers** / **487 functions** / **665 indexes**. tu.sql **31,380 lines**, md5 `b35302dcc0979c29b2c693dc569838c7` (the container init file matches by hash).
+**Review** (`tests/v5.4.2-21/review/`), four rounds:
+- **Round 1:** all three "not yet". An unclassifiable surcharge passed; the coordinate was the period end; an in-use label could be renamed; an operator could promote itself by binding an administrator. Folded into r2.
+- **Round 2:** Codex ready. Fable showed the snapshot's `recorded_at` hides a reclassification; Opus showed a tenant_admin reviving a platform administrator. Folded into r3.
+- **Round 3:** Codex ready. Opus and Fable found the same item: a role-only demotion. Folded into r4.
+- **Round 4** (diff-scoped): all three ready.
+- Codex reviewed source only; the author ran its 17 probes, and every result matched its prediction.
 
-**Previous: through v5.4.2-17, verified 2026-10-09.** After v5.4.2-17: **120 tables** / **9 views** / **4 matviews** / **95 policies** / **94 FORCE-RLS** / **438 FKs** / **507 CHECKs** / **20 EXCLUDE** / **352 triggers** / **487 functions** / **670 indexes**. tu.sql **30,570 lines**, md5 `5ac8ed99179e7e0f80ba35f21cd0043b`.
+**Method.**
+1. Strict apply twice on a clone of the -20 build, TEMP revoked. It is clean; the second run is skipped by the gate.
+2. **battery-21: 143 PASS.**
+3. **races/labels-21.sh: 9 PASS.** LR1–LR7 and LR2b check that session B was seen blocked by session A where it waits. AR1 covers two committed instants.
+4. **mutations-21.py: 68 of 68**, each caught at its named check as the first failure of any kind.
+5. Mirror.
+6. Image rebuilt on a fresh container: **zero error lines during init**, and the init file equals tu.sql by md5.
+7. **Schema parity, full identity:**
+   - `pg_dump --schema-only` of the build equals that of a clone of the -20 build with the patch applied, with and without privileges. Only pg_dump's random `\restrict` token differs.
+   - `tests/v5.4.2-14/parity/catalog-identity.sql` on the build: 11,326 lines, md5 `e5188de6fb68a80af8b682055861b984`.
+8. **On the build** (`tests/ci.sh --build`, all 30 steps pass): batteries 09–21, the -15/-17/-18 runners, isolation, every race script, and all six invariants. The patch re-applied over the build twice is skipped. TEMP is false for `tally_app`, `tally_seal` and `tally_void`.
+9. `PENDING` in `tests/ci.sh` is empty again.
 
-**Previous: through v5.4.2-16, verified 2026-10-07.** After v5.4.2-16: **109 tables** / **9 views** / **4 matviews** / **93 policies** / **92 FORCE-RLS** / **429 FKs** / **469 CHECKs** / **19 EXCLUDE** / **330 triggers** / **440 functions** / **652 indexes**. tu.sql **27,331 lines**, md5 `9c1d0813e64853cebcb5aaff519a4201`.
-
-**Previous: through v5.4.2-14, verified 2026-09-30.** 100 tables / 9 views / 4 matviews / 91 policies / 90 FORCE-RLS / 409 FKs / 434 CHECKs / 13 EXCLUDE / 308 triggers / 427 functions / 629 indexes. tu.sql **26,049 lines**, md5 `9139367ab7da6ada63d4193ba189e17f`.
-
-**Previous: through v5.4.2-13, verified 2026-09-30.** Same counts (`tests/v5.4.2-13/parity/catalog-counts.sql`). tu.sql **25,930 lines**, md5 `ab3ce7ae9e59a45a90d8d36fa70c8fa3`.
-
-**Previous: through v5.4.2-12, verified 2026-09-23.** After v5.4.2-12: **86 tables** / **6 views** / **84 policies** / **83 FORCE-RLS** / **369 FKs** / **381 CHECKs** / **11 EXCLUDE** / **269 triggers** / **407 functions** / **588 indexes** (see the v5.4.2-12 section). tu.sql **23,452 lines**, md5 `2aa59147bfde61d86991f7f0a5c5d22a`.
-
-**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-11, verified 2026-09-09.** After v5.4.2-11: **82 tables** / **5 views (all `security_invoker`)** / **4 matviews (owner-only)** / **81 policies** / **80 FORCE-RLS** / **357 FKs** / **255 triggers** / **393 functions** (+1: `assert_tenant_isolation_invariants()`) / **3 SECURITY DEFINER, 0 PUBLIC-executable**. tu.sql **21,916 lines**, md5 `6edac2aad61505edd5654f214d62b351` (the container init file matches by hash). The -11 detail is at the end of this file ([v5.4.2-11 verification](#v5425-11-verification-2026-09-09--definer-hygiene-and-the-tenant-isolation-gate)), after the older sections.
-
-**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-10, verified 2026-09-08.** After v5.4.2-10: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** (one replaced by a tenant-composite one) / **10 EXCLUDE** / **59 UNIQUEs** / **255 triggers (187 ENABLE ALWAYS)** / **571 indexes** / **392 functions** (+6: the coordinate helper, the lineage-root walker, three freeze guards, the first-issued stamp); TEMP still revoked. tu.sql **21,165 lines** (pure append; anchors 337/3600/3679 intact).
-
-**Previous: through v5.4.2-09, verified 2026-09-04.** After v5.4.2-09: **82 tables** / **81 policies** / **80 FORCE-RLS** / **357 CHECKs** / **357 FKs** / **10 EXCLUDE** / **59 UNIQUEs** / **251 triggers (183 ENABLE ALWAYS)** / **571 indexes** / **386 functions** (+2: the A-9 accessors); TEMP still revoked. tu.sql **20,407 lines** (pure append; anchors 337/3600/3679 intact).
+**Left as is:** the -20 body's `REVOKE TEMP ON DATABASE :"DBNAME" FROM PUBLIC` stays in tu.sql (mirrored bodies are never edited). -21 carries the `current_database()` form (residual R5).
 
 ## v5.4.2-20 — seal the version check (CI-011) and the void (A-23 item 1, AC-12) (Ryan 2026-10-14 "yes, go ahead and draft it" after the three-reviewer design review; mirror approved by Ryan 2026-10-14 "yes, mirror it")
 `sql/v5.4.2-20-seal-version-check-and-void.sql` (1,488 lines, md5 `0ae593499b0dbf52a5bf306b8e7f3eee`, r3), mirrored into tu.sql (38,016 → **39,349**: a pure append of a blank line, a 4-line banner and the 1,328-line body; 1,333 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 159–1486.
