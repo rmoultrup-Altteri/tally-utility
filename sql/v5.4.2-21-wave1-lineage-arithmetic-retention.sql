@@ -14,7 +14,7 @@
 --   tests/v5.4.2-21/review/review-findings-21-r1.md):
 --   a surcharge whose rate item has no version visible at the bill's
 --   coordinate needs its figures (all three, B1); the arithmetic is read at
---   the bill's snapshot coordinate, not (period_end, now()) (Codex B2); a
+--   the bill's snapshot date, not its period end (Codex B2); a
 --   label's key, entity and tenant are write-once (Opus B3, Fable B1); a
 --   supervisor binds an identity and switches a user on or off (Opus B2);
 --   the void's charge is the bill's customer's (Opus S1); the void's
@@ -23,6 +23,13 @@
 --   corrected (all three); retired_by is the session's user (Opus S4, Fable
 --   N7); a gas rider does not carry the commodity rate (Fable S4); the
 --   invariants watch every new guard (Codex S1, Fable S2).
+--
+-- Revision r3 (review round 2: Codex ready; Opus, Fable "not yet";
+--   tests/v5.4.2-21/review/review-findings-21-r2.md): the arithmetic is read
+--   under current knowledge, now(), at the snapshot's date — the snapshot's
+--   recorded_at is the caller's to choose and could hide a reclassification
+--   (Fable B1); binding or switching a platform administrator takes a
+--   platform administrator (Opus B1).
 --
 -- ----------------------------------------------------------------------------
 -- What changes
@@ -50,7 +57,8 @@
 --
 --   Bill-line arithmetic (CI-016)
 --   * At issue (a deferred check beside the snapshot and surcharge checks),
---     read at the bill's snapshot coordinate, a usage line carries quantity,
+--     read at the bill's snapshot date under current knowledge, a usage line
+--     carries quantity,
 --     unit and rate (and on gas the factor, Ccf, therms and commodity rate);
 --     a base line its rate, and its five coverage columns all or none; a
 --     surcharge names a rate item with a version visible there, and a
@@ -122,6 +130,13 @@
 --       the bill voids as a discard.
 --   R7. Not mutation-tested: the issued-to-issued skip in the arithmetic gate
 --       and its FOR SHARE on the lines (the siblings' model).
+--   R8. A reverses_ledger_entry_id on a row that is not a void_reversal is
+--       not constrained: an adjustment may name an entry with no reason
+--       (Fable r2 S3). CI-017 binds the void's reversal; other reversal
+--       kinds are not ruled.
+--   R9. line_item_carries_base, the surcharge sibling's base rule, still
+--       classifies at the period end, not a correction's elected date
+--       (Fable r2, pre-existing); a follow-up.
 --
 -- Tests. battery-21 (one row per requirement), races/labels-21.sh, and
 --   mutations-21.py. The invariants assert_no_hard_delete_invariants() and
@@ -468,12 +483,14 @@ BEGIN
     IF TG_OP = 'UPDATE' AND NEW.status = 'void' THEN
         RETURN NULL;
     END IF;
-    -- r2 (Codex B2): the arithmetic of the price actually calculated is read
-    -- at the bill's own coordinate, its snapshot's (valid_at, recorded_at):
-    -- since v5.4.2-10 that pair is validated and frozen (a correction's may
-    -- be an elected rate date and the original's knowledge instant). No
-    -- snapshot: enforce_invoice_has_snapshot refuses the issuance; there is
-    -- no fallback onto live coordinates.
+    -- r2 (Codex B2), r3 (Fable r2 B1): the date is the bill's own, its
+    -- snapshot's valid_at (validated and frozen since v5.4.2-10: the period
+    -- end, or a correction's elected rate date); the knowledge is now. The
+    -- snapshot's recorded_at is the caller's to choose inside a window, and
+    -- an earlier instant would hide a classification retracted since — the
+    -- surcharge sibling reads now() for the same reason. A retracted
+    -- classification is retracted. No snapshot: enforce_invoice_has_snapshot
+    -- refuses the issuance.
     SELECT * INTO v_snap FROM public.invoice_calculation_snapshots s WHERE s.invoice_id = NEW.id;
     IF NOT FOUND THEN
         RETURN NULL;
@@ -482,7 +499,7 @@ BEGIN
     -- an existing line waits for this transaction.
     PERFORM 1 FROM public.invoice_line_items l WHERE l.invoice_id = NEW.id FOR SHARE;
     FOR v_line IN SELECT l.* FROM public.invoice_line_items l WHERE l.invoice_id = NEW.id ORDER BY l.line_order, l.id LOOP
-        v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, v_snap.recorded_at);
+        v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, now());
         IF v_gap IS NOT NULL THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('invoice %s cannot be issued: line %s (%s, %s) does not carry its arithmetic — missing %s (CI-016, v5.4.2-21)', NEW.invoice_number, v_line.line_order, v_line.charge_type, v_line.description, v_gap),
@@ -493,7 +510,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_invoice_line_arithmetic() IS
-    'v5.4.2-21 (CI-016). Deferred AFTER INSERT OR UPDATE on invoices: on the move into an issued status (not a void), every line must carry its arithmetic (invoice_line_arithmetic_gap at the bill''s calculation snapshot''s valid_at, recorded_at — the coordinate the price was calculated at). Without a snapshot it defers to enforce_invoice_has_snapshot. Locks the lines FOR SHARE. A superuser''s load of a bill born issued is checked too.';
+    'v5.4.2-21 (CI-016). Deferred AFTER INSERT OR UPDATE on invoices: on the move into an issued status (not a void), every line must carry its arithmetic (invoice_line_arithmetic_gap at the bill''s calculation snapshot''s valid_at — the rate date the price was calculated for — under current knowledge, now()). Without a snapshot it defers to enforce_invoice_has_snapshot. Locks the lines FOR SHARE. A superuser''s load of a bill born issued is checked too.';
 REVOKE ALL ON FUNCTION public.enforce_invoice_line_arithmetic() FROM PUBLIC, tally_app, tally_core;
 
 DROP TRIGGER IF EXISTS enforce_invoice_line_arithmetic ON public.invoices;
@@ -1023,9 +1040,21 @@ BEGIN
     IF current_user <> 'tally_app' THEN
         RETURN NEW;
     END IF;
-    IF ((TG_OP = 'INSERT' AND NEW.cognito_sub IS NOT NULL)
-        OR (TG_OP = 'UPDATE' AND (NEW.cognito_sub IS DISTINCT FROM OLD.cognito_sub OR NEW.is_active IS DISTINCT FROM OLD.is_active)))
-       AND NOT public.session_is_supervisor() THEN
+    IF NOT ((TG_OP = 'INSERT' AND NEW.cognito_sub IS NOT NULL)
+            OR (TG_OP = 'UPDATE' AND (NEW.cognito_sub IS DISTINCT FROM OLD.cognito_sub OR NEW.is_active IS DISTINCT FROM OLD.is_active))) THEN
+        RETURN NEW;
+    END IF;
+    -- r3 (Opus r2 B1): a platform administrator is bound, revived or switched
+    -- off only by a platform administrator — a tenant_admin who could bind a
+    -- deactivated platform administrator of its tenant would become one, the
+    -- grant enforce_platform_admin_grant refuses.
+    IF NEW.role = 'platform_admin' OR (TG_OP = 'UPDATE' AND OLD.role = 'platform_admin') THEN
+        IF NOT public.is_platform_admin() THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('user %s: only a platform administrator binds a platform administrator''s identity or switches one on or off (R1, v5.4.2-21)', NEW.id),
+                ERRCODE = 'insufficient_privilege';
+        END IF;
+    ELSIF NOT public.session_is_supervisor() THEN
         RAISE EXCEPTION USING
             MESSAGE = format('user %s: only a supervisor (tenant_admin or platform administrator) binds a Cognito identity or switches a user on or off — a session that could bind or revive an administrator could promote itself (R1, v5.4.2-21)', NEW.id),
             ERRCODE = 'insufficient_privilege';
@@ -1034,7 +1063,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_user_binding_by_supervisor() IS
-    'v5.4.2-21 r2 (R1). BEFORE INSERT OR UPDATE OF cognito_sub, is_active on users: for tally_app, binding a Cognito identity (on insert or update) and changing is_active either way require session_is_supervisor(). Other roles (the owner''s load or repair) stand aside, as in enforce_tenant_admin_grant.';
+    'v5.4.2-21 r2 (R1). BEFORE INSERT OR UPDATE OF cognito_sub, is_active on users: for tally_app, binding a Cognito identity (on insert or update) and changing is_active either way require session_is_supervisor(), and is_platform_admin() when the user is (or was) a platform administrator (r3). Other roles (the owner''s load or repair) stand aside, as in enforce_tenant_admin_grant.';
 REVOKE ALL ON FUNCTION public.enforce_user_binding_by_supervisor() FROM PUBLIC, tally_app, tally_core;
 DROP TRIGGER IF EXISTS a_enforce_user_binding_by_supervisor ON public.users;
 CREATE TRIGGER a_enforce_user_binding_by_supervisor BEFORE INSERT OR UPDATE OF cognito_sub, is_active ON public.users

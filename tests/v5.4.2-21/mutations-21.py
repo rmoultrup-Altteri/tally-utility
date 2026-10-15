@@ -91,7 +91,7 @@ MUTATIONS = [
      rep("        NEW.retired_at := now();\n", "        NEW.retired_at := coalesce(NEW.retired_at, now());\n")),
     ("M15", "a retirement skips the mutex", "K5a",
      rep("        -- removes an edge and cannot close a cycle.\n        UPDATE public.rate_schedules s SET updated_at = now() WHERE s.id = NEW.rate_schedule_id;\n", "        -- removes an edge and cannot close a cycle.\n")),
-    ("M16", "a retirement can be undone", "K3d2",
+    ("M16", "a retired row's retirement can be rewritten", "K3d2",
      rep("        IF OLD.retired_at IS NOT NULL THEN\n            RAISE EXCEPTION", "        IF false THEN\n            RAISE EXCEPTION")),
     ("M17", "the cycle walk counts retired edges", "K5",
      rep("           AND d.retired_at IS NULL\n", "")),
@@ -158,7 +158,9 @@ MUTATIONS = [
     ("M45", "an unclassifiable surcharge needs nothing", "A4g",
      rep("        IF v_calc IS NULL THEN\n            RETURN format('a classification", "        IF false THEN\n            RETURN format('a classification")),
     ("M46", "the arithmetic is read at the period end", "A7",
-     rep("v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, v_snap.recorded_at);", "v_gap := public.invoice_line_arithmetic_gap(v_line, NEW.period_end, now());")),
+     rep("v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, now());", "v_gap := public.invoice_line_arithmetic_gap(v_line, NEW.period_end, now());")),
+    ("M46b", "the arithmetic is read at the snapshot's knowledge instant", "AR1",
+     rep("v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, now());", "v_gap := public.invoice_line_arithmetic_gap(v_line, v_snap.valid_at, v_snap.recorded_at);")),
     ("M47", "a gas rider must carry the commodity rate", "A4j",
      rep("IF p_line.charge_type = 'usage_charge' AND p_line.gas_commodity_rate IS NULL THEN", "IF p_line.gas_commodity_rate IS NULL THEN")),
     ("M48", "a label's key can be renamed", "L6a",
@@ -166,8 +168,9 @@ MUTATIONS = [
     ("M48b", "the key freeze left origin-only", "APPLY:a label guard is missing",
      rep("        EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_enforce_custom_label_key_frozen', t);\n", "")),
     ("M49", "an operator binds an identity", "U3a",
-     rep("       AND NOT public.session_is_supervisor() THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('user %s: only a supervisor (tenant_admin or platform administrator) binds",
-         "       AND false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('user %s: only a supervisor (tenant_admin or platform administrator) binds")),
+     rep("    ELSIF NOT public.session_is_supervisor() THEN", "    ELSIF false THEN")),
+    ("M49c", "any supervisor binds or switches a platform administrator", "U3h",
+     rep("    IF NEW.role = 'platform_admin' OR (TG_OP = 'UPDATE' AND OLD.role = 'platform_admin') THEN", "    IF false THEN")),
     ("M49b", "switching a user on or off is unguarded", "U3c",
      rep(" OR NEW.is_active IS DISTINCT FROM OLD.is_active)))", ")))")),
     ("M50", "the void names another customer's charge", "V1e",
@@ -180,6 +183,12 @@ MUTATIONS = [
      rep("CREATE UNIQUE INDEX account_ledger_one_void_reversal_per_entry", "CREATE INDEX account_ledger_one_void_reversal_per_entry")),
     ("M53", "the label lock waits without limit", "LR6",
      rep("        PERFORM pg_catalog.set_config('lock_timeout', c_lock_wait, true);\n        EXECUTE format('LOCK TABLE", "        EXECUTE format('LOCK TABLE")),
+    ("M53b", "the location-type lock waits without limit", "LR7",
+     rep("        PERFORM pg_catalog.set_config('lock_timeout', c_lock_wait, true);\n        LOCK TABLE public.service_locations", "        LOCK TABLE public.service_locations")),
+    ("M60", "the field branch leaves its 5 s lock wait behind", "L7a",
+     rep("        EXECUTE format('LOCK TABLE %s IN SHARE MODE', v_table);\n        PERFORM pg_catalog.set_config('lock_timeout', v_saved, true);", "        EXECUTE format('LOCK TABLE %s IN SHARE MODE', v_table);")),
+    ("M60b", "the location branch leaves its 5 s lock wait behind", "L7b",
+     rep("        LOCK TABLE public.service_locations IN SHARE MODE;\n        PERFORM pg_catalog.set_config('lock_timeout', v_saved, true);", "        LOCK TABLE public.service_locations IN SHARE MODE;")),
     ("M54", "retired_by is the caller's choice", "K3e",
      rep("        NEW.retired_by := NULLIF(pg_catalog.current_setting('app.user_id', true), '')::uuid;\n", "")),
     ("M55", "a refund's credit is not bound to its customer", "G4c",
@@ -211,7 +220,7 @@ def sh_ordered(cmd: list[str], inp: str | None = None) -> subprocess.CompletedPr
 
 
 def runner(check: str) -> tuple[list[str], str | None]:
-    if re.fullmatch(r"LR\d", check):
+    if re.fullmatch(r"(LR|AR)\d", check):
         return [str(HERE / "races/labels-21.sh"), DB], None
     return ["docker", "exec", "-i", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-q", "-o", "/dev/null", "-f", "-"], \
         (HERE / "battery-21.sql").read_text()

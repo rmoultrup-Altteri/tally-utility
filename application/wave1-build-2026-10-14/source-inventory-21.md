@@ -36,7 +36,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
 - **L3.** Race (memory `count-guards-need-lock-handshake`): the guard takes `LOCK TABLE <entity> IN SHARE MODE` before it looks. A writer in flight finishes first; a new writer waits for the delete's commit.
   - The guard refuses anything but READ COMMITTED: an older snapshot would not see a writer that committed while it waited (the void's precedent).
   - No writer-side code. The cost: writes to that entity table wait while a label delete is uncommitted, so label deletes are rare admin acts.
-  - **Deadlock:** a transaction that writes the entity table and then deletes the same label can deadlock with another delete of that label; PostgreSQL aborts one (40P01).
+  - **Deadlock (corrected in r2):** two transactions that each wrote the entity table and then each delete any label of that entity deadlock, and so do two that delete labels and then write the table. PostgreSQL aborts one (40P01); retry the whole transaction.
 - **L4.** The guard is invoker-rights, so RLS applies. A caller sees only its tenant's rows, and RLS hides another tenant's label from its DELETE in the first place.
 - **L5.** `no_truncate` on both tables; `tally_app` loses TRUNCATE if held. Both guards ENABLE ALWAYS.
 - **L6 (r2, F3).** A label's key is write-once for every role: `tenant_id`, `entity_type` and `field_key` on definitions, `tenant_id` and `type_key` on location types. A rename is a new label plus an archived old one.
@@ -67,7 +67,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - `coverage_start`, `coverage_end`, `days_covered`, `days_in_period` and `partial_period_policy_applied` are all set or all NULL. NULL means the full period.
 - **A4.** `surcharge` must name its `rate_item_id`, and the item must have a version visible at the bill's coordinate (drafting: a line that cannot be classified cannot be shown to need nothing; fail safe; r2, F1).
   - If that version's `calculation_type` is `per_unit_usage` or `tiered_usage`, the line needs `usage_quantity`, `usage_unit` and `rate`. On a gas line it also needs the meter factor, Ccf and therms. The commodity rate is the usage line's, not the rider's (r2, F11).
-- **A4b (r2, F2).** The coordinate is the bill's calculation snapshot's `(valid_at, recorded_at)`, which has been validated and frozen since -10. A correction's coordinate may be an elected rate date. With no snapshot, the snapshot check refuses the issuance.
+- **A4b (r2, F2; r3).** The date is the bill's calculation snapshot's `valid_at`, validated and frozen since -10 (a correction's may be an elected rate date). The knowledge is `now()`, not the snapshot's `recorded_at`: that is the caller's to choose inside a window and could hide a reclassification (Fable r2 B1). With no snapshot, the snapshot check refuses the issuance.
 - **A5.** Every other kind needs nothing new (DL).
 - **A6.** Drafting: on a gas usage line, `rate` and `gas_commodity_rate` are two figures, both required, never required equal (memory `two-fields-both-the-money`). The check verifies presence, not the product (memory `schema-represents-core-evaluates`).
 
@@ -100,7 +100,7 @@ Every requirement below is a row of `tests/v5.4.2-21/battery-21.sql`, a race cas
   - Format: `^[0-9A-Za-z_-]{1,128}$`.
   - Nullable: service users (AC-43) have none.
   - Write-once: once set, it never changes or clears (trigger, ENABLE ALWAYS).
-- **U3 (r2, F4).** For `tally_app`, binding a Cognito identity (insert or update) and changing `is_active` either way require `session_is_supervisor()`. A user is bound when a supervisor provisions it. The owner (a superuser load or repair) stands aside, and may also repair a binding (F13).
+- **U3 (r2, F4; r3).** For `tally_app`, binding a Cognito identity (insert or update) and changing `is_active` either way require `session_is_supervisor()`. When the user is, or was, a platform administrator, they require `is_platform_admin()` (Opus r2 B1). A user is bound when a supervisor provisions it. The owner (a superuser load or repair) stands aside, and may also repair a binding (F13).
 - **U2.** `get_user_tenant_id()` and `is_platform_admin()` require `is_active`. A deactivated user's `app.user_id` sees no tenant row.
   - Same signatures, owners and grants; still SECURITY DEFINER, pinned to `''`.
 

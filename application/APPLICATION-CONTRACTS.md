@@ -405,6 +405,9 @@ The database refuses each of those writes unless the transaction holds the check
 - **No user:** for work with no human caller (jobs, imports), name a dedicated service user. Never borrow a real user or a platform admin.
 - **Never the empty string:** an empty `app.user_id` raises on the `::uuid` cast in the RLS helpers.
 - **Binding (v5.4.2-21 r2):** a user's `cognito_sub` is written by a supervisor's session (tenant_admin or platform admin) when the user is provisioned. Cognito's admin create returns the sub. A new user's own first login cannot bind it, and a supervisor also switches users on or off (`is_active`). Once set, a binding never changes.
+  - A platform administrator's binding and switch are a platform administrator's (r3).
+  - Self-signup or federated first login would need a supervisor service identity to bind. That identity must stay out of operators' reach; it does not exist today.
+  - A tenant's last tenant_admin can switch itself off. Only a platform administrator then restores the tenant's supervision.
 ---
 
 ## Meter test history

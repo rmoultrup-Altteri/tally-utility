@@ -260,6 +260,24 @@ SELECT pg_temp.admits('L6d a label''s wording and status change freely',
 RESET ROLE;
 SELECT pg_temp.refuses_at('L6e the owner moves a label to another tenant',
   $q$UPDATE public.custom_location_types SET tenant_id = '00000000-0000-4000-8000-0000000021a2' WHERE id = '00000000-0000-4000-8000-0000000021f4'$q$, '23001', 'keeps its key');
+-- L7 (r3; Opus r2 S1, Codex r2 S2): the guard's 5 s lock wait is its own;
+-- the caller's lock_timeout survives a delete, either label, and a refusal.
+INSERT INTO public.custom_field_definitions (id, tenant_id, entity_type, field_key, field_label, field_type) VALUES
+  ('00000000-0000-4000-8000-0000000021fb', '00000000-0000-4000-8000-0000000021a1', 'customers', 'unused_one', 'Unused', 'text');
+INSERT INTO public.custom_location_types (id, tenant_id, type_key, type_label) VALUES
+  ('00000000-0000-4000-8000-0000000021fc', '00000000-0000-4000-8000-0000000021a1', 'unused_type', 'Unused');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+SET LOCAL lock_timeout = '1700ms';
+DELETE FROM public.custom_field_definitions WHERE id = '00000000-0000-4000-8000-0000000021fb';
+SELECT pg_temp.ok('L7a a field label deleted: the caller''s lock_timeout is back', current_setting('lock_timeout') = '1700ms');
+DELETE FROM public.custom_location_types WHERE id = '00000000-0000-4000-8000-0000000021fc';
+SELECT pg_temp.ok('L7b a location type deleted: the caller''s lock_timeout is back', current_setting('lock_timeout') = '1700ms');
+SELECT pg_temp.refuses_at('L7c (an in-use delete is refused)',
+  $q$DELETE FROM public.custom_field_definitions WHERE id = '00000000-0000-4000-8000-0000000021f8'$q$, '23001', 'is in use');
+SELECT pg_temp.ok('L7c … and the caller''s lock_timeout is back after the refusal', current_setting('lock_timeout') = '1700ms');
+SET LOCAL lock_timeout = 0;
+RESET ROLE;
 -- The owner sees every tenant: the guard itself must keep to the label's tenant.
 INSERT INTO public.custom_field_definitions (id, tenant_id, entity_type, field_key, field_label, field_type) VALUES
   ('00000000-0000-4000-8000-0000000021f6', '00000000-0000-4000-8000-0000000021a1', 'customers', 't2_only', 'T2 key', 'text');
@@ -400,6 +418,27 @@ SELECT pg_temp.ok('A7-fixture the line needs nothing at the period end, and its 
   public.invoice_line_arithmetic_gap((SELECT l FROM public.invoice_line_items l WHERE l.invoice_id = '00000000-0000-4000-8000-0000000021ad'), DATE '2026-01-31', now()) IS NULL
   AND public.invoice_line_arithmetic_gap((SELECT l FROM public.invoice_line_items l WHERE l.invoice_id = '00000000-0000-4000-8000-0000000021ad'), DATE '2026-02-28', now()) IS NOT NULL);
 SELECT pg_temp.issue('A7 a correction priced at its elected rate date is checked there', '00000000-0000-4000-8000-0000000021ad', '23514', 'missing usage_quantity');
+-- A8 (r3, Codex r2 S1): the same correction with its figures issues with
+-- EVERY deferred check run, not the arithmetic check alone; a gas rider
+-- carries no commodity rate.
+DELETE FROM public.invoice_calculation_snapshots WHERE invoice_id = '00000000-0000-4000-8000-0000000021ad';
+UPDATE public.invoice_line_items SET usage_quantity = 5, usage_unit = 'ccf', rate = 2, gas_meter_factor = 1.02, gas_ccf_used = 5, gas_therms_billed = 5.1
+ WHERE invoice_id = '00000000-0000-4000-8000-0000000021ad';
+SELECT pg_temp.snap('00000000-0000-4000-8000-0000000021ad', DATE '2026-02-28', now());
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000021ad';
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'issued';
+  EXCEPTION WHEN OTHERS THEN
+    SET CONSTRAINTS ALL DEFERRED;
+    IF SQLSTATE <> 'P0099' THEN
+      RAISE EXCEPTION 'FAIL A8: the complete correction was refused with % (%)', SQLSTATE, SQLERRM;
+    END IF;
+  END;
+  RAISE NOTICE 'PASS A8: a complete correction issues with every deferred check';
+END $$;
 -- A1: the gate. A draft edited stays a draft: no refusal; a held bill
 -- voided is a discard (V2 below); an incomplete line on an issued bill
 -- cannot appear (A-4 freezes it).
@@ -608,7 +647,7 @@ SELECT pg_temp.refuses_at('U3c an operator revives a deactivated administrator',
   $q$UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021b6'$q$, '42501', 'only a supervisor');
 SELECT pg_temp.refuses_at('U3d an operator switches its supervisor off',
   $q$UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021b4'$q$, '42501', 'only a supervisor');
-SELECT pg_temp.refuses_at('U3e an operator creates a user already bound',
+SELECT pg_temp.refuses_at('U3e an operator inserts a user bound to an identity',
   $q$INSERT INTO public.users (id, tenant_id, display_name, email, role, cognito_sub)
      VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000021a1', 'X', 'x@bat21.test', 'operator', 'operators-second-account')$q$, '42501', 'only a supervisor');
 -- A supervisor provisions.
@@ -627,6 +666,16 @@ SELECT pg_temp.admits('U3f a supervisor revives a deactivated administrator',
   $q$UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021b6'$q$);
 SELECT pg_temp.admits('U3g a supervisor switches a user off',
   $q$UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021b6'$q$);
+-- U3h-k (r3, Opus r2 B1): a platform administrator is a platform administrator's to bind or switch.
+SELECT pg_temp.refuses_at('U3h a tenant administrator revives a platform administrator of its tenant',
+  $q$UPDATE public.users SET is_active = true WHERE id = '00000000-0000-4000-8000-0000000021ba'$q$, '42501', 'only a platform administrator');
+SELECT pg_temp.refuses_at('U3i a tenant administrator switches a platform administrator off',
+  $q$UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021b9'$q$, '42501', 'only a platform administrator');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b9', true);
+SELECT pg_temp.admits('U3j a platform administrator revives one, and switches it off again',
+  $q$UPDATE public.users SET is_active = NOT is_active WHERE id = '00000000-0000-4000-8000-0000000021ba'$q$);
+UPDATE public.users SET is_active = false WHERE id = '00000000-0000-4000-8000-0000000021ba';
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b4', true);
 RESET ROLE;
 SELECT pg_temp.admits('U1f a superuser repairs a binding',
   $q$UPDATE public.users SET cognito_sub = 'sub-op1-repaired' WHERE id = '00000000-0000-4000-8000-0000000021b1'$q$);

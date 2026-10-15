@@ -14,6 +14,10 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 *Why:* memory rules "guard the act, not the label" and "a wrong figure is worse than a blank" (the CI-017 rationale). *Where it lives:* v5.4.2-21 r2.
 
+**Round 2 (r3):**
+- **The coordinate is settled between two reviewers.** Codex r1 asked for the bill's own coordinate; Fable r2 showed the snapshot's knowledge instant is caller-chosen and hides a retraction. Rule: the date is the snapshot's `valid_at`, the knowledge is `now()` — the knowledge axis the surcharge sibling already uses. A retracted classification is retracted.
+- **A platform administrator is bound or switched only by a platform administrator** (Opus r2 B1).
+
 ---
 
 ## 2026-10-14 (CI-017, void_invoice) — Ryan: a void reverses the posted charge, or posts nothing
