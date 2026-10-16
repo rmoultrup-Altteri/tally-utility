@@ -4,6 +4,84 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-16 — v5.4.2-22 review rounds 3 and 4; r3 and r4 frozen; r5 drafted (cap at every date and recorded instant, edges wait for the close, walks' plans pinned)
+
+**What was done:**
+- **Why last session's mutation run never finished:** one backend had sat in battery check R11 for 12 hours.
+  - The cause was in the patch. The write-off cap's recursive walks scanned the customer's ledger at every step: the planner chose the tenant or customer index over the link.
+  - Fixed with link-only joins. Also added R10f and R10g, M62 and M63, and a 300 s statement timeout in the runner.
+  - **r3 frozen (`0b31d2b`):** battery 149, mutations 63/63, CI 35/35.
+- **Round 3:**
+
+  | Reviewer | Verdict | Blocker |
+  |---|---|---|
+  | Opus | not yet | B1: the cap held only for the final net; a later-dated reversal let February's snapshot freeze 200 recovered against 100 |
+  | Codex | not yet | B1: the close's edges were read after its instant without a lock |
+  | Fable | ready | none |
+
+  - Codex's 12 probes were executed and appended.
+- **r4 (frozen at `94d3b99`):**
+  - the cap holds at every date of the tree;
+  - tree rows are dated on or after the entry they name;
+  - a row recorded before a tree row is refused with 40001 (retry);
+  - the new trigger `enforce_aging_edges_close_order` makes an edges change take the close head FOR SHARE;
+  - the upward walk carries type and customer;
+  - the walk functions run with seqscan, hashjoin and mergejoin off;
+  - the lock order states the cross-write-off deadlock.
+  - Tests: battery 154 (R12–R12e), races CR13–CR15, mutations 68/68 (the runner now VACUUMs first), CI 35/35.
+- **Round 4:**
+
+  | Reviewer | Verdict | Blocker |
+  |---|---|---|
+  | Opus | ready | none |
+  | Fable | ready | none |
+  | Codex | not yet | B1: a superuser history row recorded at `infinity` makes 40001 permanent for its tree |
+
+  - Codex's 15 probes were executed; B1 and S1 reproduced.
+- **r5 drafted (`341590e`), not frozen:**
+  - tree rows, the write-off included, are recorded at a finite time already reached; the trigger also fires for write-off rows;
+  - the invariant pins the walks' `proconfig`;
+  - the tenant-row deadlock is stated in the header;
+  - new residual R12: history loads go one statement per recorded instant;
+  - R12f–R12h, M69–M72; CR15 asserts 40001.
+  - Tests: battery 157, CR1–CR15, mutations 72/72, CI 35/35.
+- **Review files:** findings files for r3 and r4, the r5 brief, the Codex r5 prompt, and the DECISION-LOG entry for 2026-10-16.
+- **Memory:** `recursive-walks-join-on-link-alone.md` (pin the plan; test after VACUUM).
+
+**Decisions made:**
+- The cap holds at every date, and the tree is in date order: aging and the close net the tree at a date.
+- The cap also holds at every recorded instant: a row recorded before a row already in its tree is refused for retry (40001). `created_at` is the transaction's start, not its commit.
+- Edges timing is enforced by a lock, not reworded. Codex called it blocking; Opus called it cosmetic; settled by "design permanent".
+- The tenant-row deadlock is stated rather than rerouting the snapshot FK: rerouting changes keys, and `closed_by` still locks a row.
+- Logged in DECISION-LOG.
+
+**Failed approaches:**
+- Tenant or customer predicates in a recursive step's join: a scan per step, and a 12-hour hang under M57.
+- Link-only joins without pinned plans: on a vacuumed ledger, a hash join with a seqscan. With only seqscan off, a merge join over a full index scan. R10g flapped between 1.5 s and 30 s.
+- Testing plans on a fresh clone: M68 was missed until the runner VACUUMed first.
+- `WHEN OTHERS` to catch a statement timeout: `query_canceled` escapes it.
+- R10f with only a foreign-customer row: it never fires C5's cap, so M62 was missed.
+- psql `LAST_ERROR_SQLSTATE` after COPY: it stays `00000`.
+
+**Accuracy / test results:**
+
+| Revision | Battery | Races | Mutations | CI |
+|---|---|---|---|---|
+| r3 | 149 | CR1–CR12 | 63/63 | 35/35 |
+| r4 | 154 | CR1–CR15 | 68/68 | 35/35 |
+| r5 | 157 | CR1–CR15 | 72/72 | 35/35 |
+
+- The bulk load of 200,000 rows followed by 5,000 reversals went from 51 s on r3 (Opus) to 0.8 s on r4.
+
+**Open / next:**
+- Freeze r5: copy the files, write the diff, fill the four md5s, write the brief's md5.
+- Launch round 5 in a fresh session (Ryan's call: context was high).
+- Mirror into tu.sql only on Ryan's approval, after three "ready" verdicts.
+- Then -23 (cash).
+- Carried items unchanged (see HANDOFF).
+
+---
+
 ## 2026-10-15 (late) — v5.4.2-22 review round 2; r3 drafted (net write-off cap after insert, fail-closed lineage walk, close reads the tenant's setting)
 
 **What was done:**
