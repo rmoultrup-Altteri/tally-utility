@@ -1,0 +1,6 @@
+**Verdict: not yet.** Source-only; all database outcomes are predicted.
+
+- **B1:** A forward reference in a multi-row INSERT bypasses the write-off recovery restriction and cap.
+- **B2:** Cycles longer than 10,000 entries escape validation, leaving ledger history that cannot be aged or closed.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-22/review/codex-r2.md) and 11 rollback-only probes written. All four frozen MD5s match. No database tests executed.
