@@ -159,9 +159,9 @@ MUTATIONS = [
     ("M52", "a withdrawn period still holds its dates", "P9c",
      rep("SELECT max(p.period_end) INTO v_last FROM public.accounting_periods p WHERE p.tenant_id = NEW.tenant_id AND p.status <> 'withdrawn';",
          "SELECT max(p.period_end) INTO v_last FROM public.accounting_periods p WHERE p.tenant_id = NEW.tenant_id;")),
-    ("M49", "aging takes no explicit edges: the close ages by the setting as recorded", "W12b",
+    ("M49", "aging takes no explicit edges: it ages by the tenant's live setting", "W12b",
      rep("    IF NOT EXISTS (SELECT 1 FROM public.accounting_close_heads h WHERE h.tenant_id = p_tenant_id) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('receivables_aging_as_of: tenant %s is not visible",
-         "    v_edges := public.receivables_aging_bucket_days_as_of(p_tenant_id, p_recorded_at);\n    IF NOT EXISTS (SELECT 1 FROM public.accounting_close_heads h WHERE h.tenant_id = p_tenant_id) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('receivables_aging_as_of: tenant %s is not visible")),
+         "    SELECT t.receivables_aging_bucket_days INTO v_edges FROM public.tenants t WHERE t.id = p_tenant_id;\n    IF NOT EXISTS (SELECT 1 FROM public.accounting_close_heads h WHERE h.tenant_id = p_tenant_id) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('receivables_aging_as_of: tenant %s is not visible")),
     ("M50", "the threshold may be zero", "APPLY:a v5.4.2-22 constraint is missing",
      rep("    CHECK (write_off_threshold_days IS NULL OR write_off_threshold_days > 0);", "    CHECK (write_off_threshold_days IS NULL OR write_off_threshold_days >= 0);")),
     # ---- r3
@@ -169,13 +169,17 @@ MUTATIONS = [
      rep("CREATE TRIGGER enforce_write_off_recovery AFTER INSERT ON public.account_ledger\n",
          "CREATE TRIGGER enforce_write_off_recovery BEFORE INSERT ON public.account_ledger\n")),
     ("M54", "the cap counts the write-off's direct rows only", "R10",
-     rep("            SELECT l.id FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id\n",
-         "            SELECT l.id FROM down d JOIN public.account_ledger l ON false\n")),
+     rep("              FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id\n",
+         "              FROM down d JOIN public.account_ledger l ON false\n")),
     ("M55", "the cap has no floor", "R10b",
      rep("IF v_net < 0 OR v_net > -v_wo.amount THEN", "IF v_net > -v_wo.amount THEN")),
     ("M56", "only a row naming the write-off directly is capped", "R10",
-     rep("             WHERE l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id AND u.depth < c_max\n",
+     rep("             WHERE u.depth < c_max\n",
          "             WHERE false\n")),
+    ("M62", "the cap counts another customer's row naming into the tree", "R10f",
+     rep("JOIN public.account_ledger l ON l.id = d.id WHERE d.mine;", "JOIN public.account_ledger l ON l.id = d.id;")),
+    ("M63", "the cap's walk finds each step through the customer's ledger", "R10g",
+     rep("             WHERE d.mine\n", "             WHERE d.mine AND l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id\n")),
     ("M57", "the lineage walk does not fail closed at its bound", "R11",
      rep("    IF v_long THEN", "    IF false THEN")),
     ("M58", "a withdrawal need not name its user", "P9f",
@@ -209,7 +213,8 @@ def sh_ordered(cmd: list[str], inp: str | None = None) -> subprocess.CompletedPr
 def runner(check: str) -> tuple[list[str], str | None]:
     if re.fullmatch(r"CR\d+", check):
         return [str(HERE / "races/close-22.sh"), DB], None
-    return ["docker", "exec", "-i", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-q", "-o", "/dev/null", "-f", "-"], \
+    # A mutation that loops must report, not hang: a timeout is a MISS (ERROR before the named FAIL).
+    return ["docker", "exec", "-i", "-e", "PGOPTIONS=-c statement_timeout=300s", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-q", "-o", "/dev/null", "-f", "-"], \
         (HERE / "battery-22.sql").read_text()
 
 

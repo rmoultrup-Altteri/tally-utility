@@ -38,7 +38,12 @@
 --   withdrawal names its user (Opus S2); the invariant pins the history's
 --   known-key CHECK and the ledger's lineage constraints (Codex S2, Fable N3,
 --   Opus N4); comments and messages corrected (Codex S1, Opus N2/N3, Fable
---   N1/N7).
+--   N1/N7). Before the freeze, a mutation run showed the cap's two walks
+--   could scan the customer's ledger at every step (the planner chose the
+--   tenant or customer index over the id and reversal links on an unanalyzed
+--   table): each step now joins on the link alone and tests the customer
+--   apart from it, so a 400-deep tree in one statement takes about 2 s, not
+--   minutes.
 --
 -- ----------------------------------------------------------------------------
 -- What changes
@@ -553,9 +558,13 @@ BEGIN
         WITH RECURSIVE up(id, depth) AS (
             SELECT NEW.reverses_ledger_entry_id, 1
             UNION ALL
-            SELECT l.reverses_ledger_entry_id, u.depth + 1
+            -- Each step is found by id alone: with the tenant in the join the
+            -- planner may scan the tenant's whole ledger per step. Leaving the
+            -- customer yields NULL, which ends the walk.
+            SELECT CASE WHEN l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id
+                        THEN l.reverses_ledger_entry_id END, u.depth + 1
               FROM up u JOIN public.account_ledger l ON l.id = u.id
-             WHERE l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id AND u.depth < c_max
+             WHERE u.depth < c_max
         )
         SELECT l.* FROM up u JOIN public.account_ledger l ON l.id = u.id
          WHERE l.transaction_type = 'write_off' AND l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id
@@ -567,14 +576,20 @@ BEGIN
                 ERRCODE = 'invalid_transaction_state';
         END IF;
         PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo.id::text, 0));
-        WITH RECURSIVE down(id) AS (
-            SELECT l.id FROM public.account_ledger l
-             WHERE l.reverses_ledger_entry_id = v_wo.id AND l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id
+        -- Each step is found by the reversal link alone (as above, the
+        -- customer in the join lets the planner scan the customer's ledger per
+        -- step); a row of another customer is flagged, not counted, and its
+        -- descendants are not walked.
+        WITH RECURSIVE down(id, mine) AS (
+            SELECT l.id, (l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id)
+              FROM public.account_ledger l
+             WHERE l.reverses_ledger_entry_id = v_wo.id
             UNION
-            SELECT l.id FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id
-             WHERE l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id
+            SELECT l.id, (l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id)
+              FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id
+             WHERE d.mine
         )
-        SELECT coalesce(sum(l.amount), 0) INTO v_net FROM down d JOIN public.account_ledger l ON l.id = d.id;
+        SELECT coalesce(sum(l.amount), 0) INTO v_net FROM down d JOIN public.account_ledger l ON l.id = d.id WHERE d.mine;
         IF v_net < 0 OR v_net > -v_wo.amount THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('write-off %s: the rows netted against it would come to %s, outside 0 to the %s written off (R-02 cap, v5.4.2-22)', v_wo.id, v_net, -v_wo.amount),

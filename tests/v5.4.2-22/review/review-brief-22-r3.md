@@ -9,10 +9,10 @@ Review exactly these. Check the hashes first, and stop and report if one differs
 
 | File | md5 |
 |---|---|
-| `tests/v5.4.2-22/review/patch-22-frozen-r3.sql` | `@@PATCH@@` |
-| `tests/v5.4.2-22/review/battery-22-frozen-r3.sql` | `@@BATTERY@@` |
-| `tests/v5.4.2-22/review/close-22-frozen-r3.sh` | `@@RACES@@` |
-| `tests/v5.4.2-22/review/mutations-22-frozen-r3.py` | `@@MUTATIONS@@` |
+| `tests/v5.4.2-22/review/patch-22-frozen-r3.sql` | `ae35e901b3c0fa0b40804316965eee14` |
+| `tests/v5.4.2-22/review/battery-22-frozen-r3.sql` | `36edebe0613f3ccf11f4f70d9988a0dc` |
+| `tests/v5.4.2-22/review/close-22-frozen-r3.sh` | `de7a2f6902bb5b7b51a9bdd46b30fd25` |
+| `tests/v5.4.2-22/review/mutations-22-frozen-r3.py` | `61104fe10b51e3a8e9ca320dfc6636db` |
 
 The live copies (`sql/v5.4.2-22-periods-snapshot-gl-aging.sql`, `tests/v5.4.2-22/battery-22.sql`, `tests/v5.4.2-22/races/close-22.sh`, `tests/v5.4.2-22/mutations-22.py`) are identical to the frozen ones today. Review the frozen copies.
 
@@ -43,6 +43,7 @@ Round 2: Opus "not yet", Fable "ready", Codex "not yet". `review-findings-22-r2.
   - It counts everything aging nets into the write-off: its whole same-customer tree, at any depth, of any type.
   - The net must stay between 0 and the amount written off.
   - It is checked for every write-off above the new row, behind each write-off's advisory lock, taken in id order, at READ COMMITTED.
+- **The cap's walks step by link alone** (found before the freeze, when mutation M57 hung the run). Each step of the upward and the downward walk joins only on `id` or `reverses_ledger_entry_id`; the same-customer test is applied apart from the join. With the customer in the join, the planner scanned the customer's ledger at every step on an unanalyzed table: a 400-deep tree in one statement went from over 2 minutes to about 2 s. New checks R10f (another customer's row in the tree is not counted) and R10g (a 300-deep tree within 30 s); mutations M62 and M63; the runner sets a 300 s statement timeout, so a hang reports as a miss.
 - **The lineage walk fails closed.** A chain that has not reached an original within 1,000 entries is refused. The bound was 10,000 and did not refuse.
 - **The close's aging edges** come from `tenants.receivables_aging_bucket_days` at its instant, not from the configuration history.
   - `tally_close`'s grants changed to match. The seal list is updated.
@@ -58,9 +59,9 @@ Round 2: Opus "not yet", Fable "ready", Codex "not yet". `review-findings-22-r2.
   - The header states the withdrawal-and-close deadlock.
   - New residual: R10, manual history rows.
 - **Tests.**
-  - Battery: R9–R11, P9f, C13b and C16b. C12 reproduces with the stored edges.
+  - Battery: R9–R11 (R10f, R10g included), P9f, C13b and C16b. C12 reproduces with the stored edges.
   - Races: CR11 and CR12.
-  - Mutations: M53–M61.
+  - Mutations: M53–M63.
   - The mutation runner matches labels exactly.
 
 Check in particular:
@@ -72,13 +73,14 @@ Check in particular:
 - that moving the rule to AFTER INSERT loses nothing the BEFORE trigger refused, and that the trigger name order really runs the lineage walk first;
 - that the cap's locks (several write-offs, id order, after the head's FOR SHARE) add no deadlock the header does not state;
 - that the 1,000 bound refuses nothing legitimate the product needs.
+- that the link-only walks find the same write-offs and the same tree as a join on the customer would, and that no step of either walk can still scan a ledger.
 
 ## Results so far (reproduce them)
 
 - **Strict apply, twice:** `search_path = ''`, `check_function_bodies = on`. The second run is skipped by its marker, the table `accounting_periods`.
-- **`tests/ci.sh`:** @@CI@@
-- **`battery-22.sql`:** 147 checks. **`races/close-22.sh`:** CR1–CR12.
-- **`mutations-22.py`:** @@MUT@@
+- **`tests/ci.sh`:** `ci: all pass`, 35 steps, with -22 PENDING (strict apply twice, battery 149, races CR1–CR12).
+- **`battery-22.sql`:** 149 checks. **`races/close-22.sh`:** CR1–CR12.
+- **`mutations-22.py`:** 63/63 caught (M49 rewritten to read the tenant's live setting, since `tally_close` no longer holds the history function).
 - **Codex's r2 probes against r3:**
   - b1: refused;
   - b2's 10,001 ring: refused at insert;

@@ -426,6 +426,41 @@ SELECT pg_temp.refuses_at('R10e and not a cent more',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-16', 'write_off_recovery', 'x', 0.01, '00000000-0000-4000-8000-000000002251', 'x')$q$,
   '23514', 'R-02 cap');
+SELECT pg_temp.refuses_at('R10f another customer''s row naming into the tree stands alone: with it in, C5''s cap still nets 99 of 100 (rolled back by a sentinel)',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-16', 'adjustment', 'C1 row', 5, '00000000-0000-4000-8000-000000002252', 'x');
+     -- a C5 row runs C5's cap over the tree that now holds the C1 row: 100 - 1 = 99, not 104
+     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-16', 'adjustment', 'C5 row', -1, '00000000-0000-4000-8000-000000002252', 'x');
+     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R10f sentinel: admitted';
+   END $d$$q$,
+  'P0001', 'R10f sentinel');
+-- r3 (mutation M57 hung the run): each walk step is an index lookup, not a
+-- scan of the customer's ledger. A 300-deep tree in one statement is quick.
+-- A statement timeout escapes WHEN OTHERS, so this check names it.
+SET LOCAL statement_timeout = '30s';
+DO $d$ BEGIN
+  BEGIN
+    INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+    SELECT ('00000000-0000-4000-9023-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17',
+           CASE WHEN i = 0 THEN 'write_off' WHEN i = 1 THEN 'write_off_recovery' ELSE 'adjustment' END, 'deep',
+           CASE WHEN i = 0 THEN -1000 WHEN i % 2 = 1 THEN 1 ELSE -1 END,
+           CASE WHEN i = 0 THEN NULL ELSE ('00000000-0000-4000-9023-' || lpad((i - 1)::text, 12, '0'))::uuid END,
+           CASE WHEN i = 0 THEN NULL ELSE 'deep' END
+      FROM generate_series(0, 300) i;
+    RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R10g sentinel';
+  EXCEPTION
+    WHEN query_canceled THEN
+      RAISE EXCEPTION 'FAIL R10g: a 300-deep tree did not finish within 30 s';
+    WHEN OTHERS THEN
+      IF SQLERRM <> 'R10g sentinel' THEN
+        RAISE EXCEPTION 'FAIL R10g: refused with % (%)', SQLSTATE, SQLERRM;
+      END IF;
+  END;
+  RAISE NOTICE 'PASS R10g a 300-deep tree under one write-off, in one statement, is admitted within 30 s (rolled back)';
+END $d$;
+RESET statement_timeout;
 SELECT pg_temp.refuses_at('R11 a chain that does not reach an original within 1000 entries is refused (a ring of 1001)',
   $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      SELECT ('00000000-0000-4000-9022-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'ring', 1,
