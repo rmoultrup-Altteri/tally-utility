@@ -511,6 +511,32 @@ SELECT pg_temp.refuses_at('R12e a row recorded before a row already in its tree 
        ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'begun earlier', 100, '00000000-0000-4000-8000-000000002261', 'x', now() - interval '1 minute');
    END $d$$q$,
   '40001', 'retry it');
+-- r5 (Codex B1): a row in a write-off's tree is recorded at a time already
+-- reached; one in the future would strand the tree behind the retry.
+SELECT pg_temp.refuses_at('R12f a write-off recorded in the future (infinity) is refused',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, created_at) VALUES
+       ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'future', -100, 'infinity')$q$,
+  '23514', 'recorded in the future');
+SELECT pg_temp.refuses_at('R12g a row under a write-off recorded in the future (2200) is refused',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
+       ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100);
+     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason, created_at) VALUES
+       ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'future', 20, '00000000-0000-4000-8000-000000002261', 'x', TIMESTAMPTZ '2200-01-01');
+   END $d$$q$,
+  '23514', 'recorded in the future');
+-- r5 (Opus N): rows of one date are netted together, whatever their order.
+SELECT pg_temp.admits('R12h on one date, a recovery, its reversal and a new recovery net 100 of 100 (rolled back)',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+       ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, NULL, NULL),
+       ('00000000-0000-4000-8000-000000002263', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'first', 100, '00000000-0000-4000-8000-000000002261', 'a'),
+       ('00000000-0000-4000-8000-000000002264', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'second', 100, '00000000-0000-4000-8000-000000002261', 'b'),
+       ('00000000-0000-4000-8000-000000002265', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'adjustment', 'first bounced', -100, '00000000-0000-4000-8000-000000002263', 'bounced');
+     RAISE EXCEPTION 'R12h sentinel';
+   EXCEPTION WHEN raise_exception THEN
+     IF SQLERRM <> 'R12h sentinel' THEN RAISE; END IF;
+   END $d$$q$);
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b1', true);
 RESET ROLE;

@@ -301,8 +301,8 @@ BEGIN; $AS_OP $(UNDER 2026-08-04 -5.00 'CR15 began second') COMMIT;
 SQL
 BST=$?
 wait $APID; AST=$?
-if [ "$BST" -eq 0 ] && [ "$AST" -ne 0 ] && grep -q "retry it" "$A_OUT"; then echo "PASS CR15 a writer that began before a row now in the tree is refused for retry"
-else echo "FAIL CR15: expected B to pass and A refused with 'retry it', got B ($BST): $(cat "$B_OUT") A ($AST): $(cat "$A_OUT")"; fail=1; fi
+if [ "$BST" -eq 0 ] && [ "$AST" -ne 0 ] && grep -q "ERROR:  40001:" "$A_OUT" && grep -q "retry it" "$A_OUT"; then echo "PASS CR15 a writer that began before a row now in the tree is refused for retry"
+else echo "FAIL CR15: expected B to pass and A refused with 40001 'retry it', got B ($BST): $(cat "$B_OUT") A ($AST): $(cat "$A_OUT")"; fail=1; fi
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN; $AS_OP $(UNDER 2026-08-05 -10.00 'CR15 retried') COMMIT;
 SQL
