@@ -61,6 +61,12 @@ const SEASON: Record<Month, number> = {
 const SCALE: Record<string, number> = {
   'cus-0001': 1, 'cus-0002': 0.82, 'cus-0003': 11.4, 'cus-0004': 5.2,
   'cus-0005': 0.71, 'cus-0006': 1.18, 'cus-0007': 3.6, 'cus-0008': 0.93,
+  'cus-0009': 0.8,
+}
+
+/** A landlord's houses differ from one another; each premise's load against the account's. Absent is 1. */
+const PREMISE_SCALE: Record<string, number> = {
+  'loc-0009': 1.05, 'loc-0010': 0.78, 'loc-0011': 1.2,
 }
 
 /**
@@ -188,8 +194,8 @@ export const historyRuns: BillingRun[] = MONTHS.filter((m) => m !== '2026-01').m
 export const historyInvoices: Invoice[] = []
 export const historyLines: InvoiceLine[] = []
 
-for (const customer of customers) {
-  const link = serviceLinks.find((l) => l.customerId === customer.id)!
+/* One bill per premise per month: a landlord gets a bill for each house. */
+for (const customer of customers) for (const [premise, link] of serviceLinks.filter((l) => l.customerId === customer.id).entries()) {
   const location = locationById.get(link.locationId)!
   const meter = meterById.get(link.meterId)!
   const schedule = customer.customer_type === 'residential' ? R1 : G1
@@ -206,11 +212,12 @@ for (const customer of customers) {
     /* Volume: pick the metered Ccf, then derive therms exactly as the engine does. */
     const mult = Number(meter.multiplier)
     const btu = Number(meter.gas_btu_factor ?? '1')
-    const target = SEASON[month] * SCALE[customer.id] * (days / fullDays)
+    const target = SEASON[month] * SCALE[customer.id] * (PREMISE_SCALE[location.id] ?? 1) * (days / fullDays)
     const ccf = (Math.round((target / (mult * btu)) * 10) / 10).toFixed(1)
     const therms = q2(Number(ccf) * mult * btu)
 
-    const id = `inv-${month.replace('-', '')}-${customer.id.slice(4)}`
+    /* The primary premise keeps the plain id; a landlord's other houses are numbered after it. */
+    const id = `inv-${month.replace('-', '')}-${customer.id.slice(4)}${premise ? `-${premise + 1}` : ''}`
     const lines: InvoiceLine[] = []
     const add = (
       l: Pick<InvoiceLine, 'charge_type' | 'description' | 'display_group' | 'rate_item_code' | 'rate' | 'amount'> &

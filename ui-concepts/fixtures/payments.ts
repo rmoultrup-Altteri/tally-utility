@@ -24,6 +24,7 @@ const PROFILE: Record<string, Profile> = {
   'cus-0006': { method: 'money_order', channel: 'walk_in', afterBill: 19, by: 'J. Whitaker' },
   'cus-0007': { method: 'credit_card', channel: 'agent_phone', afterBill: 10, by: 'M. Castillo' },
   'cus-0008': { method: 'auto_pay', channel: 'auto_pay', afterBill: 20, by: 'system' },
+  'cus-0009': { method: 'check', channel: 'mail', afterBill: 14, by: 'J. Whitaker' },
 }
 
 const addDays = (d: string, n: number) => {

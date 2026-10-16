@@ -80,9 +80,9 @@ export function AccountHeader({
         }
         actions={
           <>
+            <StatusButton verb={verb} onClick={() => setStatusOpen(true)} />
             {actions}
             <DeceasedAction base={base} current={customer} />
-            <StatusButton verb={verb} onClick={() => setStatusOpen(true)} />
             <EditButton onClick={() => setOpen(true)} />
           </>
         }
@@ -166,7 +166,16 @@ export function AccountAlerts({ customer: base }: { customer: Customer }) {
   )
 }
 
-export function AccountFields({ customer: base, location }: { customer: Customer; location?: ServiceLocation }) {
+export function AccountFields({
+  customer: base,
+  location,
+  premiseCount = 1,
+}: {
+  customer: Customer
+  location?: ServiceLocation
+  /** More than one on a landlord's account; the rest are listed under Service addresses. */
+  premiseCount?: number
+}) {
   const customer = useCustomer(base)
   const billTo = billingAddressLines(customer)
   const prefs = contactPreferences(customer)
@@ -190,7 +199,10 @@ export function AccountFields({ customer: base, location }: { customer: Customer
         <span className="block">{LANGUAGE_LABEL[prefs.language]}</span>
         <span className="text-ink-secondary">Bills: {BILL_DELIVERY_LABEL[prefs.delivery].toLowerCase()}</span>
       </Field>
-      <Field label="Service address">
+      <Field
+        label="Service address"
+        hint={premiseCount > 1 ? `Primary · ${premiseCount - 1} more under Service addresses` : undefined}
+      >
         {location ? (
           <>
             {location.address}

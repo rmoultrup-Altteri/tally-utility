@@ -6,13 +6,15 @@ import { BrowserAccount } from '@/components/accounts/BrowserAccount'
 import { AccountExceptions } from '@/components/accounts/AccountExceptions'
 import { DeceasedPanel } from '@/components/accounts/Deceased'
 import { RateScheduleHistory } from '@/components/accounts/RateSchedule'
-import { AccountMeterPanel } from '@/components/meters/MeterDetail'
+import { AccountMeterPanel, MeterLink } from '@/components/meters/MeterDetail'
 import { InvoiceDateText } from '@/components/bills/InvoiceEdit'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Rail, StateFlag, invoiceTone, humanize } from '@/components/ui/State'
 import { Money, Quantity } from '@/components/ui/Money'
 import { Table, HeadRow, Th, Row, Td, RailCell } from '@/components/table/Table'
-import { customers, customerById, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
+import { customers, customerById, linksFor, locationById, meterById } from '@/fixtures/accounts'
+import { meterDetailById } from '@/fixtures/meters'
+import type { Meter, ServiceLocation } from '@/schemas/models'
 import { readings } from '@/fixtures/reads'
 import { invoices } from '@/fixtures/billing'
 import { date, dateShort } from '@/lib/format'
@@ -76,11 +78,17 @@ export default async function CustomerPage({
       </AppShell>
     )
 
-  const link = serviceLinks.find((l) => l.customerId === customer.id)
-  const location = link ? locationById.get(link.locationId) : undefined
-  const meter = link ? meterById.get(link.meterId) : undefined
-  const read = readings.find((r) => r.meter_id === link?.meterId)
+  /* A landlord holds several premises; the first is the one the header and the account fields show. */
+  const premises = linksFor(customer.id).map((l) => ({
+    location: locationById.get(l.locationId)!,
+    meter: meterById.get(l.meterId)!,
+  }))
+  const link = premises[0]
+  const location = link?.location
+  const meter = link?.meter
+  const read = readings.find((r) => r.meter_id === meter?.id)
   const bills = invoices.filter((i) => i.customer_id === customer.id)
+  const several = premises.length > 1
   /* The newest live bill, for the explanation link. */
   const latestBill = bills.find((i) => i.status !== 'void' && i.billing_period === 'Feb 2026') ?? bills.find((i) => i.status !== 'void' && i.billing_period === 'Jan 2026')
 
@@ -92,14 +100,14 @@ export default async function CustomerPage({
         location={location}
         actions={
           <>
-            <Button>Log interaction</Button>
-            <Link href={`/payments/new?customer=${customer.id}` as Route}>
-              <Button>Take payment</Button>
-            </Link>
             <Link href={`/transfers/new?customer=${customer.id}` as Route}>
               <Button>Transfer service</Button>
             </Link>
             <Button variant="primary">New service order</Button>
+            <Link href={`/payments/new?customer=${customer.id}` as Route}>
+              <Button>Take payment</Button>
+            </Link>
+            <Button>Log interaction</Button>
           </>
         }
       />
@@ -108,16 +116,28 @@ export default async function CustomerPage({
 
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5 space-y-5">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <Panel className="lg:col-span-2">
-              <PanelHeader title="Account" />
-              <div className="px-4 py-4">
-                <AccountFields customer={customer} location={location} />
-              </div>
-            </Panel>
+          {several ? (
+            <>
+              <Panel>
+                <PanelHeader title="Account" />
+                <div className="px-4 py-4">
+                  <AccountFields customer={customer} location={location} premiseCount={premises.length} />
+                </div>
+              </Panel>
+              <PremisesPanel premises={premises} />
+            </>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <Panel className="lg:col-span-2">
+                <PanelHeader title="Account" />
+                <div className="px-4 py-4">
+                  <AccountFields customer={customer} location={location} />
+                </div>
+              </Panel>
 
-            <AccountMeterPanel meter={meter} lastReadDate={read?.reading_date ?? null} />
-          </div>
+              <AccountMeterPanel meter={meter} lastReadDate={read?.reading_date ?? null} />
+            </div>
+          )}
 
           {/* The de-escalation prop. Usage against the weather that drove it. */}
           <Panel>
@@ -148,6 +168,7 @@ export default async function CustomerPage({
                 <HeadRow>
                   <Th width="3px"> </Th>
                   <Th>Invoice</Th>
+                  {several ? <Th>Service address</Th> : null}
                   <Th>Period</Th>
                   <Th>Issued</Th>
                   <Th>Due</Th>
@@ -176,6 +197,7 @@ export default async function CustomerPage({
                           <p className="text-micro text-ink-tertiary">correction</p>
                         ) : null}
                       </Td>
+                      {several ? <Td>{locationById.get(inv.location_id)?.address ?? '—'}</Td> : null}
                       <Td>{inv.billing_period}</Td>
                       <Td>
                         <InvoiceDateText invoice={inv} field="invoice_date" />
@@ -201,6 +223,57 @@ export default async function CustomerPage({
         </div>
       </div>
     </AppShell>
+  )
+}
+
+/**
+ * Every premise on a landlord's account, each with its own meter. Shown in
+ * place of the single Meter panel when the account holds more than one, so
+ * no house is hidden behind the first.
+ */
+function PremisesPanel({ premises }: { premises: { location: ServiceLocation; meter: Meter }[] }) {
+  return (
+    <Panel>
+      <PanelHeader title="Service addresses" meta={`${premises.length} premises · each billed separately`} />
+      <Table caption="Premises held by this account">
+        <thead>
+          <HeadRow>
+            <Th>Premise</Th>
+            <Th>Service address</Th>
+            <Th>Meter</Th>
+            <Th>Route</Th>
+            <Th>Read type</Th>
+            <Th>Last read</Th>
+          </HeadRow>
+        </thead>
+        <tbody>
+          {premises.map(({ location, meter }, i) => {
+            const lastRead =
+              readings.find((r) => r.meter_id === meter.id)?.reading_date ?? meterDetailById.get(meter.id)?.lastReadDate ?? null
+            return (
+              <Row key={location.id}>
+                <Td>
+                  <span className="ident">{location.location_number}</span>
+                  {i === 0 ? <p className="text-micro text-ink-tertiary">primary</p> : null}
+                </Td>
+                <Td>
+                  {location.address}
+                  <span className="block text-micro text-ink-tertiary">
+                    {location.city}, {location.state} {location.zip}
+                  </span>
+                </Td>
+                <Td>
+                  <MeterLink meter={meter} follow />
+                </Td>
+                <Td>{meter.route_id ?? '—'}</Td>
+                <Td>{humanize(meter.read_type)}</Td>
+                <Td>{lastRead ? date(lastRead) : '—'}</Td>
+              </Row>
+            )
+          })}
+        </tbody>
+      </Table>
+    </Panel>
   )
 }
 

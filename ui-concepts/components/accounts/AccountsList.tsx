@@ -31,6 +31,8 @@ export type AccountRow = {
   ownerName: string
   streetAddress: string | null
   cityLine: string | null
+  /** A landlord's other premises, after the primary one above. Searchable, so any of the houses finds the account. */
+  otherAddresses?: string[]
   meterNumber: string | null
   /** `meters.ami_endpoint_id`. Null on a manually read meter. */
   amrId: string | null
@@ -57,6 +59,11 @@ const COLUMNS: AccountColumn[] = [
       <>
         {r.streetAddress ?? '—'}
         {r.cityLine ? <span className="block text-micro text-ink-tertiary">{r.cityLine}</span> : null}
+        {r.otherAddresses?.length ? (
+          <span className="block text-micro text-ink-tertiary" title={r.otherAddresses.join('\n')}>
+            +{r.otherAddresses.length} more {r.otherAddresses.length === 1 ? 'premise' : 'premises'}
+          </span>
+        ) : null}
       </>
     ),
   },
@@ -137,7 +144,7 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
         rows.filter(
           (r) =>
             matchesStatus(r, effective) &&
-            matchesSearch(query, [r.ownerName, r.customerNumber, r.streetAddress, r.cityLine, r.meterNumber, r.amrId]),
+            matchesSearch(query, [r.ownerName, r.customerNumber, r.streetAddress, r.cityLine, r.meterNumber, r.amrId, ...(r.otherAddresses ?? [])]),
         ),
         sort,
         /* Money sorts as a number, not as "$1,052" text. */

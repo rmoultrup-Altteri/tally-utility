@@ -1,7 +1,7 @@
 import { AppShell, PageHeader } from '@/components/shell/AppShell'
 import { AccountCount, AccountsList, type AccountRow } from '@/components/accounts/AccountsList'
 import { NewRecordLink } from '@/components/records/NewRecordLink'
-import { customers, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
+import { customers, linksFor, locationById, meterById } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
 
 /**
@@ -14,7 +14,7 @@ import { customerName } from '@/schemas/models'
  */
 export default function CustomersPage() {
   const rows: AccountRow[] = customers.map((c) => {
-    const link = serviceLinks.find((l) => l.customerId === c.id)
+    const [link, ...others] = linksFor(c.id)
     const location = link ? locationById.get(link.locationId) : undefined
     const meter = link ? meterById.get(link.meterId) : undefined
     return {
@@ -26,6 +26,7 @@ export default function CustomersPage() {
       ownerName: customerName(c),
       streetAddress: location?.address ?? null,
       cityLine: location ? `${location.city}, ${location.state} ${location.zip}` : null,
+      otherAddresses: others.map((l) => locationById.get(l.locationId)?.address ?? '').filter(Boolean),
       meterNumber: meter?.meter_number ?? null,
       amrId: meter?.ami_endpoint_id ?? null,
     }

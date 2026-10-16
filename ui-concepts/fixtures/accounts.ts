@@ -185,6 +185,36 @@ export const customers: Customer[] = [
     balance: '0.00',
     created_at: '2025-12-15T20:27:48Z',
   },
+  {
+    /* A landlord: one account holding gas at three rental houses, each on its
+       own meter and its own bill, all mailed to his P.O. box. */
+    id: 'cus-0009',
+    customer_number: '100-212640',
+    customer_type: 'residential',
+    first_name: 'Harlan',
+    last_name: 'Pruett',
+    company_name: null,
+    email: 'hpruett.rentals@example.com',
+    phone: '(979) 555-0727',
+    status: 'active',
+    do_not_disconnect: false,
+    disconnect_protection_type: null,
+    disconnect_protection_expiry: null,
+    billing_hold: false,
+    billing_hold_reason: null,
+    is_tax_exempt: false,
+    move_in_date: '2017-05-01',
+    deposit_amount: '0.00',
+    balance: '0.00',
+    billing_address_line1: 'P.O. Box 2284',
+    billing_address_line2: null,
+    billing_city: 'Bryan',
+    billing_state: 'TX',
+    billing_zip: '77806',
+    preferred_contact_method: 'phone',
+    billing_delivery_method: 'mail',
+    created_at: '2017-04-24T15:40:12Z',
+  },
 ]
 
 export const locations: ServiceLocation[] = [
@@ -269,6 +299,40 @@ export const locations: ServiceLocation[] = [
     id: 'loc-0008',
     location_number: 'P-090014',
     address: '4402 Hollow Oak Dr',
+    city: 'College Station',
+    state: 'TX',
+    zip: '77845',
+    inside_city_limits: true,
+    franchise_city: 'College Station',
+    billing_cycle: '04',
+  },
+  /* Pruett's three rental houses. */
+  {
+    id: 'loc-0009',
+    location_number: 'P-047713',
+    address: '1203 Sims Ave',
+    city: 'Bryan',
+    state: 'TX',
+    zip: '77803',
+    inside_city_limits: true,
+    franchise_city: 'Bryan',
+    billing_cycle: '04',
+  },
+  {
+    id: 'loc-0010',
+    location_number: 'P-052286',
+    address: '1609 Cavitt Ave',
+    city: 'Bryan',
+    state: 'TX',
+    zip: '77801',
+    inside_city_limits: true,
+    franchise_city: 'Bryan',
+    billing_cycle: '04',
+  },
+  {
+    id: 'loc-0011',
+    location_number: 'P-091552',
+    address: '2318 Pinon Dr',
     city: 'College Station',
     state: 'TX',
     zip: '77845',
@@ -468,9 +532,65 @@ export const meters: Meter[] = [
     status: 'removed',
     consecutive_estimate_count: 0,
   },
+  /* The meters at Pruett's three rental houses. */
+  {
+    id: 'mtr-0012',
+    meter_number: '004251',
+    serial_number: 'AC5-004251',
+    manufacturer: 'American Meter',
+    model: 'AC-250',
+    size: '3/4_inch',
+    read_type: 'amr',
+    ami_endpoint_id: '38104251',
+    multiplier: '1.0000',
+    gas_btu_factor: '1.0320',
+    rollover_point: '100000',
+    route_id: 'RT-14',
+    route_sequence: 247,
+    status: 'active',
+    consecutive_estimate_count: 0,
+  },
+  {
+    id: 'mtr-0013',
+    meter_number: '004266',
+    serial_number: 'AC5-004266',
+    manufacturer: 'American Meter',
+    model: 'AC-250',
+    size: '3/4_inch',
+    read_type: 'amr',
+    ami_endpoint_id: '38104266',
+    multiplier: '1.0000',
+    gas_btu_factor: '1.0320',
+    rollover_point: '100000',
+    route_id: 'RT-14',
+    route_sequence: 263,
+    status: 'active',
+    consecutive_estimate_count: 0,
+  },
+  {
+    id: 'mtr-0014',
+    meter_number: '004302',
+    serial_number: 'AC5-004302',
+    manufacturer: 'American Meter',
+    model: 'AC-250',
+    size: '3/4_inch',
+    read_type: 'amr',
+    ami_endpoint_id: '38104302',
+    multiplier: '1.0000',
+    gas_btu_factor: '1.0295',
+    rollover_point: '100000',
+    route_id: 'RT-21',
+    route_sequence: 38,
+    status: 'active',
+    consecutive_estimate_count: 0,
+  },
 ]
 
-/** Which customer occupies which premise, and which meter serves it. */
+/**
+ * Which customer occupies which premise, and which meter serves it. A landlord
+ * holds several; the first link is the account's primary premise, the one a
+ * screen that shows a single address shows.
+ */
 export const serviceLinks = [
   { customerId: 'cus-0001', locationId: 'loc-0001', meterId: 'mtr-0001' },
   { customerId: 'cus-0002', locationId: 'loc-0002', meterId: 'mtr-0002' },
@@ -480,7 +600,15 @@ export const serviceLinks = [
   { customerId: 'cus-0006', locationId: 'loc-0006', meterId: 'mtr-0006' },
   { customerId: 'cus-0007', locationId: 'loc-0007', meterId: 'mtr-0007' },
   { customerId: 'cus-0008', locationId: 'loc-0008', meterId: 'mtr-0008' },
+  { customerId: 'cus-0009', locationId: 'loc-0009', meterId: 'mtr-0012' },
+  { customerId: 'cus-0009', locationId: 'loc-0010', meterId: 'mtr-0013' },
+  { customerId: 'cus-0009', locationId: 'loc-0011', meterId: 'mtr-0014' },
 ] as const
+
+/** Every premise an account holds service at, primary first. */
+export function linksFor(customerId: string) {
+  return serviceLinks.filter((l) => l.customerId === customerId)
+}
 
 export const customerById = new Map(customers.map((c) => [c.id, c]))
 export const locationById = new Map(locations.map((l) => [l.id, l]))
