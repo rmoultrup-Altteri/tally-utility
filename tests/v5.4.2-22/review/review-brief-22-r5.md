@@ -9,10 +9,10 @@ Review exactly these. Check the hashes first, and stop and report if one differs
 
 | File | md5 |
 |---|---|
-| `tests/v5.4.2-22/review/patch-22-frozen-r5.sql` | `@@PATCH@@` |
-| `tests/v5.4.2-22/review/battery-22-frozen-r5.sql` | `@@BATTERY@@` |
-| `tests/v5.4.2-22/review/close-22-frozen-r5.sh` | `@@CLOSE@@` |
-| `tests/v5.4.2-22/review/mutations-22-frozen-r5.py` | `@@MUTATIONS@@` |
+| `tests/v5.4.2-22/review/patch-22-frozen-r5.sql` | `7e914bdacf1d2b19c3e6fc34b325d17e` |
+| `tests/v5.4.2-22/review/battery-22-frozen-r5.sql` | `a5369adf6c44f61932ba79a84bdd0aa7` |
+| `tests/v5.4.2-22/review/close-22-frozen-r5.sh` | `59554ed29cf52aa87bbda0d7886a0b77` |
+| `tests/v5.4.2-22/review/mutations-22-frozen-r5.py` | `8513d1d2168232a0ba477891cbc3b691` |
 
 The live copies (`sql/v5.4.2-22-periods-snapshot-gl-aging.sql`, `tests/v5.4.2-22/battery-22.sql`, `tests/v5.4.2-22/races/close-22.sh`, `tests/v5.4.2-22/mutations-22.py`) are identical to the frozen ones today. Review the frozen copies.
 
@@ -58,7 +58,6 @@ Check in particular:
 - **`tests/ci.sh`:** `ci: all pass`, 35 steps, with -22 PENDING (strict apply twice, battery 157, races CR1–CR15).
 - **`battery-22.sql`:** 157 checks, on a vacuumed ledger. **`races/close-22.sh`:** CR1–CR15.
 - **`mutations-22.py`:** 72/72 caught (the runner VACUUMs the ledger before each battery).
-- 
 ## What to answer
 
 1. **Does the patch implement the inventory and the rulings?** Name any requirement missed or half-done.
