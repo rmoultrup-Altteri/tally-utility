@@ -12,10 +12,14 @@
 #        waits on A, then is refused by the cap (W3).
 #   CR6  Two inserts of the same next period: the second waits, then is
 #        refused (no gaps).
-#   CR7  Reproducible: after later postings, January's snapshot lines equal
-#        the aging and ledger sums at its recorded instant.
+#   CR7  Reproducible: after later postings and a backdated change of the
+#        bucket setting, January's snapshot lines equal the aging (with the
+#        snapshot's stored edges) and ledger sums at its recorded instant.
 #   CR8  GL mapping in recorded time: a close recorded later does not end
 #        the row for a lookup at an earlier instant (G1).
+#   CR9  A closes April and holds; B inserts a GL mapping in force in April:
+#        waits on A, then is refused (G4).
+#   CR10 The latest period, once closed, is not withdrawn.
 # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -166,15 +170,24 @@ INS="INSERT INTO public.accounting_periods (tenant_id, period_start, period_end)
 two "$AS_OP" "$INS" "$AS_OP" "$INS"
 verdict "CR6 two inserts of the next period: the second waits, then is refused" 1 "no gaps"
 
-# CR7: later postings (May) leave January's figures reproducible.
+# CR7: later postings (May) and a backdated setting change (a direct
+# history row recorded before January's instant) leave January's figures
+# reproducible from its stored edges.
 "${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: CR7 postings"; exit 2; }
 BEGIN; $AS_OP $(post 2026-05-03 11.00 'CR7 later') COMMIT;
+BEGIN; $AS_SUP
+INSERT INTO public.tenant_configuration_history (tenant_id, config_key, new_value, effective_from, change_source)
+SELECT '$T', 'receivables_aging_bucket_days', '[10, 20]', s.recorded_at - interval '1 millisecond', 'manual'
+  FROM public.accounting_period_snapshots s WHERE s.period_id = '$JAN';
+COMMIT;
 SQL
 expect "CR7 January's aging lines are the aging at its recorded instant" \
   "$("${PSQL[@]}" -c "SELECT (SELECT jsonb_object_agg(code, amount) FROM public.accounting_period_snapshot_lines WHERE period_id = '$JAN' AND section = 'aging')
      = (SELECT jsonb_object_agg(CASE WHEN bucket_index IS NULL THEN 'credit_balance' WHEN bucket_to_days IS NULL THEN bucket_from_days || '+' ELSE bucket_from_days || '-' || bucket_to_days END, s)
           FROM (SELECT bucket_index, bucket_from_days, bucket_to_days, sum(amount) s
-                  FROM public.receivables_aging_as_of('$T', DATE '2026-01-31', (SELECT recorded_at FROM public.accounting_period_snapshots WHERE period_id = '$JAN'))
+                  FROM public.accounting_period_snapshots s,
+                       public.receivables_aging_as_of('$T', DATE '2026-01-31', s.recorded_at, s.aging_bucket_days)
+                 WHERE s.period_id = '$JAN'
                  GROUP BY 1, 2, 3) x)")" "t"
 expect "CR7b and its closing balance is the ledger through January 31, then and now" \
   "$("${PSQL[@]}" -c "SELECT s.closing_balance = (SELECT sum(amount) FROM public.account_ledger WHERE tenant_id = '$T' AND transaction_date <= s.period_end AND created_at <= s.recorded_at)
@@ -200,5 +213,20 @@ expect "CR8b after the close it does not" \
   "$("${PSQL[@]}" -c "SELECT coalesce(public.gl_mapping_as_of('$T', 'ledger_entry', 'adjustment', NULL, NULL, NULL, DATE '2026-07-01', clock_timestamp())::text, 'none')")" "none"
 expect "CR8c and before it was recorded there is none" \
   "$("${PSQL[@]}" -c "SELECT coalesce(public.gl_mapping_as_of('$T', 'ledger_entry', 'adjustment', NULL, NULL, NULL, DATE '2026-05-15', (SELECT created_at - interval '1 microsecond' FROM public.gl_account_mappings WHERE id = '$M'))::text, 'none')")" "none"
+
+# CR9
+GL="INSERT INTO public.gl_account_mappings (tenant_id, charge_source, charge_code, gl_account, effective_from) VALUES ('$T', 'ledger_entry', 'payment', '1100', DATE '2026-04-15');"
+two "$AS_SUP" "SELECT public.close_accounting_period('$APR');" "$AS_OP" "$GL"
+verdict "CR9 a GL mapping in force in a period being closed waits, then is refused" 1 "closed period's export"
+
+# CR10
+MAY=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T' AND period_start = DATE '2026-05-01'")
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN; $AS_SUP SELECT public.close_accounting_period('$MAY'); COMMIT;
+BEGIN; $AS_OP UPDATE public.accounting_periods SET status = 'withdrawn' WHERE id = '$MAY'; COMMIT;
+SQL
+)
+if echo "$OUT" | grep -q "never edited"; then echo "PASS CR10 the latest period, once closed, is not withdrawn"
+else echo "FAIL CR10: $OUT"; fail=1; fi
 
 exit $fail

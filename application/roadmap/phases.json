@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-14",
+  "as_of": "2026-10-15",
   "weeks_note": "Durations are working weeks from the phase's start: low / likely / high. Dependencies: 'finish' = starts when that phase finishes; 'start' = starts lag_weeks after that phase starts.",
   "phases": [
     {
@@ -47,12 +47,12 @@
       ],
       "depends": [],
       "progress": {
-        "done": 55,
+        "done": 75,
         "total": 135,
         "unit": "invariants",
-        "basis": "parity measurement 2026-10-13 (REP+PROT 34, REP 21)"
+        "basis": "parity measurement, update 2026-10-15 (REP+PROT 51, REP 24; CI-036 N/A)"
       },
-      "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 answers unblock tax jurisdictions, franchise fees and the PGA billing side. Kyle's 2026-10-15 answers close R-01 to R-11 and K-01 to K-07, so waves 4, 6 and 7 are no longer waiting on a decision.",
+      "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 answers unblock tax jurisdictions, franchise fees and the PGA billing side. Kyle's 2026-10-15 answers close R-01 to R-11 and K-01 to K-07, so waves 4, 6 and 7 are no longer waiting on a decision. Wave 2 is in progress: v5.4.2-22 (periods, close snapshot, GL mapping, aging) is in review round 2; v5.4.2-23 (cash) follows.",
       "parts": [
         {
           "name": "Wave 1: close holes in what is built",
@@ -60,7 +60,7 @@
         },
         {
           "name": "Wave 2: finance structures and cash handling",
-          "status": "next"
+          "status": "in_progress"
         },
         {
           "name": "Tax jurisdictions, tax stack, franchise fees (Kyle answered)",

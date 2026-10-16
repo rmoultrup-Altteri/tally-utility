@@ -4,6 +4,68 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-15 — parity record consolidated; wave 2 started; v5.4.2-22 (periods, close snapshot, GL mapping, aging, write-off recovery) drafted, reviewed once, r2 frozen
+
+**What was done:**
+- **Resume:** Kyle's 3 pushes fast-forwarded. CI passed 30/30 on the -21 build.
+- **The parity record (Ryan):** the tally-utility measurement is the single live record, and GBM register grades are frozen at v5.4.2-12 (GBM was eight patches behind, not two).
+  - The 2026-10-15 update section: REP+PROT 51, REP 24, PARTIAL 46, GAP 13, BLOCKED 0, N/A 1 (`5680e6f`).
+  - GBM `954c472`: preamble, frozen status line, manifest BP and BQ.
+- **Wave 2 inventory** (`a7ce6d0`): -22 periods and reporting (additive), -23 cash (meaning-changing).
+- **Q1 (Ryan, default):** under add-only money, a status column stays, moves forward only, and each move names its add-only row (`9b996b0`).
+- **`sql/v5.4.2-22-periods-snapshot-gl-aging.sql`:**
+  - **r1** (`afa7b67`):
+    - accounting periods (contiguous, born open, closed only by the close);
+    - a per-tenant closed-through head;
+    - the freeze on ledger, payments and credits;
+    - `close_accounting_period()` owned by the new role `tally_close` (supervisor, READ COMMITTED, ended at UTC-12, in order);
+    - snapshots and lines computed at one recorded instant;
+    - GL mappings (four-part wildcard key, dated and recorded, close-only edits, floor at the closed-through date);
+    - `receivables_aging_as_of()` (balance-forward, netted by lineage, customer status per D-3);
+    - aging bucket setting;
+    - `write_off_recovery` with cap.
+  - **r2** (wrap-up commit), from round 1 (all three "not yet"):
+    - lineage loops refused;
+    - aging edges validated everywhere and passed explicitly to reproduce a snapshot;
+    - any row naming a write-off is a recovery;
+    - the close refuses rows recorded after its instant;
+    - two-tenant moves checked against both heads;
+    - GL precedence stated and clock stamps;
+    - mistyped open period withdrawn by status;
+    - `write_off_threshold_days`;
+    - the invariant pins constraints and the ledger's immutability.
+- **Tests:**
+  - `battery-22.sql`: 135 checks;
+  - `races/close-22.sh`: CR1–CR10;
+  - `mutations-22.py`: 52/52;
+  - `tests/ci.sh`: all pass with -22 pending.
+- **Codex** reviewed the source only. I ran its 8 probes; all reproduced.
+- **Roadmap:** parity 75/135, W2-Q1 answered, wave 2 in progress. Dates unchanged. Dashboard datasets refreshed.
+
+**Decisions made:**
+- Q1 (Ryan), above.
+- Drafting calls reported to Ryan (DECISION-LOG 2026-10-15):
+  - the closed-through head;
+  - the supervisor-only close;
+  - UTC-12;
+  - unbilled revenue supplied with its basis;
+  - balance-forward aging;
+  - status as recorded;
+  - the GL floor.
+- r2: withdrawal is a status, not a DELETE, because -21's retention invariant forbids app deletes.
+
+**Open / next:**
+- Launch -22 review round 2 (brief and frozen files ready). Mirror only on Ryan's approval.
+- Then -23 (cash).
+- Carried:
+  - reply to Kyle on D-2's location;
+  - the -05 defect;
+  - -21 R9;
+  - the R-03 scoping question;
+  - `deferred_balance_after`.
+
+---
+
 ## 2026-10-14 (evening) — R1 decided (trust Cognito); v5.4.2-21 (wave 1 built) drafted, reviewed over four rounds, mirrored
 
 **What was done:**

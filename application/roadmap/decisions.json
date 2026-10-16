@@ -26,5 +26,6 @@
   {"id": "K-08", "owner": "Kyle", "status": "open", "phase": "P2", "needed_by": "Step 2", "question": "Will Kyle check the dollar figures on the worked billing scenarios?", "ref": "Scenario validation"},
   {"id": "K-09", "owner": "Kyle", "status": "answered", "phase": "P1", "needed_by": "Answered 2026-10-14", "question": "Tax jurisdictions, tax stacking, franchise fee base, remittances, and the gas-cost boundary", "ref": "kyle-answers-2026-10-14"},
   {"id": "C-01", "owner": "Counsel", "status": "open", "phase": "P1", "needed_by": "Before go-live", "question": "Must strings that look like card numbers be refused or masked?", "ref": "CI-051"},
-  {"id": "C-02", "owner": "Counsel", "status": "open", "phase": "P9", "needed_by": "Before go-live", "question": "What must happen legally when a bill is mailed to the wrong person?", "ref": "CI-135"}
+  {"id": "C-02", "owner": "Counsel", "status": "open", "phase": "P9", "needed_by": "Before go-live", "question": "What must happen legally when a bill is mailed to the wrong person?", "ref": "CI-135"},
+  {"id": "W2-Q1", "owner": "Ryan", "status": "answered", "phase": "P1", "needed_by": "Answered 2026-10-15", "question": "Under add-only payments, credits and charges, does each record keep a status that only moves forward and names the entry behind each move?", "ref": "CI-013"}
 ]

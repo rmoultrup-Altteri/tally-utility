@@ -19,13 +19,13 @@ tests/
                             #   batteries -09..-14, -15, -16, -17, -18, -19; -18's and -15's migrations (while `tally` is pre-18 / pre-15); -17's isolation, races and law files; -15, -16, -19 and -12 races;
                             #   -15's and -13's evidence scripts; the tenant-isolation invariants. A failed clone is a FAIL (`cstep`). Never writes `tally`.
   v5.4.2-22/                # wave 2 part 1: periods as freeze boundaries, the close snapshot, GL mapping, aging, write-off recovery (DRAFT 2026-10-15)
-    battery-22.sql          # 115 checks, groups H P C F R W G I: the close head, contiguous periods, the supervisor's close and its
+    battery-22.sql          # 135 checks, groups H P C F R W G I: the close head, contiguous periods, the supervisor's close and its
                             #   snapshot, the freeze on ledger / payments / credits, the recovery's lineage and cap, balance-forward
                             #   aging netted by lineage, the bucket setting, GL mapping specificity and its close
-    races/close-22.sh       # CR1-CR8: a close waits for a posting in flight and counts it; a posting waits for a close and is refused;
+    races/close-22.sh       # CR1-CR10: a close waits for a posting in flight and counts it; a posting waits for a close and is refused;
                             #   a stale REPEATABLE READ posting fails to serialise; READ COMMITTED only for the close, period insert
                             #   and recovery; two recoveries past the cap; two inserts of one period; reproducibility; recorded time
-    mutations-22.py         # 38 mutations, each caught at its named check (battery, CR or APPLY)
+    mutations-22.py         # 52 mutations, each caught at its named check (battery, CR or APPLY)
   v5.4.2-19/                # hardening batch 1: wave 1 of step 1, the holes in what is already built (landed 2026-10-13; r5, mirrored)
     battery-19.sql          # 173 checks, groups R Q P M L N H I J E B (+ RB RF RL RW RV): reads born unconsumed and frozen once
                             #   consumed; rider DAG; effective date, return code, one receipt and one money-out per processor id,

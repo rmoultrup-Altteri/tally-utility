@@ -47,7 +47,19 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'FAIL %: refused with % (%)', p_label, SQLSTATE, SQLERRM;
 END $$;
-GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text) TO tally_app, tally_core;
+-- try_text(): a query's one value as text, or 'ERROR <message>' (a check
+-- that compares a value fails, rather than stops the run, when it raises).
+CREATE FUNCTION pg_temp.try_text(p_sql text) RETURNS text
+LANGUAGE plpgsql AS $$
+DECLARE v text;
+BEGIN
+  EXECUTE p_sql INTO v;
+  RETURN v;
+EXCEPTION WHEN OTHERS THEN
+  RETURN 'ERROR ' || SQLERRM;
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text),
+                          pg_temp.try_text(text) TO tally_app, tally_core;
 
 -- ------------------------------------------------------------------ fixtures
 -- T1 (…22a1): two operators' worth of users, three customers. T2 (…22a2): the
@@ -58,7 +70,8 @@ INSERT INTO public.tenants (id, name, slug) VALUES
 INSERT INTO public.users (id, tenant_id, display_name, email, role, is_active) VALUES
   ('00000000-0000-4000-8000-0000000022b1', '00000000-0000-4000-8000-0000000022a1', 'Op1', 'op1@bat22.test', 'operator', true),
   ('00000000-0000-4000-8000-0000000022b4', '00000000-0000-4000-8000-0000000022a1', 'Sup', 'sup@bat22.test', 'tenant_admin', true),
-  ('00000000-0000-4000-8000-0000000022b2', '00000000-0000-4000-8000-0000000022a2', 'Sup2', 'sup2@bat22.test', 'tenant_admin', true);
+  ('00000000-0000-4000-8000-0000000022b2', '00000000-0000-4000-8000-0000000022a2', 'Sup2', 'sup2@bat22.test', 'tenant_admin', true),
+  ('00000000-0000-4000-8000-0000000022b9', '00000000-0000-4000-8000-0000000022a1', 'Admin', 'admin@bat22.test', 'platform_admin', true);
 INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
   ('00000000-0000-4000-8000-0000000022c1', '00000000-0000-4000-8000-0000000022a1', 'B22-C1', 'residential'),
   ('00000000-0000-4000-8000-0000000022c2', '00000000-0000-4000-8000-0000000022a1', 'B22-C2', 'residential'),
@@ -144,8 +157,22 @@ SELECT pg_temp.refuses_at('P7 the application cannot close a period by UPDATE',
   $q$UPDATE public.accounting_periods SET status = 'closed', closed_at = now() WHERE id = '00000000-0000-4000-8000-000000002211'$q$,
   '42501', 'permission denied');
 SELECT pg_temp.refuses_at('P7b nor delete one',
-  $q$DELETE FROM public.accounting_periods WHERE id = '00000000-0000-4000-8000-000000002212'$q$,
+  $q$DELETE FROM public.accounting_periods WHERE id = '00000000-0000-4000-8000-000000002213'$q$,
   '42501', 'permission denied');
+SELECT pg_temp.refuses_at('P9a only the latest period is withdrawn',
+  $q$UPDATE public.accounting_periods SET status = 'withdrawn' WHERE id = '00000000-0000-4000-8000-000000002212'$q$,
+  '23001', 'only the tenant''s latest period');
+SELECT pg_temp.admits('P9 the latest period, while open, is withdrawn (a mistyped one)',
+  $q$UPDATE public.accounting_periods SET status = 'withdrawn' WHERE id = '00000000-0000-4000-8000-000000002213'$q$);
+SELECT pg_temp.ok('P9b it stays on record, stamped',
+  (SELECT status = 'withdrawn' AND withdrawn_at > now() AND withdrawn_by = '00000000-0000-4000-8000-0000000022b1'
+     FROM public.accounting_periods WHERE id = '00000000-0000-4000-8000-000000002213'));
+SELECT pg_temp.admits('P9c and its dates are free again',
+  $q$INSERT INTO public.accounting_periods (id, tenant_id, period_start, period_end)
+     VALUES ('00000000-0000-4000-8000-000000002214', '00000000-0000-4000-8000-0000000022a1', DATE '2026-03-01', DATE '2026-03-31')$q$);
+SELECT pg_temp.refuses_at('P9d a withdrawn period is not reopened',
+  $q$UPDATE public.accounting_periods SET status = 'open', withdrawn_at = NULL WHERE id = '00000000-0000-4000-8000-000000002213'$q$,
+  '23001', 'never edited');
 RESET ROLE;
 SELECT pg_temp.refuses_at('P8 the owner cannot edit a period',
   $q$UPDATE public.accounting_periods SET period_end = DATE '2026-01-30' WHERE id = '00000000-0000-4000-8000-000000002211'$q$,
@@ -156,10 +183,11 @@ SELECT pg_temp.refuses_at('P8b nor close one by UPDATE',
 SELECT pg_temp.refuses_at('P8c nor delete one',
   $q$DELETE FROM public.accounting_periods WHERE id = '00000000-0000-4000-8000-000000002212'$q$,
   '23001', 'never deleted');
--- T2's first period is this month: it has not ended.
+-- T2's first period ends today at UTC-12, the last place a day ends: it has
+-- not ended everywhere (at UTC+14 it has).
 INSERT INTO public.accounting_periods (id, tenant_id, period_start, period_end)
 VALUES ('00000000-0000-4000-8000-000000002219', '00000000-0000-4000-8000-0000000022a2',
-        date_trunc('month', now())::date, (date_trunc('month', now()) + interval '1 month - 1 day')::date);
+        (now() AT TIME ZONE 'Etc/GMT+12')::date - 9, (now() AT TIME ZONE 'Etc/GMT+12')::date);
 
 
 -- ===================================================== C the close (part 1)
@@ -280,6 +308,12 @@ SELECT pg_temp.refuses_at('F2c a payment is not moved out of the closed period',
 SELECT pg_temp.refuses_at('F2d nor into it',
   $q$UPDATE public.payments SET payment_date = DATE '2026-01-31' WHERE payment_number = 'B22-P2'$q$,
   '23514', 'a closed period is frozen');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b9', true);
+SELECT pg_temp.refuses_at('F2e a payment moved to another tenant leaves the closed books it was in',
+  $q$UPDATE public.payments SET tenant_id = '00000000-0000-4000-8000-0000000022a2', customer_id = '00000000-0000-4000-8000-0000000022c9',
+       payment_date = DATE '2026-02-02' WHERE id = '00000000-0000-4000-8000-0000000022f1'$q$,
+  '23514', 'a closed period is frozen');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b1', true);
 SELECT pg_temp.refuses_at('F3 a customer credit issued in the closed period',
   $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, remaining_amount, issued_date)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', 'goodwill', 5, 5, DATE '2026-01-31')$q$,
@@ -337,6 +371,15 @@ SELECT pg_temp.refuses_at('R6c and not a cent more',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-12', 'write_off_recovery', 'r', 0.01, '00000000-0000-4000-8000-0000000022e4', 'x')$q$,
   '23514', 'R-02 cap');
+SELECT pg_temp.refuses_at('R7 a row that names a write-off is its recovery: an adjustment cannot reinstate it outside the cap',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-12', 'adjustment', 'r', 100, '00000000-0000-4000-8000-0000000022e4', 'reinstated')$q$,
+  '23514', 'only a write_off_recovery names a write-off');
+SELECT pg_temp.refuses_at('R8 a reversal chain never loops (two rows of one statement naming each other)',
+  $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+     ('00000000-0000-4000-8000-0000000022ea', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-12', 'adjustment', 'a', 100, '00000000-0000-4000-8000-0000000022eb', 'loop'),
+     ('00000000-0000-4000-8000-0000000022eb', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-12', 'adjustment', 'b', -40, '00000000-0000-4000-8000-0000000022ea', 'loop')$q$,
+  '23514', 'returns to itself');
 RESET ROLE;
 
 
@@ -349,6 +392,9 @@ SELECT pg_temp.refuses_at('W1 every coordinate is required',
 SELECT pg_temp.refuses_at('W1b another tenant is not visible',
   $q$SELECT * FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a2', DATE '2026-03-31', clock_timestamp())$q$,
   'P0002', 'not visible');
+SELECT pg_temp.refuses_at('W1d explicit edges are a valid list',
+  $q$SELECT * FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp(), '[0:1]={90,30}')$q$,
+  '22023', 'not a list of bucket edges');
 SELECT pg_temp.refuses_at('W1c before the setting''s history there is no aging',
   $q$SELECT * FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', now() - interval '1 second')$q$,
   'P0002', 'no aging bucket setting');
@@ -364,6 +410,7 @@ INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, tra
   ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-10', 'charge', 'C1 Feb', 50.00),
   ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-20', 'payment', 'C1 pays', -70.00);
 RESET ROLE;
+SELECT set_config('bat22.before_status', clock_timestamp()::text, true);
 UPDATE public.customers SET status = 'final_billed', status_reason = 'moved out'
  WHERE id = '00000000-0000-4000-8000-0000000022c2';
 CREATE TEMP TABLE aging ON COMMIT DROP AS
@@ -377,6 +424,10 @@ SELECT pg_temp.ok('W3 an entry is netted with the reversal that names it: C2 owe
 SELECT pg_temp.ok('W4 the customer''s status is on the row (D-3): C2 is final-billed',
   (SELECT bool_and(customer_status = 'final_billed') FROM aging WHERE customer_number = 'B22-C2')
   AND (SELECT bool_and(customer_status = 'active') FROM aging WHERE customer_number = 'B22-C1'));
+SELECT pg_temp.ok('W4b at an instant before the change, C2 was active',
+  (SELECT bool_and(customer_status = 'active')
+     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', current_setting('bat22.before_status')::timestamptz)
+    WHERE customer_number = 'B22-C2'));
 SELECT pg_temp.ok('W5 the last located entry gives the location',
   (SELECT bool_and(last_location_id = '00000000-0000-4000-8000-0000000022d1') FROM aging WHERE customer_number IN ('B22-C1', 'B22-C2')));
 SELECT pg_temp.ok('W6 a zero balance is omitted: C3 (written off 50, recovered 50)',
@@ -408,6 +459,19 @@ SELECT pg_temp.refuses_at('W10c are not empty', $q$UPDATE public.tenants SET rec
   '23514', 'tenants_receivables_aging_bucket_days_check');
 SELECT pg_temp.refuses_at('W10d hold no NULL', $q$UPDATE public.tenants SET receivables_aging_bucket_days = '{30,NULL}' WHERE id = '00000000-0000-4000-8000-0000000022a1'$q$,
   '23514', 'tenants_receivables_aging_bucket_days_check');
+SELECT pg_temp.refuses_at('W10e are one-based (a [0:1] array hides a decreasing pair)', $q$UPDATE public.tenants SET receivables_aging_bucket_days = '[0:1]={90,30}' WHERE id = '00000000-0000-4000-8000-0000000022a1'$q$,
+  '23514', 'tenants_receivables_aging_bucket_days_check');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b4', true);
+SELECT pg_temp.refuses_at('W10f a recorded value is a valid list, a direct history row included',
+  $q$INSERT INTO public.tenant_configuration_history (tenant_id, config_key, new_value, effective_from, change_source)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', 'receivables_aging_bucket_days', '["abc"]', now() - interval '1 day', 'manual')$q$,
+  '23514', 'tenant_configuration_history_aging_days_check');
+SELECT pg_temp.refuses_at('W10g nor a decreasing one',
+  $q$INSERT INTO public.tenant_configuration_history (tenant_id, config_key, new_value, effective_from, change_source)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', 'receivables_aging_bucket_days', '[90, 30]', now() - interval '1 day', 'manual')$q$,
+  '23514', 'tenant_configuration_history_aging_days_check');
+RESET ROLE;
 UPDATE public.tenants SET receivables_aging_bucket_days = '{15,45}' WHERE id = '00000000-0000-4000-8000-0000000022a1';
 SELECT pg_temp.ok('W11 a change is recorded in the configuration history',
   (SELECT new_value FROM public.tenant_configuration_history
@@ -420,6 +484,10 @@ SELECT pg_temp.ok('W12 aging reads the edges as recorded: C2''s 80 (120 days) an
   AND (SELECT jsonb_agg(jsonb_build_array(bucket_index, bucket_from_days, bucket_to_days, amount) ORDER BY bucket_index)
      FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
     WHERE customer_number = 'B22-C1') = '[[2, 46, null, 21.00]]'::jsonb);
+SELECT pg_temp.ok('W12b explicit edges age by those edges, whatever is recorded',
+  (SELECT jsonb_agg(jsonb_build_array(bucket_index, amount) ORDER BY bucket_index)
+     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp(), '{30,60,90,120}')
+    WHERE customer_number = 'B22-C2') = '[[1, 5.00], [3, 80.00]]'::jsonb);
 
 
 INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
@@ -431,6 +499,39 @@ SELECT pg_temp.ok('W13 a reversal is netted only within its customer: C2 still o
   AND (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount) ORDER BY bucket_index)
      FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
     WHERE customer_number = 'B22-C1') = '[[11.00, 2, 11.00]]'::jsonb);
+-- C4: a chain (charge X 60; -20 naming X; +5 naming the -20) and an early-
+-- dated reversal (-10 on March 1 naming charge Y of 30 on March 20).
+INSERT INTO public.customers (id, tenant_id, customer_number) VALUES
+  ('00000000-0000-4000-8000-0000000022c4', '00000000-0000-4000-8000-0000000022a1', 'B22-C4');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+  ('00000000-0000-4000-8000-0000000022ec', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-10', 'charge', 'X', 60.00, NULL, NULL),
+  ('00000000-0000-4000-8000-0000000022ed', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-12', 'adjustment', 'X less 20', -20.00, '00000000-0000-4000-8000-0000000022ec', 'partly'),
+  ('00000000-0000-4000-8000-0000000022ee', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-13', 'adjustment', 'undo 5 of it', 5.00, '00000000-0000-4000-8000-0000000022ed', 'over-credited'),
+  ('00000000-0000-4000-8000-0000000022ef', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-20', 'charge', 'Y', 30.00, NULL, NULL),
+  ('00000000-0000-4000-8000-0000000022f9', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-01', 'adjustment', 'Y less 10, dated early', -10.00, '00000000-0000-4000-8000-0000000022ef', 'agreed');
+SELECT pg_temp.ok('W14 a chain nets into its original, and a reversal dated before its original stands alone until the original is in the window',
+  (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount) ORDER BY bucket_index)
+     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-15', clock_timestamp())
+    WHERE customer_number = 'B22-C4') = '[[35.00, 0, 35.00]]'::jsonb
+  AND (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount) ORDER BY bucket_index)
+     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
+    WHERE customer_number = 'B22-C4') = '[[65.00, 0, 20.00], [65.00, 1, 45.00]]'::jsonb);
+SELECT pg_temp.refuses_at('W16 should a loop ever be in the ledger (the loop guard disabled by the owner), aging raises rather than drop it',
+  $q$DO $d$ BEGIN
+       ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_lineage_acyclic;
+       INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+         ('00000000-0000-4000-8000-0000000022fa', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-21', 'adjustment', 'a', 100, '00000000-0000-4000-8000-0000000022fb', 'loop'),
+         ('00000000-0000-4000-8000-0000000022fb', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-21', 'adjustment', 'b', -40, '00000000-0000-4000-8000-0000000022fa', 'loop');
+       PERFORM * FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp());
+     END $d$$q$,
+  '22000', 'reach no original');
+SELECT pg_temp.refuses_at('W15 the write-off threshold is a positive number of days, or unset',
+  $q$UPDATE public.tenants SET write_off_threshold_days = 0 WHERE id = '00000000-0000-4000-8000-0000000022a1'$q$,
+  '23514', 'tenants_write_off_threshold_days_check');
+UPDATE public.tenants SET write_off_threshold_days = 180 WHERE id = '00000000-0000-4000-8000-0000000022a1';
+SELECT pg_temp.ok('W15b born unset, and recorded when set',
+  (SELECT array_agg(new_value ORDER BY effective_from, seq) FROM public.tenant_configuration_history
+    WHERE tenant_id = '00000000-0000-4000-8000-0000000022a1' AND config_key = 'write_off_threshold_days') = ARRAY['null'::jsonb, '180'::jsonb]);
 
 
 -- ========================================================= G GL mapping
@@ -449,7 +550,7 @@ SELECT pg_temp.admits('G1c residential usage charges',
   $q$INSERT INTO public.gl_account_mappings (id, tenant_id, charge_source, charge_code, customer_class, gl_account, effective_from)
      VALUES ('00000000-0000-4000-8000-000000002233', '00000000-0000-4000-8000-0000000022a1', 'bill_line', 'usage_charge', 'residential', '4800-RES', DATE '2026-02-01')$q$);
 SELECT pg_temp.ok('G1d created_by and created_at are the database''s, closed_* empty',
-  (SELECT created_by = '00000000-0000-4000-8000-0000000022b1' AND created_at = now() AND closed_at IS NULL
+  (SELECT created_by = '00000000-0000-4000-8000-0000000022b1' AND created_at > now() AND created_at <= clock_timestamp() AND closed_at IS NULL
      FROM public.gl_account_mappings WHERE id = '00000000-0000-4000-8000-000000002233'));
 SELECT pg_temp.refuses_at('G2 a code from its source''s vocabulary',
   $q$INSERT INTO public.gl_account_mappings (tenant_id, charge_source, charge_code, gl_account, effective_from)
@@ -486,12 +587,14 @@ SELECT pg_temp.ok('G5c a base charge takes the default',
     = '00000000-0000-4000-8000-000000002231');
 SELECT pg_temp.ok('G5d before any mapping is in force: none (the export refuses the line)',
   public.gl_mapping_as_of('00000000-0000-4000-8000-0000000022a1', 'bill_line', 'base_charge', 'residential', NULL, NULL, DATE '2026-01-15', clock_timestamp()) IS NULL);
-SELECT pg_temp.admits('G6 usage in Battery City (another specificity-2 key)',
+SELECT pg_temp.admits('G6 usage in Battery City (a key of the same size as residential usage)',
   $q$INSERT INTO public.gl_account_mappings (id, tenant_id, charge_source, charge_code, territory_place_id, gl_account, effective_from)
      VALUES ('00000000-0000-4000-8000-000000002234', '00000000-0000-4000-8000-0000000022a1', 'bill_line', 'usage_charge', '00000000-0000-4000-8000-0000000022a7', '4800-CITY', DATE '2026-02-01')$q$);
-SELECT pg_temp.refuses_at('G6b a tie at the top raises, it does not pick',
-  $q$SELECT public.gl_mapping_as_of('00000000-0000-4000-8000-0000000022a1', 'bill_line', 'usage_charge', 'residential', '00000000-0000-4000-8000-0000000022a7', NULL, DATE '2026-03-01', clock_timestamp())$q$,
-  '21000', 'equal specificity');
+SELECT pg_temp.ok('G6b the stated precedence: the customer class outranks the territory',
+  pg_temp.try_text($q$SELECT public.gl_mapping_as_of('00000000-0000-4000-8000-0000000022a1', 'bill_line', 'usage_charge', 'residential', '00000000-0000-4000-8000-0000000022a7', NULL, DATE '2026-03-01', clock_timestamp())$q$)
+    = '00000000-0000-4000-8000-000000002233'
+  AND pg_temp.try_text($q$SELECT public.gl_mapping_as_of('00000000-0000-4000-8000-0000000022a1', 'bill_line', 'usage_charge', 'commercial', '00000000-0000-4000-8000-0000000022a7', NULL, DATE '2026-03-01', clock_timestamp())$q$)
+    = '00000000-0000-4000-8000-000000002234');
 SELECT pg_temp.ok('G6c a line with no territory matches only wildcards on it',
   public.gl_mapping_as_of('00000000-0000-4000-8000-0000000022a1', 'bill_line', 'usage_charge', 'commercial', NULL, NULL, DATE '2026-03-01', clock_timestamp())
     = '00000000-0000-4000-8000-000000002232');
@@ -504,7 +607,7 @@ SELECT pg_temp.refuses_at('G7b a close does not reach into a closed period',
 SELECT pg_temp.admits('G7c a close',
   $q$UPDATE public.gl_account_mappings SET effective_to = DATE '2026-03-01' WHERE id = '00000000-0000-4000-8000-000000002232'$q$);
 SELECT pg_temp.ok('G7d the close is stamped',
-  (SELECT closed_at = now() AND closed_by = '00000000-0000-4000-8000-0000000022b1'
+  (SELECT closed_at > created_at AND closed_at <= clock_timestamp() AND closed_by = '00000000-0000-4000-8000-0000000022b1'
      FROM public.gl_account_mappings WHERE id = '00000000-0000-4000-8000-000000002232'));
 SELECT pg_temp.refuses_at('G7e and happens once',
   $q$UPDATE public.gl_account_mappings SET effective_to = DATE '2026-04-01' WHERE id = '00000000-0000-4000-8000-000000002232'$q$,
@@ -538,7 +641,7 @@ SELECT pg_temp.refuses_at('G8b nor can the owner',
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b4', true);
 SELECT pg_temp.refuses_at('C15d after a close, the next period is the next to close: not March before February',
-  $q$SELECT public.close_accounting_period('00000000-0000-4000-8000-000000002213')$q$,
+  $q$SELECT public.close_accounting_period('00000000-0000-4000-8000-000000002214')$q$,
   '23514', 'close in order');
 SELECT pg_temp.admits('C16 February closes next', $q$SELECT public.close_accounting_period('00000000-0000-4000-8000-000000002212')$q$);
 RESET ROLE;
@@ -550,6 +653,15 @@ SELECT pg_temp.ok('C17 February opens at January''s closing balance, and the hea
 SELECT pg_temp.ok('C18 February''s closing balance is the ledger''s through February 28',
   (SELECT closing_balance FROM public.accounting_period_snapshots WHERE period_id = '00000000-0000-4000-8000-000000002212')
   = (SELECT sum(amount) FROM public.account_ledger WHERE tenant_id = '00000000-0000-4000-8000-0000000022a1' AND transaction_date <= DATE '2026-02-28'));
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b4', true);
+SELECT pg_temp.refuses_at('C19 a close refuses while a row it would freeze is recorded after its instant (W8''s "later" row, March 10)',
+  $q$SELECT public.close_accounting_period('00000000-0000-4000-8000-000000002214')$q$,
+  '23514', 'recorded after the close''s instant');
+SELECT pg_temp.refuses_at('P9e a closed period is not withdrawn',
+  $q$UPDATE public.accounting_periods SET status = 'withdrawn' WHERE id = '00000000-0000-4000-8000-000000002212'$q$,
+  '23001', 'never edited');
+RESET ROLE;
 
 
 -- ============================================================ I invariants
@@ -562,7 +674,7 @@ SELECT pg_temp.ok('I3 the application executes the close; the core and PUBLIC do
   has_function_privilege('tally_app', 'public.close_accounting_period(uuid,numeric,text)', 'EXECUTE')
   AND NOT has_function_privilege('tally_core', 'public.close_accounting_period(uuid,numeric,text)', 'EXECUTE')
   AND NOT has_function_privilege('public', 'public.close_accounting_period(uuid,numeric,text)', 'EXECUTE'));
-SELECT pg_temp.ok('I4 the new tables are under row security and the canonical policy',
+SELECT pg_temp.ok('I4 the new tables are under forced row security (their policies: I5)',
   (SELECT bool_and(c.relrowsecurity AND c.relforcerowsecurity) FROM pg_class c
     WHERE c.oid IN ('public.accounting_close_heads'::regclass, 'public.accounting_periods'::regclass, 'public.accounting_period_snapshots'::regclass,
                     'public.accounting_period_snapshot_lines'::regclass, 'public.gl_account_mappings'::regclass)));
