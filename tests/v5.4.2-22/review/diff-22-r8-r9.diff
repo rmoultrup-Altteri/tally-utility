@@ -1,0 +1,39 @@
+--- patch-22-frozen-r8.sql	2026-10-16 14:33:25
++++ patch-22-frozen-r9.sql	2026-10-16 15:25:22
+@@ -99,6 +99,13 @@
+ --   UPDATE (Fable S1, Opus N); one UPDATE of tenants that changes the edges
+ --   and names slug can deadlock by itself (Opus S1).
+ --
++-- Revision r9 (review round 8: Opus and Fable "ready", nothing to fix; Ryan
++--   asked that the notes be fixed before the mirror): comments only. The
++--   head's list names the lock modes right (a bare SELECT in any FOR mode,
++--   not "FOR UPDATE by ... FOR NO KEY UPDATE"), says tally_void's grant is
++--   a privilege no session uses, and says a DELETE of a users or tenant row
++--   is the owner's and refused (Opus N1-N3, Fable N1).
++--
+ -- ----------------------------------------------------------------------------
+ -- What changes
+ -- ----------------------------------------------------------------------------
+@@ -239,14 +246,16 @@
+ --   r8 (Opus S2, Fable N1, round 7): no list of shapes is promised
+ --   complete; every writer retries 40P01. What takes the rows:
+ --   - the head: FOR SHARE by every money write, GL mapping write and edges
+---     change; FOR UPDATE by a close, and by a bare SELECT ... FOR UPDATE or
+---     FOR NO KEY UPDATE from tally_app or tally_void (a column UPDATE grant
+---     is enough);
++--     change; FOR UPDATE by a close. tally_app may also lock it by a bare
++--     SELECT in any FOR mode (its UPDATE grant on one column is enough;
++--     r9). tally_void holds such a grant too, but it cannot log in and runs
++--     only inside the void;
+ --   - the period: FOR UPDATE by a withdrawal; any SELECT ... FOR mode from
+ --     tally_app (it has UPDATE on status);
+---   - a users or tenant row FOR UPDATE: SELECT ... FOR UPDATE, a DELETE, or
+---     an UPDATE whose SET names a column under a unique index, changed or
+---     not (users: id, tenant_id, cognito_sub; tenants: id, slug).
++--   - a users or tenant row FOR UPDATE: SELECT ... FOR UPDATE, or an UPDATE
++--     whose SET names a column under a unique index, changed or not (users:
++--     id, tenant_id, cognito_sub; tenants: id, slug). Only the owner may
++--     DELETE them, and the delete is refused.
+ --   Shapes, each executed in review: a write then a close (CR16); the tenant
+ --   row then a money write (CR17); the closing user's row then a GL mapping
+ --   write (CR18); the period row FOR SHARE then a money write (CR19); the
