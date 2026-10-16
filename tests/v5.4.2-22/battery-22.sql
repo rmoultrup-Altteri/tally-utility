@@ -370,6 +370,20 @@ SELECT pg_temp.refuses_at('R4 with the opposite sign',
 SELECT pg_temp.admits('R5 a recovery of 30 of the 50',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-10', 'write_off_recovery', 'r', 30, '00000000-0000-4000-8000-0000000022e4', 'agency paid')$q$);
+-- r7 (mutation M71 was caught at R10f or R12h, run to run): rows of one date
+-- are netted together. Here no order of the two same-date rows keeps every
+-- partial sum inside 0 to 100 (150 first, or -50 first), while together they
+-- net 100: a row-by-row net is refused whatever order the rows come in.
+SELECT pg_temp.refuses_at('R5b rows of one date net together: +150 and its -50 reversal on one date make 100 of 100 (rolled back by a sentinel)',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
+       ('00000000-0000-4000-8000-000000002281', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100);
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+       ('00000000-0000-4000-8000-000000002282', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'over', 150, '00000000-0000-4000-8000-000000002281', 'paid'),
+       ('00000000-0000-4000-8000-000000002283', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'adjustment', 'over by 50', -50, '00000000-0000-4000-8000-000000002282', 'corrected');
+     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R5b sentinel: admitted';
+   END $d$$q$,
+  'P0001', 'R5b sentinel');
 SELECT pg_temp.refuses_at('R6 recoveries never exceed the write-off',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-11', 'write_off_recovery', 'r', 20.01, '00000000-0000-4000-8000-0000000022e4', 'more')$q$,
@@ -617,8 +631,11 @@ SELECT pg_temp.admits('R12h on one date, a recovery, its reversal and a new reco
      IF SQLERRM <> 'R12h sentinel' THEN RAISE; END IF;
    END $d$$q$);
 -- r6 (Opus N1): a row stamped at its transaction's start, recorded before a
--- row already in the tree, is a writer that began earlier: it retries.
-SELECT pg_temp.refuses_at('R12i a row stamped at its transaction''s start, before a row already in its tree, is refused for retry (40001)',
+-- row already in the tree, gets 40001. r7 (Opus S2): one transaction cannot
+-- show a retry succeed — here the later row is its own write-off, recorded at
+-- clock_timestamp(), so a retry meets it again (R12). CR15 shows a retry
+-- succeed across two transactions.
+SELECT pg_temp.refuses_at('R12i a row stamped at its transaction''s start, before a row already in its tree, gets 40001 (the retry signal; CR15 shows the retry)',
   $q$DO $d$ BEGIN
      INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, created_at) VALUES
        ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, clock_timestamp());

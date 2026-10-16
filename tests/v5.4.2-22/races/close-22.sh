@@ -40,9 +40,14 @@
 #        aborted by a deadlock, the other commits.
 #   CR18 (r6) As CR17 with the closing user's users row (closed_by) and a GL
 #        mapping write, on a second tenant.
+#   CR19 (r7) A holds the period FOR SHARE (as tally_app); B closes it and
+#        waits on it; A posts money: one is aborted by a deadlock.
+#   CR20 (r7) A holds the tenant row FOR UPDATE; B closes (a period with
+#        activity, so it writes lines) and waits on it; A locks the closing
+#        user's row: one is aborted by a deadlock. No head on A's side.
 # Every two() leg (CR1, CR2, CR5, CR6, CR9, CR11-CR14) checks that session B
 # ITSELF was SEEN BLOCKED BY SESSION A (pg_blocking_pids, polled while A
-# holds). CR3, CR15 and CR16-CR18 order their sessions by barriers: a
+# holds). CR3, CR15 and CR16-CR20 order their sessions by barriers: a
 # session names its step in application_name and the other polls
 # pg_stat_activity for it, or for a session it blocks. Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -435,5 +440,77 @@ BPID=$!
 wait $APID; AST=$?
 wait $BPID; BST=$?
 deadlock "CR18 the closing user's row held FOR UPDATE, then a GL mapping write, against a close: one is aborted"
+
+# CR19, CR20: one tenant each, a closable January with a ledger row in it.
+newtenant() {  # $1 tenant, $2 operator, $3 supervisor, $4 customer, $5 slug
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: tenant $5"; exit 2; }
+INSERT INTO public.tenants (id, name, slug) VALUES ('$1', '$5', '$5');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('$2', '$1', 'Op', 'op@$5.test', 'operator'),
+  ('$3', '$1', 'Sup', 'sup@$5.test', 'tenant_admin');
+INSERT INTO public.customers (id, tenant_id, customer_number) VALUES ('$4', '$1', '$5-C');
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES ('$1', '$4', DATE '2026-01-05', 'charge', 'Jan', 10.00);
+INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$1', DATE '2026-01-01', DATE '2026-01-31');
+SQL
+}
+
+# CR19
+T4=00000000-0000-4000-8000-0000000022d0; OP4=00000000-0000-4000-8000-0000000022d2
+SUP4=00000000-0000-4000-8000-0000000022d3; C4=00000000-0000-4000-8000-0000000022d4
+newtenant "$T4" "$OP4" "$SUP4" "$C4" race22-four
+P4=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T4'")
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race22_a';
+BEGIN;
+SET LOCAL app.user_id = '$OP4'; SET ROLE tally_app;
+SELECT 1 FROM public.accounting_periods WHERE id = '$P4' FOR SHARE;
+RESET ROLE;
+$(signal race22_a_locked4)
+$(await_blocked)
+SET ROLE tally_app;
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES ('$T4', '$C4', DATE '2026-01-20', 'adjustment', 'CR19 after the period row', 1.00);
+COMMIT;
+SQL
+APID=$!
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+$(await_app race22_a_locked4)
+SET application_name = 'race22_b';
+BEGIN;
+SET LOCAL app.user_id = '$SUP4'; SET ROLE tally_app;
+SELECT public.close_accounting_period('$P4');
+COMMIT;
+SQL
+BPID=$!
+wait $APID; AST=$?
+wait $BPID; BST=$?
+deadlock "CR19 the period row held FOR SHARE by the application, then a money write, against a close: one is aborted"
+
+# CR20
+T5=00000000-0000-4000-8000-0000000022c0; OP5=00000000-0000-4000-8000-0000000022c2
+SUP5=00000000-0000-4000-8000-0000000022c3; C5=00000000-0000-4000-8000-0000000022c4
+newtenant "$T5" "$OP5" "$SUP5" "$C5" race22-five
+P5=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T5'")
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race22_a';
+BEGIN;
+SELECT 1 FROM public.tenants WHERE id = '$T5' FOR UPDATE;
+$(signal race22_a_locked5)
+$(await_blocked)
+SELECT 1 FROM public.users WHERE id = '$SUP5' FOR UPDATE;
+COMMIT;
+SQL
+APID=$!
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+$(await_app race22_a_locked5)
+SET application_name = 'race22_b';
+BEGIN;
+SET LOCAL app.user_id = '$SUP5'; SET ROLE tally_app;
+SELECT public.close_accounting_period('$P5');
+COMMIT;
+SQL
+BPID=$!
+wait $APID; AST=$?
+wait $BPID; BST=$?
+deadlock "CR20 the tenant row, then the closing user's row, against a close: one is aborted (no head on that side)"
 
 exit $fail
