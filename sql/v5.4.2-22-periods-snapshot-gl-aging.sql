@@ -26,6 +26,20 @@
 --   setting (Codex S4); the invariant pins the constraints and the ledger's
 --   immutability (Opus S3, Codex S3, Fable S5).
 --
+-- Revision r3 (review round 2: Opus and Codex "not yet", Fable "ready";
+--   tests/v5.4.2-22/review/review-findings-22-r2.md): the write-off rule
+--   runs after the insert, so a row naming a write-off listed later in the
+--   same statement is caught (Codex B1, Opus B1a), and the cap is on the net
+--   of the write-off's whole same-customer tree, between 0 and the amount
+--   written off, so a row naming a recovery is counted and a reversed
+--   recovery frees the cap again (Opus B1b, Fable S1); the lineage walk
+--   fails closed past 1000 entries (Codex B2); the close takes its aging
+--   edges from the tenant's row, not the app-written history (Opus S1); a
+--   withdrawal names its user (Opus S2); the invariant pins the history's
+--   known-key CHECK and the ledger's lineage constraints (Codex S2, Fable N3,
+--   Opus N4); comments and messages corrected (Codex S1, Opus N2/N3, Fable
+--   N1/N7).
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -60,7 +74,8 @@
 --     bucket), append-only, written only by the close. The figures are
 --     computed by the close from the ledger at one recorded instant
 --     (recorded_at), not passed in: opening balance, activity, closing
---     balance, entry count, aging at the period's last day.
+--     balance, entry count, aging at the period's last day by the edges on
+--     the tenant's row at that instant (r3), stored with it.
 --   * Reproducible: receivables_aging_as_of(tenant, period_end, recorded_at,
 --     aging_bucket_days) and the ledger sums at (dates, recorded_at) return
 --     the snapshot's figures afterwards, because nothing dated on or before
@@ -101,10 +116,12 @@
 --     passed explicitly.
 --   * tenants.write_off_threshold_days (r2; W3): recorded, NULL when unset.
 --   * account_ledger.transaction_type gains write_off_recovery: it names the
---     write_off it recovers (same tenant and customer), with a reason, has
---     the opposite sign, and recoveries never exceed the write-off (R-02's
---     cap; serialised on the write-off, READ COMMITTED only). Any row that
---     names a write_off is a write_off_recovery (r2), so the cap counts all.
+--     write_off it recovers (same tenant and customer), with a reason, and
+--     has the opposite sign. Any row that names a write_off is a
+--     write_off_recovery (r2). R-02's cap (r3): everything aging nets into a
+--     write-off — its whole same-customer tree, any depth and type — nets
+--     to between 0 and the amount written off; checked after the statement's
+--     rows are all in, serialised on the write-off, READ COMMITTED only.
 --
 --   The seal
 --   * tally_close owns close_accounting_period(): NOLOGIN, no BYPASSRLS, no
@@ -131,6 +148,13 @@
 --   COMMITTED only, behind an advisory lock (tenant's period chain; the
 --   recovered write-off).
 --   Shared locks on one row per tenant: writers never wait for each other.
+--   A row under a write-off takes the advisory lock of each write-off above
+--   it, in id order, after its tenant's head (r3).
+--   A withdrawal locks the period row, then (should its transaction go on to
+--   post money) the head FOR SHARE — the reverse of the close. A withdrawal
+--   and a money write in one transaction, against a close of that period,
+--   can deadlock; PostgreSQL aborts one side and nothing is written by it
+--   (Opus N1, r3). Withdraw in a transaction of its own.
 --
 -- ----------------------------------------------------------------------------
 -- Residuals (left on purpose)
@@ -152,11 +176,18 @@
 --   R7. A GL mapping's places are not checked for their kind (a territory
 --       place could be any place).
 --   R8. The general reversal rules (every reversal names its entry,
---       opposite sign, capped) are -23's (X); -22 binds the reversals of a
---       write-off only, and forbids loops for every reversal.
+--       opposite sign, capped) are -23's (X); -22 caps the net of a
+--       write-off's tree only, and forbids loops and chains past 1000
+--       entries for every reversal.
 --   R9. A tenant with no aging setting recorded at the instant cannot be
 --       aged (raises); tenants that existed before -22 get theirs at the
 --       patch's time, so aging recorded before it is unknowable.
+--  R10. The configuration history accepts 'manual' and 'backfill' rows with
+--       a chosen effective_from (the base design, every key). The
+--       three-argument aging and receivables_aging_bucket_days_as_of() read
+--       that history, so such a row changes what they return for an earlier
+--       instant. The close does not read it (r3), and a snapshot is
+--       reproduced with its stored edges.
 --
 -- Tests. battery-22 (one row per requirement), races/close-22.sh,
 --   mutations-22.py.
@@ -369,6 +400,12 @@ BEGIN
         END IF;
         NEW.withdrawn_at := pg_catalog.clock_timestamp();
         NEW.withdrawn_by := nullif(pg_catalog.current_setting('app.user_id', true), '')::uuid;
+        -- r3 (Opus S2): a withdrawal names who made it.
+        IF NEW.withdrawn_by IS NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('accounting period %s: a withdrawal names its user (app.user_id) (v5.4.2-22)', OLD.id),
+                ERRCODE = 'not_null_violation';
+        END IF;
         RETURN NEW;
     END IF;
     RAISE EXCEPTION USING
@@ -377,7 +414,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_accounting_period() IS
-    'v5.4.2-22 (P1). INSERT: at READ COMMITTED, behind the tenant''s period-chain advisory lock; born open; starts the day after the tenant''s latest period (no gaps; EXCLUDE refuses overlaps); created_at and created_by stamped. UPDATE: only the close (status open -> closed with closed_at and closed_by, nothing else) by tally_close; or a withdrawal (r2): status open -> withdrawn, nothing else, of the tenant''s latest non-withdrawn period, at READ COMMITTED behind the same lock, withdrawn_at and withdrawn_by stamped. Never deleted or truncated.';
+    'v5.4.2-22 (P1). INSERT: at READ COMMITTED, behind the tenant''s period-chain advisory lock; born open; starts the day after the tenant''s latest period (no gaps; EXCLUDE refuses overlaps); created_at and created_by stamped. UPDATE: only the close (status open -> closed with closed_at and closed_by, nothing else) by tally_close; or a withdrawal (r2): status open -> withdrawn, nothing else, of the tenant''s latest non-withdrawn period, at READ COMMITTED behind the same lock, withdrawn_at and withdrawn_by stamped (app.user_id required, r3). Never deleted or truncated.';
 CREATE TRIGGER enforce_accounting_period BEFORE INSERT OR DELETE OR UPDATE ON public.accounting_periods
     FOR EACH ROW EXECUTE FUNCTION public.enforce_accounting_period();
 ALTER TABLE public.accounting_periods ENABLE ALWAYS TRIGGER enforce_accounting_period;
@@ -476,91 +513,124 @@ ALTER TABLE public.account_ledger ADD CONSTRAINT account_ledger_recovery_lineage
     CHECK (transaction_type <> 'write_off_recovery'::text
            OR (reverses_ledger_entry_id IS NOT NULL AND COALESCE(reversal_reason ~ '[[:alnum:]]'::text, false)));
 
+-- r3 (Codex B1, Opus B1, Fable S1): the rule runs AFTER INSERT, so it sees
+-- every row of the statement whatever their order (a row naming a write-off
+-- listed after it), and the cap is on the net of everything aging nets into
+-- the write-off — its whole same-customer tree, at any depth, any type —
+-- not on the recoveries alone.
 CREATE OR REPLACE FUNCTION public.enforce_write_off_recovery() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_wo        public.account_ledger%ROWTYPE;
-    v_recovered numeric;
+    v_parent public.account_ledger%ROWTYPE;
+    v_wo     public.account_ledger%ROWTYPE;
+    v_net    numeric;
+    c_max    CONSTANT integer := 1000;
 BEGIN
-    -- Naming nothing: a recovery is refused by account_ledger_recovery_lineage_check
-    -- after this trigger; anything else is not this trigger's.
-    IF NEW.reverses_ledger_entry_id IS NULL THEN
-        RETURN NEW;
-    END IF;
-    -- r2 (Opus B2, Fable S2): a row that names a write_off is its recovery,
-    -- so the cap below counts every reversal of a write-off.
-    IF NEW.transaction_type <> 'write_off_recovery' THEN
-        IF EXISTS (SELECT 1 FROM public.account_ledger l
-                    WHERE l.id = NEW.reverses_ledger_entry_id AND l.transaction_type = 'write_off') THEN
+    SELECT * INTO v_parent FROM public.account_ledger l WHERE l.id = NEW.reverses_ledger_entry_id;
+    IF NEW.transaction_type = 'write_off_recovery' THEN
+        IF NOT FOUND OR v_parent.transaction_type <> 'write_off'
+           OR v_parent.tenant_id <> NEW.tenant_id OR v_parent.customer_id <> NEW.customer_id THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('a %s names write-off %s: only a write_off_recovery names a write-off, so the cap counts it (R-02, v5.4.2-22)', NEW.transaction_type, NEW.reverses_ledger_entry_id),
+                MESSAGE = format('a write-off recovery names a write_off entry of its own customer; %s is not one (R-02, v5.4.2-22)', NEW.reverses_ledger_entry_id),
+                ERRCODE = 'foreign_key_violation';
+        END IF;
+        IF NOT (v_parent.amount < 0 AND NEW.amount > 0) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a write-off recovery has the opposite sign of its write-off: %s against %s (R-02, v5.4.2-22)', NEW.amount, v_parent.amount),
                 ERRCODE = 'check_violation';
         END IF;
-        RETURN NEW;
-    END IF;
-    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    ELSIF FOUND AND v_parent.transaction_type = 'write_off' THEN
+        -- r2 (Opus B2, Fable S2): only a recovery names a write-off directly.
         RAISE EXCEPTION USING
-            MESSAGE = format('a write-off recovery is posted at READ COMMITTED (this transaction is %s): the cap must see every recovery committed while it waited (R-02, v5.4.2-22)', pg_catalog.current_setting('transaction_isolation')),
-            ERRCODE = 'invalid_transaction_state';
-    END IF;
-    PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || NEW.reverses_ledger_entry_id::text, 0));
-    SELECT * INTO v_wo FROM public.account_ledger l WHERE l.id = NEW.reverses_ledger_entry_id;
-    IF NOT FOUND OR v_wo.transaction_type <> 'write_off'
-       OR v_wo.tenant_id <> NEW.tenant_id OR v_wo.customer_id <> NEW.customer_id THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('a write-off recovery names a write_off entry of its own customer; %s is not one (R-02, v5.4.2-22)', NEW.reverses_ledger_entry_id),
-            ERRCODE = 'foreign_key_violation';
-    END IF;
-    IF NOT (v_wo.amount < 0 AND NEW.amount > 0) THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('a write-off recovery has the opposite sign of its write-off: %s against %s (R-02, v5.4.2-22)', NEW.amount, v_wo.amount),
+            MESSAGE = format('a row of type %s names write-off %s: only a write_off_recovery names a write-off, so the cap counts it (R-02, v5.4.2-22)', NEW.transaction_type, NEW.reverses_ledger_entry_id),
             ERRCODE = 'check_violation';
     END IF;
-    SELECT coalesce(sum(l.amount), 0) INTO v_recovered
-      FROM public.account_ledger l
-     WHERE l.reverses_ledger_entry_id = v_wo.id AND l.transaction_type = 'write_off_recovery';
-    IF v_recovered + NEW.amount > -v_wo.amount THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('write-off %s: recoveries of %s would exceed the %s written off (R-02 cap, v5.4.2-22)', v_wo.id, v_recovered + NEW.amount, -v_wo.amount),
-            ERRCODE = 'check_violation';
-    END IF;
-    RETURN NEW;
+    -- The cap, for every write-off above the new row within its customer
+    -- (aging nets a reversal only within its customer), locked in id order.
+    FOR v_wo IN
+        WITH RECURSIVE up(id, depth) AS (
+            SELECT NEW.reverses_ledger_entry_id, 1
+            UNION ALL
+            SELECT l.reverses_ledger_entry_id, u.depth + 1
+              FROM up u JOIN public.account_ledger l ON l.id = u.id
+             WHERE l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id AND u.depth < c_max
+        )
+        SELECT l.* FROM up u JOIN public.account_ledger l ON l.id = u.id
+         WHERE l.transaction_type = 'write_off' AND l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id
+         ORDER BY l.id
+    LOOP
+        IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a row under write-off %s is posted at READ COMMITTED (this transaction is %s): the cap must see every row committed while it waited (R-02, v5.4.2-22)', v_wo.id, pg_catalog.current_setting('transaction_isolation')),
+                ERRCODE = 'invalid_transaction_state';
+        END IF;
+        PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo.id::text, 0));
+        WITH RECURSIVE down(id) AS (
+            SELECT l.id FROM public.account_ledger l
+             WHERE l.reverses_ledger_entry_id = v_wo.id AND l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id
+            UNION
+            SELECT l.id FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id
+             WHERE l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id
+        )
+        SELECT coalesce(sum(l.amount), 0) INTO v_net FROM down d JOIN public.account_ledger l ON l.id = d.id;
+        IF v_net < 0 OR v_net > -v_wo.amount THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('write-off %s: the rows netted against it would come to %s, outside 0 to the %s written off (R-02 cap, v5.4.2-22)', v_wo.id, v_net, -v_wo.amount),
+                ERRCODE = 'check_violation';
+        END IF;
+    END LOOP;
+    RETURN NULL;
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_write_off_recovery() IS
-    'v5.4.2-22 (W3; R-02). BEFORE INSERT on account_ledger. A row naming a write_off must be a write_off_recovery (r2). A write_off_recovery: at READ COMMITTED, behind an advisory lock on the write-off, names a write_off of the same tenant and customer, is positive against a negative write-off, and the recoveries never exceed it.';
-CREATE TRIGGER a_enforce_write_off_recovery BEFORE INSERT ON public.account_ledger
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_write_off_recovery();
-ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER a_enforce_write_off_recovery;
+    'v5.4.2-22 (W3; R-02), r3. AFTER INSERT on account_ledger, for a row naming an entry, after the lineage walk: every row of the statement is visible. A row naming a write_off directly is a write_off_recovery; a write_off_recovery names a write_off of its own tenant and customer, positive against a negative write-off. For every write_off above the new row within its customer, at READ COMMITTED behind an advisory lock on that write-off (taken in id order), the net of its whole same-customer tree stays between 0 and the amount written off.';
+CREATE TRIGGER enforce_write_off_recovery AFTER INSERT ON public.account_ledger
+    FOR EACH ROW WHEN (NEW.reverses_ledger_entry_id IS NOT NULL) EXECUTE FUNCTION public.enforce_write_off_recovery();
+ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_write_off_recovery;
 
 -- r2 (Fable B1, Codex B3): lineage never loops. Two rows of one statement
 -- may name each other (the FK is checked at the statement's end); the walk
--- runs after the row is in, so it sees its siblings.
+-- runs after the row is in, so it sees its siblings. r3 (Codex B2): the walk
+-- fails closed — a chain that has not reached its original within the bound
+-- (longer, or entering a loop the new row is not on) is refused.
+-- AFTER triggers on one event fire by name: this walk precedes the cap.
 CREATE OR REPLACE FUNCTION public.enforce_ledger_lineage_acyclic() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
+DECLARE
+    c_max  CONSTANT integer := 1000;
+    v_loop boolean;
+    v_long boolean;
 BEGIN
-    IF EXISTS (
-        WITH RECURSIVE up(id, depth) AS (
-            SELECT l.reverses_ledger_entry_id, 1 FROM public.account_ledger l WHERE l.id = NEW.id
-            UNION ALL
-            SELECT l.reverses_ledger_entry_id, u.depth + 1
-              FROM up u JOIN public.account_ledger l ON l.id = u.id
-             WHERE u.id <> NEW.id AND u.depth < 10000
-        )
-        SELECT 1 FROM up WHERE up.id = NEW.id) THEN
+    WITH RECURSIVE up(id, depth) AS (
+        SELECT NEW.reverses_ledger_entry_id, 1
+        UNION ALL
+        SELECT l.reverses_ledger_entry_id, u.depth + 1
+          FROM up u JOIN public.account_ledger l ON l.id = u.id
+         WHERE u.id <> NEW.id AND u.depth < c_max
+    )
+    SELECT coalesce(bool_or(up.id = NEW.id), false),
+           coalesce(bool_or(up.depth = c_max AND up.id IS NOT NULL AND up.id <> NEW.id), false)
+      INTO v_loop, v_long
+      FROM up;
+    IF v_loop THEN
         RAISE EXCEPTION USING
             MESSAGE = format('account_ledger %s: its reversal chain returns to itself; a reversal names an earlier entry (R-02, v5.4.2-22)', NEW.id),
+            ERRCODE = 'check_violation';
+    END IF;
+    IF v_long THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('account_ledger %s: its reversal chain does not reach an original within %s entries (too long, or a loop); a reversal names an earlier entry (R-02, v5.4.2-22)', NEW.id, c_max),
             ERRCODE = 'check_violation';
     END IF;
     RETURN NULL;
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_ledger_lineage_acyclic() IS
-    'v5.4.2-22 r2. AFTER INSERT on account_ledger, for a row naming an entry: walks the chain of reverses_ledger_entry_id up from the new row and refuses it if the chain comes back to it (two rows of one statement naming each other). A cycle has no original, so aging could not place its amount.';
+    'v5.4.2-22 r2, r3. AFTER INSERT on account_ledger, for a row naming an entry: walks the chain of reverses_ledger_entry_id up from the new row and refuses it if the chain comes back to it (rows of one statement naming each other), or (r3) does not reach an original within 1000 entries — a longer chain, or one entering a loop. A cycle has no original, so aging could not place its amount. Fires before enforce_write_off_recovery (trigger name order).';
 CREATE TRIGGER enforce_ledger_lineage_acyclic AFTER INSERT ON public.account_ledger
     FOR EACH ROW WHEN (NEW.reverses_ledger_entry_id IS NOT NULL) EXECUTE FUNCTION public.enforce_ledger_lineage_acyclic();
 ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_lineage_acyclic;
@@ -927,7 +997,7 @@ BEGIN
     END LOOP;
 END $$;
 COMMENT ON TABLE public.accounting_period_snapshots IS
-    'v5.4.2-22 (D-2, S1). The figures of a closed period as reported at its close, so a prior period''s number never changes. Written only by close_accounting_period(), append-only. recorded_at is the close''s instant: the ledger dated in the period and created by recorded_at is the period, and receivables_aging_as_of(tenant, period_end, recorded_at) reproduces the aging lines. closing_balance = opening_balance + the activity lines. unbilled_revenue is the core''s estimate with its basis, a reported figure and never a ledger row (D-2 clarification 1); NULL when none was reported.';
+    'v5.4.2-22 (D-2, S1). The figures of a closed period as reported at its close, so a prior period''s number never changes. Written only by close_accounting_period(), append-only. recorded_at is the close''s instant: the ledger dated in the period and created by recorded_at is the period, and receivables_aging_as_of(tenant, period_end, recorded_at, aging_bucket_days) — with the snapshot''s own stored edges (r3) — reproduces the aging lines. closing_balance = opening_balance + the activity lines. unbilled_revenue is the core''s estimate with its basis, a reported figure and never a ledger row (D-2 clarification 1); NULL when none was reported.';
 COMMENT ON TABLE public.accounting_period_snapshot_lines IS
     'v5.4.2-22 (S1). A snapshot''s lines. activity: one per ledger transaction_type dated in the period (amount, entry_count). aging: the tenant''s receivables on period_end by bucket — code ''0-30'', ''31-60'', ..., ''121+'' (from the snapshot''s aging_bucket_days), and ''credit_balance'' for customers owed money (entry_count = customers). Append-only, written only by the close.';
 
@@ -1010,6 +1080,11 @@ BEGIN
         RAISE EXCEPTION USING MESSAGE = format('tenant %s has no close head (v5.4.2-22)', v_tenant), ERRCODE = 'no_data_found';
     END IF;
     SELECT * INTO v_p FROM public.accounting_periods p WHERE p.id = p_period_id FOR UPDATE;
+    IF v_p.status = 'withdrawn' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('accounting period %s (%s to %s) is withdrawn; a withdrawn period never closes or returns (v5.4.2-22)', v_p.id, v_p.period_start, v_p.period_end),
+            ERRCODE = 'check_violation';
+    END IF;
     IF v_p.status <> 'open' THEN
         RAISE EXCEPTION USING
             MESSAGE = format('accounting period %s (%s to %s) is already closed; a closed period never reopens (v5.4.2-22)', v_p.id, v_p.period_start, v_p.period_end),
@@ -1033,7 +1108,10 @@ BEGIN
     -- be dated on or before period_end has committed (or waits, and will be
     -- refused).
     v_at := pg_catalog.clock_timestamp();
-    v_edges := public.receivables_aging_bucket_days_as_of(v_tenant, v_at);
+    -- r3 (Opus S1): the tenant's setting itself, at the close's instant —
+    -- not the configuration history, which the application writes and may
+    -- date. The snapshot stores the edges it used.
+    SELECT t.receivables_aging_bucket_days INTO v_edges FROM public.tenants t WHERE t.id = v_tenant;
     IF v_edges IS NULL THEN
         RAISE EXCEPTION USING MESSAGE = format('tenant %s has no aging bucket setting (v5.4.2-22)', v_tenant), ERRCODE = 'no_data_found';
     END IF;
@@ -1083,17 +1161,18 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.close_accounting_period(uuid, numeric, text) IS
-    'v5.4.2-22 (D-2; P3, S2). Closes an accounting period — the only way. At READ COMMITTED, by a supervisor (app.user_id): locks the tenant''s close head, then the period; refuses a closed period, one whose last day has not ended everywhere (UTC-12), and one that is not next in order. At one recorded instant taken after the lock it writes the snapshot (opening and closing balance, entry count, activity by ledger type, aging on period_end by the tenant''s buckets, the unbilled-revenue figure and basis if reported), moves closed_through to period_end and closes the period with closed_at = that instant. Refuses while a row dated on or before period_end is recorded after the instant (r2). Returns the instant. Runs as tally_close (SECURITY DEFINER, subject to RLS): a period the caller cannot see is "not found".';
+    'v5.4.2-22 (D-2; P3, S2). Closes an accounting period — the only way. At READ COMMITTED, by a supervisor (app.user_id): locks the tenant''s close head, then the period; refuses a closed period, one whose last day has not ended everywhere (UTC-12), and one that is not next in order. At one recorded instant taken after the lock it writes the snapshot (opening and closing balance, entry count, activity by ledger type, aging on period_end by the tenant''s buckets as its row holds them at that instant (r3), the unbilled-revenue figure and basis if reported), moves closed_through to period_end and closes the period with closed_at = that instant. Refuses while a row dated on or before period_end is recorded after the instant (r2). Returns the instant. Runs as tally_close (SECURITY DEFINER, subject to RLS): a period the caller cannot see is "not found".';
 ALTER FUNCTION public.close_accounting_period(uuid, numeric, text) OWNER TO tally_close;
 REVOKE ALL ON FUNCTION public.close_accounting_period(uuid, numeric, text) FROM PUBLIC, tally_core;
 GRANT EXECUTE ON FUNCTION public.close_accounting_period(uuid, numeric, text) TO tally_app;
 
 -- What the close reads, and nothing more.
-GRANT SELECT ON public.account_ledger, public.customer_state_events, public.tenant_configuration_history TO tally_close;
+GRANT SELECT ON public.account_ledger, public.customer_state_events TO tally_close;
+GRANT SELECT (id, receivables_aging_bucket_days) ON public.tenants TO tally_close;
 GRANT SELECT (id, customer_number) ON public.customers TO tally_close;
 GRANT SELECT (id, tenant_id, role) ON public.users TO tally_close;
 GRANT EXECUTE ON FUNCTION public.session_is_supervisor(), public.receivables_aging_as_of(uuid, date, timestamp with time zone, integer[]),
-    public.receivables_aging_bucket_days_as_of(uuid, timestamp with time zone), public.aging_bucket_days_valid(integer[]) TO tally_close;
+    public.aging_bucket_days_valid(integer[]) TO tally_close;
 
 
 -- ----------------------------------------------------------------------------
@@ -1324,7 +1403,7 @@ DECLARE
     c_grants CONSTANT jsonb := jsonb_build_object(
         'tally_seal', '["column public.rate_items.updated_at UPDATE", "column public.rate_items.version UPDATE", "column public.rate_schedules.updated_at UPDATE", "column public.rate_schedules.version UPDATE", "column public.wna_zones.updated_at UPDATE", "column public.wna_zones.version UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.rate_items SELECT", "table public.rate_schedules SELECT", "table public.reference_version_receipts INSERT", "table public.reference_version_receipts SELECT", "table public.wna_zones SELECT"]'::jsonb,
         'tally_void', '["column public.accounting_close_heads.updated_at UPDATE", "column public.adhoc_charges.billed_at UPDATE", "column public.adhoc_charges.billed_on_invoice_id UPDATE", "column public.adhoc_charges.billed_on_line_item_id UPDATE", "column public.adhoc_charges.status UPDATE", "column public.adhoc_charges.target_billing_period UPDATE", "column public.adhoc_charges.updated_at UPDATE", "column public.adhoc_charges.voided_from_invoice_id UPDATE", "column public.invoices.status UPDATE", "column public.invoices.updated_at UPDATE", "column public.invoices.void_reason_code UPDATE", "column public.invoices.void_reason_notes UPDATE", "column public.invoices.void_rebill_expected UPDATE", "column public.invoices.voided_at UPDATE", "column public.invoices.voided_by UPDATE", "column public.meter_readings.locked_by_invoice_id UPDATE", "column public.meter_readings.validation_status UPDATE", "column public.meter_readings.voided_from_invoice_id UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.account_ledger INSERT", "table public.account_ledger SELECT", "table public.accounting_close_heads SELECT", "table public.adhoc_charges SELECT", "table public.invoice_events INSERT", "table public.invoices SELECT", "table public.meter_readings SELECT"]'::jsonb,
-        'tally_close', '["column public.accounting_close_heads.closed_through UPDATE", "column public.accounting_close_heads.updated_at UPDATE", "column public.accounting_periods.closed_at UPDATE", "column public.accounting_periods.closed_by UPDATE", "column public.accounting_periods.status UPDATE", "column public.customers.customer_number SELECT", "column public.customers.id SELECT", "column public.users.id SELECT", "column public.users.role SELECT", "column public.users.tenant_id SELECT", "function public.aging_bucket_days_valid(p_days integer[]) EXECUTE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "function public.receivables_aging_as_of(p_tenant_id uuid, p_on date, p_recorded_at timestamp with time zone, p_bucket_days integer[]) EXECUTE", "function public.receivables_aging_bucket_days_as_of(p_tenant_id uuid, p_at timestamp with time zone) EXECUTE", "function public.session_is_supervisor() EXECUTE", "schema public USAGE", "table public.account_ledger SELECT", "table public.accounting_close_heads SELECT", "table public.accounting_period_snapshot_lines INSERT", "table public.accounting_period_snapshots INSERT", "table public.accounting_periods SELECT", "table public.customer_state_events SELECT", "table public.tenant_configuration_history SELECT"]'::jsonb);
+        'tally_close', '["column public.accounting_close_heads.closed_through UPDATE", "column public.accounting_close_heads.updated_at UPDATE", "column public.accounting_periods.closed_at UPDATE", "column public.accounting_periods.closed_by UPDATE", "column public.accounting_periods.status UPDATE", "column public.customers.customer_number SELECT", "column public.customers.id SELECT", "column public.tenants.id SELECT", "column public.tenants.receivables_aging_bucket_days SELECT", "column public.users.id SELECT", "column public.users.role SELECT", "column public.users.tenant_id SELECT", "function public.aging_bucket_days_valid(p_days integer[]) EXECUTE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "function public.receivables_aging_as_of(p_tenant_id uuid, p_on date, p_recorded_at timestamp with time zone, p_bucket_days integer[]) EXECUTE", "function public.session_is_supervisor() EXECUTE", "schema public USAGE", "table public.account_ledger SELECT", "table public.accounting_close_heads SELECT", "table public.accounting_period_snapshot_lines INSERT", "table public.accounting_period_snapshots INSERT", "table public.accounting_periods SELECT", "table public.customer_state_events SELECT"]'::jsonb);
     -- Every guard of the three seals, by its exact definition, enabled
     -- ALWAYS (D-2026-08-20-27: a replication apply does not skip it). r3
     -- (Opus S2): with the version tables' bitemporal guards, which freeze a
@@ -1485,6 +1564,7 @@ BEGIN
        OR has_column_privilege('tally_core', 'public.accounting_close_heads', 'closed_through', 'UPDATE')
        OR has_column_privilege('tally_void', 'public.accounting_close_heads', 'closed_through', 'UPDATE')
        OR has_column_privilege('tally_app', 'public.accounting_periods', 'closed_at', 'UPDATE')
+       OR has_column_privilege('tally_app', 'public.accounting_periods', 'closed_by', 'UPDATE')
        OR has_column_privilege('tally_core', 'public.accounting_periods', 'status', 'UPDATE') THEN
         RAISE EXCEPTION USING
             MESSAGE = format('the close''s tables are writable outside close_accounting_period() (%s) (v5.4.2-22)', coalesce(v_bad, 'closed_through or status')),
@@ -1545,7 +1625,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.assert_seal_role_invariants() IS
-    'v5.4.2-20 (r3), v5.4.2-21, v5.4.2-22. Raises unless: tally_seal, tally_void and tally_close exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges, grant options included (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; only tally_close writes the snapshots, the closed-through date and a period''s status; no public function names the old void setting (a lexical test); every guard of the seals exists exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; PUBLIC holds no privilege on any relation in public; and adhoc_charges_billed_names_its_bill is present and validated. Run in the patch tail and in CI.';
+    'v5.4.2-20 (r3), v5.4.2-21, v5.4.2-22. Raises unless: tally_seal, tally_void and tally_close exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges, grant options included (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; only tally_close writes the snapshots, the closed-through date and a period''s close (closed_at, closed_by; the application withdraws an open period by status); no public function names the old void setting (a lexical test); every guard of the seals exists exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; PUBLIC holds no privilege on any relation in public; and adhoc_charges_billed_names_its_bill is present and validated. Run in the patch tail and in CI.';
 REVOKE ALL ON FUNCTION public.assert_seal_role_invariants() FROM PUBLIC, tally_app, tally_core;
 
 CREATE OR REPLACE FUNCTION public.assert_periods_guard_invariants() RETURNS void
@@ -1561,7 +1641,6 @@ DECLARE
         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.account_ledger FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''transaction_date'')',
         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT OR UPDATE OF issued_date, tenant_id ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''issued_date'')',
         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT OR UPDATE OF payment_date, tenant_id ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''payment_date'')',
-        'CREATE TRIGGER a_enforce_write_off_recovery BEFORE INSERT ON public.account_ledger FOR EACH ROW EXECUTE FUNCTION enforce_write_off_recovery()',
         'CREATE TRIGGER create_accounting_close_head AFTER INSERT ON public.tenants FOR EACH ROW EXECUTE FUNCTION create_accounting_close_head()',
         'CREATE TRIGGER enforce_accounting_close_head BEFORE INSERT OR DELETE OR UPDATE ON public.accounting_close_heads FOR EACH ROW EXECUTE FUNCTION enforce_accounting_close_head()',
         'CREATE TRIGGER enforce_accounting_period BEFORE INSERT OR DELETE OR UPDATE ON public.accounting_periods FOR EACH ROW EXECUTE FUNCTION enforce_accounting_period()',
@@ -1570,6 +1649,7 @@ DECLARE
         'CREATE TRIGGER enforce_account_ledger_immutable BEFORE UPDATE ON public.account_ledger FOR EACH ROW EXECUTE FUNCTION enforce_account_ledger_immutable()',
         'CREATE TRIGGER enforce_gl_account_mapping BEFORE INSERT OR DELETE OR UPDATE ON public.gl_account_mappings FOR EACH ROW EXECUTE FUNCTION enforce_gl_account_mapping()',
         'CREATE TRIGGER enforce_ledger_lineage_acyclic AFTER INSERT ON public.account_ledger FOR EACH ROW WHEN ((new.reverses_ledger_entry_id IS NOT NULL)) EXECUTE FUNCTION enforce_ledger_lineage_acyclic()',
+        'CREATE TRIGGER enforce_write_off_recovery AFTER INSERT ON public.account_ledger FOR EACH ROW WHEN ((new.reverses_ledger_entry_id IS NOT NULL)) EXECUTE FUNCTION enforce_write_off_recovery()',
         'CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.account_ledger FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()',
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.accounting_close_heads FOR EACH STATEMENT EXECUTE FUNCTION enforce_accounting_close_head()',
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.accounting_periods FOR EACH STATEMENT EXECUTE FUNCTION enforce_accounting_period()',
@@ -1577,9 +1657,13 @@ DECLARE
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.accounting_period_snapshots FOR EACH STATEMENT EXECUTE FUNCTION enforce_accounting_snapshot_write()',
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.account_ledger FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.gl_account_mappings FOR EACH STATEMENT EXECUTE FUNCTION enforce_gl_account_mapping()'];
-    -- r2 (Opus S3, Codex S3): the -22 constraints, by exact definition.
+    -- r2 (Opus S3, Codex S3): the -22 constraints, by exact definition;
+    -- r3 (Codex S2, Fable N3, Opus N4): the history's known-key CHECK -22
+    -- re-issues, and the ledger's lineage constraints the walk and cap rest on.
     c_constraints CONSTANT text[] := ARRAY[
         'account_ledger account_ledger_recovery_lineage_check CHECK (((transaction_type <> ''write_off_recovery''::text) OR ((reverses_ledger_entry_id IS NOT NULL) AND COALESCE((reversal_reason ~ ''[[:alnum:]]''::text), false))))',
+        'account_ledger account_ledger_reversal_not_self_check CHECK ((reverses_ledger_entry_id IS DISTINCT FROM id))',
+        'account_ledger account_ledger_reverses_ledger_entry_fkey FOREIGN KEY (reverses_ledger_entry_id, tenant_id) REFERENCES account_ledger(id, tenant_id)',
         'account_ledger account_ledger_transaction_type_check CHECK ((transaction_type = ANY (ARRAY[''charge''::text, ''payment''::text, ''adjustment''::text, ''credit_issued''::text, ''credit_applied''::text, ''late_fee''::text, ''deposit''::text, ''refund''::text, ''write_off''::text, ''transfer''::text, ''nsf''::text, ''escheat''::text, ''donation''::text, ''void_reversal''::text, ''deposit_interest''::text, ''write_off_recovery''::text])))',
         'accounting_period_snapshot_lines accounting_period_snapshot_lines_section_check CHECK ((section = ANY (ARRAY[''activity''::text, ''aging''::text])))',
         'accounting_period_snapshots accounting_period_snapshots_unbilled_check CHECK ((((unbilled_revenue IS NULL) AND (unbilled_revenue_basis IS NULL)) OR ((unbilled_revenue IS NOT NULL) AND COALESCE((unbilled_revenue_basis ~ ''[[:alnum:]]''::text), false))))',
@@ -1595,6 +1679,7 @@ DECLARE
         'gl_account_mappings gl_account_mappings_no_overlap EXCLUDE USING gist (tenant_id WITH =, COALESCE(charge_source, ''''::text) WITH =, COALESCE(charge_code, ''''::text) WITH =, COALESCE(customer_class, ''''::text) WITH =, COALESCE(territory_place_id, ''00000000-0000-0000-0000-000000000000''::uuid) WITH =, COALESCE(tax_jurisdiction_place_id, ''00000000-0000-0000-0000-000000000000''::uuid) WITH =, daterange(effective_from, effective_to, ''[)''::text) WITH &&)',
         'gl_account_mappings gl_account_mappings_range_check CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))',
         'tenant_configuration_history tenant_configuration_history_aging_days_check CHECK (((config_key <> ''receivables_aging_bucket_days''::text) OR aging_bucket_days_json_valid(new_value)))',
+        'tenant_configuration_history tenant_configuration_history_key_known_check CHECK (((config_key ~~ ''settings.%''::text) OR (config_key = ANY (ARRAY[''default_partial_period_policy''::text, ''payment_allocation_strategy''::text, ''overpayment_handling''::text, ''credit_application_timing''::text, ''minimum_refund_amount''::text, ''below_threshold_action''::text, ''donation_program_name''::text, ''auto_approve_clean_reads''::text, ''unreviewed_read_billing_policy''::text, ''meter_redeployment_policy''::text, ''default_import_error_policy''::text, ''void_only_unbilled_disposition''::text, ''void_rebill_threshold''::text, ''cutover_date''::text, ''regulatory_class_mode''::text, ''backbilling_adverse_limit_months''::text, ''receivables_aging_bucket_days''::text, ''write_off_threshold_days''::text]))))',
         'tenants tenants_receivables_aging_bucket_days_check CHECK (aging_bucket_days_valid(receivables_aging_bucket_days))',
         'tenants tenants_write_off_threshold_days_check CHECK (((write_off_threshold_days IS NULL) OR (write_off_threshold_days > 0)))'];
 BEGIN
@@ -1630,7 +1715,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.assert_periods_guard_invariants() IS
-    'v5.4.2-22 (r2). Raises unless every guard of v5.4.2-22 — the close head, the periods, the freeze on the ledger, payments and customer credits, the recovery and the lineage walk, the snapshot tables, the GL mappings, the head''s creation with each tenant — and the ledger''s immutability triggers exist exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; every -22 constraint (the periods'' and mappings'' EXCLUDE and CHECKs, the ledger''s type list and recovery lineage, the tenants'' and history''s setting CHECKs) exists exactly as defined and validated; and every tenant has a close head (run as the owner, which sees every tenant). Checks definitions, not the bodies of the functions they call. Run in the patch tail and in CI.';
+    'v5.4.2-22 (r2, r3). Raises unless every guard of v5.4.2-22 — the close head, the periods, the freeze on the ledger, payments and customer credits, the recovery and the lineage walk, the snapshot tables, the GL mappings, the head''s creation with each tenant — and the ledger''s immutability triggers exist exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; the constraints named here (the periods'' and mappings'' EXCLUDE and CHECKs, the ledger''s type list, recovery lineage, not-self CHECK and reversal FK, the tenants'' and history''s setting CHECKs and the history''s known-key CHECK) exist exactly as defined and validated — not every key and FK of the new tables (the snapshot tables'' keys are not pinned); and every tenant has a close head (run as the owner, which sees every tenant). Checks definitions, not the bodies of the functions they call. Run in the patch tail and in CI.';
 REVOKE ALL ON FUNCTION public.assert_periods_guard_invariants() FROM PUBLIC, tally_app, tally_core;
 
 DO $$ BEGIN

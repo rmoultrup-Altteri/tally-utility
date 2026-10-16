@@ -100,13 +100,13 @@ MUTATIONS = [
      rep("IF TG_OP = 'INSERT' AND current_user = 'tally_close' THEN", "IF TG_OP = 'INSERT' THEN")),
     # ---- R: recovery
     ("M22", "no sign check", "R4",
-     rep("IF NOT (v_wo.amount < 0 AND NEW.amount > 0) THEN", "IF false THEN")),
+     rep("IF NOT (v_parent.amount < 0 AND NEW.amount > 0) THEN", "IF false THEN")),
     ("M23", "no cap", "R6",
-     rep("IF v_recovered + NEW.amount > -v_wo.amount THEN", "IF false THEN")),
+     rep("IF v_net < 0 OR v_net > -v_wo.amount THEN", "IF false THEN")),
     ("M24", "another customer's write-off", "R3",
-     rep("OR v_wo.tenant_id <> NEW.tenant_id OR v_wo.customer_id <> NEW.customer_id THEN", "OR v_wo.tenant_id <> NEW.tenant_id THEN")),
+     rep("OR v_parent.tenant_id <> NEW.tenant_id OR v_parent.customer_id <> NEW.customer_id THEN", "OR v_parent.tenant_id <> NEW.tenant_id THEN")),
     ("M25", "the recovery takes no lock", "CR5",
-     rep("    PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || NEW.reverses_ledger_entry_id::text, 0));\n", "")),
+     rep("        PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo.id::text, 0));\n", "")),
     # ---- W: aging
     ("M26", "the balance is aged oldest first", "W2",
      rep("ORDER BY o.transaction_date DESC, o.created_at DESC, o.id DESC", "ORDER BY o.transaction_date, o.created_at, o.id")),
@@ -132,10 +132,9 @@ MUTATIONS = [
      rep("IF v_through IS NOT NULL AND (NEW.effective_from <= v_through OR NEW.effective_to <= v_through) THEN", "IF false THEN")),
     # ---- r2
     ("M39", "an adjustment may name a write-off", "R7",
-     rep("        IF EXISTS (SELECT 1 FROM public.account_ledger l\n                    WHERE l.id = NEW.reverses_ledger_entry_id AND l.transaction_type = 'write_off') THEN",
-         "        IF false THEN")),
+     rep("    ELSIF FOUND AND v_parent.transaction_type = 'write_off' THEN", "    ELSIF false THEN")),
     ("M40", "no loop check", "R8",
-     rep("        SELECT 1 FROM up WHERE up.id = NEW.id) THEN", "        SELECT 1 FROM up WHERE false) THEN")),
+     rep("    IF v_loop THEN", "    IF false THEN")),
     ("M41", "aging does not check every entry reaches an original", "W16",
      rep("    IF v_uncovered <> 0 THEN", "    IF false THEN")),
     ("M42", "a move between tenants is checked against the new tenant only", "F2e",
@@ -165,6 +164,29 @@ MUTATIONS = [
          "    v_edges := public.receivables_aging_bucket_days_as_of(p_tenant_id, p_recorded_at);\n    IF NOT EXISTS (SELECT 1 FROM public.accounting_close_heads h WHERE h.tenant_id = p_tenant_id) THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('receivables_aging_as_of: tenant %s is not visible")),
     ("M50", "the threshold may be zero", "APPLY:a v5.4.2-22 constraint is missing",
      rep("    CHECK (write_off_threshold_days IS NULL OR write_off_threshold_days > 0);", "    CHECK (write_off_threshold_days IS NULL OR write_off_threshold_days >= 0);")),
+    # ---- r3
+    ("M53", "the write-off rule runs before the statement's later rows are in", "APPLY:a v5.4.2-22 guard is missing",
+     rep("CREATE TRIGGER enforce_write_off_recovery AFTER INSERT ON public.account_ledger\n",
+         "CREATE TRIGGER enforce_write_off_recovery BEFORE INSERT ON public.account_ledger\n")),
+    ("M54", "the cap counts the write-off's direct rows only", "R10",
+     rep("            SELECT l.id FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id\n",
+         "            SELECT l.id FROM down d JOIN public.account_ledger l ON false\n")),
+    ("M55", "the cap has no floor", "R10b",
+     rep("IF v_net < 0 OR v_net > -v_wo.amount THEN", "IF v_net > -v_wo.amount THEN")),
+    ("M56", "only a row naming the write-off directly is capped", "R10",
+     rep("             WHERE l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id AND u.depth < c_max\n",
+         "             WHERE false\n")),
+    ("M57", "the lineage walk does not fail closed at its bound", "R11",
+     rep("    IF v_long THEN", "    IF false THEN")),
+    ("M58", "a withdrawal need not name its user", "P9f",
+     rep("        IF NEW.withdrawn_by IS NULL THEN", "        IF false THEN")),
+    ("M59", "a withdrawn period is reported as closed", "C13b",
+     rep("    IF v_p.status = 'withdrawn' THEN", "    IF false THEN")),
+    ("M60", "the close ages by fixed edges, not the tenant's setting at its instant", "C16b",
+     rep("    SELECT t.receivables_aging_bucket_days INTO v_edges FROM public.tenants t WHERE t.id = v_tenant;",
+         "    v_edges := '{30,60,90,120}';")),
+    ("M61", "the history's known-key CHECK is dropped", "APPLY:a v5.4.2-22 constraint is missing",
+     tail("ALTER TABLE public.tenant_configuration_history DROP CONSTRAINT tenant_configuration_history_key_known_check;")),
     # ---- the seal
     ("M35", "tally_close is granted more", "APPLY:tally_close holds other privileges",
      tail("GRANT INSERT ON public.account_ledger TO tally_close;")),
@@ -238,7 +260,7 @@ def main() -> int:
         first = re.sub(r"^psql:[^:]+:\d+: ", "", first)[:140]
         # The first line that reports any failure, infrastructure errors included, must be the named check's.
         fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"\bFAIL\b|ERROR|FATAL|PANIC", l)]
-        if fails and re.match(rf"FAIL {re.escape(check)}[a-z]?[:\s]", fails[0]):
+        if fails and re.match(rf"FAIL {re.escape(check)}[:\s]", fails[0]):
             print(f"{mid} caught at {check}: {what}")
         else:
             print(f"{mid} MISSED ({check}): {what}  [first: {first}]")

@@ -20,6 +20,11 @@
 #   CR9  A closes April and holds; B inserts a GL mapping in force in April:
 #        waits on A, then is refused (G4).
 #   CR10 The latest period, once closed, is not withdrawn.
+#   CR11 (r3) A posts +15 naming CR5's recovery (net 45 of 50) and holds; B
+#        posts +10 naming it: waits on A (the write-off's lock, reached
+#        through the recovery), then is refused by the cap.
+#   CR12 (r3) A withdraws June and holds; B closes June: waits on A (the
+#        period row), then is refused, the period named withdrawn.
 # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -228,5 +233,19 @@ SQL
 )
 if echo "$OUT" | grep -q "never edited"; then echo "PASS CR10 the latest period, once closed, is not withdrawn"
 else echo "FAIL CR10: $OUT"; fail=1; fi
+
+# CR11
+REC1=$("${PSQL[@]}" -c "SELECT id FROM public.account_ledger WHERE reverses_ledger_entry_id = '$WO' AND transaction_type = 'write_off_recovery'")
+NAMES() { echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '2026-06-02', 'adjustment', 'names the recovery', $1, '$REC1', 'x');"; }
+two "$AS_OP" "$(NAMES 15)" "$AS_OP" "$(NAMES 10)"
+verdict "CR11 a row under a write-off, reached through its recovery, waits for another, then is refused by the cap" 1 "R-02 cap"
+
+# CR12
+"${PSQL[@]}" >/dev/null -c "INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T', DATE '2026-06-01', DATE '2026-06-30')" \
+  || { echo "SETUP FAIL: June"; exit 2; }
+JUN=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T' AND period_start = DATE '2026-06-01'")
+two "$AS_OP" "UPDATE public.accounting_periods SET status = 'withdrawn' WHERE id = '$JUN';" \
+    "$AS_SUP" "SELECT public.close_accounting_period('$JUN');"
+verdict "CR12 a close of a period being withdrawn waits, then is refused" 1 "is withdrawn"
 
 exit $fail

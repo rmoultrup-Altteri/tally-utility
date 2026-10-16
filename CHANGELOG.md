@@ -4,6 +4,55 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-15 (late) — v5.4.2-22 review round 2; r3 drafted (net write-off cap after insert, fail-closed lineage walk, close reads the tenant's setting)
+
+**What was done:**
+- **Resume:** no drift. CI passed with -22 pending. The r2 frozen hashes match the brief.
+- **Round 2 of -22** (`788aef4`):
+  - Opus: not yet.
+  - Fable: ready.
+  - Codex: not yet. Its 11 probes were run by me and appended to `codex-r2.md`.
+- **Blocking findings, all reproduced:**
+  - a row naming a write-off listed before it in one statement escapes the BEFORE-trigger rule (Codex B1 = Opus B1a);
+  - a row naming the recovery is uncapped (Opus B1b);
+  - a 10,001-row reversal ring is admitted (Codex B2).
+- **`review-findings-22-r2.md`:** 13 findings with their dispositions.
+- **r3 draft** (`sql/v5.4.2-22-periods-snapshot-gl-aging.sql`, 1,733 lines):
+  - the write-off rule moved to AFTER INSERT, capping the net of the whole same-customer tree in [0, written off];
+  - the lineage walk fails closed at 1,000 entries;
+  - the close reads `tenants.receivables_aging_bucket_days`, and `tally_close`'s grants and seal list follow;
+  - a withdrawal requires a user;
+  - a "withdrawn" message at the close;
+  - three more constraints pinned;
+  - the seal refuses `closed_by` for `tally_app`;
+  - header and residual R10.
+- **Tests on r3:**
+  - battery 147/147 (new: R9–R11, P9f, C13b, C16b; C12 uses the stored edges);
+  - races CR1–CR12 (new: CR11, CR12);
+  - mutations M53–M61 added, anchors updated, exact label match;
+  - Codex's r2 blockers refused on r3.
+- **r3 review brief** written, with hash placeholders.
+
+**Decisions made:**
+- The R-02 cap on a write-off is the net of its whole same-customer tree, not the gross recoveries. That closes both bypasses, and a bounced recovery frees the cap.
+- The close reads the tenant's own setting, not the app-written history (memory "app-written logs are not guards").
+- Withdrawal stays an operator's act with a named user. It is undone by re-creating the period, so it is not irreversible. Opus asked for a supervisor gate; Fable disagreed; settled by rule. Logged in DECISION-LOG.
+
+**Failed approaches:**
+- A BEFORE-trigger cap: it cannot see later rows of the statement.
+- Gross recovery counting: indirect rows escape, and reversed recoveries block.
+- A silent depth bound: a ring longer than the bound is admitted.
+- M60 reading the history: `tally_close` has no grant, so it fails at C7 instead of C16b.
+- P9f as `tally_app`: RLS hides the row, so the UPDATE touches 0 rows.
+
+**Open / next:**
+- The full mutation run on r3 had not finished at wrap-up. Re-run it, then `tests/ci.sh`, freeze r3, fill the brief, and launch round 3.
+- Mirror only on Ryan's approval.
+- Then -23 (cash).
+- Carried items unchanged (see HANDOFF).
+
+---
+
 ## 2026-10-15 — parity record consolidated; wave 2 started; v5.4.2-22 (periods, close snapshot, GL mapping, aging, write-off recovery) drafted, reviewed once, r2 frozen
 
 **What was done:**

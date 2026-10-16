@@ -1,13 +1,13 @@
-# Handoff: wave 2 started — v5.4.2-22 (periods, close snapshot, GL mapping, aging, write-off recovery) r2 frozen, ready for review round 2
+# Handoff: v5.4.2-22 r3 drafted after review round 2 — confirm mutations, freeze, launch round 3
 
-**Generated**: 2026-10-15 23:45
-**Branch**: `main` in both repos, pushed at wrap-up. GBM `main` at `954c472` (`Clippings/` untracked on purpose: never commit it).
-**Status**: In progress. -22 r2 is frozen and its brief is written. The three reviewers have **not** been launched for round 2.
+**Generated**: 2026-10-15 (late evening)
+**Branch**: `main` in both repos. tally-utility has the r3 draft committed at wrap-up. GBM `main` is at `954c472`; Kyle pushed nothing new this session. `Clippings/` is untracked on purpose: never commit it.
+**Status**: In progress. The -22 r3 draft is written and tested. The full mutation run had **not finished** at wrap-up. r3 is **not frozen**, and round 3 has **not** launched.
 
 ## Goal
 
 Reach the C# core build. Ryan's gate, in order:
-1. schema parity with CI-001…CI-135 (**we are here**: 75 of 135 done, 59 open);
+1. schema parity with CI-001…CI-135 (**we are here**: 75 of 135);
 2. scenarios and a test strategy;
 3. a phase plan;
 4. build.
@@ -16,47 +16,60 @@ Wave 2 = -22 (periods and reporting, additive) and -23 (cash, meaning-changing).
 
 ## Completed (this session)
 
-- [x] **Drift handled at resume.** Kyle's 3 pushes were fast-forwarded (roadmap decisions JSON, ui-concepts, GBM `kyle-decisions-2026-10-15-…`).
-- [x] **The parity record (Ryan):** the tally-utility measurement is the single live record. GBM grades are frozen at v5.4.2-12.
-  - tally-utility `5680e6f`: update section 2026-10-15. Headline REP+PROT 51, REP 24, PARTIAL 46, GAP 13, BLOCKED 0, N/A 1 (CI-036).
-  - GBM `954c472`: preamble note, frozen status line, manifest sections BP and BQ.
-- [x] **Wave 2 inventory:** `application/wave2-build-2026-10-15/source-inventory-wave2.md` (`a7ce6d0`).
-- [x] **Q1 answered by Ryan ("yes, go with the default"), `9b996b0`.** Under R-05's add-only money, the status column stays, moves forward only, and each move names the add-only row behind it. This is in DECISION-LOG and builds in -23.
-- [x] **`sql/v5.4.2-22-periods-snapshot-gl-aging.sql`, r2:** 1,648 lines, md5 `4049de7b97362cf08760250f2824bb79` (frozen copy `tests/v5.4.2-22/review/patch-22-frozen-r2.sql`).
-  - `accounting_periods`: contiguous, born open; closed only by the close; the latest open one may be withdrawn by status.
-  - `accounting_close_heads` (per-tenant `closed_through`).
-  - The freeze on `account_ledger`, `payments` and `customer_credits`.
-  - `close_accounting_period(uuid, numeric, text)`: SECURITY DEFINER owned by the new role **`tally_close`**; a supervisor's act.
-  - `accounting_period_snapshots` and `_lines`.
-  - `gl_account_mappings` with `gl_mapping_as_of()`.
-  - `receivables_aging_as_of(tenant, on, recorded[, edges])`.
-  - `tenants.receivables_aging_bucket_days` and `write_off_threshold_days`.
-  - `write_off_recovery`; the loop-free lineage trigger.
-  - `assert_periods_guard_invariants()`; `assert_seal_role_invariants()` re-issued with the third role.
-- [x] **Review round 1** (`afa7b67` froze r1): Opus, Fable and Codex all "not yet". Every finding is folded into r2. See `tests/v5.4.2-22/review/review-findings-22-r1.md`. All 8 Codex probes were run by me and reproduced; outputs are appended to `codex-r1.md`.
-- [x] **Tests (r2):**
-  - `battery-22.sql`: 135 checks.
-  - `races/close-22.sh`: CR1–CR10.
-  - `mutations-22.py`: 52/52 caught.
-  - `tests/ci.sh`: all pass with -22 PENDING (35 steps).
-- [x] **Round-2 brief:** `tests/v5.4.2-22/review/review-brief-22-r2.md` (hashes filled), plus `diff-22-r1-r2.diff`.
-- [x] **Roadmap:** parity 75/135, W2-Q1 answered, wave 2 in progress. Dates unchanged (likely ready 2027-06-16). The dashboard datasets are refreshed.
+- [x] **Resume:** no drift. CI passed with -22 pending. The r2 frozen hashes match the brief. The previous handoff paired the hashes with the wrong files; the brief is right.
+- [x] **Review round 2 of -22** (`788aef4`):
+  - Opus: **not yet**.
+  - Fable: **ready**.
+  - Codex: **not yet**. I ran its 11 probes on a clone of frozen r2 and appended the outputs to `codex-r2.md`. The b1, b2 and s2 predictions reproduced. n7 printed "COPY accepted" for a COPY that was in fact refused: the probe's `\if :ERROR` capture is wrong, not the patch.
+  - Codex's "inventory absent" note was correct. The inventory and DECISION-LOG live in **tally-utility** `application/`, not GBM; the r2 brief misled it. The r3 brief uses absolute paths.
+- [x] **`tests/v5.4.2-22/review/review-findings-22-r2.md`**: 13 findings with their dispositions.
+- [x] **The r3 draft** of `sql/v5.4.2-22-periods-snapshot-gl-aging.sql` (1,733 lines, md5 `b0ed9454…` at wrap-up):
+  - **The write-off rule** is now `enforce_write_off_recovery`, AFTER INSERT, `WHEN (NEW.reverses_ledger_entry_id IS NOT NULL)`. The cap is the net of the write-off's whole same-customer tree, kept in `[0, -amount]`, for every write-off above the new row. It takes the advisory locks in id order, at READ COMMITTED.
+  - **The lineage walk fails closed:** `c_max = 1000`, and a chain that has not reached an original within it is refused.
+  - **The close's edges** are read from `tenants.receivables_aging_bucket_days`. `tally_close` loses history SELECT and `receivables_aging_bucket_days_as_of`, and gains `tenants(id, receivables_aging_bucket_days)`.
+  - **A withdrawal requires `app.user_id`** (23502).
+  - **Closing a withdrawn period** gets its own message: "is withdrawn".
+  - **The seal invariant** refuses `tally_app` UPDATE on `closed_by`, and its comment is corrected.
+  - **The periods invariant** pins `tenant_configuration_history_key_known_check`, `account_ledger_reversal_not_self_check` and `account_ledger_reverses_ledger_entry_fkey`.
+  - **Header:** an r3 paragraph, a lock-order note on the withdrawal-and-close deadlock, R8 reworded, and a new residual R10 (manual history rows).
+- [x] **Tests on r3:**
+  - Strict apply twice: the second run is skipped.
+  - `battery-22.sql`: **147 PASS** (new: R9, R9b, R9c, R10–R10e, R11, P9f, C13b, C16b; C12 now uses the stored edges).
+  - `races/close-22.sh`: **CR1–CR12 PASS** (new: CR11, CR12).
+  - Codex's b1, b2 (the 10,001 ring), n6 and s2 probes are all refused or caught on r3.
+- [x] **`mutations-22.py`:**
+  - Anchors updated for M22–M25, M39 and M40.
+  - New mutations M53–M61.
+  - The label match is now exact. It was `[a-z]?`, which Codex flagged.
+- [x] **DECISION-LOG, 2026-10-15 (-22 review round 2):** three calls settled by standing rule:
+  - the net cap on the whole tree;
+  - the close reads the tenant's own setting;
+  - withdrawal stays an operator's act, with a named user.
+- [x] **`tests/v5.4.2-22/review/review-brief-22-r3.md`:** written, with placeholders `@@PATCH@@`, `@@BATTERY@@`, `@@RACES@@`, `@@MUTATIONS@@`, `@@CI@@` and `@@MUT@@`.
 
 ## Not Yet Done
 
-- [ ] **Launch review round 2** of -22 (Opus, Fable, Codex). Then fold the results into r3 if needed. Mirror into tu.sql **only on Ryan's approval**, after all three say ready.
+- [ ] **The mutation result on r3.** The full run did not finish this session. Re-run `python3 tests/v5.4.2-22/mutations-22.py` (61 mutations, about 10–15 minutes).
+- [ ] **`tests/ci.sh`** on r3. It has not been run since the r3 edits; -22 is still PENDING in it.
+- [ ] **Freeze r3:**
+  - copy the four live files to `tests/v5.4.2-22/review/*-frozen-r3.*`;
+  - write `diff-22-r2-r3.diff` (`diff -u patch-22-frozen-r2.sql patch-22-frozen-r3.sql`);
+  - fill the brief's placeholders;
+  - write `review-brief-22-r3.md5`;
+  - commit.
+- [ ] **Launch round 3** in parallel (Opus, Fable, Codex), the same way as round 2 (below). Run Codex's probes yourself. Mirror into tu.sql **only on Ryan's approval**, after all three say ready.
 - [ ] **After the mirror:**
-  - remove -22 from `PENDING` in `tests/ci.sh`;
-  - re-grade the parity measurement (CI-048, CI-076, CI-110 at least);
-  - add a GBM manifest section (BR);
+  - remove -22 from PENDING;
+  - re-grade the parity measurement (CI-048, CI-076, CI-110);
+  - add GBM manifest section BR;
   - write DEPLOY-VERIFICATION.
-- [ ] **v5.4.2-23, cash:** M (counters derived, write-once; status per Q1), X (every reversal names its entry, opposite sign, capped; the void reverses what is left), A (applications per bill and charge, oldest first, operator override with reason, within-bill rule row), C (credit approvals), U (suspense receipts), L (agency pledges). The inventory sections hold the detail.
-- [ ] **Reply to Kyle:** D-2 lives in Part 2 of `gas-billing-memory/application/kyle-decisions-2026-08-18-coda-items.md`. Not sent.
-- [ ] **The -05 defect:** a non-estimated read inserted past `pending` fails on `meters_last_validated_actual_reading_id_fkey`.
-- [ ] **-21 R9:** `line_item_carries_base` classifies at the period end. Fix: the date from the snapshot's `valid_at`, the knowledge from `now()`.
-- [ ] **Possible R-03 scoping question for Ryan:** the label and import-mapping tables are still deletable.
-- [ ] **Open:** whether to drop `pga_monthly_reconciliations.deferred_balance_after` (CI-036 is N/A).
+- [ ] **v5.4.2-23, cash:** M, X, A, C, U, L (see the inventory).
 - [ ] **Carried over:**
+  - the reply to Kyle on D-2's location;
+  - the -05 defect (`meters_last_validated_actual_reading_id_fkey`);
+  - -21 R9 (`line_item_carries_base`: the date from the snapshot's `valid_at`, the knowledge from `now()`);
+  - the R-03 scoping question (label and import-mapping tables are deletable);
+  - `pga_monthly_reconciliations.deferred_balance_after`;
   - the backbilling tariff table;
   - the GitHub Actions bump;
   - the Florida 25-7.083 text;
@@ -67,85 +80,76 @@ Wave 2 = -22 (periods and reporting, additive) and -23 (cash, meaning-changing).
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Withdrawing a mistyped period by DELETE:** `tests/ci.sh` failed battery-21 and the retention invariant with `tally_app may delete or truncate accounting_periods, which is not in the deletable set (CI-014, v5.4.2-21)`. Use status `withdrawn` (stamped), and exclude it from the EXCLUDE with `WHERE (status <> 'withdrawn')`. See memory `correct-by-status-not-delete`.
-- **Freezing by looking up the containing period:** no row to lock when no period exists, so a stale REPEATABLE READ writer slips past. A per-tenant head row that every writer takes FOR SHARE and the close takes FOR UPDATE is the handshake.
-- **Recovery cap counting only `write_off_recovery` rows:** an `adjustment` naming the write-off reinstated it uncapped. Any row naming a write_off must be a recovery.
-- **Aging that only roots entries with no parent:** a two-row lineage loop in one statement had no root, and its balance vanished. Refuse loops in an AFTER INSERT walk; aging also raises on uncovered entries.
-- **Reproducing a snapshot from the recorded bucket setting:** a backdated `manual` history row, or a setting change in the close's own transaction, changed the recomputation. Pass the snapshot's stored edges (4-argument aging).
-- **The close's sums filtered on `created_at <= instant` alone:** a superuser row with a future `created_at` was frozen uncounted. The close now refuses while such a row exists.
-- **The freeze checking only NEW.tenant_id:** a pending payment moved to another tenant escaped the old tenant's closed books. Lock both heads in id order.
-- **A temp table in the battery under `SET ROLE tally_app`:** `permission denied for schema pg_temp_N` (no TEMP). Stash values with `set_config('bat22.x', …, true)`.
-- **`NEW.created_at` in a trigger shared by two tables:** `record "new" has no field "created_at"` on the lines table. Branch on `TG_TABLE_NAME`.
-- **A wrapper comment split across lines:** battery-21 N3 greps `PostgreSQL 16's rendering` in `assert_seal_role_invariants()`'s source. Keep that phrase on one line when re-issuing it.
-- **Granting a function by its bare signature in the seal list:** `seal_role_privileges` renders argument names (`p_tenant_id uuid, …`).
+- **Capping write-off reversals in a BEFORE INSERT trigger:** a row naming a write-off listed *later* in the same VALUES, CTE or COPY is invisible to BEFORE, so it is accepted. Codex reproduced 150 reinstated against a 50 write-off. Use AFTER INSERT ROW, which fires at statement end and sees all the rows.
+- **Capping only the rows that name the write-off directly** (gross recoveries): `+700` naming the *recovery* was uncapped (Opus), and a reversed recovery still consumed the cap (Fable). Cap the net of the whole same-customer tree.
+- **A depth-bounded loop walk that stops silently:** at `u.depth < 10000` a ring of 10,001 was admitted, after which aging and the close raise `22000 … reach no original`. Refuse when the bound is reached without a root.
+- **Mutating the close to read the config history:** `tally_close` holds no grant on it any more, so the battery dies with permission denied at C7, not at the named check. M60 instead pins fixed edges `'{30,60,90,120}'`, caught at C16b.
+- **Testing a NULL `withdrawn_by` as `tally_app`:** without `app.user_id`, RLS hides the row, so the UPDATE touches 0 rows and nothing is refused. P9f runs as the owner with `app.user_id = ''`.
+- **Python `str.replace` anchors written from memory:** the header line reads `--     write_off it recovers …`, not `--     the write_off …`. When an anchor misses, print `repr()` of the real lines.
+- **Earlier sessions' failures still hold:**
+  - withdraw by status, never DELETE;
+  - the per-tenant head handshake;
+  - pass the snapshot's stored edges;
+  - lock both heads on a tenant move;
+  - no temp tables under `tally_app`;
+  - branch on `TG_TABLE_NAME`;
+  - keep `PostgreSQL 16's rendering` on one line;
+  - seal grants render argument names.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Q1: status stays a column, forward-only, each move names its row (Ryan) | Readers unchanged; DB guarantees no status change without money behind it; (b) derive-on-read would rewrite every reader |
-| Freeze = per-tenant `closed_through`, which also freezes dates before the first period once it closes | Lock handshake (memory `count-guards-need-lock-handshake`); onboarding history is loaded before the first close |
-| Closing is a supervisor's act; `tally_close` reads `users(id, role, tenant_id)` | Irreversible (guard the act) |
-| A period closes only after its last day ends at UTC-12 | The caller's time zone must not close it early |
-| Unbilled revenue is supplied to the close with its basis, or omitted | D-2: a reported figure, never a row; the schema cannot estimate |
-| Aging is balance-forward, netted by lineage within a customer, newest debt left open | K-05 oldest-first seen from the debt side; per-bill aging waits for -23's applications |
-| GL precedence: charge 8, class 4, territory 2, tax 1 | G1 asked for a stated precedence; different keys never tie |
-| Mappings and withdrawals are stamped with `clock_timestamp()` | A lookup at an instant inside the writing transaction never changes afterwards (Codex S2) |
+| The cap is on the net of the write-off's whole same-customer tree, in [0, written off] | Guard the act, not the label: it is whatever aging nets into the write-off. It also lets a bounced recovery be re-recovered (Fable S1). |
+| Only same-customer descendants count | Aging nets lineage only within a customer; a cross-customer row stands alone. |
+| The loop bound is 1,000 and fails closed | Real chains are a few entries. A test can cross it cheaply (a 1,001 ring). |
+| The close reads `tenants.receivables_aging_bucket_days`, not the history | App-written logs are not guards. At the close's instant, the live value *is* the value at that instant, and the snapshot stores it. |
+| Withdrawal stays an operator's act and must name its user | It is undone by re-creating the same period, so it is not irreversible. Only irreversible acts earn the supervisor gate. Opus wanted the gate; Fable did not. |
+| Two new race legs; the other race gaps Codex listed are accepted | Fable executed those orderings in r2 with no deadlock; the header states the one deadlock that exists. |
 
 ## Current State
 
-**Working:**
-- `tally-pg` runs the -21 build (`tally` = tu.sql md5 `3b1433a3…`, 40,652 lines).
-- `tests/ci.sh` passes all 35 steps with -22 PENDING.
-- The role `tally_close` now exists in the cluster, from the scratch runs.
-
-**Broken:** nothing.
-**Uncommitted changes:** none after the wrap-up commit.
+**Working:** r3 applies strictly and the second run is skipped. Battery 147/147. Races CR1–CR12. Codex's r2 blockers are refused.
+**Unknown:** the mutation result, and `tests/ci.sh` on r3.
+**Uncommitted changes:** none after the wrap-up commit (the r3 draft, tests, findings, the brief with placeholders, the DECISION-LOG entry).
+**Scratch DBs left:** `rv22r3` (r3 applied) and `rv22r3c` (races ran; it has commits). Drop both. The mutation runner drops `m22` itself.
 
 ## Code Context
 
 ```sql
-public.close_accounting_period(p_period_id uuid, p_unbilled_revenue numeric DEFAULT NULL, p_unbilled_revenue_basis text DEFAULT NULL)
-  RETURNS timestamptz   -- the recorded instant; definer owned by tally_close; RC only; supervisor
-public.receivables_aging_as_of(p_tenant_id uuid, p_on date, p_recorded_at timestamptz[, p_bucket_days integer[]])
-  RETURNS TABLE (customer_id, customer_number, customer_status, last_location_id, balance, bucket_index, bucket_from_days, bucket_to_days, amount)
-public.gl_mapping_as_of(tenant, charge_source, charge_code, customer_class, territory_place_id, tax_jurisdiction_place_id, on, recorded) RETURNS uuid
-public.enforce_accounting_freeze()          -- trigger arg = the date column; FOR SHARE on accounting_close_heads
-public.assert_periods_guard_invariants()    -- 19 exact trigger strings + 18 exact constraint defs; refill with the capture script below
+-- AFTER INSERT triggers on account_ledger fire by name: enforce_ledger_lineage_acyclic, then enforce_write_off_recovery
+public.enforce_write_off_recovery()      -- RETURN NULL; raises 23503 "names a write_off entry", 23514 "opposite sign" | "only a write_off_recovery names a write-off" | "R-02 cap"
+public.enforce_ledger_lineage_acyclic()  -- c_max 1000; 23514 "returns to itself" | "does not reach an original within 1000 entries"
+public.close_accounting_period(uuid, numeric, text) -- edges: SELECT t.receivables_aging_bucket_days FROM tenants t WHERE t.id = v_tenant
 ```
 
-Non-obvious:
-- `assert_periods_guard_invariants()` pins exact `pg_get_triggerdef` and `pg_get_constraintdef` strings. After changing a -22 trigger or constraint, re-capture them. The procedure was:
-  1. replace both arrays' contents with `@@TRIGGERS@@` / `@@CONSTRAINTS@@`;
-  2. trial-apply with `NULL` in their place;
-  3. query the catalog;
-  4. fill the arrays.
-
-  The scratch script `capture22.sh` did this; it is gone with the session, so redo it inline.
-- The mutation runner treats any earlier FAIL as a miss. Name each mutation for the first check that can catch it.
+- `assert_periods_guard_invariants()` pins exact `pg_get_triggerdef` and `pg_get_constraintdef` strings. Capture them from a patched clone with `search_path` including `public`; the FK renders `REFERENCES account_ledger(id, tenant_id)` without a schema.
+- The seal's grant list for `tally_close` is a sorted jsonb array. A dropped quote broke the apply once (`JSON data, line 1`).
 
 ## Resume Instructions
 
-1. Fetch both repos (`git pull --ff-only` in each; check GBM for Kyle's pushes).
-   - Expected: tally-utility at the wrap-up commit.
-2. `tests/ci.sh`.
-   - Expected: `ci: all pass`, 35 steps.
-   - If tally-pg is gone: `tests/ci.sh --build` (about 5 minutes).
-3. Verify the frozen r2 hashes against `tests/v5.4.2-22/review/review-brief-22-r2.md`: patch `4049de7b…`, battery `2b7149d7…`, races `7af6f68a…`, mutations `0d91882c…` (`md5 -q tests/v5.4.2-22/review/*frozen-r2*`).
-4. Launch round 2 in parallel:
-   - **Opus and Fable:** Agent, `general-purpose`, model opus / fable, run in background. Point them at the r2 brief and tell them to write `<reviewer>-r2.md`; they read their own r1 report.
-   - **Codex:** `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C ~/code/tally-utility -o tests/v5.4.2-22/review/codex-r2-final.txt - < prompt`. The prompt is source-only, with probes in `codex-r2-probes/`.
-   - Run Codex's probes on a clone of `patch-22-frozen-r2.sql` and append the outputs to `codex-r2.md`.
-5. Fold findings into r3 (one revision per round), or if all three say ready, ask Ryan to approve the mirror (one question, plain language).
+1. `git pull --ff-only` in both repos; check GBM for Kyle's pushes.
+2. Drop the scratch DBs: `docker exec tally-pg psql -U tally -d postgres -c "DROP DATABASE IF EXISTS rv22r3" -c "DROP DATABASE IF EXISTS rv22r3c"`.
+3. Run the mutations in the background: `python3 tests/v5.4.2-22/mutations-22.py > <scratch>/mut.out 2>&1`.
+   - Expected: `61/61 caught`.
+   - If a mutation is reported MISSED with an earlier check first: rename it to that check, or fix the guard. Never loosen the runner.
+   - The exact label match may shift some old mutations (an `F2`-named one caught at `F2b`): rename those to the exact label.
+4. `tests/ci.sh`. Expected: `ci: all pass`, 35 steps.
+5. Freeze r3. Copy the four files to `*-frozen-r3.*`, write the diff, fill the brief's placeholders (md5s, the CI line, the mutation count), and write `review-brief-22-r3.md5`. Commit and push.
+6. Launch round 3:
+   - **Opus and Fable:** Agent `general-purpose`, model opus / fable, background, pointed at `review-brief-22-r3.md`. Each reads its own r2 report.
+   - **Codex:** `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C ~/code/tally-utility -o tests/v5.4.2-22/review/codex-r3-final.txt - < prompt`. The prompt is source-only, with probes in `codex-r3-probes/`.
+7. Run Codex's probes on a clone of frozen r3, append the outputs to `codex-r3.md`, and fold the findings into r4, or ask Ryan to approve the mirror: one question, plain language, with a default.
 
 ## Warnings
 
 - **Never edit the frozen review copies or tu.sql's mirrored body.** tu.sql is append-only and is mirrored only on Ryan's approval.
 - **Revoke TEMP from PUBLIC, `tally_app` and `tally_core` after every `CREATE DATABASE … TEMPLATE`.**
-- **Roles are cluster-wide.** Reviewers must not create, alter or drop roles. `tally_close` already exists.
+- **Roles are cluster-wide.** `tally_close` exists; reviewers must not touch roles.
 - **`tests/ci.sh --build` deletes the container** and every scratch database.
-- **Codex runs source-only.** You run its probes.
+- **Codex runs source-only.** You run its probes, and check each probe's own error capture (r2 n7 misreported).
 - **Never `git add -A` in gas-billing-memory** (`Clippings/`).
-- **Ask Ryan one decision per message, in plain language, with a default.** Walk tradeoffs in prose, not menus.
-- **Commits go straight to main in both repos** (push without asking).
-- **Background reviewer reports truncate at about 4 KB.** Ask for the file or for several short messages.
+- **Ask Ryan one decision per message, in plain language, with a default.**
+- **Commits go straight to main** in both repos.
+- **Background reviewer reports truncate at about 4 KB.** Ask for the file.
+- **Python output redirected to a file is block-buffered,** so a long `mutations-22.py` run shows nothing until it ends. Use `python3 -u` to watch progress.

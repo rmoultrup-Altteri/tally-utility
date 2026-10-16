@@ -6,6 +6,17 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-15 (-22 review round 2) — drafting calls settled by standing rule, reported to Ryan
+
+**What:** three reviewers on -22 r2 (`tests/v5.4.2-22/review/review-findings-22-r2.md`). Three calls go beyond the rulings as written:
+- **R-02's cap on a write-off is on the net of its whole tree (Opus B1, Codex B1, Fable S1).** Everything aging nets into the write-off counts: rows naming it, rows naming its recoveries, at any depth and of any type, within its customer. The net stays between 0 and the amount written off, so a recovery reversed in error frees the cap again.
+- **The close ages by the tenant's own setting at its instant (Opus S1),** not by the configuration history, which the application writes and may date. The snapshot stores the edges.
+- **A withdrawal stays an operator's act and must name its user (Opus S2; Fable disagreed).** Creating a period is an operator's act, and withdrawing the latest open period is undone by creating the same period again. The close is gated to a supervisor because it is irreversible; a withdrawal is not.
+
+*Why:* memory rules "guard the act, not the label", "app-written logs are not guards" and "guard the act" (irreversibility is what earns the supervisor gate). *Where it lives:* v5.4.2-22 r3 (header, residuals R8 and R10).
+
+---
+
 ## 2026-10-15 (v5.4.2-22 drafted) — drafting calls inside D-2, D-3 and R-02, reported to Ryan
 
 **What:** v5.4.2-22 (periods, the freeze, the close snapshot, GL mapping, aging, write-off recovery) is drafted. Seven calls go beyond the rulings as written. They are listed in `application/wave2-build-2026-10-15/source-inventory-wave2.md` ("-22 as drafted"):
