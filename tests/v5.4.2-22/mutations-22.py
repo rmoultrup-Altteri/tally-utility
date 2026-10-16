@@ -102,11 +102,11 @@ MUTATIONS = [
     ("M22", "no sign check", "R4",
      rep("IF NOT (v_parent.amount < 0 AND NEW.amount > 0) THEN", "IF false THEN")),
     ("M23", "no cap", "R6",
-     rep("IF v_net < 0 OR v_net > -v_wo.amount THEN", "IF false THEN")),
+     rep("         WHERE x.net < 0 OR x.net > -v_wo.amount\n", "         WHERE false\n")),
     ("M24", "another customer's write-off", "R3",
      rep("OR v_parent.tenant_id <> NEW.tenant_id OR v_parent.customer_id <> NEW.customer_id THEN", "OR v_parent.tenant_id <> NEW.tenant_id THEN")),
     ("M25", "the recovery takes no lock", "CR5",
-     rep("        PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo.id::text, 0));\n", "")),
+     rep("        PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo_id::text, 0));\n", "")),
     # ---- W: aging
     ("M26", "the balance is aged oldest first", "W2",
      rep("ORDER BY o.transaction_date DESC, o.created_at DESC, o.id DESC", "ORDER BY o.transaction_date, o.created_at, o.id")),
@@ -172,14 +172,26 @@ MUTATIONS = [
      rep("              FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id\n",
          "              FROM down d JOIN public.account_ledger l ON false\n")),
     ("M55", "the cap has no floor", "R10b",
-     rep("IF v_net < 0 OR v_net > -v_wo.amount THEN", "IF v_net > -v_wo.amount THEN")),
+     rep("WHERE x.net < 0 OR x.net > -v_wo.amount", "WHERE x.net > -v_wo.amount")),
     ("M56", "only a row naming the write-off directly is capped", "R10",
-     rep("             WHERE u.depth < c_max\n",
+     rep("             WHERE u.mine AND u.depth < c_max\n",
          "             WHERE false\n")),
     ("M62", "the cap counts another customer's row naming into the tree", "R10f",
-     rep("JOIN public.account_ledger l ON l.id = d.id WHERE d.mine;", "JOIN public.account_ledger l ON l.id = d.id;")),
+     rep("SELECT array_agg(d.id) INTO v_tree FROM down d WHERE d.mine;", "SELECT array_agg(d.id) INTO v_tree FROM down d;")),
     ("M63", "the cap's walk finds each step through the customer's ledger", "R10g",
      rep("             WHERE d.mine\n", "             WHERE d.mine AND l.tenant_id = v_wo.tenant_id AND l.customer_id = v_wo.customer_id\n")),
+    ("M64", "a row under a write-off may be dated before the entry it names", "R12b",
+     rep("        IF NEW.transaction_date < v_parent.transaction_date THEN", "        IF false THEN")),
+    ("M65", "the cap holds only at the end, not at every date", "R12",
+     rep("sum(l.amount) OVER (ORDER BY l.transaction_date) AS net", "sum(l.amount) OVER () AS net")),
+    ("M66", "a row may be recorded before a row already in its tree", "R12e",
+     rep("AND l.created_at > NEW.created_at", "AND false")),
+    ("M67", "a change of the aging edges does not wait for the close", "CR13",
+     rep("        PERFORM 1 FROM public.accounting_close_heads h WHERE h.tenant_id = NEW.id FOR SHARE;\n",
+         "        PERFORM 1 FROM public.accounting_close_heads h WHERE h.tenant_id = NEW.id;\n")),
+    ("M68", "the cap's walks are planned by the statistics", "R10g",
+     rep("CREATE OR REPLACE FUNCTION public.enforce_write_off_recovery() RETURNS trigger\n    LANGUAGE plpgsql\n    SET search_path = public, pg_temp\n    SET enable_seqscan = off\n    SET enable_hashjoin = off\n    SET enable_mergejoin = off\n",
+         "CREATE OR REPLACE FUNCTION public.enforce_write_off_recovery() RETURNS trigger\n    LANGUAGE plpgsql\n    SET search_path = public, pg_temp\n")),
     ("M57", "the lineage walk does not fail closed at its bound", "R11",
      rep("    IF v_long THEN", "    IF false THEN")),
     ("M58", "a withdrawal need not name its user", "P9f",
@@ -256,6 +268,13 @@ def main() -> int:
             continue
         if check.startswith("APPLY"):
             print(f"{mid} MISSED (applied cleanly): {what}")
+            missed += 1
+            continue
+        # The worst statistics for the walks' plans: a vacuumed ledger the
+        # planner believes empty (r4: R10g took 30 s there, not on a fresh clone).
+        v = sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-qc", "VACUUM public.account_ledger"])
+        if v.returncode:
+            print(f"{mid} SETUP-ERROR: {v.stderr.strip()[:140]}")
             missed += 1
             continue
         cmd, inp = runner(check)

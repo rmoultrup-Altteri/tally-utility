@@ -6,6 +6,17 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-16 (-22 review round 3) — calls settled by standing rule, reported to Ryan
+
+**What:** three reviewers on -22 r3 (`tests/v5.4.2-22/review/review-findings-22-r3.md`). Three calls go beyond the rulings as written:
+- **A write-off's cap holds at every date of its tree, and the tree is in date order (Opus B1).** A row under a write-off is dated on or after the entry it names. The tree's running net, through each of its dates, stays between 0 and the amount written off. A later-dated reversal no longer makes room for an earlier-dated recovery.
+- **The cap also holds at every recorded instant.** A row is refused for retry (40001) if it would be recorded before a row already in its tree, that is, if its transaction began before another that posted first. This was found by the author while checking Opus's recorded-time reasoning. Opus had predicted that no shape existed, but `created_at` is the transaction's start, not its commit.
+- **The close ages by the edges in force at its instant, enforced by a lock rather than reworded (Codex B1; Opus called it cosmetic).** A change of the edges takes the tenant's close head FOR SHARE, as a money write does.
+
+*Why:* memory rules "guard the act, not the label" (the act is what aging nets into the write-off, and aging is read at a date and at a recorded instant), "design permanent" (no weaker promise because the gap is narrow) and "count-guards need a lock handshake". *Where it lives:* v5.4.2-22 r4 (header r4 paragraph, lock order, R8, R10, R11).
+
+---
+
 ## 2026-10-15 (-22 review round 2) — drafting calls settled by standing rule, reported to Ryan
 
 **What:** three reviewers on -22 r2 (`tests/v5.4.2-22/review/review-findings-22-r2.md`). Three calls go beyond the rulings as written:

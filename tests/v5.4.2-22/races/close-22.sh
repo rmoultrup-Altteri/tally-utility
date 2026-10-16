@@ -25,6 +25,13 @@
 #        through the recovery), then is refused by the cap.
 #   CR12 (r3) A withdraws June and holds; B closes June: waits on A (the
 #        period row), then is refused, the period named withdrawn.
+#   CR13 (r4) A changes the aging edges and holds; B closes June: waits on A
+#        (the head), then closes with A's edges in its snapshot.
+#   CR14 (r4) A closes July and holds; B changes the edges: waits on A, then
+#        changes them; July's snapshot keeps the edges of its instant.
+#   CR15 (r4) A begins, then B posts under a write-off and commits, then A
+#        posts under it: A is refused for retry (recorded before a row
+#        already in the tree), and the retry is admitted. Not a lock wait.
 # Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -247,5 +254,59 @@ JUN=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id 
 two "$AS_OP" "UPDATE public.accounting_periods SET status = 'withdrawn' WHERE id = '$JUN';" \
     "$AS_SUP" "SELECT public.close_accounting_period('$JUN');"
 verdict "CR12 a close of a period being withdrawn waits, then is refused" 1 "is withdrawn"
+
+
+# CR13
+"${PSQL[@]}" >/dev/null -c "INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T', DATE '2026-06-01', DATE '2026-06-30')" \
+  || { echo "SETUP FAIL: June again"; exit 2; }
+JUN2=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T' AND period_start = DATE '2026-06-01' AND status = 'open'")
+two "$AS_SUP" "UPDATE public.tenants SET receivables_aging_bucket_days = '{10,20}' WHERE id = '$T';" \
+    "$AS_SUP" "SELECT public.close_accounting_period('$JUN2');"
+verdict "CR13 a close waits for a change of the aging edges in flight, then closes" 0
+expect "CR13b June's snapshot ages by the edges in force at its instant" \
+  "$("${PSQL[@]}" -c "SELECT aging_bucket_days FROM public.accounting_period_snapshots WHERE period_id = '$JUN2'")" "{10,20}"
+
+# CR14
+"${PSQL[@]}" >/dev/null -c "INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T', DATE '2026-07-01', DATE '2026-07-31')" \
+  || { echo "SETUP FAIL: July"; exit 2; }
+JUL=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T' AND period_start = DATE '2026-07-01'")
+two "$AS_SUP" "SELECT public.close_accounting_period('$JUL');" \
+    "$AS_SUP" "UPDATE public.tenants SET receivables_aging_bucket_days = '{30,60,90,120}' WHERE id = '$T';"
+verdict "CR14 a change of the aging edges waits for a close in flight, then is made" 0
+expect "CR14b July's snapshot keeps the edges of its instant; the tenant has the new ones" \
+  "$("${PSQL[@]}" -c "SELECT s.aging_bucket_days::text || ' ' || t.receivables_aging_bucket_days::text FROM public.accounting_period_snapshots s JOIN public.tenants t ON t.id = s.tenant_id WHERE s.period_id = '$JUL'")" "{10,20} {30,60,90,120}"
+
+# CR15
+WO2=00000000-0000-4000-8000-0000000022fa
+REC2=00000000-0000-4000-8000-0000000022fb
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: August"; exit 2; }
+INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T', DATE '2026-08-01', DATE '2026-08-31');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+  ('$WO2', '$T', '$C', DATE '2026-08-01', 'write_off', 'written off', -50.00, NULL, NULL),
+  ('$REC2', '$T', '$C', DATE '2026-08-02', 'write_off_recovery', 'recovered', 50.00, '$WO2', 'paid');
+SQL
+UNDER() { echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '$1', 'adjustment', '$3', $2, '$REC2', 'x');"; }
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+BEGIN;
+$AS_OP
+SELECT now();
+SELECT pg_sleep(2);
+$(UNDER 2026-08-05 -10.00 'CR15 began first')
+COMMIT;
+SQL
+APID=$!
+sleep 0.7
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
+BEGIN; $AS_OP $(UNDER 2026-08-04 -5.00 'CR15 began second') COMMIT;
+SQL
+BST=$?
+wait $APID; AST=$?
+if [ "$BST" -eq 0 ] && [ "$AST" -ne 0 ] && grep -q "retry it" "$A_OUT"; then echo "PASS CR15 a writer that began before a row now in the tree is refused for retry"
+else echo "FAIL CR15: expected B to pass and A refused with 'retry it', got B ($BST): $(cat "$B_OUT") A ($AST): $(cat "$A_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN; $AS_OP $(UNDER 2026-08-05 -10.00 'CR15 retried') COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS CR15b the retry is admitted (net 35 of 50)"; else echo "FAIL CR15b: $OUT"; fail=1; fi
 
 exit $fail

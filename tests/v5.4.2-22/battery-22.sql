@@ -467,6 +467,52 @@ SELECT pg_temp.refuses_at('R11 a chain that does not reach an original within 10
             ('00000000-0000-4000-9022-' || lpad((i % 1001 + 1)::text, 12, '0'))::uuid, 'ring'
        FROM generate_series(1, 1001) i$q$,
   '23514', 'does not reach an original');
+-- r4 (Opus B1): aging nets the tree at a date, so the cap holds at every date.
+SELECT pg_temp.refuses_at('R12 a later-dated reversal makes no room for an earlier-dated recovery: on Feb 20 the tree would net 200 of 100',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, NULL, NULL);
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002262', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'agency', 100, '00000000-0000-4000-8000-000000002261', 'agency');
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-03-05', 'adjustment', 'bounced', -100, '00000000-0000-4000-8000-000000002262', 'bounced');
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-20', 'write_off_recovery', 'again', 100, '00000000-0000-4000-8000-000000002261', 'again');
+   END $d$$q$,
+  '23514', 'on 2026-02-20 the rows netted');
+SELECT pg_temp.refuses_at('R12b a recovery is dated on or after its write-off',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-25', 'write_off', 'written off', -40, NULL, NULL);
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-03', 'write_off_recovery', 'early', 40, '00000000-0000-4000-8000-000000002261', 'early');
+   END $d$$q$,
+  '23514', 'dated on or after the entry it names');
+SELECT pg_temp.refuses_at('R12c and any row under it on or after the entry it names (a reversal of the recovery dated before it)',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, NULL, NULL);
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002262', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'agency', 100, '00000000-0000-4000-8000-000000002261', 'agency');
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-09', 'adjustment', 'bounced', -100, '00000000-0000-4000-8000-000000002262', 'bounced');
+   END $d$$q$,
+  '23514', 'dated on or after the entry it names');
+SELECT pg_temp.admits('R12d the bounced recovery, then a new one, both dated in order: net 100 at every date (rolled back)',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, NULL, NULL);
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('00000000-0000-4000-8000-000000002262', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'agency', 100, '00000000-0000-4000-8000-000000002261', 'agency');
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-12', 'adjustment', 'bounced', -100, '00000000-0000-4000-8000-000000002262', 'bounced');
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-20', 'write_off_recovery', 'again', 100, '00000000-0000-4000-8000-000000002261', 'again');
+     RAISE EXCEPTION 'R12d sentinel';
+   EXCEPTION WHEN raise_exception THEN
+     IF SQLERRM <> 'R12d sentinel' THEN RAISE; END IF;
+   END $d$$q$);
+RESET ROLE;
+-- r4: aging nets the tree as recorded (created_at, the transaction's start);
+-- a row recorded before one already in the tree is a writer that began
+-- earlier and posted later, and retries. The owner's created_at is kept.
+SELECT pg_temp.refuses_at('R12e a row recorded before a row already in its tree is refused for retry (40001)',
+  $q$DO $d$ BEGIN
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, created_at) VALUES
+       ('00000000-0000-4000-8000-000000002261', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, now());
+     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason, created_at) VALUES
+       ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-10', 'write_off_recovery', 'begun earlier', 100, '00000000-0000-4000-8000-000000002261', 'x', now() - interval '1 minute');
+   END $d$$q$,
+  '40001', 'retry it');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b1', true);
 RESET ROLE;
 
 

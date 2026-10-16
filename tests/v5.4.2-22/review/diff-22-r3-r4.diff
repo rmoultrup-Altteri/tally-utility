@@ -1,0 +1,275 @@
+--- patch-22-frozen-r3.sql	2026-10-16 11:01:35
++++ patch-22-frozen-r4.sql	2026-10-16 11:58:18
+@@ -45,6 +45,21 @@
+ --   apart from it, so a 400-deep tree in one statement takes about 2 s, not
+ --   minutes.
+ --
++-- Revision r4 (review round 3: Opus and Codex "not yet", Fable "ready";
++--   tests/v5.4.2-22/review/review-findings-22-r3.md): the cap holds at every
++--   date of the tree, and a row under a write-off is dated on or after the
++--   entry it names, so a later-dated reversal makes no room for an earlier
++--   recovery (Opus B1); a row recorded before a row already in its tree is
++--   refused for retry, so the cap holds at every recorded instant too; a
++--   change of the aging edges takes the close head FOR SHARE, so the close
++--   ages by the edges in force at its instant (Codex B1, Opus N2); the cap's
++--   walk picks the write-offs from the walk itself, and both walks run with
++--   sequential scans, hash and merge joins off, since on a ledger the
++--   planner believed empty they scanned it at every step (Opus S1; a
++--   battery run took 30 s at R10g); the lock-order paragraph states the
++--   deadlock between writers under two write-offs (Fable S1, Codex S1,
++--   Opus N1).
++--
+ -- ----------------------------------------------------------------------------
+ -- What changes
+ -- ----------------------------------------------------------------------------
+@@ -127,6 +142,10 @@
+ --     write-off — its whole same-customer tree, any depth and type — nets
+ --     to between 0 and the amount written off; checked after the statement's
+ --     rows are all in, serialised on the write-off, READ COMMITTED only.
++--     r4: at every date of the tree (rows dated on or before it), as aging
++--     and the close net it; a row under a write-off is dated on or after
++--     the entry it names, and is not recorded before a row already in the
++--     tree (the writer retries, 40001).
+ --
+ --   The seal
+ --   * tally_close owns close_accounting_period(): NOLOGIN, no BYPASSRLS, no
+@@ -154,7 +173,15 @@
+ --   recovered write-off).
+ --   Shared locks on one row per tenant: writers never wait for each other.
+ --   A row under a write-off takes the advisory lock of each write-off above
+---   it, in id order, after its tenant's head (r3).
++--   it, in id order, after its tenant's head (r3). The order holds within
++--   one row only: rows fire in row order, and a transaction keeps the locks
++--   of its earlier statements. Two transactions posting under the same two
++--   write-offs in opposite orders can deadlock; PostgreSQL aborts one and
++--   nothing is written by it (Fable S1, Codex S1, Opus N1, r4). Writers
++--   retry a deadlock (40P01) and a recorded-order refusal (40001).
++--   A change of the aging edges takes its tenant's head FOR SHARE, as a
++--   money write does (r4); it holds the tenant row, and the close never
++--   locks the tenant row.
+ --   A withdrawal locks the period row, then (should its transaction go on to
+ --   post money) the head FOR SHARE — the reverse of the close. A withdrawal
+ --   and a money write in one transaction, against a close of that period,
+@@ -182,8 +209,10 @@
+ --       place could be any place).
+ --   R8. The general reversal rules (every reversal names its entry,
+ --       opposite sign, capped) are -23's (X); -22 caps the net of a
+---       write-off's tree only, and forbids loops and chains past 1000
+---       entries for every reversal.
++--       write-off's tree at every date and recorded instant (r4) and orders
++--       its dates, and forbids loops and chains past 1000 entries for every
++--       reversal. Rows outside a write-off's tree may still be dated before
++--       the entry they name.
+ --   R9. A tenant with no aging setting recorded at the instant cannot be
+ --       aged (raises); tenants that existed before -22 get theirs at the
+ --       patch's time, so aging recorded before it is unknowable.
+@@ -192,7 +221,14 @@
+ --       three-argument aging and receivables_aging_bucket_days_as_of() read
+ --       that history, so such a row changes what they return for an earlier
+ --       instant. The close does not read it (r3), and a snapshot is
+---       reproduced with its stored edges.
++--       reproduced with its stored edges. A change of the edges that waited
++--       for a close is recorded with its own transaction's start, which can
++--       precede the close's instant (r4): the history then dates it before a
++--       close that did not use it. The snapshot's stored edges are the record.
++--  R11. The walks' plans are pinned by the function's settings, not proved
++--       for every size: measured, a 300-deep tree in one statement in about
++--       1.3 s, and 5,000 reversals after 200,000 rows loaded in the same
++--       transaction in 0.8 s (r4).
+ --
+ -- Tests. battery-22 (one row per requirement), races/close-22.sh,
+ --   mutations-22.py.
+@@ -526,12 +562,20 @@
+ CREATE OR REPLACE FUNCTION public.enforce_write_off_recovery() RETURNS trigger
+     LANGUAGE plpgsql
+     SET search_path = public, pg_temp
++    SET enable_seqscan = off
++    SET enable_hashjoin = off
++    SET enable_mergejoin = off
+     AS $$
+ DECLARE
+-    v_parent public.account_ledger%ROWTYPE;
+-    v_wo     public.account_ledger%ROWTYPE;
+-    v_net    numeric;
+-    c_max    CONSTANT integer := 1000;
++    v_parent   public.account_ledger%ROWTYPE;
++    v_wo       public.account_ledger%ROWTYPE;
++    v_wo_id    uuid;
++    v_tree     uuid[];
++    v_net      numeric;
++    v_on       date;
++    v_later_id uuid;
++    v_later_at timestamptz;
++    c_max      CONSTANT integer := 1000;
+ BEGIN
+     SELECT * INTO v_parent FROM public.account_ledger l WHERE l.id = NEW.reverses_ledger_entry_id;
+     IF NEW.transaction_type = 'write_off_recovery' THEN
+@@ -554,28 +598,44 @@
+     END IF;
+     -- The cap, for every write-off above the new row within its customer
+     -- (aging nets a reversal only within its customer), locked in id order.
+-    FOR v_wo IN
+-        WITH RECURSIVE up(id, depth) AS (
+-            SELECT NEW.reverses_ledger_entry_id, 1
++    -- r4: the walks step by index, whatever the statistics say. On a ledger the
++    -- planner believes empty (a fresh tenant; after autovacuum resets the
++    -- estimate) it hash-joined a sequential scan of the whole ledger at every
++    -- step, with the RLS functions on every row: R10g took 30 s and more, run
++    -- to run (with only that turned off, it merge-joined a full index scan).
++    -- The function runs with sequential scans, hash and merge joins off: each
++    -- step is a nested loop over the id or reversal index, which always exist.
++    -- r4 (Opus S1): the walk carries each entry's type and customer, so the
++    -- write-offs are chosen from the walk itself; no step or final join reads
++    -- the ledger by anything but its id. Leaving the customer ends the walk.
++    FOR v_wo_id IN
++        WITH RECURSIVE up(id, next_id, transaction_type, mine, depth) AS (
++            SELECT l.id, l.reverses_ledger_entry_id, l.transaction_type,
++                   (l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id), 1
++              FROM public.account_ledger l WHERE l.id = NEW.reverses_ledger_entry_id
+             UNION ALL
+-            -- Each step is found by id alone: with the tenant in the join the
+-            -- planner may scan the tenant's whole ledger per step. Leaving the
+-            -- customer yields NULL, which ends the walk.
+-            SELECT CASE WHEN l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id
+-                        THEN l.reverses_ledger_entry_id END, u.depth + 1
+-              FROM up u JOIN public.account_ledger l ON l.id = u.id
+-             WHERE u.depth < c_max
++            SELECT l.id, l.reverses_ledger_entry_id, l.transaction_type,
++                   (l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id), u.depth + 1
++              FROM up u JOIN public.account_ledger l ON l.id = u.next_id
++             WHERE u.mine AND u.depth < c_max
+         )
+-        SELECT l.* FROM up u JOIN public.account_ledger l ON l.id = u.id
+-         WHERE l.transaction_type = 'write_off' AND l.tenant_id = NEW.tenant_id AND l.customer_id = NEW.customer_id
+-         ORDER BY l.id
++        SELECT u.id FROM up u WHERE u.mine AND u.transaction_type = 'write_off' ORDER BY u.id
+     LOOP
+         IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+             RAISE EXCEPTION USING
+-                MESSAGE = format('a row under write-off %s is posted at READ COMMITTED (this transaction is %s): the cap must see every row committed while it waited (R-02, v5.4.2-22)', v_wo.id, pg_catalog.current_setting('transaction_isolation')),
++                MESSAGE = format('a row under write-off %s is posted at READ COMMITTED (this transaction is %s): the cap must see every row committed while it waited (R-02, v5.4.2-22)', v_wo_id, pg_catalog.current_setting('transaction_isolation')),
+                 ERRCODE = 'invalid_transaction_state';
+         END IF;
+-        PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo.id::text, 0));
++        PERFORM pg_advisory_xact_lock(hashtextextended('write_off_recovery:' || v_wo_id::text, 0));
++        SELECT * INTO v_wo FROM public.account_ledger l WHERE l.id = v_wo_id;
++        -- r4 (Opus B1): aging nets the tree date by date, so the tree is
++        -- ordered by date: a row is dated on or after the entry it names (by
++        -- induction, every path down from the write-off is in date order).
++        IF NEW.transaction_date < v_parent.transaction_date THEN
++            RAISE EXCEPTION USING
++                MESSAGE = format('a row under write-off %s is dated on or after the entry it names: %s is dated %s, before %s (R-02, v5.4.2-22)', v_wo.id, NEW.id, NEW.transaction_date, v_parent.transaction_date),
++                ERRCODE = 'check_violation';
++        END IF;
+         -- Each step is found by the reversal link alone (as above, the
+         -- customer in the join lets the planner scan the customer's ledger per
+         -- step); a row of another customer is flagged, not counted, and its
+@@ -589,10 +649,33 @@
+               FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id
+              WHERE d.mine
+         )
+-        SELECT coalesce(sum(l.amount), 0) INTO v_net FROM down d JOIN public.account_ledger l ON l.id = d.id WHERE d.mine;
+-        IF v_net < 0 OR v_net > -v_wo.amount THEN
++        SELECT array_agg(d.id) INTO v_tree FROM down d WHERE d.mine;
++        -- r4: aging also nets the tree as recorded at an instant, by
++        -- created_at, the transaction's start. A row recorded before a row
++        -- already in the tree (a transaction that began earlier, posting
++        -- later) would let an earlier instant see it without that row; the
++        -- writer retries. Recorded order then follows the order checked here.
++        SELECT l.id, l.created_at INTO v_later_id, v_later_at
++          FROM public.account_ledger l
++         WHERE (l.id = v_wo.id OR l.id = ANY (v_tree)) AND l.created_at > NEW.created_at
++         ORDER BY l.created_at DESC LIMIT 1;
++        IF FOUND THEN
+             RAISE EXCEPTION USING
+-                MESSAGE = format('write-off %s: the rows netted against it would come to %s, outside 0 to the %s written off (R-02 cap, v5.4.2-22)', v_wo.id, v_net, -v_wo.amount),
++                MESSAGE = format('write-off %s: %s is recorded at %s, before %s (recorded at %s) already in its tree — a transaction that began earlier is posting later; retry it (R-02, v5.4.2-22)', v_wo.id, NEW.id, NEW.created_at, v_later_id, v_later_at),
++                ERRCODE = 'serialization_failure';
++        END IF;
++        -- r4 (Opus B1): the cap holds at every date of the tree, as aging and
++        -- the close net it (rows dated on or before the date), not only at the
++        -- end: a later-dated reversal makes no room for an earlier recovery.
++        SELECT x.on_date, x.net INTO v_on, v_net
++          FROM (SELECT l.transaction_date AS on_date,
++                       sum(l.amount) OVER (ORDER BY l.transaction_date) AS net
++                  FROM public.account_ledger l WHERE l.id = ANY (v_tree)) x
++         WHERE x.net < 0 OR x.net > -v_wo.amount
++         ORDER BY x.on_date LIMIT 1;
++        IF FOUND THEN
++            RAISE EXCEPTION USING
++                MESSAGE = format('write-off %s: on %s the rows netted against it would come to %s, outside 0 to the %s written off (R-02 cap, v5.4.2-22)', v_wo.id, v_on, v_net, -v_wo.amount),
+                 ERRCODE = 'check_violation';
+         END IF;
+     END LOOP;
+@@ -600,7 +683,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.enforce_write_off_recovery() IS
+-    'v5.4.2-22 (W3; R-02), r3. AFTER INSERT on account_ledger, for a row naming an entry, after the lineage walk: every row of the statement is visible. A row naming a write_off directly is a write_off_recovery; a write_off_recovery names a write_off of its own tenant and customer, positive against a negative write-off. For every write_off above the new row within its customer, at READ COMMITTED behind an advisory lock on that write-off (taken in id order), the net of its whole same-customer tree stays between 0 and the amount written off.';
++    'v5.4.2-22 (W3; R-02), r3. AFTER INSERT on account_ledger, for a row naming an entry, after the lineage walk: every row of the statement is visible. A row naming a write_off directly is a write_off_recovery; a write_off_recovery names a write_off of its own tenant and customer, positive against a negative write-off. For every write_off above the new row within its customer, at READ COMMITTED behind an advisory lock on that write-off (taken in id order), the net of its whole same-customer tree stays between 0 and the amount written off. r4: at every date of the tree; a row under a write-off is dated on or after the entry it names and is not recorded before a row already in the tree (40001, retry); the walks run with sequential scans, hash and merge joins off.';
+ CREATE TRIGGER enforce_write_off_recovery AFTER INSERT ON public.account_ledger
+     FOR EACH ROW WHEN (NEW.reverses_ledger_entry_id IS NOT NULL) EXECUTE FUNCTION public.enforce_write_off_recovery();
+ ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_write_off_recovery;
+@@ -614,6 +697,9 @@
+ CREATE OR REPLACE FUNCTION public.enforce_ledger_lineage_acyclic() RETURNS trigger
+     LANGUAGE plpgsql
+     SET search_path = public, pg_temp
++    SET enable_seqscan = off
++    SET enable_hashjoin = off
++    SET enable_mergejoin = off
+     AS $$
+ DECLARE
+     c_max  CONSTANT integer := 1000;
+@@ -692,6 +778,33 @@
+ COMMENT ON COLUMN public.tenants.receivables_aging_bucket_days IS
+     'v5.4.2-22 (W2). The upper edges, in days since the entry''s date, of the receivables aging buckets: {30,60,90,120} gives 0-30, 31-60, 61-90, 91-120 and over 120. Recorded in tenant_configuration_history; aging reads it as of its recorded instant.';
+ 
++-- r4 (Codex B1, Opus N2): the close reads the edges at its instant. A change
++-- of the edges takes the tenant's close head FOR SHARE, as a money write does:
++-- a change in flight finishes before the close takes its instant, and one
++-- that arrives later waits for the close. Invoker rights: tally_app holds the
++-- head's lock column (see the freeze).
++CREATE OR REPLACE FUNCTION public.enforce_aging_edges_close_order() RETURNS trigger
++    LANGUAGE plpgsql
++    SET search_path = public, pg_temp
++    AS $$
++BEGIN
++    IF NEW.receivables_aging_bucket_days IS DISTINCT FROM OLD.receivables_aging_bucket_days THEN
++        PERFORM 1 FROM public.accounting_close_heads h WHERE h.tenant_id = NEW.id FOR SHARE;
++        IF NOT FOUND THEN
++            RAISE EXCEPTION USING
++                MESSAGE = format('tenants: tenant %s has no close head visible to this session; the aging edges change behind it (v5.4.2-22)', NEW.id),
++                ERRCODE = 'insufficient_privilege';
++        END IF;
++    END IF;
++    RETURN NEW;
++END;
++$$;
++COMMENT ON FUNCTION public.enforce_aging_edges_close_order() IS
++    'v5.4.2-22 r4 (W2). BEFORE UPDATE OF receivables_aging_bucket_days on tenants: a change of the edges takes the tenant''s close head FOR SHARE, so it is ordered with the close (which takes the head FOR UPDATE before its instant): the close ages by the edges in force at its instant.';
++CREATE TRIGGER enforce_aging_edges_close_order BEFORE UPDATE OF receivables_aging_bucket_days ON public.tenants
++    FOR EACH ROW EXECUTE FUNCTION public.enforce_aging_edges_close_order();
++ALTER TABLE public.tenants ENABLE ALWAYS TRIGGER enforce_aging_edges_close_order;
++
+ -- r2 (Codex S4): the write-off threshold W3 names. The schema records the
+ -- setting; proposing a write-off is the core's. NULL: not set, so the core
+ -- proposes none (K-07: no assumed default).
+@@ -1125,7 +1238,9 @@
+     v_at := pg_catalog.clock_timestamp();
+     -- r3 (Opus S1): the tenant's setting itself, at the close's instant —
+     -- not the configuration history, which the application writes and may
+-    -- date. The snapshot stores the edges it used.
++    -- date. The snapshot stores the edges it used. r4 (Codex B1): a change
++    -- of the edges takes the head FOR SHARE (enforce_aging_edges_close_order),
++    -- so none commits between the head lock and this read.
+     SELECT t.receivables_aging_bucket_days INTO v_edges FROM public.tenants t WHERE t.id = v_tenant;
+     IF v_edges IS NULL THEN
+         RAISE EXCEPTION USING MESSAGE = format('tenant %s has no aging bucket setting (v5.4.2-22)', v_tenant), ERRCODE = 'no_data_found';
+@@ -1657,6 +1772,7 @@
+         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT OR UPDATE OF issued_date, tenant_id ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''issued_date'')',
+         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT OR UPDATE OF payment_date, tenant_id ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''payment_date'')',
+         'CREATE TRIGGER create_accounting_close_head AFTER INSERT ON public.tenants FOR EACH ROW EXECUTE FUNCTION create_accounting_close_head()',
++        'CREATE TRIGGER enforce_aging_edges_close_order BEFORE UPDATE OF receivables_aging_bucket_days ON public.tenants FOR EACH ROW EXECUTE FUNCTION enforce_aging_edges_close_order()',
+         'CREATE TRIGGER enforce_accounting_close_head BEFORE INSERT OR DELETE OR UPDATE ON public.accounting_close_heads FOR EACH ROW EXECUTE FUNCTION enforce_accounting_close_head()',
+         'CREATE TRIGGER enforce_accounting_period BEFORE INSERT OR DELETE OR UPDATE ON public.accounting_periods FOR EACH ROW EXECUTE FUNCTION enforce_accounting_period()',
+         'CREATE TRIGGER enforce_accounting_snapshot_write BEFORE INSERT OR DELETE OR UPDATE ON public.accounting_period_snapshot_lines FOR EACH ROW EXECUTE FUNCTION enforce_accounting_snapshot_write()',
