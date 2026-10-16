@@ -12,7 +12,8 @@ import {
   type Template,
 } from '@/fixtures/templates'
 import { customers, locationById, serviceLinks } from '@/fixtures/accounts'
-import { customerName } from '@/schemas/models'
+import { customerName, mailingAddressLines } from '@/schemas/models'
+import { useCustomer } from '@/lib/edits-store'
 import { useTemplate, saveTemplateVersion, type TemplateVersion } from '@/lib/templates-store'
 import { checkContent, contextFor, fill, smsShape } from '@/lib/templates'
 import { InsertFieldMenu } from '@/components/communications/InsertFieldMenu'
@@ -71,14 +72,16 @@ export function TemplateEditor({ template }: { template: Template }) {
   const overtaken = dirty && (bases[k] ?? null) !== (latest?.id ?? null)
 
   const ctx = useMemo(() => contextFor(previewAs, lang), [previewAs, lang])
-  const customer = customers.find((c) => c.id === previewAs)!
+  const fixture = customers.find((c) => c.id === previewAs)!
+  const customer = useCustomer(fixture)
   const link = serviceLinks.find((l) => l.customerId === previewAs)
   const loc = link ? locationById.get(link.locationId) : undefined
   const to = {
     name: customerName(customer),
     email: customer.email,
     phone: customer.phone,
-    address: loc ? `${loc.address}, ${loc.city}, ${loc.state} ${loc.zip}` : '',
+    /* Mailed to the billing address when one is on file. */
+    address: mailingAddressLines(customer, loc).join(', '),
   }
 
   const issues = draft ? checkContent(template, channel, lang, draft) : []

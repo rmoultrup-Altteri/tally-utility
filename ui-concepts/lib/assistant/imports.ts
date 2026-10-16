@@ -121,6 +121,11 @@ const CUSTOMER_FIELDS: FieldSpec[] = [
   { key: 'is_tax_exempt', kind: 'bool', note: 'default false' },
   { key: 'move_in_date', kind: 'date' },
   { key: 'deposit_amount', kind: 'decimal', places: 2, note: 'default 0.00' },
+  { key: 'billing_address_line1', kind: 'text', note: 'only when bills are mailed somewhere other than the service address' },
+  { key: 'billing_address_line2', kind: 'text' },
+  { key: 'billing_city', kind: 'text', note: 'required with a billing address' },
+  { key: 'billing_state', kind: 'text', note: 'default TX with a billing address' },
+  { key: 'billing_zip', kind: 'text', note: 'required with a billing address' },
 ]
 
 const LOCATION_FIELDS: FieldSpec[] = [
@@ -398,6 +403,13 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
       const email = s('email')
       if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
         warnings.push({ row: row.line, field: 'email', message: `"${email}" does not look like an email address` })
+      /* Any part of a billing address asks for the whole of it: half an address returns the mail. */
+      const billing = s('billing_address_line1') ?? s('billing_address_line2') ?? s('billing_city') ?? s('billing_zip')
+      if (billing) {
+        need('billing_address_line1', 'Billing street address')
+        need('billing_city', 'Billing city')
+        need('billing_zip', 'Billing ZIP')
+      }
       if (number && !rowErrors.length) {
         const parsed = Customer.safeParse({
           id: rid('cus'),
@@ -420,6 +432,11 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
           deposit_amount: s('deposit_amount') ?? '0.00',
           /* An opening balance is a ledger entry, not a column. Imports start at zero. */
           balance: '0.00',
+          billing_address_line1: billing ? s('billing_address_line1') : null,
+          billing_address_line2: billing ? s('billing_address_line2') : null,
+          billing_city: billing ? s('billing_city') : null,
+          billing_state: billing ? (s('billing_state') ?? 'TX') : null,
+          billing_zip: billing ? s('billing_zip') : null,
           created_at: new Date().toISOString(),
         })
         if (parsed.success) customer = parsed.data

@@ -15,9 +15,11 @@ import {
   AnomalySeverity,
   AnomalyStatus,
   AnomalyType,
+  BillingDeliveryMethod,
   CalculationType,
   ChangeType,
   ConsumptionUnit,
+  ContactMethod,
   CorrectionRateMode,
   CustomerStatus,
   CustomerType,
@@ -32,6 +34,7 @@ import {
   PaymentMethod,
   PaymentStatus,
   PartialPeriodPolicy,
+  PreferredLanguage,
   QualityFlag,
   RateDateMode,
   RateUnit,
@@ -75,6 +78,23 @@ export const Customer = z.object({
   move_in_date: isoDate.nullable(),
   deposit_amount: decimal,
   balance: decimal,
+  /**
+   * Where bills and letters are mailed, when it is not the service address.
+   * Absent or null: they go to the service address. Optional so records saved
+   * in a browser before these columns existed still read.
+   */
+  billing_address_line1: z.string().nullable().optional(),
+  billing_address_line2: z.string().nullable().optional(),
+  billing_city: z.string().nullable().optional(),
+  billing_state: z.string().nullable().optional(),
+  billing_zip: z.string().nullable().optional(),
+  /**
+   * Contact preferences. Absent reads as the schema's defaults (mail, English,
+   * email bills) — see `contactPreferences` — so older records still read.
+   */
+  preferred_contact_method: ContactMethod.optional(),
+  preferred_language: PreferredLanguage.optional(),
+  billing_delivery_method: BillingDeliveryMethod.optional(),
   /** When the account was opened in the CIS — the "customer since" date. Not the move-in date. */
   created_at: instant,
 })
@@ -84,6 +104,51 @@ export type Customer = z.infer<typeof Customer>
 export function customerName(c: Customer): string {
   if (c.company_name) return c.company_name
   return [c.first_name, c.last_name].filter(Boolean).join(' ') || c.customer_number
+}
+
+/** Contact preferences with the schema's column defaults filled in. */
+export function contactPreferences(c: Customer) {
+  return {
+    contact: c.preferred_contact_method ?? 'mail',
+    language: c.preferred_language ?? 'en',
+    delivery: c.billing_delivery_method ?? 'email',
+  }
+}
+
+export const CONTACT_METHOD_LABEL: Record<ContactMethod, string> = {
+  mail: 'Mail',
+  email: 'Email',
+  phone: 'Phone call',
+  text: 'Text message',
+  portal: 'Customer portal',
+}
+
+export const LANGUAGE_LABEL: Record<PreferredLanguage, string> = {
+  en: 'English',
+  es: 'Spanish',
+  vi: 'Vietnamese',
+  zh: 'Chinese',
+  ko: 'Korean',
+  other: 'Other',
+}
+
+export const BILL_DELIVERY_LABEL: Record<BillingDeliveryMethod, string> = {
+  email: 'Email',
+  mail: 'Paper, by mail',
+  both: 'Email and paper',
+  portal_only: 'Portal only',
+}
+
+/** The billing address as printed lines, or null when bills go to the service address. */
+export function billingAddressLines(c: Customer): string[] | null {
+  if (!c.billing_address_line1) return null
+  const place = `${c.billing_city ?? ''}, ${c.billing_state ?? ''} ${c.billing_zip ?? ''}`.trim()
+  return [c.billing_address_line1, c.billing_address_line2, place].filter((l): l is string => !!l)
+}
+
+/** Where mail for this customer goes: the billing address if one is on file, else the service address. */
+export function mailingAddressLines(c: Customer, at?: ServiceLocation): string[] {
+  return billingAddressLines(c) ?? (at ? [at.address, `${at.city}, ${at.state} ${at.zip}`] : [])
 }
 
 /* ---- Service location ------------------------------------------------ */

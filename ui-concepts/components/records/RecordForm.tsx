@@ -134,7 +134,9 @@ export function CheckField({ name, label, values, set, hint }: Omit<FieldProps, 
 export function ErrorSummary({ errors }: { errors: ImportIssue[] }) {
   /* The submit button sits below the fold; bring the list of problems up to where the eye is. */
   const box = useRef<HTMLDivElement>(null)
-  useEffect(() => box.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), [errors])
+  useEffect(() => {
+    box.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [errors])
   if (!errors.length) return null
   return (
     <div ref={box} role="alert" className="rounded-md border border-exception-critical-rail bg-exception-critical-wash px-4 py-3">

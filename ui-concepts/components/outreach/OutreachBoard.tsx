@@ -19,6 +19,9 @@ import { contextFor } from '@/lib/templates'
 import { useTemplate } from '@/lib/templates-store'
 import { latestBy, logOutreach, useOutreachLog, type OutreachAction } from '@/lib/outreach-store'
 import { useAccess } from '@/lib/access'
+import { useEdits } from '@/lib/edits-store'
+import { customerById } from '@/fixtures/accounts'
+import { billingAddressLines } from '@/schemas/models'
 import { activeUserName } from '@/lib/session'
 import { MessagePreview } from '@/components/communications/MessagePreview'
 import { Waterfall } from '@/components/charts/Waterfall'
@@ -504,6 +507,10 @@ function Detail({
   const v = verdictOf(c)
   const lang = content[channel]?.[c.lang] ? c.lang : 'en'
   const delta = c.draftCents - c.priorCents
+  /* A letter is mailed to the billing address when one is on file; its body still names the service address. */
+  const account = c.customerId ? customerById.get(c.customerId) : undefined
+  const accountEdit = useEdits().customers[c.customerId ?? '']
+  const mailTo = account ? billingAddressLines({ ...account, ...accountEdit })?.join(', ') : undefined
 
   const ctx = useMemo(
     () =>
@@ -677,7 +684,7 @@ function Detail({
               lang={lang}
               content={msg}
               ctx={ctx}
-              to={{ name: c.name, email: c.reach.email, phone: c.reach.mobile, address: c.address }}
+              to={{ name: c.name, email: c.reach.email, phone: c.reach.mobile, address: mailTo ?? c.address }}
               marks={false}
             />
           ) : null}

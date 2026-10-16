@@ -147,6 +147,7 @@ export default async function InvoicePage({
           <BillDocument
             invoice={invoice}
             lines={lines}
+            customer={customer}
             customerLabel={customer ? customerName(customer) : '—'}
             addressLines={
               location

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { Button, Panel } from '@/components/ui/Panel'
 import { CustomerType } from '@/schemas/enums'
-import { customerName } from '@/schemas/models'
+import { billingAddressLines, customerName } from '@/schemas/models'
 import { cycle, tenant } from '@/fixtures/tenant'
 import { useImported } from '@/lib/imports-store'
 import { createRecord, premiseOnFile, type Created } from '@/lib/new-records'
@@ -21,6 +21,10 @@ import { CheckField, ErrorSummary, Section, SelectField, TextField, useValues } 
  * address is already on file: the form shows it rather than asking for it
  * again, and shows the meter set there if there is one.
  *
+ * Bills and letters go to the service address unless "Same as service
+ * address" is unticked; then the billing address is asked for and kept on the
+ * customer.
+ *
  * Disconnect protections, billing holds and an opening balance are not here
  * for the same reason they are not in an import: each is set on the account
  * afterwards, with a reason, through the events that record it.
@@ -34,10 +38,13 @@ const INITIAL = {
   billing_cycle: cycle.code,
   read_type: 'amr',
   is_tax_exempt: 'no',
+  billing_same: 'yes',
+  billing_state: 'TX',
 }
 
 const CUSTOMER_KEYS = ['customer_number', 'customer_type', 'email', 'phone', 'move_in_date', 'deposit_amount', 'is_tax_exempt']
 const PREMISE_KEYS = ['location_number', 'address', 'city', 'state', 'zip', 'inside_city_limits', 'billing_cycle']
+const BILLING_KEYS = ['billing_address_line1', 'billing_address_line2', 'billing_city', 'billing_state', 'billing_zip']
 const METER_KEYS = ['meter_number', 'serial_number', 'manufacturer', 'model', 'size', 'read_type', 'ami_endpoint_id', 'route_id', 'route_sequence']
 
 const primaryLink =
@@ -56,6 +63,7 @@ export function NewAccountForm({ premise = null }: { premise?: string | null }) 
   const person = values.customer_type === 'residential'
   const inside = values.inside_city_limits === 'yes'
   const withMeter = !known?.meter && (values.meter_number ?? '').trim() !== ''
+  const sameAddress = values.billing_same === 'yes'
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -66,6 +74,7 @@ export function NewAccountForm({ premise = null }: { premise?: string | null }) 
       ...(known ? [] : PREMISE_KEYS),
       ...(!known && inside ? ['franchise_city'] : []),
       ...(withMeter ? METER_KEYS : []),
+      ...(sameAddress ? [] : BILLING_KEYS),
     ]
     const fields = Object.fromEntries(keys.map((k) => [k, values[k] ?? '']))
     if (known) fields.location_number = known.location.location_number
@@ -83,6 +92,7 @@ export function NewAccountForm({ premise = null }: { premise?: string | null }) 
     /* Read after saving, so a meter already set at a premise moved into shows as this account's. */
     const at = premiseOnFile(imported, done.premise)
     const mtr = done.result.records.meters[0] ?? at?.meter ?? null
+    const billTo = billingAddressLines(c)
     return (
       <Panel>
         <div className="space-y-3 px-5 py-5">
@@ -93,6 +103,7 @@ export function NewAccountForm({ premise = null }: { premise?: string | null }) 
                 Service address <span className="ident">{at.location.location_number}</span> · {at.location.address}, {at.location.city} {at.location.zip}
               </li>
             ) : null}
+            <li>{billTo ? <>Bills mailed to {billTo.join(', ')}.</> : 'Bills mailed to the service address.'}</li>
             <li>{mtr ? <>Meter <span className="ident">{mtr.meter_number}</span> set at the service address.</> : 'No meter set yet — set one when it goes in.'}</li>
             {done.result.warnings.map((w, i) => (
               <li key={i} className="text-exception-warning-text">
@@ -185,6 +196,27 @@ export function NewAccountForm({ premise = null }: { premise?: string | null }) 
           <TextField name="billing_cycle" label="Billing cycle" {...field} />
         </Section>
       )}
+
+      <Section title="Billing address" meta="where bills and letters are mailed">
+        <div className="sm:col-span-2 lg:col-span-3">
+          <CheckField
+            name="billing_same"
+            label="Same as service address"
+            hint="Untick for a landlord, a P.O. box or an office that pays the bill"
+            values={values}
+            set={set}
+          />
+        </div>
+        {sameAddress ? null : (
+          <>
+            <TextField name="billing_address_line1" label="Street address or P.O. box" required className="sm:col-span-2" {...field} />
+            <TextField name="billing_address_line2" label="Line 2" placeholder="Attn, suite or unit" {...field} />
+            <TextField name="billing_city" label="City" required {...field} />
+            <TextField name="billing_state" label="State" {...field} />
+            <TextField name="billing_zip" label="ZIP" required {...field} />
+          </>
+        )}
+      </Section>
 
       {known?.meter ? (
         <Section title="Meter" meta={<span className="ident">{known.meter.meter_number}</span>}>

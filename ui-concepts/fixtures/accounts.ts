@@ -92,6 +92,12 @@ export const customers: Customer[] = [
     move_in_date: '2008-09-15',
     deposit_amount: '0.00',
     balance: '0.00',
+    /* The district's accounts payable office pays the bill, not the barn. */
+    billing_address_line1: 'Attn: Accounts Payable',
+    billing_address_line2: 'P.O. Box 511',
+    billing_city: 'Navasota',
+    billing_state: 'TX',
+    billing_zip: '77868',
     created_at: '2008-09-02T13:20:57Z',
   },
   {

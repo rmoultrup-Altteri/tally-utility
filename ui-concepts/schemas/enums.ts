@@ -319,6 +319,18 @@ export const DisconnectProtectionType = z.enum([
 ])
 export type DisconnectProtectionType = z.infer<typeof DisconnectProtectionType>
 
+/** `customers.preferred_contact_method`: how the customer wants to be reached about anything not a bill. */
+export const ContactMethod = z.enum(['mail', 'email', 'phone', 'text', 'portal'])
+export type ContactMethod = z.infer<typeof ContactMethod>
+
+/** `customers.preferred_language`: the language letters, texts and calls are made in. */
+export const PreferredLanguage = z.enum(['en', 'es', 'vi', 'zh', 'ko', 'other'])
+export type PreferredLanguage = z.infer<typeof PreferredLanguage>
+
+/** `customers.billing_delivery_method`: how the bill itself goes out. Narrower than `DeliveryMethod`. */
+export const BillingDeliveryMethod = z.enum(['email', 'mail', 'both', 'portal_only'])
+export type BillingDeliveryMethod = z.infer<typeof BillingDeliveryMethod>
+
 /* ---- Rates ----------------------------------------------------------- */
 
 export const RateScheduleStatus = z.enum([

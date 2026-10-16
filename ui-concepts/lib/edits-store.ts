@@ -28,6 +28,14 @@ export const CUSTOMER_EDITABLE = [
   'do_not_disconnect',
   'disconnect_protection_type',
   'disconnect_protection_expiry',
+  'billing_address_line1',
+  'billing_address_line2',
+  'billing_city',
+  'billing_state',
+  'billing_zip',
+  'preferred_contact_method',
+  'preferred_language',
+  'billing_delivery_method',
 ] as const satisfies readonly (keyof Customer)[]
 
 /**
@@ -214,7 +222,8 @@ function diff<T extends object>(before: T, after: Partial<T>): Record<string, { 
   const changes: Record<string, { from: unknown; to: unknown }> = {}
   for (const [k, v] of Object.entries(after)) {
     const was = (before as Record<string, unknown>)[k]
-    if (was !== v) changes[k] = { from: was, to: v }
+    /* A field a record never had reads as null, so saving it unchanged logs nothing. */
+    if ((was ?? null) !== (v ?? null)) changes[k] = { from: was ?? null, to: v }
   }
   return changes
 }

@@ -18,14 +18,24 @@ import {
   useLastStatusChange,
   type CustomerEdit,
 } from '@/lib/edits-store'
-import { DeceasedAction } from '@/components/accounts/Deceased'
+import { DeceasedAction, RecordDeath, useCanRecordDeath } from '@/components/accounts/Deceased'
 import { useMeterNow } from '@/lib/replacements'
 import { RateScheduleField } from '@/components/accounts/RateSchedule'
 import { useDeceased } from '@/lib/deceased-store'
 import { PROOFS, reviewOverdue } from '@/lib/deceased'
 import { asOf } from '@/fixtures/tenant'
-import { CustomerType, DisconnectProtectionType } from '@/schemas/enums'
-import { customerName, type Customer, type Meter, type ServiceLocation } from '@/schemas/models'
+import { BillingDeliveryMethod, ContactMethod, CustomerType, DisconnectProtectionType, PreferredLanguage } from '@/schemas/enums'
+import {
+  BILL_DELIVERY_LABEL,
+  CONTACT_METHOD_LABEL,
+  LANGUAGE_LABEL,
+  billingAddressLines,
+  contactPreferences,
+  customerName,
+  type Customer,
+  type Meter,
+  type ServiceLocation,
+} from '@/schemas/models'
 import { date, money, stamp } from '@/lib/format'
 
 /**
@@ -49,6 +59,7 @@ export function AccountHeader({
   const edited = useLastEdit('customer', base.id)
   const [open, setOpen] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
+  const [deathOpen, setDeathOpen] = useState(false)
   const verb = customer.status === 'inactive' ? 'Reactivate' : 'Inactivate'
   return (
     <>
@@ -76,7 +87,17 @@ export function AccountHeader({
           </>
         }
       />
-      <EditAccount base={base} current={customer} open={open} onClose={() => setOpen(false)} />
+      <EditAccount
+        base={base}
+        current={customer}
+        open={open}
+        onClose={() => setOpen(false)}
+        onRecordDeath={() => {
+          setOpen(false)
+          setDeathOpen(true)
+        }}
+      />
+      <RecordDeath base={base} current={customer} open={deathOpen} onClose={() => setDeathOpen(false)} />
       <AccountStatusChange
         base={base}
         current={customer}
@@ -147,6 +168,8 @@ export function AccountAlerts({ customer: base }: { customer: Customer }) {
 
 export function AccountFields({ customer: base, location }: { customer: Customer; location?: ServiceLocation }) {
   const customer = useCustomer(base)
+  const billTo = billingAddressLines(customer)
+  const prefs = contactPreferences(customer)
   return (
     <FieldGrid cols={4}>
       <Field label="Status">
@@ -162,6 +185,11 @@ export function AccountFields({ customer: base, location }: { customer: Customer
       <RateScheduleField customerId={base.id} />
       <Field label="Phone">{customer.phone ?? '—'}</Field>
       <Field label="Email">{customer.email ?? '—'}</Field>
+      <Field label="Contact preferences">
+        <span className="block">Reach by {CONTACT_METHOD_LABEL[prefs.contact].toLowerCase()}</span>
+        <span className="block">{LANGUAGE_LABEL[prefs.language]}</span>
+        <span className="text-ink-secondary">Bills: {BILL_DELIVERY_LABEL[prefs.delivery].toLowerCase()}</span>
+      </Field>
       <Field label="Service address">
         {location ? (
           <>
@@ -173,6 +201,20 @@ export function AccountFields({ customer: base, location }: { customer: Customer
           </>
         ) : (
           '—'
+        )}
+      </Field>
+      <Field label="Billing address" hint={billTo ? 'Bills and letters are mailed here' : undefined}>
+        {billTo ? (
+          <>
+            {billTo.slice(0, -1).map((l) => (
+              <span key={l} className="block">
+                {l}
+              </span>
+            ))}
+            <span className="text-ink-secondary">{billTo[billTo.length - 1]}</span>
+          </>
+        ) : (
+          <span className="text-ink-secondary">Same as service address</span>
         )}
       </Field>
       <Field
@@ -321,6 +363,15 @@ type Draft = {
   do_not_disconnect: boolean
   disconnect_protection_type: string
   disconnect_protection_expiry: string
+  billing_same: boolean
+  billing_address_line1: string
+  billing_address_line2: string
+  billing_city: string
+  billing_state: string
+  billing_zip: string
+  preferred_contact_method: ContactMethod
+  preferred_language: PreferredLanguage
+  billing_delivery_method: BillingDeliveryMethod
   reason: string
 }
 
@@ -338,6 +389,15 @@ function draftFrom(c: Customer): Draft {
     do_not_disconnect: c.do_not_disconnect,
     disconnect_protection_type: c.disconnect_protection_type ?? '',
     disconnect_protection_expiry: c.disconnect_protection_expiry ?? '',
+    billing_same: !c.billing_address_line1,
+    billing_address_line1: c.billing_address_line1 ?? '',
+    billing_address_line2: c.billing_address_line2 ?? '',
+    billing_city: c.billing_city ?? '',
+    billing_state: c.billing_state ?? 'TX',
+    billing_zip: c.billing_zip ?? '',
+    preferred_contact_method: contactPreferences(c).contact,
+    preferred_language: contactPreferences(c).language,
+    billing_delivery_method: contactPreferences(c).delivery,
     reason: '',
   }
 }
@@ -352,7 +412,8 @@ function formatPhone(v: string): string | null {
 }
 
 /** The draft as the edit it would save, with protections cleared when switched off. */
-function toEdit(d: Draft): CustomerEdit {
+function toEdit(d: Draft, current: Customer): CustomerEdit {
+  const prefs = contactPreferences(current)
   return {
     first_name: blank(d.first_name),
     last_name: blank(d.last_name),
@@ -368,6 +429,20 @@ function toEdit(d: Draft): CustomerEdit {
       ? ((blank(d.disconnect_protection_type) as Customer['disconnect_protection_type']) ?? null)
       : null,
     disconnect_protection_expiry: d.do_not_disconnect ? blank(d.disconnect_protection_expiry) : null,
+    /* Same as service address clears the billing address, so mail follows the service address again. */
+    billing_address_line1: d.billing_same ? null : blank(d.billing_address_line1),
+    billing_address_line2: d.billing_same ? null : blank(d.billing_address_line2),
+    billing_city: d.billing_same ? null : blank(d.billing_city),
+    billing_state: d.billing_same ? null : blank(d.billing_state),
+    billing_zip: d.billing_same ? null : blank(d.billing_zip),
+    /* A record without a preference reads the schema default; leaving the default alone records nothing. */
+    ...(current.preferred_contact_method || d.preferred_contact_method !== prefs.contact
+      ? { preferred_contact_method: d.preferred_contact_method }
+      : {}),
+    ...(current.preferred_language || d.preferred_language !== prefs.language ? { preferred_language: d.preferred_language } : {}),
+    ...(current.billing_delivery_method || d.billing_delivery_method !== prefs.delivery
+      ? { billing_delivery_method: d.billing_delivery_method }
+      : {}),
   }
 }
 
@@ -379,16 +454,44 @@ function validate(d: Draft, current: Customer): Partial<Record<keyof Draft, stri
   if (d.phone.trim() && d.phone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '').length !== 10)
     e.phone = 'Enter a 10-digit phone number'
   if (d.billing_hold && !d.billing_hold_reason.trim()) e.billing_hold_reason = 'Say why billing is held'
-  if (d.do_not_disconnect) {
+  /* A preference the account has no way to honour. Checked only on a change, so an old record still saves. */
+  const prefs = contactPreferences(current)
+  const noEmail = !d.email.trim()
+  const noPhone = !d.phone.trim()
+  if (d.preferred_contact_method !== prefs.contact) {
+    if (d.preferred_contact_method === 'email' && noEmail) e.preferred_contact_method = 'Add an email address first'
+    if ((d.preferred_contact_method === 'phone' || d.preferred_contact_method === 'text') && noPhone)
+      e.preferred_contact_method = 'Add a phone number first'
+  }
+  if (d.billing_delivery_method !== prefs.delivery && (d.billing_delivery_method === 'email' || d.billing_delivery_method === 'both') && noEmail)
+    e.billing_delivery_method = 'Add an email address first'
+  if (!d.billing_same) {
+    if (!d.billing_address_line1.trim()) e.billing_address_line1 = 'Enter the street address or P.O. box'
+    if (!d.billing_city.trim()) e.billing_city = 'Enter the city'
+    if (!d.billing_zip.trim()) e.billing_zip = 'Enter the ZIP'
+  }
+  if (d.do_not_disconnect && d.disconnect_protection_type === DECEASED) {
+    e.disconnect_protection_type = 'Use Record death below, or choose another protection'
+  } else if (d.do_not_disconnect) {
     if (!d.disconnect_protection_type) e.disconnect_protection_type = 'Choose the protection on file'
     if (!d.disconnect_protection_expiry) e.disconnect_protection_expiry = 'Enter when the protection expires'
     else if (d.disconnect_protection_expiry <= asOf.validAt)
       e.disconnect_protection_expiry = `Must be after ${date(asOf.validAt)}`
   }
-  const edit = toEdit(d)
+  const edit = toEdit(d, current)
   const reasoned = CUSTOMER_REASONED.some((k) => edit[k] !== current[k])
   if (reasoned && !d.reason.trim()) e.reason = 'Protections, holds and tax status need a reason on record'
   return e
+}
+
+/** The protection dropdown's hand-off to Record death. Never saved as a protection type. */
+const DECEASED = 'deceased'
+
+/** The fields an edit would change, treating a field the record never had as null. */
+function diffKeys(edit: CustomerEdit, current: Customer): Record<string, true> {
+  const out: Record<string, true> = {}
+  for (const [k, v] of Object.entries(edit)) if ((current[k as keyof Customer] ?? null) !== (v ?? null)) out[k] = true
+  return out
 }
 
 function EditAccount({
@@ -396,11 +499,13 @@ function EditAccount({
   current,
   open,
   onClose,
+  onRecordDeath,
 }: {
   base: Customer
   current: Customer
   open: boolean
   onClose: () => void
+  onRecordDeath: () => void
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(current))
   const [errors, setErrors] = useState<Partial<Record<keyof Draft, string>>>({})
@@ -423,9 +528,15 @@ function EditAccount({
     setNotice(null)
   }
 
-  const edit = toEdit(draft)
-  const needsReason = CUSTOMER_REASONED.some((k) => edit[k] !== current[k])
+  const edit = toEdit(draft, current)
+  const death = useCanRecordDeath(base, current)
+  /* "Deceased" is not a protection the edit saves: it hands over to Record death, which holds the account. */
+  const deathChosen = draft.do_not_disconnect && draft.disconnect_protection_type === DECEASED
+  const needsReason = !deathChosen && CUSTOMER_REASONED.some((k) => edit[k] !== current[k])
   const person = draft.customer_type === 'residential'
+  const otherChanges = Object.keys(diffKeys(edit, current)).some(
+    (k) => k !== 'do_not_disconnect' && k !== 'disconnect_protection_type' && k !== 'disconnect_protection_expiry',
+  )
 
   function save() {
     const found = validate(draft, current)
@@ -521,6 +632,88 @@ function EditAccount({
         </fieldset>
 
         <fieldset className="space-y-3 border-t border-rule-hair pt-4">
+          <legend className="sr-only">Contact preferences</legend>
+          <p className="text-h3 text-ink-primary">Contact preferences</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <FormField label="Reach by" htmlFor="acct-preferred_contact_method" error={errors.preferred_contact_method}>
+              <select
+                id="acct-preferred_contact_method"
+                value={draft.preferred_contact_method}
+                onChange={(e) => set('preferred_contact_method', e.target.value as ContactMethod)}
+                className={fieldClass}
+              >
+                {ContactMethod.options.map((m) => (
+                  <option key={m} value={m}>
+                    {CONTACT_METHOD_LABEL[m]}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Language" htmlFor="acct-preferred_language">
+              <select
+                id="acct-preferred_language"
+                value={draft.preferred_language}
+                onChange={(e) => set('preferred_language', e.target.value as PreferredLanguage)}
+                className={fieldClass}
+              >
+                {PreferredLanguage.options.map((l) => (
+                  <option key={l} value={l}>
+                    {LANGUAGE_LABEL[l]}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Bills sent by" htmlFor="acct-billing_delivery_method" error={errors.billing_delivery_method}>
+              <select
+                id="acct-billing_delivery_method"
+                value={draft.billing_delivery_method}
+                onChange={(e) => set('billing_delivery_method', e.target.value as BillingDeliveryMethod)}
+                className={fieldClass}
+              >
+                {BillingDeliveryMethod.options.map((m) => (
+                  <option key={m} value={m}>
+                    {BILL_DELIVERY_LABEL[m]}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+        </fieldset>
+
+        <fieldset className="space-y-3 border-t border-rule-hair pt-4">
+          <legend className="sr-only">Billing address</legend>
+          <p className="text-h3 text-ink-primary">Billing address</p>
+          <Toggle
+            id="acct-billing-same"
+            checked={draft.billing_same}
+            onChange={(v) => set('billing_same', v)}
+            label="Same as service address"
+            hint="Turn off to mail bills and letters to a landlord, a P.O. box or an office that pays the bill."
+          />
+          {draft.billing_same ? null : (
+            <div className="space-y-3 pl-11">
+              <FormField label="Street address or P.O. box" htmlFor="acct-billing_address_line1" error={errors.billing_address_line1}>
+                {input('billing_address_line1', { autoComplete: 'off' })}
+              </FormField>
+              <FormField label="Line 2" htmlFor="acct-billing_address_line2" hint="Attn, suite or unit">
+                {input('billing_address_line2', { autoComplete: 'off' })}
+              </FormField>
+              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_6.5rem] gap-3">
+                <FormField label="City" htmlFor="acct-billing_city" error={errors.billing_city}>
+                  {input('billing_city', { autoComplete: 'off' })}
+                </FormField>
+                <FormField label="State" htmlFor="acct-billing_state">
+                  {input('billing_state', { autoComplete: 'off', maxLength: 2 })}
+                </FormField>
+                <FormField label="ZIP" htmlFor="acct-billing_zip" error={errors.billing_zip}>
+                  {input('billing_zip', { autoComplete: 'off', inputMode: 'numeric' })}
+                </FormField>
+              </div>
+            </div>
+          )}
+        </fieldset>
+
+        <fieldset className="space-y-3 border-t border-rule-hair pt-4">
           <legend className="sr-only">Protections and holds</legend>
           <p className="text-h3 text-ink-primary">Protections and holds</p>
           <Toggle
@@ -565,11 +758,36 @@ function EditAccount({
                       {humanize(t)}
                     </option>
                   ))}
+                  {death.offered ? (
+                    <option value={DECEASED} disabled={!!death.blockedBecause} title={death.blockedBecause ?? undefined}>
+                      Deceased — record death
+                    </option>
+                  ) : null}
                 </select>
               </FormField>
-              <FormField label="Expires" htmlFor="acct-disconnect_protection_expiry" error={errors.disconnect_protection_expiry}>
-                {input('disconnect_protection_expiry', { type: 'date' })}
-              </FormField>
+              {deathChosen ? null : (
+                <FormField label="Expires" htmlFor="acct-disconnect_protection_expiry" error={errors.disconnect_protection_expiry}>
+                  {input('disconnect_protection_expiry', { type: 'date' })}
+                </FormField>
+              )}
+              {deathChosen ? (
+                <StateBlock tone="held" className="col-span-2 px-3! py-2.5!">
+                  <p className="text-data text-ink-primary">
+                    Recording a death holds the account: no shutoff and no collections until it is changed over to
+                    a family member. You’ll enter the date of death and confirm what happens next.
+                  </p>
+                  {otherChanges ? (
+                    <p className="mt-1 text-micro text-exception-warning-text">
+                      Other changes in this form aren’t saved by recording the death. Save them first, then come back.
+                    </p>
+                  ) : null}
+                  <div className="mt-2">
+                    <Button variant="primary" onClick={onRecordDeath} disabled={otherChanges}>
+                      Record death…
+                    </Button>
+                  </div>
+                </StateBlock>
+              ) : null}
             </div>
           ) : null}
           {needsReason ? (
@@ -594,7 +812,7 @@ function EditAccount({
         <p className="rounded-sm bg-surface-sunken px-3 py-2 text-micro text-ink-secondary">
           The account number, status, balance and deposit aren’t edited here. Balance and deposit move
           only through bills, payments and the ledger; the service address and meter belong to the
-          property, not the customer. Changes are kept in this browser until the API exists.
+          property, not the customer — the billing address is the customer’s. Changes are kept in this browser until the API exists.
         </p>
         {/* Enter in a field submits. */}
         <button type="submit" className="hidden" aria-hidden tabIndex={-1} />

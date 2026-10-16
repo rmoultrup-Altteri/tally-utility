@@ -2,23 +2,31 @@
 
 import { Fragment } from 'react'
 import { tenant } from '@/fixtures/tenant'
-import { isIssued, type Invoice, type InvoiceLine } from '@/schemas/models'
+import { billingAddressLines, isIssued, type Customer, type Invoice, type InvoiceLine } from '@/schemas/models'
 import { date, days, money, rateInUnit } from '@/lib/format'
-import { useInvoice } from '@/lib/edits-store'
-/** The printed object. Print units, serif, accounting rules, white stock. */
+import { useEdits, useInvoice } from '@/lib/edits-store'
+/**
+ * The printed object. Print units, serif, accounting rules, white stock.
+ * `addressLines` is the service address; the bill is mailed to the customer's
+ * billing address when one is on file, and then shows the service address too.
+ */
 export function BillDocument({
   invoice: base,
   lines,
+  customer,
   customerLabel,
   addressLines,
 }: {
   invoice: Invoice
   lines: InvoiceLine[]
+  customer?: Customer
   customerLabel: string
   addressLines: string[]
 }) {
   /* Dates on a draft can be edited before it is issued; read them as edited. */
   const invoice = useInvoice(base)
+  const customerEdit = useEdits().customers[customer?.id ?? '']
+  const billTo = customer ? billingAddressLines({ ...customer, ...customerEdit }) : null
   const voided = invoice.status === 'void'
   const groups = ['base_charges', 'usage_charges', 'adjustments', 'riders', 'taxes_fees'] as const
   const GROUP_LABEL: Record<string, string> = {
@@ -69,14 +77,22 @@ export function BillDocument({
       <div className="grid grid-cols-2 gap-8 py-4 border-b border-rule-doc">
         <div>
           <p className="field-label mb-1" style={{ fontFamily: 'var(--font-sans)' }}>
-            Service to
+            {billTo ? 'Bill to' : 'Service to'}
           </p>
           <p className="font-semibold">{customerLabel}</p>
-          {addressLines.map((l) => (
+          {(billTo ?? addressLines).map((l) => (
             <p key={l} className="opacity-80">
               {l}
             </p>
           ))}
+          {billTo && addressLines.length ? (
+            <>
+              <p className="field-label mt-3 mb-1" style={{ fontFamily: 'var(--font-sans)' }}>
+                Service address
+              </p>
+              <p className="opacity-80">{addressLines.join(', ')}</p>
+            </>
+          ) : null}
         </div>
         <div className="text-right">
           <Line label="Service period">

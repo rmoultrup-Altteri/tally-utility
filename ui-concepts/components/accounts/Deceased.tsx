@@ -59,12 +59,12 @@ function GatedButton({
 }
 
 /**
- * The header action: "Record death" on a living account, then "Transfer to
- * family member" while the hold stands. Nothing once it has been changed over.
+ * The header action: "Transfer to family member" while the hold stands.
+ * Nothing on a living account — a death is recorded from the account's Edit
+ * dialog, as a do-not-disconnect protection — and nothing once changed over.
  */
 export function DeceasedAction({ base, current }: { base: Customer; current: Customer }) {
   const state = useDeceased(base.id)
-  const [recordOpen, setRecordOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
 
   if (state?.transfer) return null
@@ -86,18 +86,27 @@ export function DeceasedAction({ base, current }: { base: Customer; current: Cus
         <TransferToFamily base={base} current={current} state={state} open={transferOpen} onClose={() => setTransferOpen(false)} />
       </>
     )
-  if (current.status === 'inactive') return null
-  return (
-    <>
-      <GatedButton onClick={() => setRecordOpen(true)}>Record death</GatedButton>
-      <RecordDeath base={base} current={current} open={recordOpen} onClose={() => setRecordOpen(false)} />
-    </>
-  )
+  return null
+}
+
+/** Whether a death can be recorded on this account now: living, active, and the operator's role may change status. */
+export function useCanRecordDeath(base: Customer, current: Customer): { offered: boolean; blockedBecause: string | null } {
+  const state = useDeceased(base.id)
+  const { can, holders } = useAccess()
+  if (state || current.status === 'inactive' || current.status === 'deceased') return { offered: false, blockedBecause: null }
+  return {
+    offered: true,
+    blockedBecause: can('customer.edit')
+      ? null
+      : `Your role can’t record a death. Ask someone with ${holders('customer.edit')
+          .map((r) => r.name)
+          .join(', ')}.`,
+  }
 }
 
 /* ---- Record death ---------------------------------------------------- */
 
-function RecordDeath({ base, current, open, onClose }: { base: Customer; current: Customer; open: boolean; onClose: () => void }) {
+export function RecordDeath({ base, current, open, onClose }: { base: Customer; current: Customer; open: boolean; onClose: () => void }) {
   const [died, setDied] = useState('')
   const [notes, setNotes] = useState('')
   const [acked, setAcked] = useState<string[]>([])
