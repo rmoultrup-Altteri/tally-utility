@@ -1,0 +1,7 @@
+**Verdict: not yet.**
+
+- **B1 — predicted:** An owner-supplied future `created_at` can permanently force ordinary recoveries to fail with retryable 40001.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-22/review/codex-r4.md)
+
+All four frozen hashes match. Added 15 rollback-only probes for the author. No database commands or test runners were executed.
