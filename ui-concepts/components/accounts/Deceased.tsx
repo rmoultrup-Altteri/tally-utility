@@ -396,7 +396,7 @@ function TransferToFamily({
           <Link href="/customers/new" target="_blank" className="text-accent-text underline">
             New account
           </Link>{' '}
-          at this premise first, then enter its number here. Recorded with your name. Kept in this browser
+          at this service address first, then enter its number here. Recorded with your name. Kept in this browser
           until the API exists.
         </p>
         <button type="submit" className="hidden" aria-hidden tabIndex={-1} />

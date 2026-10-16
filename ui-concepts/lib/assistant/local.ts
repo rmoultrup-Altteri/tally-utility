@@ -242,7 +242,7 @@ function overview(text: string, send: Send): string {
   const out: string[] = []
   if (/\b(run|cycle|bills?)\b/i.test(text) || !/revenue|collected|aging|receivable|\bar\b/i.test(text))
     out.push(
-      `**${currentRun.run_number}** (${currentRun.billing_period}, ${date(currentRun.period_start)} → ${date(currentRun.period_end)}) is in **${currentRun.status}**: ${currentRun.total_invoices.toLocaleString('en-US')} bills for ${currentRun.total_locations.toLocaleString('en-US')} premises, ${money(currentRun.total_amount)}, ${currentRun.total_exceptions} exceptions, ${currentRun.total_estimated_reads} estimated reads. [Open the run](/runs/${currentRun.id}).`,
+      `**${currentRun.run_number}** (${currentRun.billing_period}, ${date(currentRun.period_start)} → ${date(currentRun.period_end)}) is in **${currentRun.status}**: ${currentRun.total_invoices.toLocaleString('en-US')} bills for ${currentRun.total_locations.toLocaleString('en-US')} service addresses, ${money(currentRun.total_amount)}, ${currentRun.total_exceptions} exceptions, ${currentRun.total_estimated_reads} estimated reads. [Open the run](/runs/${currentRun.id}).`,
     )
   const aging = /aging|aged|receivable|\bar\b|past due|overdue/i.test(text)
   if (/revenue|collected|billed/i.test(text) || (!out.length && !aging))

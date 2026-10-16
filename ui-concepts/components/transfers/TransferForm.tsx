@@ -199,7 +199,7 @@ export function TransferForm({ initialCustomerId }: { initialCustomerId: string 
           ) : null}
         </Section>
 
-        <Section n={2} title="Stop at the current premise" meta={mover ? `${mover.from.address}, ${mover.from.city}` : undefined}>
+        <Section n={2} title="Stop at the current service address" meta={mover ? `${mover.from.address}, ${mover.from.city}` : undefined}>
           <FormField label="Stop date *" htmlFor="tr-stop">
             <input
               id="tr-stop"
@@ -230,8 +230,8 @@ export function TransferForm({ initialCustomerId }: { initialCustomerId: string 
           </FormField>
         </Section>
 
-        <Section n={3} title="Start at the new premise">
-          <FormField label="New premise *" htmlFor="tr-premise" className="sm:col-span-2">
+        <Section n={3} title="Start at the new service address">
+          <FormField label="New service address *" htmlFor="tr-premise" className="sm:col-span-2">
             <select id="tr-premise" value={toPremiseId} onChange={(e) => setToPremiseId(e.target.value)} className={fieldClass}>
               <option value="">Choose the service address</option>
               {transferPremises.map((p) => (
@@ -272,7 +272,7 @@ export function TransferForm({ initialCustomerId }: { initialCustomerId: string 
 
         <Section n={4} title="Money">
           <div className="sm:col-span-3 space-y-1">
-            <p className="field-label">Final bill at the old premise</p>
+            <p className="field-label">Final bill at the old service address</p>
             <p className="text-data text-ink-primary">
               {estimate ? (
                 <>
@@ -288,7 +288,7 @@ export function TransferForm({ initialCustomerId }: { initialCustomerId: string 
           </div>
           <FormField label="Final bill" htmlFor="tr-final">
             <select id="tr-final" value={finalBill} onChange={(e) => setFinalBill(e.target.value as 'roll_forward' | 'separate')} className={fieldClass}>
-              <option value="roll_forward">Roll into the first bill at the new premise</option>
+              <option value="roll_forward">Roll into the first bill at the new service address</option>
               <option value="separate">Bill it on its own now</option>
             </select>
           </FormField>
@@ -325,7 +325,7 @@ export function TransferForm({ initialCustomerId }: { initialCustomerId: string 
                   </li>
                 ))
             ) : (
-              <li className="text-micro text-ink-tertiary">The rules run as you fill the form: dates, the final read, who holds the new premise, the turn-on, and what the account carries.</li>
+              <li className="text-micro text-ink-tertiary">The rules run as you fill the form: dates, the final read, who holds the new service address, the turn-on, and what the account carries.</li>
             )}
           </ul>
         </Panel>

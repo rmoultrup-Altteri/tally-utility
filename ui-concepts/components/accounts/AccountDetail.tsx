@@ -162,7 +162,7 @@ export function AccountFields({ customer: base, location }: { customer: Customer
       <RateScheduleField customerId={base.id} />
       <Field label="Phone">{customer.phone ?? '—'}</Field>
       <Field label="Email">{customer.email ?? '—'}</Field>
-      <Field label="Premise">
+      <Field label="Service address">
         {location ? (
           <>
             {location.address}
@@ -263,7 +263,7 @@ function AccountStatusChange({
     consequences.push({
       id: 'bills',
       tone: 'info',
-      text: 'Billing resumes on the next run for the premise. Bills skipped while inactive are not back-billed.',
+      text: 'Billing resumes on the next run for the service address. Bills skipped while inactive are not back-billed.',
     })
   }
 
@@ -276,8 +276,8 @@ function AccountStatusChange({
           label: `Also ${verb.toLowerCase()} meter ${meter.meter_number}${location ? ` at ${location.address}` : ''}`,
           hint:
             verb === 'Inactivate'
-              ? 'Leaves the premise shut off until a new account starts service there.'
-              : 'Turns service back on at the premise from the same date.',
+              ? 'Leaves the service address shut off until a new account starts service there.'
+              : 'Turns service back on at the service address from the same date.',
         },
       ]
     : []
@@ -593,8 +593,8 @@ function EditAccount({
 
         <p className="rounded-sm bg-surface-sunken px-3 py-2 text-micro text-ink-secondary">
           The account number, status, balance and deposit aren’t edited here. Balance and deposit move
-          only through bills, payments and the ledger; the premise and meter belong to the service
-          location, not the customer. Changes are kept in this browser until the API exists.
+          only through bills, payments and the ledger; the service address and meter belong to the
+          property, not the customer. Changes are kept in this browser until the API exists.
         </p>
         {/* Enter in a field submits. */}
         <button type="submit" className="hidden" aria-hidden tabIndex={-1} />

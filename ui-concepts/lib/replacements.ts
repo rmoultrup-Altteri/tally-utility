@@ -1,7 +1,9 @@
 'use client'
 
 import { useEdits, type Replacement } from '@/lib/edits-store'
-import { customerById, locationById, meterById, serviceLinks } from '@/fixtures/accounts'
+import { serviceLinks } from '@/fixtures/accounts'
+import type { ImportedLink } from '@/lib/assistant/protocol'
+import { useRecords } from '@/lib/records'
 import type { Customer, Meter, ServiceLocation } from '@/schemas/models'
 
 /**
@@ -30,19 +32,31 @@ export function replacing(meterId: string, reps: Replacement[]): Replacement | n
 export function servedLink(
   meterId: string,
   reps: Replacement[],
+  links: readonly ImportedLink[] = serviceLinks,
 ): { customerId: string | null; locationId: string } | null {
   if (replacedBy(meterId, reps)) return null
   const set = replacing(meterId, reps)
   if (set) return { customerId: set.customerId, locationId: set.locationId }
-  const link = serviceLinks.find((l) => l.meterId === meterId)
-  return link ? { customerId: link.customerId, locationId: link.locationId } : null
+  const link = links.find((l) => l.meterId === meterId)
+  if (!link) return null
+  /* A meter set at a premise after its account was opened links to the premise; the account is whoever lives there. */
+  const customerId = link.customerId ?? links.find((l) => l.locationId === link.locationId && l.customerId)?.customerId ?? null
+  return { customerId, locationId: link.locationId }
 }
 
+/** The premise a meter is set at now, and the account there if anyone takes service yet. */
+export function useSetAt(meterId: string): { customer: Customer | null; location: ServiceLocation } | null {
+  const records = useRecords()
+  const link = servedLink(meterId, useReplacements(), records.links)
+  const location = link ? records.locationById.get(link.locationId) : undefined
+  if (!location) return null
+  return { customer: (link?.customerId && records.customerById.get(link.customerId)) || null, location }
+}
+
+/** The premise and account a meter serves now; null when it is unset, or set at a premise nobody takes service at. */
 export function useServed(meterId: string): { customer: Customer; location: ServiceLocation } | null {
-  const link = servedLink(meterId, useReplacements())
-  const customer = link?.customerId ? customerById.get(link.customerId) : undefined
-  const location = link ? locationById.get(link.locationId) : undefined
-  return customer && location ? { customer, location } : null
+  const at = useSetAt(meterId)
+  return at?.customer ? { customer: at.customer, location: at.location } : null
 }
 
 /** The meter set at the premise now, following every exchange from the one the fixtures name. */
@@ -57,6 +71,7 @@ export function useMeterNow(base: Meter): Meter
 export function useMeterNow(base: Meter | undefined): Meter | undefined
 export function useMeterNow(base: Meter | undefined): Meter | undefined {
   const reps = useReplacements()
+  const { meterById } = useRecords()
   if (!base) return undefined
   return meterById.get(meterNowAfter(base.id, reps)) ?? base
 }

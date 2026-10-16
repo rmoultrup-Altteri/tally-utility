@@ -237,7 +237,7 @@ export const SECTIONS: SettingSection[] = [
     groups: [
       {
         title: 'Cycles',
-        note: 'A premise belongs to a cycle through its billing-cycle link, which is authoritative.',
+        note: 'A service address belongs to a cycle through its billing-cycle link, which is authoritative.',
         settings: [
           {
             key: 'billing.cycles',

@@ -106,7 +106,7 @@ export const meterDetails: MeterDetail[] = [
     startDate: '2024-06-18',
     lastReadValue: '4821.00',
     lastReadDate: '2026-02-12',
-    locationNotes: 'Left side of house behind the side gate. Dog on premise — knock first.',
+    locationNotes: 'Left side of house behind the side gate. Dog at the service address — knock first.',
     replacesMeterId: 'mtr-0011',
     swapReason: 'Previous meter failed periodic accuracy test (fast 2.8%)',
     externalId: 'CIS-M-004182',

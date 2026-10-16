@@ -13,7 +13,7 @@ import { METER_STATUS, meterStatus, sizeLabel, type MeterStatus } from '@/compon
 import { AccountNumber } from '@/components/ui/RecordLink'
 import { count, date } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
-import { useEdits, type MeterEdit, type Replacement } from '@/lib/edits-store'
+import { useEdits, type Edits, type MeterEdit, type Replacement } from '@/lib/edits-store'
 import { useImported } from '@/lib/imports-store'
 import { customers, locations, serviceLinks } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
@@ -92,7 +92,7 @@ const COLUMNS: MeterColumn[] = [
       return <StateFlag tone={st.tone}>{st.label}</StateFlag>
     },
   },
-  { key: 'customerName', label: 'Account · premise', cell: (r) => <PremiseCell r={r} /> },
+  { key: 'customerName', label: 'Account · service address', cell: (r) => <PremiseCell r={r} /> },
   {
     key: 'make',
     label: 'Make · size',
@@ -222,14 +222,14 @@ function flagsFor(asOf: string): { key: Flag; label: string; test: (r: MeterRow)
  */
 export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf: string }) {
   /* A meter edited or inactivated in this browser lists as it now stands. */
-  const { meters: edits, replacements } = useEdits()
+  const { meters: edits, customers: customerEdits, replacements } = useEdits()
   const imported = useImported()
   const rows = useMemo(
     () => [
       ...withReplacements(fixtureRows, replacements ?? []).map((r) => withEdit(r, edits[r.id])),
-      ...importedRows(imported),
+      ...importedRows(imported, customerEdits).map((r) => withEdit(r, edits[r.id])),
     ],
-    [fixtureRows, edits, replacements, imported],
+    [fixtureRows, edits, replacements, imported, customerEdits],
   )
 
   const [query, setQuery] = useState('')
@@ -415,33 +415,28 @@ export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf
   )
 }
 
-/** The meter number over its serial; a meter added in this browser has no page to link to yet. */
+/** The meter number over its serial; a meter added in this browser is marked new. */
 function MeterCell({ r }: { r: MeterRow }) {
-  if (r.imported)
-    return (
-      <>
-        <span className="block ident font-medium text-ink-primary">{r.meterNumber}</span>
-        <span className="block text-micro text-ink-tertiary">
-          <span className="ident">{r.serialNumber ?? '—'}</span>
-          <span className="text-exception-info-text" title="Added in this browser and kept here until the API exists">
-            {' '}· new
-          </span>
-        </span>
-      </>
-    )
   return (
     <Link href={`/meters/${r.id}` as Route} className="group block">
       <span className="block ident font-medium text-accent-text group-hover:text-accent-text-hover group-hover:underline">
         {r.meterNumber}
       </span>
-      <span className="block ident text-micro text-ink-tertiary">{r.serialNumber ?? '—'}</span>
+      <span className="block text-micro text-ink-tertiary">
+        <span className="ident">{r.serialNumber ?? '—'}</span>
+        {r.imported ? (
+          <span className="text-exception-info-text" title="Added in this browser and kept here until the API exists">
+            {' '}· new
+          </span>
+        ) : null}
+      </span>
     </Link>
   )
 }
 
 /** Who the meter serves and where, or where an unset meter is kept. */
 function PremiseCell({ r }: { r: MeterRow }) {
-  if (!r.customerId) return <span className="text-ink-tertiary">{r.warehouseLocation ?? 'No premise'}</span>
+  if (!r.customerId) return <span className="text-ink-tertiary">{r.warehouseLocation ?? 'No service address'}</span>
   return (
     <>
       <Link href={`/customers/${r.customerId}` as Route} className="text-ink-primary hover:underline">
@@ -462,10 +457,10 @@ function PremiseCell({ r }: { r: MeterRow }) {
 
 /** The page header's meter count, including meters added in this browser. */
 export function MeterCount({ base, set }: { base: number; set: number }) {
-  const extra = importedRows(useImported())
+  const extra = importedRows(useImported(), {})
   const total = base + extra.length
   const atPremise = set + extra.filter((r) => r.streetAddress).length
-  return <>{total.toLocaleString('en-US')} meters · {atPremise.toLocaleString('en-US')} set at a premise</>
+  return <>{total.toLocaleString('en-US')} meters · {atPremise.toLocaleString('en-US')} set at a service address</>
 }
 
 /** Exchanges made in this browser, in order: each moves the premise and account from the old row to the new. */
@@ -516,7 +511,7 @@ function withEdit(r: MeterRow, e: MeterEdit | undefined): MeterRow {
 }
 
 /** Meters added in this browser, shaped like the fixture rows the page builds on the server. */
-function importedRows(data: ImportedData): MeterRow[] {
+function importedRows(data: ImportedData, customerEdits: Edits['customers']): MeterRow[] {
   const allLinks = [...serviceLinks, ...data.links]
   const allLocations = [...locations, ...data.locations]
   const allCustomers = [...customers, ...data.customers]
@@ -525,7 +520,8 @@ function importedRows(data: ImportedData): MeterRow[] {
     const location = link ? allLocations.find((l) => l.id === link.locationId) : undefined
     /* A meter set at an occupied premise links to the premise, not the customer: find who lives there. */
     const customerId = link?.customerId ?? (location ? allLinks.find((l) => l.locationId === location.id && l.customerId)?.customerId : null) ?? null
-    const customer = customerId ? allCustomers.find((c) => c.id === customerId) : undefined
+    const found = customerId ? allCustomers.find((c) => c.id === customerId) : undefined
+    const customer = found ? { ...found, ...customerEdits[found.id] } : undefined
     return {
       id: m.id,
       meterNumber: m.meter_number,

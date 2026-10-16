@@ -14,10 +14,10 @@ import { ColumnHead, ColumnsMenu, useColumns, type ColumnDef } from '@/component
 import { count, date, money } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
 import { useImported } from '@/lib/imports-store'
-import { customerById, locations, meters } from '@/fixtures/accounts'
-import { useEdits } from '@/lib/edits-store'
+import { customerById, locations, meters, serviceLinks } from '@/fixtures/accounts'
+import { useEdits, type Edits } from '@/lib/edits-store'
 import { customerName } from '@/schemas/models'
-import type { ImportedData } from '@/lib/assistant/protocol'
+import { meterIdFor, type ImportedData } from '@/lib/assistant/protocol'
 
 export type AccountRow = {
   id: string
@@ -79,7 +79,7 @@ const COLUMNS: AccountColumn[] = [
     label: 'Account number',
     width: '9rem',
     hidden: true,
-    cell: (r) => (r.imported ? <span className="ident text-ink-tertiary">{r.customerNumber}</span> : <AccountNumber number={r.customerNumber} id={r.id} />),
+    cell: (r) => <AccountNumber number={r.customerNumber} id={r.id} />,
   },
   {
     key: 'status',
@@ -120,7 +120,7 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
       const edited = { ...base, ...edits[r.id] }
       return { ...r, ownerName: customerName(edited), status: edited.status }
     })
-    return [...named, ...importedRows(imported)]
+    return [...named, ...importedRows(imported, edits)]
   }, [fixtureRows, imported, edits])
   const [query, setQuery] = useState('')
   const [pick, setPick] = useState<StatusPick>('active')
@@ -208,13 +208,9 @@ export function AccountsList({ rows: fixtureRows }: { rows: AccountRow[] }) {
 function OwnerCell({ r }: { r: AccountRow }) {
   return (
     <>
-      {r.imported ? (
-        <span className="text-ink-primary font-medium">{r.ownerName}</span>
-      ) : (
-        <Link href={`/customers/${r.id}` as Route} className="text-ink-primary font-medium hover:underline">
-          {r.ownerName}
-        </Link>
-      )}
+      <Link href={`/customers/${r.id}` as Route} className="text-ink-primary font-medium hover:underline">
+        {r.ownerName}
+      </Link>
       {r.status !== 'active' ? (
         <span className="ml-2 align-middle">
           <StateFlag
@@ -231,11 +227,7 @@ function OwnerCell({ r }: { r: AccountRow }) {
         </span>
       ) : null}
       <span className="block text-micro">
-        {r.imported ? (
-          <span className="ident text-ink-tertiary">{r.customerNumber}</span>
-        ) : (
-          <AccountNumber number={r.customerNumber} id={r.id} />
-        )}
+        <AccountNumber number={r.customerNumber} id={r.id} />
         {r.imported ? (
           <span className="font-sans text-exception-info-text" title="Added in this browser — by hand or through the assistant — and kept here until the API exists">
             {' '}· new
@@ -246,14 +238,17 @@ function OwnerCell({ r }: { r: AccountRow }) {
   )
 }
 
-/** Accounts the assistant imported, shaped like the fixture rows the page builds on the server. */
-function importedRows(data: ImportedData): AccountRow[] {
+/** Accounts added in this browser, shaped like the fixture rows the page builds on the server, with their edits. */
+function importedRows(data: ImportedData, edits: Edits['customers']): AccountRow[] {
   const allLocations = [...locations, ...data.locations]
   const allMeters = [...meters, ...data.meters]
-  return data.customers.map((c) => {
+  const allLinks = [...serviceLinks, ...data.links]
+  return data.customers.map((added) => {
+    const c = { ...added, ...edits[added.id] }
     const link = data.links.find((l) => l.customerId === c.id)
     const location = link ? allLocations.find((l) => l.id === link.locationId) : undefined
-    const meter = link?.meterId ? allMeters.find((m) => m.id === link.meterId) : undefined
+    const meterId = meterIdFor(link, allLinks)
+    const meter = meterId ? allMeters.find((m) => m.id === meterId) : undefined
     return {
       id: c.id,
       customerNumber: c.customer_number,

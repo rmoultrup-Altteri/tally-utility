@@ -107,7 +107,7 @@ const SPECS: Record<string, Spec> = {
   rate_schedule_mismatch: {
     source: 'Account',
     reference: (i) => `Meter ${meterNo(i)}`,
-    detail: () => 'Commercial premise billed on R-1',
+    detail: () => 'Commercial service address billed on R-1',
   },
   unbilled_service: {
     source: 'Service location',

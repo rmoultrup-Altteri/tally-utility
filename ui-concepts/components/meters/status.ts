@@ -46,7 +46,7 @@ export function sizeLabel(size: string | null | undefined): string {
 }
 
 export const METER_INACTIVATE_REASONS = [
-  'Premise vacant — service off',
+  'Service address vacant — service off',
   'Customer request — seasonal shut-off',
   'Safety shut-off — leak or red tag',
   'Disconnected for non-payment',
@@ -64,11 +64,11 @@ export const ACCOUNT_INACTIVATE_REASONS = [
   'Customer moved out',
   'Service transferred to a new account',
   'Duplicate account',
-  'Premise demolished',
+  'Building at the service address demolished',
 ]
 
 export const ACCOUNT_REACTIVATE_REASONS = [
-  'Customer returned to the premise',
+  'Customer returned to the service address',
   'Inactivated in error',
   'Transfer reversed',
 ]

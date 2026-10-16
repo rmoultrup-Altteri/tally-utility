@@ -271,7 +271,7 @@ export const readings: MeterReading[] = [
     skip_code: null,
     trouble_message: null,
     tamper_count_1_changed_flag: false,
-    dispute_reason: 'Customer states premise was occupied and heated all period.',
+    dispute_reason: 'Customer states the service address was occupied and heated all period.',
     is_service_transition: true,
     billing_period_locked: false,
     gas_meter_factor: '1.0000',

@@ -548,7 +548,7 @@ export const reports: Report[] = [
       { key: 'action', label: 'Action' },
     ],
     rows: zeroReads,
-    notes: ['Zero use in a heating month on an occupied premise usually means a stopped meter or a bypass; both are revenue lost until found.'],
+    notes: ['Zero use in a heating month at an occupied service address usually means a stopped meter or a bypass; both are revenue lost until found.'],
   },
   {
     id: 'high_low_reads',

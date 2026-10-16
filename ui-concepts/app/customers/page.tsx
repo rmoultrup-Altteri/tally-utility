@@ -36,7 +36,14 @@ export default function CustomersPage() {
       <PageHeader
         title="Accounts"
         meta={<AccountCount base={rows.length} />}
-        actions={<NewRecordLink href="/customers/new">New account</NewRecordLink>}
+        actions={
+          <>
+            <NewRecordLink href="/service-addresses/new" variant="secondary">
+              New service address
+            </NewRecordLink>
+            <NewRecordLink href="/customers/new">New account</NewRecordLink>
+          </>
+        }
       />
       <div className="flex-1 overflow-auto">
         <div className="px-5 py-5">

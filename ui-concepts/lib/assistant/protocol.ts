@@ -28,6 +28,16 @@ export type ImportedRateItem = RateItemVersion & { rate_schedule_code: string }
 /** Which customer sits at which premise on which meter. A meter or premise may be imported before it has an occupant. */
 export type ImportedLink = { customerId: string | null; locationId: string; meterId: string | null }
 
+/**
+ * The meter serving a customer's link. An account opened before its meter
+ * went in has a link with no meter; the meter set later arrives on a link of
+ * its own at the same premise.
+ */
+export function meterIdFor(link: ImportedLink | undefined, links: readonly ImportedLink[]): string | null {
+  if (!link) return null
+  return link.meterId ?? links.find((l) => l.locationId === link.locationId && l.meterId)?.meterId ?? null
+}
+
 export type ImportBatch = {
   id: string
   entity: ImportEntity

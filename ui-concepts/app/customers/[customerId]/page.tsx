@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import type { Route } from 'next'
-import { notFound } from 'next/navigation'
 import { AppShell } from '@/components/shell/AppShell'
 import { AccountAlerts, AccountFields, AccountHeader } from '@/components/accounts/AccountDetail'
+import { BrowserAccount } from '@/components/accounts/BrowserAccount'
 import { AccountExceptions } from '@/components/accounts/AccountExceptions'
 import { DeceasedPanel } from '@/components/accounts/Deceased'
 import { RateScheduleHistory } from '@/components/accounts/RateSchedule'
@@ -68,7 +68,13 @@ export default async function CustomerPage({
 }: PageProps<'/customers/[customerId]'>) {
   const { customerId } = await params
   const customer = customerById.get(customerId)
-  if (!customer) notFound()
+  /* Not a fixture: an account added in this browser, which only the browser can find. */
+  if (!customer)
+    return (
+      <AppShell current="Accounts">
+        <BrowserAccount id={customerId} />
+      </AppShell>
+    )
 
   const link = serviceLinks.find((l) => l.customerId === customer.id)
   const location = link ? locationById.get(link.locationId) : undefined

@@ -67,6 +67,15 @@ export function useImported(): ImportedData {
   )
 }
 
+/** False on the server and while hydrating, before this browser's records are read: "not found" is not yet known. */
+export function useImportedReady(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false,
+  )
+}
+
 export function getImported(): ImportedData {
   hydrate()
   return current

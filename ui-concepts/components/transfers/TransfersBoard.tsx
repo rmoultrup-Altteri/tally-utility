@@ -181,7 +181,7 @@ function steps(t: Transfer, checks: TransferCheck[]) {
       stuck: blockedRead,
       detail: t.finalInvoice
         ? `${t.finalInvoice.number} · ${money(t.finalInvoice.amount)} · ${t.finalBill === 'roll_forward' ? 'rolled into the next bill' : 'billed on its own'}`
-        : `Priced at the final read, ${t.finalBill === 'roll_forward' ? 'and rolled into the first bill at the new premise' : 'and billed on its own'}`,
+        : `Priced at the final read, ${t.finalBill === 'roll_forward' ? 'and rolled into the first bill at the new service address' : 'and billed on its own'}`,
     },
     {
       title: to ? `Start at ${to.address}` : 'Start',

@@ -7,7 +7,8 @@ import { Button, Panel } from '@/components/ui/Panel'
 import { CustomerType } from '@/schemas/enums'
 import { customerName } from '@/schemas/models'
 import { cycle, tenant } from '@/fixtures/tenant'
-import { createRecord, type Created } from '@/lib/new-records'
+import { useImported } from '@/lib/imports-store'
+import { createRecord, premiseOnFile, type Created } from '@/lib/new-records'
 import type { ImportIssue } from '@/lib/assistant/protocol'
 import { CheckField, ErrorSummary, Section, SelectField, TextField, useValues } from '@/components/records/RecordForm'
 
@@ -15,6 +16,10 @@ import { CheckField, ErrorSummary, Section, SelectField, TextField, useValues } 
  * A new account, by hand: the customer, the premise they take service at,
  * and the meter on it if one is set. The same three halves an accounts import
  * row has, validated by the same rules.
+ *
+ * Opened from a premise (`?address=` from New premise or New meter), the
+ * address is already on file: the form shows it rather than asking for it
+ * again, and shows the meter set there if there is one.
  *
  * Disconnect protections, billing holds and an opening balance are not here
  * for the same reason they are not in an import: each is set on the account
@@ -35,13 +40,22 @@ const CUSTOMER_KEYS = ['customer_number', 'customer_type', 'email', 'phone', 'mo
 const PREMISE_KEYS = ['location_number', 'address', 'city', 'state', 'zip', 'inside_city_limits', 'billing_cycle']
 const METER_KEYS = ['meter_number', 'serial_number', 'manufacturer', 'model', 'size', 'read_type', 'ami_endpoint_id', 'route_id', 'route_sequence']
 
-export function NewAccountForm() {
+const primaryLink =
+  'inline-flex h-8 items-center rounded-sm border border-accent bg-accent px-3.5 text-data font-medium text-ink-inverse hover:bg-accent-hover'
+const secondaryLink =
+  'inline-flex h-8 items-center rounded-sm border border-rule-solid bg-surface-raised px-3.5 text-data font-medium text-ink-primary hover:border-rule-heavy hover:bg-surface-sunken'
+
+export function NewAccountForm({ premise = null }: { premise?: string | null }) {
   const { values, set, reset } = useValues(INITIAL)
   const [errors, setErrors] = useState<ImportIssue[]>([])
-  const [done, setDone] = useState<Extract<Created, { ok: true }> | null>(null)
+  const [done, setDone] = useState<{ result: Extract<Created, { ok: true }>; premise: string } | null>(null)
+  const [carried, setCarried] = useState(premise ?? '')
+  const imported = useImported()
+  /* Null until the store hydrates, and for a number not on file: then the form asks for the address as usual. */
+  const known = carried ? premiseOnFile(imported, carried) : null
   const person = values.customer_type === 'residential'
   const inside = values.inside_city_limits === 'yes'
-  const withMeter = (values.meter_number ?? '').trim() !== ''
+  const withMeter = !known?.meter && (values.meter_number ?? '').trim() !== ''
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -49,53 +63,58 @@ export function NewAccountForm() {
     const keys = [
       ...CUSTOMER_KEYS,
       ...(person ? ['first_name', 'last_name'] : ['company_name']),
-      ...PREMISE_KEYS,
-      ...(inside ? ['franchise_city'] : []),
+      ...(known ? [] : PREMISE_KEYS),
+      ...(!known && inside ? ['franchise_city'] : []),
       ...(withMeter ? METER_KEYS : []),
     ]
-    const result = createRecord('accounts', Object.fromEntries(keys.map((k) => [k, values[k] ?? ''])))
+    const fields = Object.fromEntries(keys.map((k) => [k, values[k] ?? '']))
+    if (known) fields.location_number = known.location.location_number
+    const result = createRecord('accounts', fields)
     if (!result.ok) {
       setErrors(result.errors)
       return
     }
     setErrors([])
-    setDone(result)
+    setDone({ result, premise: result.records.locations[0]?.location_number ?? known?.location.location_number ?? fields.location_number })
   }
 
   if (done) {
-    const c = done.records.customers[0]
-    const loc = done.records.locations[0]
-    const mtr = done.records.meters[0]
+    const c = done.result.records.customers[0]
+    /* Read after saving, so a meter already set at a premise moved into shows as this account's. */
+    const at = premiseOnFile(imported, done.premise)
+    const mtr = done.result.records.meters[0] ?? at?.meter ?? null
     return (
       <Panel>
         <div className="space-y-3 px-5 py-5">
           <p className="text-h3 text-ink-primary">Account {c.customer_number} opened for {customerName(c)}</p>
           <ul className="space-y-1 text-data text-ink-secondary">
-            {loc ? (
+            {at ? (
               <li>
-                Premise <span className="ident">{loc.location_number}</span> · {loc.address}, {loc.city} {loc.zip}
+                Service address <span className="ident">{at.location.location_number}</span> · {at.location.address}, {at.location.city} {at.location.zip}
               </li>
-            ) : (
-              <li>Linked to the premise already on file.</li>
-            )}
-            <li>{mtr ? <>Meter <span className="ident">{mtr.meter_number}</span> set at the premise.</> : 'No meter set yet.'}</li>
-            {done.warnings.map((w, i) => (
+            ) : null}
+            <li>{mtr ? <>Meter <span className="ident">{mtr.meter_number}</span> set at the service address.</> : 'No meter set yet — set one when it goes in.'}</li>
+            {done.result.warnings.map((w, i) => (
               <li key={i} className="text-exception-warning-text">
                 {w.message}
               </li>
             ))}
           </ul>
           <p className="text-micro text-ink-tertiary">Kept in this browser until the API exists, alongside anything imported through the assistant.</p>
-          <div className="flex gap-2 pt-1">
-            <Link
-              href={'/customers' as Route}
-              className="inline-flex h-8 items-center rounded-sm border border-accent bg-accent px-3.5 text-data font-medium text-ink-inverse hover:bg-accent-hover"
-            >
+          <div className="flex flex-wrap gap-2 pt-1">
+            {mtr ? null : (
+              <Link href={`/meters/new?address=${encodeURIComponent(done.premise)}` as Route} className={primaryLink}>
+                Set a meter here
+              </Link>
+            )}
+            <Link href={'/customers' as Route} className={mtr ? primaryLink : secondaryLink}>
               Back to Accounts
             </Link>
             <Button
+              variant="quiet"
               onClick={() => {
                 reset()
+                setCarried('')
                 setDone(null)
               }}
             >
@@ -130,38 +149,64 @@ export function NewAccountForm() {
         <CheckField name="is_tax_exempt" label="Tax exempt" hint="Certificate on file" values={values} set={set} />
       </Section>
 
-      <Section title="Service address" meta="the premise the gas is delivered to">
-        <TextField name="address" label="Street address" required className="sm:col-span-2" {...field} />
-        <TextField name="city" label="City" required {...field} />
-        <TextField name="state" label="State" {...field} />
-        <TextField name="zip" label="ZIP" required {...field} />
-        <TextField
-          name="location_number"
-          label="Premise number"
-          placeholder="Assigned if blank"
-          hint="Enter an existing premise to move this customer in"
-          {...field}
-        />
-        <CheckField name="inside_city_limits" label="Inside city limits" hint="Franchise fees follow it" values={values} set={set} />
-        {inside ? <SelectField name="franchise_city" label="Franchise city" options={tenant.franchiseCities} {...field} /> : null}
-        <TextField name="billing_cycle" label="Billing cycle" {...field} />
-      </Section>
+      {known ? (
+        <Section title="Service address" meta={<span className="ident">{known.location.location_number}</span>}>
+          <div className="sm:col-span-2 lg:col-span-3 space-y-1">
+            <p className="text-data text-ink-primary">
+              {known.location.address}, {known.location.city}, {known.location.state} {known.location.zip}
+            </p>
+            {known.customer ? (
+              <p className="text-micro text-exception-warning-text">
+                {customerName(known.customer)} already takes service here; this opens a second account at the service address.
+              </p>
+            ) : (
+              <p className="text-micro text-ink-tertiary">On file, nobody taking service yet.</p>
+            )}
+            <Button variant="quiet" onClick={() => setCarried('')}>
+              Use a different address
+            </Button>
+          </div>
+        </Section>
+      ) : (
+        <Section title="Service address" meta="where the gas is delivered">
+          <TextField name="address" label="Street address" required className="sm:col-span-2" {...field} />
+          <TextField name="city" label="City" required {...field} />
+          <TextField name="state" label="State" {...field} />
+          <TextField name="zip" label="ZIP" required {...field} />
+          <TextField
+            name="location_number"
+            label="Service address number"
+            placeholder="Assigned if blank"
+            hint="Enter an existing service address to move this customer in"
+            {...field}
+          />
+          <CheckField name="inside_city_limits" label="Inside city limits" hint="Franchise fees follow it" values={values} set={set} />
+          {inside ? <SelectField name="franchise_city" label="Franchise city" options={tenant.franchiseCities} {...field} /> : null}
+          <TextField name="billing_cycle" label="Billing cycle" {...field} />
+        </Section>
+      )}
 
-      <Section title="Meter" meta="optional — leave the number blank if none is set yet">
-        <TextField name="meter_number" label="Meter number" {...field} />
-        {withMeter ? (
-          <>
-            <TextField name="serial_number" label="Serial number" {...field} />
-            <SelectField name="read_type" label="Read type" options={['amr', 'ami', 'manual']} {...field} />
-            <TextField name="ami_endpoint_id" label="AMR / AMI endpoint ID" {...field} />
-            <TextField name="manufacturer" label="Manufacturer" {...field} />
-            <TextField name="model" label="Model" {...field} />
-            <TextField name="size" label="Size" {...field} />
-            <TextField name="route_id" label="Route" placeholder="RT-14" {...field} />
-            <TextField name="route_sequence" label="Route sequence" type="number" {...field} />
-          </>
-        ) : null}
-      </Section>
+      {known?.meter ? (
+        <Section title="Meter" meta={<span className="ident">{known.meter.meter_number}</span>}>
+          <p className="sm:col-span-2 lg:col-span-3 text-data text-ink-secondary">Already set at this service address; it serves the new account.</p>
+        </Section>
+      ) : (
+        <Section title="Meter" meta="optional — leave blank if none is set yet; you can set one after">
+          <TextField name="meter_number" label="Meter number" {...field} />
+          {withMeter ? (
+            <>
+              <TextField name="serial_number" label="Serial number" {...field} />
+              <SelectField name="read_type" label="Read type" options={['amr', 'ami', 'manual']} {...field} />
+              <TextField name="ami_endpoint_id" label="AMR / AMI endpoint ID" {...field} />
+              <TextField name="manufacturer" label="Manufacturer" {...field} />
+              <TextField name="model" label="Model" {...field} />
+              <TextField name="size" label="Size" {...field} />
+              <TextField name="route_id" label="Route" placeholder="RT-14" {...field} />
+              <TextField name="route_sequence" label="Route sequence" type="number" {...field} />
+            </>
+          ) : null}
+        </Section>
+      )}
 
       <div className="flex items-center gap-2">
         <Button type="submit" variant="primary">

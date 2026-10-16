@@ -9,7 +9,7 @@ import { pipeline, worklist } from '@/fixtures/collections'
 import { asOf, currentUser, cycle, tenant } from '@/fixtures/tenant'
 import { customerName, type Customer, type Invoice, type Meter, type RateItemVersion, type ServiceLocation } from '@/schemas/models'
 import { matchesSearch } from '@/lib/search'
-import type { ImportedData, ImportedLink, RecordEdits } from './protocol'
+import { meterIdFor, type ImportedData, type ImportedLink, type RecordEdits } from './protocol'
 
 /**
  * The tenant's account as the assistant reads it: every fixture, plus
@@ -65,7 +65,8 @@ export function searchTenant(view: TenantView, query: string, limit = 15) {
   for (const c of view.customers) {
     const link = view.links.find((l) => l.customerId === c.id)
     const loc = link ? view.locations.find((l) => l.id === link.locationId) : undefined
-    const mtr = link?.meterId ? view.meters.find((m) => m.id === link.meterId) : undefined
+    const meterId = meterIdFor(link, view.links)
+    const mtr = meterId ? view.meters.find((m) => m.id === meterId) : undefined
     if (matchesSearch(query, [customerName(c), c.customer_number, loc?.address, loc?.city, mtr?.meter_number, mtr?.serial_number]))
       hits.push({
         kind: 'customer',
@@ -77,7 +78,7 @@ export function searchTenant(view: TenantView, query: string, limit = 15) {
   for (const l of view.locations) {
     if (view.links.some((k) => k.locationId === l.id && k.customerId)) continue
     if (matchesSearch(query, [l.location_number, l.address, l.city, l.zip]))
-      hits.push({ kind: 'premise (vacant)', id: l.id, label: l.address, detail: `${l.location_number} · ${l.city}` })
+      hits.push({ kind: 'service address (vacant)', id: l.id, label: l.address, detail: `${l.location_number} · ${l.city}` })
   }
   for (const m of view.meters) {
     if (view.links.some((k) => k.meterId === m.id && k.customerId)) continue
@@ -98,7 +99,8 @@ export function getAccount(view: TenantView, ref: string) {
     .filter((l) => l.customerId === c.id)
     .map((l) => {
       const loc = view.locations.find((x) => x.id === l.locationId)
-      const mtr = l.meterId ? view.meters.find((x) => x.id === l.meterId) : undefined
+      const meterId = meterIdFor(l, view.links)
+      const mtr = meterId ? view.meters.find((x) => x.id === meterId) : undefined
       const read = mtr ? readings.find((r) => r.meter_id === mtr.id) : undefined
       return {
         location: loc,

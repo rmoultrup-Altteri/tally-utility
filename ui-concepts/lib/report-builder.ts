@@ -1,3 +1,4 @@
+import { meterIdFor } from '@/lib/assistant/protocol'
 import type { Cell, Column, ReportRow } from '@/fixtures/reports'
 import { invoiceTone, severityTone, type Tone } from '@/components/ui/State'
 import { accountTone, meterStatus, sizeLabel } from '@/components/meters/status'
@@ -101,7 +102,7 @@ export const SOURCES: Record<SourceKey, SourceDef> = {
     key: 'accounts',
     label: 'Accounts',
     noun: ['account', 'accounts'],
-    description: 'One row per account, with the premise and meter it is linked to.',
+    description: 'One row per account, with the service address and meter it is linked to.',
     fields: [
       account,
       customer,
@@ -115,7 +116,7 @@ export const SOURCES: Record<SourceKey, SourceDef> = {
       { key: 'phone', label: 'Phone', kind: 'text' },
       { key: 'tax_exempt', label: 'Tax exempt', kind: 'text', enum: true },
       { key: 'billing_hold', label: 'Billing hold', kind: 'text', enum: true },
-      { key: 'premise', label: 'Premise', kind: 'ident' },
+      { key: 'premise', label: 'Service address no.', kind: 'ident' },
       { key: 'address', label: 'Address', kind: 'text' },
       { key: 'city', label: 'City', kind: 'text', enum: true },
       { key: 'zip', label: 'ZIP', kind: 'text' },
@@ -181,7 +182,7 @@ export const SOURCES: Record<SourceKey, SourceDef> = {
     key: 'meters',
     label: 'Meters',
     noun: ['meter', 'meters'],
-    description: 'Every meter the utility owns, with the premise and account it serves.',
+    description: 'Every meter the utility owns, with the service address and account it serves.',
     fields: [
       meter,
       { key: 'serial', label: 'Serial', kind: 'ident' },
@@ -281,7 +282,8 @@ export function accountRows(customers: Customer[], x: Lookups): ReportRow[] {
   return customers.map((c) => {
     const link = x.links.find((l) => l.customerId === c.id)
     const loc = link ? x.locationById.get(link.locationId) : undefined
-    const m = link?.meterId ? x.meterById.get(link.meterId) : undefined
+    const meterId = meterIdFor(link, x.links)
+    const m = meterId ? x.meterById.get(meterId) : undefined
     return {
       _customer: c.id,
       _meter: m?.id ?? null,

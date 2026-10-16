@@ -115,7 +115,7 @@ const INPUTS = {
     column_map: z.record(z.string(), z.string()).optional().describe('field → source column header, for an attachment'),
     constants: z.record(z.string(), z.string()).optional().describe('field → value used wherever the row has none'),
     rows: z.array(z.record(z.string(), z.string())).optional().describe('Rows keyed by field name, when there is no attachment (e.g. read from a PDF or dictated)'),
-    assign_numbers: z.boolean().optional().describe('Assign account, premise or meter numbers where the source has none'),
+    assign_numbers: z.boolean().optional().describe('Assign account, service address or meter numbers where the source has none'),
   }),
 } as const
 
@@ -123,7 +123,7 @@ type ToolName = keyof typeof INPUTS
 
 const DESCRIPTIONS: Record<ToolName, string> = {
   search_tenant: "Find records in the tenant's account the way the quick-find does: customer name, account number, meter number or serial, service address, invoice number. Returns ids to pass to get_account or get_invoice.",
-  get_account: 'One account in full: customer, premises with meter and latest read, bills newest first, payments, open exceptions, and any collections worklist row.',
+  get_account: 'One account in full: customer, service addresses with meter and latest read, bills newest first, payments, open exceptions, and any collections worklist row.',
   get_invoice: 'One bill with its line items and the gas derivation on each line.',
   query_records: 'List, filter, sort, count and total any record type in the tenant. Returns total_matching, the rows, and the field names. Use for questions like "how many commercial accounts", "unpaid bills over $500", "estimated reads this cycle".',
   list_rates: 'The rates in force on each schedule at a date, with any scheduled future versions. Every lookup resolves valid_at and recorded_at explicitly.',

@@ -1,6 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import type { Route } from 'next'
-import { customers, meters } from '@/fixtures/accounts'
+import { useRecords } from '@/lib/records'
 
 /**
  * An account or meter number, wherever it appears, opens that record.
@@ -8,12 +10,10 @@ import { customers, meters } from '@/fixtures/accounts'
  * Resolved by number rather than trusted from the caller, because most
  * screens carry the number as text — a report row, an audit entry, a
  * collections line. A number with no record behind it (portfolio accounts the
- * prototype does not model, an import kept in this browser) renders as plain
- * text, never as a link to a page that would not exist.
+ * prototype does not model) renders as plain text, never as a link to a page
+ * that would not exist. Records added in this browser have pages, so their
+ * numbers link once the browser's store is read.
  */
-
-const customerIdByNumber = new Map(customers.map((c) => [c.customer_number, c.id]))
-const meterIdByNumber = new Map(meters.map((m) => [m.meter_number, m.id]))
 
 const LINK = 'ident text-accent-text underline-offset-2 hover:text-accent-text-hover hover:underline'
 
@@ -30,7 +30,8 @@ export function AccountNumber({
   /** Ink for a number with no record behind it, which shows as text. */
   plainClassName?: string
 }) {
-  const target = id && customers.some((c) => c.id === id) ? id : customerIdByNumber.get(number)
+  const { customerById, customerIdByNumber } = useRecords()
+  const target = id && customerById.has(id) ? id : customerIdByNumber.get(number)
   if (!target) return <span className={`ident ${className} ${plainClassName}`}>{number}</span>
   return (
     <Link href={`/customers/${target}` as Route} className={`${LINK} ${className}`} title="Open account">
@@ -52,7 +53,8 @@ export function MeterNumber({
   /** Ink for a number with no record behind it, which shows as text. */
   plainClassName?: string
 }) {
-  const target = id && meters.some((m) => m.id === id) ? id : meterIdByNumber.get(number)
+  const { meterById, meterIdByNumber } = useRecords()
+  const target = id && meterById.has(id) ? id : meterIdByNumber.get(number)
   if (!target) return <span className={`ident ${className} ${plainClassName}`}>{number}</span>
   return (
     <Link href={`/meters/${target}` as Route} className={`${LINK} ${className}`} title="Open meter">

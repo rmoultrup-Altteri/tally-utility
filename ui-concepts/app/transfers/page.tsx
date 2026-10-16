@@ -20,8 +20,8 @@ export default async function TransfersPage({ searchParams }: PageProps<'/transf
   const sp = await searchParams
   const view = (Array.isArray(sp.view) ? sp.view[0] : sp.view) === 'handoffs' ? 'handoffs' : 'moves'
   const sections = [
-    { key: 'moves', href: '/transfers', label: 'Customer moves', count: transfersNeedingAttention(), title: 'One customer, two premises' },
-    { key: 'handoffs', href: '/transfers?view=handoffs', label: 'Move-out / move-in', count: handoffsNeedingAttention(), title: 'One premise, two customers' },
+    { key: 'moves', href: '/transfers', label: 'Customer moves', count: transfersNeedingAttention(), title: 'One customer, two service addresses' },
+    { key: 'handoffs', href: '/transfers?view=handoffs', label: 'Move-out / move-in', count: handoffsNeedingAttention(), title: 'One service address, two customers' },
   ] as const
 
   return (
@@ -30,7 +30,7 @@ export default async function TransfersPage({ searchParams }: PageProps<'/transf
         title="Transfers of service"
         meta={
           view === 'moves'
-            ? 'Stop and final bill at the old premise, turn-on at the new one — balance, deposit and arrangements stay with the customer'
+            ? 'Stop and final bill at the old service address, turn-on at the new one — balance, deposit and arrangements stay with the customer'
             : 'A termination and a new application at the same address — one read closes one account and opens the next'
         }
         actions={

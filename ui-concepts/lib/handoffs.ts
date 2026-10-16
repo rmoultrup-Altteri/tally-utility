@@ -187,7 +187,7 @@ export function reconcile(out: MoveOut | null, inn: MoveIn | null): TransferChec
     /* The outgoing customer's debt is theirs, unless the applicant shared it. */
     if (Number(out.balance) > 0) {
       if (out.transferId)
-        add('balance_moves', 'info', `${who}’s ${money(out.balance)} moves with them`, `Carried to ${out.forwarding ?? 'their new premise'} on the transfer. It is not asked of ${next}.`)
+        add('balance_moves', 'info', `${who}’s ${money(out.balance)} moves with them`, `Carried to ${out.forwarding ?? 'their new service address'} on the transfer. It is not asked of ${next}.`)
       else if (inn.livedHere && out.occupants.includes(inn.applicant.name))
         add(
           'co_occupant',

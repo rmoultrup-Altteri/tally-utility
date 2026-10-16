@@ -355,7 +355,7 @@ function Steps({ c, set, errors }: { c: DunningConfig; set: (c: DunningConfig) =
             </label>
             <label className="flex items-center gap-2 text-micro text-ink-secondary">
               <Switch on={c.notice.handDelivery} label="Also hand-deliver" onChange={(v) => set({ ...c, notice: { ...c.notice, handDelivery: v } })} />
-              Also hand-deliver at the premise
+              Also hand-deliver at the service address
             </label>
             <label className="flex items-center gap-2 text-micro text-ink-secondary">
               <Switch on={c.notice.emailCopy} label="Email a courtesy copy" onChange={(v) => set({ ...c, notice: { ...c.notice, emailCopy: v } })} />

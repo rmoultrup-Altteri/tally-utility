@@ -65,9 +65,9 @@ export function evaluateTransfer(t: TransferDraft, others: Transfer[], isNew: bo
     checks.push({ code: 'stop_past', level: 'block', title: 'Stop date is in the past', detail: `Service cannot be stopped retroactively. The earliest stop is ${date(asOf.validAt)}.` })
   const gap = days(t.stopDate, t.startDate)
   if (gap < 0)
-    checks.push({ code: 'overlap', level: 'review', title: `Both premises bill for ${plural(-gap, 'day')}`, detail: `Service starts at the new premise on ${date(t.startDate)}, before it stops at the old one on ${date(t.stopDate)}. Confirm the customer wants both.` })
+    checks.push({ code: 'overlap', level: 'review', title: `Both service addresses bill for ${plural(-gap, 'day')}`, detail: `Service starts at the new service address on ${date(t.startDate)}, before it stops at the old one on ${date(t.stopDate)}. Confirm the customer wants both.` })
   else if (gap > 1)
-    checks.push({ code: 'gap', level: 'info', title: `No service for ${plural(gap - 1, 'day')}`, detail: `Off at the old premise after ${date(t.stopDate)}, on at the new one from ${date(t.startDate)}.` })
+    checks.push({ code: 'gap', level: 'info', title: `No service for ${plural(gap - 1, 'day')}`, detail: `Off at the old service address after ${date(t.stopDate)}, on at the new one from ${date(t.startDate)}.` })
   else checks.push({ code: 'dates', level: 'ok', title: 'Dates line up', detail: `Stops ${date(t.stopDate)}, starts ${date(t.startDate)}.` })
 
   /* ---- The final read at the old premise ---- */
@@ -87,7 +87,7 @@ export function evaluateTransfer(t: TransferDraft, others: Transfer[], isNew: bo
 
   /* ---- The new premise ---- */
   if (!to) {
-    checks.push({ code: 'no_premise', level: 'block', title: 'Choose the new premise', detail: 'Pick the service address the customer is moving to.' })
+    checks.push({ code: 'no_premise', level: 'block', title: 'Choose the new service address', detail: 'Pick the service address the customer is moving to.' })
     return checks
   }
   const occ = to.occupant
@@ -110,7 +110,7 @@ export function evaluateTransfer(t: TransferDraft, others: Transfer[], isNew: bo
 
   /* ---- Money and protections ---- */
   if (Number(m.balance) > 0 && m.pastDueDays > 0)
-    checks.push({ code: 'past_due', level: 'review', title: `${money(m.balance)} past due moves with the account`, detail: `${plural(m.pastDueDays, 'day')} past due. The collections clock carries on at the new premise; it does not restart.` })
+    checks.push({ code: 'past_due', level: 'review', title: `${money(m.balance)} past due moves with the account`, detail: `${plural(m.pastDueDays, 'day')} past due. The collections clock carries on at the new service address; it does not restart.` })
   else if (Number(m.balance) > 0)
     checks.push({ code: 'balance', level: 'ok', title: `${money(m.balance)} balance stays on the account`, detail: 'Nothing is past due.' })
   if (m.arrangement) checks.push({ code: 'arrangement', level: 'info', title: 'Payment arrangement continues', detail: `${m.arrangement}. The instalments do not change with the address.` })
@@ -122,7 +122,7 @@ export function evaluateTransfer(t: TransferDraft, others: Transfer[], isNew: bo
     code: 'premise_terms',
     level: 'info',
     title: to.franchiseCity ? `${to.franchiseCity} franchise fee applies` : 'Outside city limits — no franchise fee',
-    detail: `Cycle ${to.cycle}${to.cycle !== '04' ? ', so the first bill at the new premise comes on a different date' : ''}. Rate schedule ${m.isResidential ? 'R-1' : 'G-1'} carries over.`,
+    detail: `Cycle ${to.cycle}${to.cycle !== '04' ? ', so the first bill at the new service address comes on a different date' : ''}. Rate schedule ${m.isResidential ? 'R-1' : 'G-1'} carries over.`,
   })
   return checks
 }

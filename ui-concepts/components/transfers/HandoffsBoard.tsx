@@ -36,7 +36,7 @@ const LEVEL_LABEL: Record<CheckLevel, string> = { block: 'Blocks', review: 'Revi
 
 const COLUMNS: ColumnDef[] = [
   { key: 'rail', label: '', menuLabel: 'State rail', width: '3px', rail: true, fixed: true },
-  { key: 'premise', label: 'Premise', width: '30%' },
+  { key: 'premise', label: 'Service address', width: '30%' },
   { key: 'out', label: 'Moving out', width: '22%' },
   { key: 'in', label: 'Moving in', width: '22%' },
   { key: 'handoff', label: 'Handoff', width: '14%' },
@@ -87,7 +87,7 @@ export function HandoffsBoard() {
         <StateBlock tone={conflicts ? 'critical' : review ? 'warning' : 'cleared'}>
           <p className="text-data text-ink-primary">
             <strong className="font-semibold">
-              {paired} of {rows.length} premises have a move-out and a move-in to reconcile.
+              {paired} of {rows.length} service addresses have a move-out and a move-in to reconcile.
             </strong>{' '}
             {conflicts ? `${conflicts} conflict${conflicts === 1 ? '' : 's'} would bill one meter to two accounts, or start service nobody has cleared. ` : ''}
             {review ? `${review} need a person to choose a read, a date or a lock-off before the field orders go out.` : ''}
@@ -101,7 +101,7 @@ export function HandoffsBoard() {
           <ColumnTable
             fill
             listId="handoffs"
-            caption="Move-outs and move-ins at the same premise, conflicts first"
+            caption="Move-outs and move-ins at the same service address, conflicts first"
             columns={COLUMNS}
             rows={shown.map((r) => ({ key: r.premiseNumber, selected: r.premiseNumber === selected?.premiseNumber, cells: cells(r, () => setPick(r.premiseNumber)) }))}
             empty="Nothing in this view."
@@ -128,7 +128,7 @@ export function HandoffsBoard() {
               </div>
             }
           />
-          <TableFooter shown={shown.length} total={rows.length} noun="premises with a stop or start pending" />
+          <TableFooter shown={shown.length} total={rows.length} noun="service addresses with a stop or start pending" />
         </section>
 
         {selected ? <HandoffDetail h={selected} /> : null}
@@ -266,7 +266,7 @@ function HandoffDetail({ h }: { h: Handoff }) {
         <StateFlag tone={STATE_TONE[h.state]}>{HANDOFF_LABEL[h.state]}</StateFlag>
         <h2 className="text-h2 text-ink-primary mt-1.5">{h.address}</h2>
         <p className="text-micro text-ink-tertiary mt-1">
-          {h.city} · premise <span className="ident">{h.premiseNumber}</span> · meter <span className="ident">{h.meterNumber}</span>
+          {h.city} · service address <span className="ident">{h.premiseNumber}</span> · meter <span className="ident">{h.meterNumber}</span>
         </p>
       </div>
 

@@ -35,9 +35,10 @@ import {
   useMeterNow,
   useReplacements,
   useServed,
+  useSetAt,
 } from '@/lib/replacements'
 import { deployments, meterDetailById, meterDetails, type MeterDetail } from '@/fixtures/meters'
-import { locationById, meterById } from '@/fixtures/accounts'
+import { useRecords } from '@/lib/records'
 import { rateSchedules } from '@/fixtures/rates'
 import { customerName, type Customer, type Meter, type MeterReading } from '@/schemas/models'
 import { date, factor, reading, stamp } from '@/lib/format'
@@ -102,7 +103,7 @@ export function MeterHeader({
         text: (
           <>
             Serves <strong className="font-semibold">{customerName(customer)}</strong> at {served.location.address}.
-            While the meter is inactive no usage bills at this premise; the account’s fixed charges keep billing
+            While the meter is inactive no usage bills at this service address; the account’s fixed charges keep billing
             unless the account is inactivated too.
           </>
         ),
@@ -141,7 +142,7 @@ export function MeterHeader({
       id: 'relight',
       tone: 'warning',
       acknowledge: true,
-      text: 'A technician has taken a turn-on read, checked for leaks and relit the appliances at the premise.',
+      text: 'A technician has taken a turn-on read, checked for leaks and relit the appliances at the service address.',
     })
     consequences.push({
       id: 'route',
@@ -226,7 +227,7 @@ export function MeterHeader({
 function editVerb(status: { from: unknown; to: unknown } | undefined): string {
   if (!status) return 'edited'
   if (status.to === 'removed') return 'replaced'
-  if (status.from === 'in_stock') return 'set at premise'
+  if (status.from === 'in_stock') return 'set at service address'
   return status.to === 'inactive' ? 'inactivated' : 'reactivated'
 }
 
@@ -243,6 +244,7 @@ export function MeterStatusNote({
   const meter = useMeter(base)
   const changed = useLastStatusChange('meter', base.id)
   const out = replacedBy(base.id, useReplacements())
+  const { meterById, locationById } = useRecords()
   if (meter.status === 'active') return null
   if (meter.status === 'removed' && out) {
     const next = meterById.get(out.newMeterId)
@@ -258,7 +260,7 @@ export function MeterStatusNote({
                 , replaced by <MeterLink meter={next} />
               </>
             ) : null}{' '}
-            — {out.reason}. Its reads and bills stay on the premise’s history; send it to the meter shop for test.
+            — {out.reason}. Its reads and bills stay on the service address’s history; send it to the meter shop for test.
           </p>
         </StateBlock>
       </div>
@@ -272,21 +274,21 @@ export function MeterStatusNote({
             <>
               <strong className="font-semibold">Inactive</strong>
               {changed?.effective ? <> since {date(changed.effective)}</> : null}
-              {changed?.reason ? <> — {changed.reason}</> : null}. The meter is still set at the premise; no usage
+              {changed?.reason ? <> — {changed.reason}</> : null}. The meter is still set at the service address; no usage
               bills and no route reads it until it is reactivated.
             </>
           ) : meter.status === 'in_stock' ? (
             <>
               <strong className="font-semibold">In stock</strong>
               {warehouseLocation ? <> at {warehouseLocation}</> : null}. Tested and ready to set; a service order
-              sets it at a premise.
+              sets it at a service address.
             </>
           ) : (
             <>
               <strong className="font-semibold">Removed</strong>
               {removalDate ? <> {date(removalDate)}</> : null}
               {warehouseLocation ? <>, now at {warehouseLocation}</> : null}. Its reads and bills stay on the
-              premise’s history.
+              service address’s history.
             </>
           )}
         </p>
@@ -498,7 +500,9 @@ export function MeterEndpoint({ meter: base, detail }: { meter: Meter; detail: M
 /** Where the meter is: its premise and account, the premise it was taken from, or the shelf. */
 export function MeterPremise({ meter: base, detail }: { meter: Meter; detail: MeterDetail | null }) {
   const reps = useReplacements()
-  const served = useServed(base.id)
+  /* Set at a premise, whether or not anyone takes service there yet. */
+  const served = useSetAt(base.id)
+  const { locationById } = useRecords()
   const out = replacedBy(base.id, reps)
   const set = replacing(base.id, reps)
   const from = out ? locationById.get(out.locationId) : undefined
@@ -506,15 +510,29 @@ export function MeterPremise({ meter: base, detail }: { meter: Meter; detail: Me
   const notes = detail?.locationNotes ?? (set ? meterDetailById.get(set.oldMeterId)?.locationNotes : null) ?? '—'
   return (
     <Panel>
-      <PanelHeader title={served ? 'Premise' : 'Location'} meta={(served?.location ?? from)?.location_number} />
+      <PanelHeader title={served ? 'Service address' : 'Location'} meta={(served?.location ?? from)?.location_number} />
       <div className="px-4 py-4">
         {served ? (
           <FieldGrid cols={2}>
             <Field label="Account">
-              <AccountStatusFlag customer={served.customer} />
-              <span className="block text-micro">
-                <AccountNumber number={served.customer.customer_number} id={served.customer.id} />
-              </span>
+              {served.customer ? (
+                <>
+                  <AccountStatusFlag customer={served.customer} />
+                  <span className="block text-micro">
+                    <AccountNumber number={served.customer.customer_number} id={served.customer.id} />
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-ink-tertiary">Nobody taking service yet</span>
+                  <Link
+                    href={`/customers/new?address=${encodeURIComponent(served.location.location_number)}` as Route}
+                    className="block text-micro text-accent-text underline hover:text-accent-text-hover"
+                  >
+                    Open an account here
+                  </Link>
+                </>
+              )}
             </Field>
             <Field label="Service address">
               {served.location.address}
@@ -531,14 +549,14 @@ export function MeterPremise({ meter: base, detail }: { meter: Meter; detail: Me
         ) : (
           <FieldGrid cols={2}>
             <Field label="Stored at">{out ? 'In transit to the meter shop' : (detail?.warehouseLocation ?? '—')}</Field>
-            <Field label="Premise">
+            <Field label="Service address">
               {from ? (
                 <>
                   Removed from {from.address}
                   <span className="block text-micro text-ink-tertiary">{date(out!.swapDate)}</span>
                 </>
               ) : (
-                'Not set at a premise'
+                'Not set at a service address'
               )}
             </Field>
           </FieldGrid>
@@ -551,6 +569,7 @@ export function MeterPremise({ meter: base, detail }: { meter: Meter; detail: Me
 /** Install, removal and the meters on either side of an exchange. */
 export function MeterLifecycle({ meter: base, detail }: { meter: Meter; detail: MeterDetail | null }) {
   const reps = useReplacements()
+  const { meterById } = useRecords()
   const out = replacedBy(base.id, reps)
   const set = replacing(base.id, reps)
   const fixtureNext = meterDetails.find((d) => d.replacesMeterId === base.id)
@@ -580,9 +599,10 @@ export function MeterLifecycle({ meter: base, detail }: { meter: Meter; detail: 
 type DeploymentRow = {
   key: string
   locationId: string
-  installDate: string
-  installReadValue: string
-  installedBy: string
+  /* Unknown for a meter set when it was added in this browser: no set order recorded it. */
+  installDate: string | null
+  installReadValue: string | null
+  installedBy: string | null
   removalDate: string | null
   removalReadValue: string | null
   removalReason: string | null
@@ -591,9 +611,23 @@ type DeploymentRow = {
 /** Every premise the meter has been set at, with exchanges made in this browser applied in order. */
 export function MeterDeployments({ meter: base }: { meter: Meter }) {
   const reps = useReplacements()
+  const { locationById, links } = useRecords()
   const rows: DeploymentRow[] = deployments
     .filter((d) => d.meterId === base.id)
     .map((d) => ({ ...d, key: String(d.deploymentNumber) }))
+  /* A meter set at a premise when it was added in this browser has a link but no deployment row. */
+  const addedAt = rows.length ? null : links.find((l) => l.meterId === base.id)
+  if (addedAt)
+    rows.push({
+      key: 'added',
+      locationId: addedAt.locationId,
+      installDate: null,
+      installReadValue: null,
+      installedBy: null,
+      removalDate: null,
+      removalReadValue: null,
+      removalReason: null,
+    })
   for (const r of reps) {
     if (r.newMeterId === base.id)
       rows.push({
@@ -613,11 +647,11 @@ export function MeterDeployments({ meter: base }: { meter: Meter }) {
   }
   return (
     <Panel>
-      <PanelHeader title="Premises served" meta={`${rows.length} on record`} />
-      <Table caption="Every premise this meter has been set at">
+      <PanelHeader title="Service addresses served" meta={`${rows.length} on record`} />
+      <Table caption="Every service address this meter has been set at">
         <thead>
           <HeadRow>
-            <Th>Premise</Th>
+            <Th>Service address</Th>
             <Th>Set</Th>
             <Th>Pulled</Th>
           </HeadRow>
@@ -632,10 +666,12 @@ export function MeterDeployments({ meter: base }: { meter: Meter }) {
                   <span className="block ident text-micro text-ink-tertiary">{loc?.location_number}</span>
                 </Td>
                 <Td className="whitespace-nowrap">
-                  {date(d.installDate)}
-                  <span className="block text-micro text-ink-tertiary">
-                    at <span className="ident">{reading(d.installReadValue)}</span> · {d.installedBy}
-                  </span>
+                  {d.installDate ? date(d.installDate) : <span className="text-ink-tertiary">Set when added</span>}
+                  {d.installReadValue ? (
+                    <span className="block text-micro text-ink-tertiary">
+                      at <span className="ident">{reading(d.installReadValue)}</span> · {d.installedBy}
+                    </span>
+                  ) : null}
                 </Td>
                 <Td>
                   {d.removalDate ? (
@@ -655,7 +691,7 @@ export function MeterDeployments({ meter: base }: { meter: Meter }) {
           {rows.length === 0 ? (
             <Row>
               <Td colSpan={3} className="py-5 text-center text-ink-tertiary">
-                Never set at a premise.
+                Never set at a service address.
               </Td>
             </Row>
           ) : null}
@@ -897,7 +933,7 @@ function EditMeter({
       >
         <StateBlock tone="info" className="px-3! py-2.5!">
           <p className="text-data text-ink-primary">
-            This corrects the record. If a different meter went in at the premise, use{' '}
+            This corrects the record. If a different meter went in at the service address, use{' '}
             <strong className="font-semibold">Replace meter</strong> instead, so the old meter keeps its reads and
             the bill splits at the swap.
           </p>

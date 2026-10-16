@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { AppShell } from '@/components/shell/AppShell'
+import { BrowserMeter } from '@/components/meters/BrowserMeter'
 import {
   MeterEndpoint,
   MeterEquipment,
@@ -39,7 +39,13 @@ export function generateStaticParams() {
 export default async function MeterPage({ params }: PageProps<'/meters/[meterId]'>) {
   const { meterId } = await params
   const meter = meterById.get(meterId)
-  if (!meter) notFound()
+  /* Not a fixture: a meter added in this browser, which only the browser can find. */
+  if (!meter)
+    return (
+      <AppShell current="Meters">
+        <BrowserMeter id={meterId} />
+      </AppShell>
+    )
 
   const detail = meterDetailById.get(meter.id)
   const reads = readings.filter((r) => r.meter_id === meter.id)
@@ -131,7 +137,7 @@ export default async function MeterPage({ params }: PageProps<'/meters/[meterId]
           ) : null}
 
           <Panel>
-            <PanelHeader title="Reads" meta="This cycle’s reads; earlier reads sit on the premise’s bills" />
+            <PanelHeader title="Reads" meta="This cycle’s reads; earlier reads sit on the service address’s bills" />
             <Table caption="Reads on this meter">
               <thead>
                 <HeadRow>

@@ -124,13 +124,13 @@ const CUSTOMER_FIELDS: FieldSpec[] = [
 ]
 
 const LOCATION_FIELDS: FieldSpec[] = [
-  { key: 'location_number', kind: 'text', required: true, note: 'premise number, unique' },
+  { key: 'location_number', kind: 'text', required: true, note: 'service address number, unique' },
   { key: 'address', kind: 'text', required: true, note: 'street line' },
   { key: 'city', kind: 'text', required: true },
   { key: 'state', kind: 'text', note: 'default TX' },
   { key: 'zip', kind: 'text', required: true },
   { key: 'inside_city_limits', kind: 'bool', note: 'drives franchise fees; assumed from franchise_city when absent' },
-  { key: 'franchise_city', kind: 'enum', values: tenant.franchiseCities, note: 'only for in-city premises' },
+  { key: 'franchise_city', kind: 'enum', values: tenant.franchiseCities, note: 'only for in-city service addresses' },
   { key: 'billing_cycle', kind: 'text', note: `default ${cycle.code}` },
 ]
 
@@ -168,11 +168,11 @@ export const FIELDS: Record<ImportEntity, FieldSpec[]> = {
   accounts: [
     ...CUSTOMER_FIELDS,
     ...LOCATION_FIELDS,
-    ...METER_FIELDS.map((f) => (f.key === 'meter_number' ? { ...f, required: false, note: 'optional; links the meter to the premise' } : f)),
+    ...METER_FIELDS.map((f) => (f.key === 'meter_number' ? { ...f, required: false, note: 'optional; links the meter to the service address' } : f)),
   ],
   customers: CUSTOMER_FIELDS,
   locations: LOCATION_FIELDS,
-  meters: [...METER_FIELDS, { key: 'location_number', kind: 'text', note: 'optional; premise to set the meter at' }],
+  meters: [...METER_FIELDS, { key: 'location_number', kind: 'text', note: 'optional; service address to set the meter at' }],
   rate_items: RATE_FIELDS,
 }
 
@@ -430,11 +430,11 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
     /* Premise half. */
     if (input.entity === 'accounts' || input.entity === 'locations') {
       if (values.location_number == null && input.assign_numbers) values.location_number = assign('P')
-      need('location_number', 'Premise number (map a column, or set assign_numbers)')
+      need('location_number', 'Service address number (map a column, or set assign_numbers)')
       const number = s('location_number')
       const existing = number ? taken.location.get(number) : undefined
       if (existing && input.entity === 'locations') {
-        rowErrors.push({ row: row.line, field: 'location_number', message: `premise ${number} already exists` })
+        rowErrors.push({ row: row.line, field: 'location_number', message: `service address ${number} already exists` })
       } else if (existing) {
         /* A new customer moving into a premise already on file: link to it, never re-create it. */
         location = existing
@@ -445,7 +445,7 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
           warnings.push({
             row: row.line,
             field: 'location_number',
-            message: `premise ${number} is already served to ${who ? customerName(who) : occupied.customerId}; this links a second account to it`,
+            message: `service address ${number} is already served to ${who ? customerName(who) : occupied.customerId}; this links a second account to it`,
           })
         }
       } else if (number && claim('location', number, 'location_number')) {
@@ -502,7 +502,7 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
         if (set && set.locationId === location?.id) {
           meter = existing
           reusedMeter = true
-        } else rowErrors.push({ row: row.line, field: 'meter_number', message: `meter ${number} is already set at another premise` })
+        } else rowErrors.push({ row: row.line, field: 'meter_number', message: `meter ${number} is already set at another service address` })
       } else if (existing) {
         rowErrors.push({ row: row.line, field: 'meter_number', message: `meter ${number} already exists` })
       } else if (number && claim('meter', number, 'meter_number')) {
@@ -535,12 +535,12 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
       }
       if (input.entity === 'meters' && s('location_number')) {
         const at = view.locations.find((l) => l.location_number === s('location_number'))
-        if (!at) rowErrors.push({ row: row.line, field: 'location_number', message: `premise ${s('location_number')} is not on file` })
+        if (!at) rowErrors.push({ row: row.line, field: 'location_number', message: `service address ${s('location_number')} is not on file` })
         else {
           location = at
           reusedLocation = true
           if (view.links.some((l) => l.locationId === at.id && l.meterId))
-            warnings.push({ row: row.line, field: 'location_number', message: `premise ${at.location_number} already has a meter set` })
+            warnings.push({ row: row.line, field: 'location_number', message: `service address ${at.location_number} already has a meter set` })
         }
       }
     }
@@ -658,7 +658,7 @@ export function stage(input: StageInput, tables: Map<string, Table>, view: Tenan
 const PREVIEW_COLUMNS: Record<ImportEntity, string[]> = {
   accounts: ['Row', 'Account', 'Name', 'Service address', 'Meter'],
   customers: ['Row', 'Account', 'Name', 'Type', 'Phone'],
-  locations: ['Row', 'Premise', 'Address', 'City', 'Inside city'],
+  locations: ['Row', 'Service address no.', 'Address', 'City', 'Inside city'],
   meters: ['Row', 'Meter', 'Serial', 'Read type', 'Multiplier'],
   rate_items: ['Row', 'Schedule', 'Item', 'Rate', 'Effective', 'Change'],
 }

@@ -7,7 +7,7 @@ import type { TenantView } from '@/lib/assistant/tenant-data'
 import { applyProposal, getImported } from '@/lib/imports-store'
 
 /**
- * One account or one meter, entered by hand.
+ * One account, meter or premise, entered by hand.
  *
  * A one-off record is an import of one row: it goes through the same
  * validator the assistant's imports do — the schema's types and enums, unique
@@ -32,7 +32,7 @@ function currentView(): TenantView {
   }
 }
 
-export function createRecord(entity: 'accounts' | 'meters', fields: Record<string, string>): Created {
+export function createRecord(entity: 'accounts' | 'meters' | 'locations', fields: Record<string, string>): Created {
   const row = Object.fromEntries(Object.entries(fields).filter(([, v]) => v.trim() !== ''))
   let proposal
   try {
@@ -49,4 +49,18 @@ export function createRecord(entity: 'accounts' | 'meters', fields: Record<strin
 export function premisesAwaitingMeter(imported: ImportedData) {
   const links = [...serviceLinks, ...imported.links]
   return [...locations, ...imported.locations].filter((l) => !links.some((k) => k.locationId === l.id && k.meterId))
+}
+
+/** A premise already on file, by number, with who takes service there and the meter set at it, if any. */
+export function premiseOnFile(imported: ImportedData, number: string) {
+  const location = [...locations, ...imported.locations].find((l) => l.location_number === number.trim())
+  if (!location) return null
+  const links = [...serviceLinks, ...imported.links].filter((k) => k.locationId === location.id)
+  const customerId = links.find((k) => k.customerId)?.customerId
+  const meterId = links.find((k) => k.meterId)?.meterId
+  return {
+    location,
+    customer: customerId ? ([...customers, ...imported.customers].find((c) => c.id === customerId) ?? null) : null,
+    meter: meterId ? ([...meters, ...imported.meters].find((m) => m.id === meterId) ?? null) : null,
+  }
 }

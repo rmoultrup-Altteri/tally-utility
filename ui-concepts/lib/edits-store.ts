@@ -275,7 +275,7 @@ export function replaceMeter(
   newEndpointId: string | null,
 ): void {
   hydrate()
-  if (old.status !== 'active' && old.status !== 'inactive') throw new Error('Only a meter set at a premise can be replaced.')
+  if (old.status !== 'active' && old.status !== 'inactive') throw new Error('Only a meter set at a service address can be replaced.')
   if (incoming.status !== 'in_stock') throw new Error('The incoming meter must be in stock.')
   const at = new Date().toISOString()
   const by = activeUserName()

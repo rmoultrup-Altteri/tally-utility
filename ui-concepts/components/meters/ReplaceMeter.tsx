@@ -486,7 +486,7 @@ export function ReplaceMeterDialog({
 
         <p className="rounded-sm bg-surface-sunken px-3 py-2 text-micro text-ink-secondary">
           Recorded on both meters with your name, the reason and the swap date. Nothing is deleted: the old meter’s
-          reads and bills stay on its record and on the premise’s history. Kept in this browser until the API exists.
+          reads and bills stay on its record and on the service address’s history. Kept in this browser until the API exists.
         </p>
         <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       </form>

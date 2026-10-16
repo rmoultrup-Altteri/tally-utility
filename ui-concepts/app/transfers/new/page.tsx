@@ -10,7 +10,7 @@ export default async function NewTransferPage({ searchParams }: PageProps<'/tran
       <PageHeader
         back={{ href: '/transfers', label: 'Transfers' }}
         title="New transfer"
-        meta="Move a customer to a new premise without closing their account · * required"
+        meta="Move a customer to a new service address without closing their account · * required"
       />
       <div className="flex-1 overflow-auto">
         <div className="max-w-6xl px-5 py-5">
