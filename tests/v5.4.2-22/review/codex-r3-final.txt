@@ -1,0 +1,7 @@
+**Verdict: not yet.**
+
+- **B1 — predicted:** The close can capture tenant bucket settings changed after its recorded timestamp. The probe simulates this interleaving; no database tests were run.
+
+All four frozen hashes match. Review and 12 probes written.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-22/review/codex-r3.md)
