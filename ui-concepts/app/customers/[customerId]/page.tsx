@@ -6,7 +6,7 @@ import { AccountAlerts, AccountFields, AccountHeader } from '@/components/accoun
 import { AccountExceptions } from '@/components/accounts/AccountExceptions'
 import { DeceasedPanel } from '@/components/accounts/Deceased'
 import { RateScheduleHistory } from '@/components/accounts/RateSchedule'
-import { MeterLink } from '@/components/meters/MeterDetail'
+import { AccountMeterPanel } from '@/components/meters/MeterDetail'
 import { InvoiceDateText } from '@/components/bills/InvoiceEdit'
 import { Button, Field, FieldGrid, Panel, PanelHeader } from '@/components/ui/Panel'
 import { Rail, StateFlag, invoiceTone, humanize } from '@/components/ui/State'
@@ -110,38 +110,7 @@ export default async function CustomerPage({
               </div>
             </Panel>
 
-            <Panel>
-              <PanelHeader title="Meter" meta={meter?.route_id ?? undefined} />
-              <div className="px-4 py-4">
-                <FieldGrid cols={2}>
-                  <Field label="Meter">
-                    {meter ? <MeterLink meter={meter} /> : '—'}
-                  </Field>
-                  <Field label="Read type">{humanize(meter?.read_type ?? '')}</Field>
-                  <Field label="Multiplier">{meter?.multiplier ?? '—'}</Field>
-                  <Field label="BTU factor">{meter?.gas_btu_factor ?? '—'}</Field>
-                  <Field label="Last read">{read ? date(read.reading_date) : '—'}</Field>
-                  <Field
-                    label="Estimates in a row"
-                    hint={
-                      (meter?.consecutive_estimate_count ?? 0) >= 3
-                        ? 'At the Texas cap'
-                        : undefined
-                    }
-                  >
-                    <span
-                      className={
-                        (meter?.consecutive_estimate_count ?? 0) >= 3
-                          ? 'text-exception-critical-text font-medium'
-                          : ''
-                      }
-                    >
-                      {meter?.consecutive_estimate_count ?? 0}
-                    </span>
-                  </Field>
-                </FieldGrid>
-              </div>
-            </Panel>
+            <AccountMeterPanel meter={meter} lastReadDate={read?.reading_date ?? null} />
           </div>
 
           {/* The de-escalation prop. Usage against the weather that drove it. */}

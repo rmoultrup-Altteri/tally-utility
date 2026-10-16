@@ -19,6 +19,7 @@ import {
   type CustomerEdit,
 } from '@/lib/edits-store'
 import { DeceasedAction } from '@/components/accounts/Deceased'
+import { useMeterNow } from '@/lib/replacements'
 import { RateScheduleField } from '@/components/accounts/RateSchedule'
 import { useDeceased } from '@/lib/deceased-store'
 import { PROOFS, reviewOverdue } from '@/lib/deceased'
@@ -203,8 +204,10 @@ function AccountStatusChange({
   open: boolean
   onClose: () => void
 }) {
-  const meterEdit = useEdits().meters[meterBase?.id ?? '']
-  const meter = meterBase ? { ...meterBase, ...meterEdit } : undefined
+  /* The meter set at the premise now: an exchange moves the account to the new one. */
+  const meterNow = useMeterNow(meterBase)
+  const meterEdit = useEdits().meters[meterNow?.id ?? '']
+  const meter = meterNow ? { ...meterNow, ...meterEdit } : undefined
   const changed = useLastStatusChange('customer', base.id)
   const balance = Number(current.balance)
   const deposit = Number(current.deposit_amount)
@@ -297,7 +300,7 @@ function AccountStatusChange({
       onConfirm={(reason, effective, chosen) => {
         const to = verb === 'Inactivate' ? 'inactive' : 'active'
         changeStatus('customer', base, to, reason, effective)
-        if (meterBase && chosen.includes('meter')) changeStatus('meter', meterBase, to, reason, effective)
+        if (meterNow && chosen.includes('meter')) changeStatus('meter', meterNow, to, reason, effective)
       }}
     />
   )

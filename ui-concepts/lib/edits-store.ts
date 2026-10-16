@@ -43,12 +43,38 @@ export const CUSTOMER_REASONED = [
   'disconnect_protection_expiry',
 ] as const satisfies readonly (typeof CUSTOMER_EDITABLE)[number][]
 
+/**
+ * What an operator may change on a meter. The meter number is its identity,
+ * status moves only through an inactivation or reactivation, and the estimate
+ * count is database-maintained.
+ */
+export const METER_EDITABLE = [
+  'serial_number',
+  'manufacturer',
+  'model',
+  'size',
+  'read_type',
+  'ami_endpoint_id',
+  'multiplier',
+  'gas_btu_factor',
+  'rollover_point',
+  'route_id',
+  'route_sequence',
+] as const satisfies readonly (keyof Meter)[]
+
+/**
+ * The factors that turn dials into a bill. Billing honours the value effective
+ * on the read date, so the edit form refuses to save them without a reason
+ * and the date they take effect.
+ */
+export const METER_REASONED = ['multiplier', 'gas_btu_factor', 'rollover_point'] as const satisfies readonly (typeof METER_EDITABLE)[number][]
+
 /** What may change on a bill that has never been issued. Amounts and lines come from the run. */
 export const INVOICE_EDITABLE = ['invoice_date', 'due_date', 'hold_reason'] as const satisfies readonly (keyof Invoice)[]
 
 /** `status` is never in the edit form: it moves only through an inactivation or reactivation, with a reason. */
 export type CustomerEdit = Partial<Pick<Customer, (typeof CUSTOMER_EDITABLE)[number] | 'status'>>
-export type MeterEdit = Partial<Pick<Meter, 'status'>>
+export type MeterEdit = Partial<Pick<Meter, (typeof METER_EDITABLE)[number] | 'status'>>
 export type InvoiceEdit = Partial<Pick<Invoice, (typeof INVOICE_EDITABLE)[number]>>
 
 export type EditEntry = {
@@ -62,15 +88,43 @@ export type EditEntry = {
   effective?: string
 }
 
+/**
+ * A meter exchange at a premise: the old meter's removal read and the new
+ * meter's set read, on one date. The schema writes this as a `meter_change_out`
+ * service order, a `removal` and an `installation` reading, a closed and an
+ * opened `meter_deployments` row, and `replaces_meter_id` on the new meter.
+ */
+export type Replacement = {
+  at: string
+  by: string
+  oldMeterId: string
+  newMeterId: string
+  locationId: string
+  customerId: string | null
+  swapDate: string
+  removalRead: string
+  /** The old register wrapped past its rollover point since the last read. */
+  rolledOver: boolean
+  installRead: string
+  reason: string
+  technician: string
+  sealNumber: string | null
+  serviceOrder: string | null
+  /** What happened to the radio: moved across, a new one fitted, or none (manual read). */
+  endpoint: 'move' | 'new' | 'none'
+  rateScheduleCode: string | null
+}
+
 export type Edits = {
   customers: Record<string, CustomerEdit>
   invoices: Record<string, InvoiceEdit>
   meters: Record<string, MeterEdit>
+  replacements: Replacement[]
   log: EditEntry[]
 }
 
 const KEY = 'tu-edits'
-export const EMPTY_EDITS: Edits = { customers: {}, invoices: {}, meters: {}, log: [] }
+export const EMPTY_EDITS: Edits = { customers: {}, invoices: {}, meters: {}, replacements: [], log: [] }
 
 let current: Edits = EMPTY_EDITS
 let hydrated = false
@@ -137,7 +191,7 @@ export function useCustomer(c: Customer): Customer {
   return edit ? { ...c, ...edit } : c
 }
 
-/** The meter as it stands after any status change made in this browser. */
+/** The meter as it stands after any edits or status change made in this browser. */
 export function useMeter(m: Meter): Meter {
   const edit = useEdits().meters[m.id]
   return edit ? { ...m, ...edit } : m
@@ -177,6 +231,99 @@ export function saveCustomer(base: Customer, next: CustomerEdit, reason: string 
     log: [...current.log, { at: new Date().toISOString(), by: activeUserName(), entity: 'customer', id: base.id, changes, reason }],
   })
   return true
+}
+
+/**
+ * Save a meter edit. `base` is the fixture row; `next` is the full edited set.
+ * A factor change carries its reason and the date it takes effect. Returns
+ * false when nothing changed.
+ */
+export function saveMeter(base: Meter, next: MeterEdit, reason: string | null, effective: string | null): boolean {
+  hydrate()
+  const before = { ...base, ...current.meters[base.id] }
+  const changes = diff(before, next)
+  if (!Object.keys(changes).length) return false
+  write({
+    ...current,
+    meters: { ...current.meters, [base.id]: { ...current.meters[base.id], ...next } },
+    log: [
+      ...current.log,
+      {
+        at: new Date().toISOString(),
+        by: activeUserName(),
+        entity: 'meter',
+        id: base.id,
+        changes,
+        reason,
+        ...(effective ? { effective } : {}),
+      },
+    ],
+  })
+  return true
+}
+
+/**
+ * Exchange the meter at a premise. `old` and `incoming` are the meters as they
+ * stand now. The old meter is removed and keeps its history; the incoming one
+ * takes its place in the same status, on the same route, with the radio moved,
+ * replaced or dropped. Both records log the exchange with its reason and date.
+ */
+export function replaceMeter(
+  old: Meter,
+  incoming: Meter,
+  r: Omit<Replacement, 'at' | 'by' | 'oldMeterId' | 'newMeterId'>,
+  newEndpointId: string | null,
+): void {
+  hydrate()
+  if (old.status !== 'active' && old.status !== 'inactive') throw new Error('Only a meter set at a premise can be replaced.')
+  if (incoming.status !== 'in_stock') throw new Error('The incoming meter must be in stock.')
+  const at = new Date().toISOString()
+  const by = activeUserName()
+  const endpoint = r.endpoint === 'move' ? old.ami_endpoint_id : r.endpoint === 'new' ? newEndpointId : null
+  const oldNext: MeterEdit = {
+    status: 'removed',
+    route_id: null,
+    route_sequence: null,
+    ...(r.endpoint === 'move' ? { ami_endpoint_id: null } : {}),
+  }
+  const newNext: MeterEdit = {
+    status: old.status,
+    route_id: old.route_id,
+    route_sequence: old.route_sequence,
+    ami_endpoint_id: endpoint,
+    read_type: endpoint === null ? 'manual' : old.read_type === 'manual' ? 'amr' : old.read_type,
+    gas_btu_factor: incoming.gas_btu_factor ?? old.gas_btu_factor,
+  }
+  write({
+    ...current,
+    meters: {
+      ...current.meters,
+      [old.id]: { ...current.meters[old.id], ...oldNext },
+      [incoming.id]: { ...current.meters[incoming.id], ...newNext },
+    },
+    replacements: [...(current.replacements ?? []), { ...r, at, by, oldMeterId: old.id, newMeterId: incoming.id }],
+    log: [
+      ...current.log,
+      {
+        at,
+        by,
+        entity: 'meter',
+        id: old.id,
+        changes: diff(old, oldNext),
+        reason: `Replaced by ${incoming.meter_number} — ${r.reason}`,
+        effective: r.swapDate,
+      },
+      {
+        at,
+        by,
+        entity: 'meter',
+        id: incoming.id,
+        changes: diff(incoming, newNext),
+        reason: `Replaces ${old.meter_number} — ${r.reason}`,
+        effective: r.swapDate,
+      },
+    ],
+  })
 }
 
 /** Save a draft-bill edit. Refuses an issued bill: its content is frozen. */

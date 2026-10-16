@@ -13,7 +13,7 @@ import { METER_STATUS, meterStatus, sizeLabel, type MeterStatus } from '@/compon
 import { AccountNumber } from '@/components/ui/RecordLink'
 import { count, date } from '@/lib/format'
 import { matchesSearch } from '@/lib/search'
-import { useEdits } from '@/lib/edits-store'
+import { useEdits, type MeterEdit, type Replacement } from '@/lib/edits-store'
 import { useImported } from '@/lib/imports-store'
 import { customers, locations, serviceLinks } from '@/fixtures/accounts'
 import { customerName } from '@/schemas/models'
@@ -221,15 +221,15 @@ function flagsFor(asOf: string): { key: Flag; label: string; test: (r: MeterRow)
  * without changing the filter first.
  */
 export function MetersList({ rows: fixtureRows, asOf }: { rows: MeterRow[]; asOf: string }) {
-  /* A meter inactivated in this browser lists under its new status. */
-  const edits = useEdits().meters
+  /* A meter edited or inactivated in this browser lists as it now stands. */
+  const { meters: edits, replacements } = useEdits()
   const imported = useImported()
   const rows = useMemo(
     () => [
-      ...fixtureRows.map((r) => (edits[r.id]?.status ? { ...r, status: edits[r.id].status! } : r)),
+      ...withReplacements(fixtureRows, replacements ?? []).map((r) => withEdit(r, edits[r.id])),
       ...importedRows(imported),
     ],
-    [fixtureRows, edits, imported],
+    [fixtureRows, edits, replacements, imported],
   )
 
   const [query, setQuery] = useState('')
@@ -466,6 +466,53 @@ export function MeterCount({ base, set }: { base: number; set: number }) {
   const total = base + extra.length
   const atPremise = set + extra.filter((r) => r.streetAddress).length
   return <>{total.toLocaleString('en-US')} meters · {atPremise.toLocaleString('en-US')} set at a premise</>
+}
+
+/** Exchanges made in this browser, in order: each moves the premise and account from the old row to the new. */
+function withReplacements(fixtureRows: MeterRow[], reps: Replacement[]): MeterRow[] {
+  if (!reps.length) return fixtureRows
+  const byId = new Map(fixtureRows.map((r) => [r.id, { ...r }]))
+  for (const rep of reps) {
+    const old = byId.get(rep.oldMeterId)
+    const next = byId.get(rep.newMeterId)
+    if (!old || !next) continue
+    Object.assign(next, {
+      customerId: old.customerId,
+      customerName: old.customerName,
+      customerNumber: old.customerNumber,
+      streetAddress: old.streetAddress,
+      cityLine: old.cityLine,
+      warehouseLocation: null,
+      lastReadDate: rep.swapDate,
+    })
+    Object.assign(old, {
+      customerId: null,
+      customerName: null,
+      customerNumber: null,
+      streetAddress: null,
+      cityLine: null,
+      warehouseLocation: 'In transit to the meter shop',
+      lastReadDate: rep.swapDate,
+    })
+  }
+  return fixtureRows.map((r) => byId.get(r.id)!)
+}
+
+/** A fixture row with any edit or status change made in this browser laid over it. */
+function withEdit(r: MeterRow, e: MeterEdit | undefined): MeterRow {
+  if (!e) return r
+  return {
+    ...r,
+    serialNumber: e.serial_number !== undefined ? e.serial_number : r.serialNumber,
+    manufacturer: e.manufacturer !== undefined ? e.manufacturer : r.manufacturer,
+    model: e.model !== undefined ? e.model : r.model,
+    size: e.size !== undefined ? e.size : r.size,
+    readType: e.read_type ?? r.readType,
+    endpointId: e.ami_endpoint_id !== undefined ? e.ami_endpoint_id : r.endpointId,
+    routeId: e.route_id !== undefined ? e.route_id : r.routeId,
+    routeSequence: e.route_sequence !== undefined ? e.route_sequence : r.routeSequence,
+    status: e.status ?? r.status,
+  }
 }
 
 /** Meters added in this browser, shaped like the fixture rows the page builds on the server. */
