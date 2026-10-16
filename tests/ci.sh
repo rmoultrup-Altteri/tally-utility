@@ -19,7 +19,6 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 # patch DROPS (the patch is pending while that table still exists); a marker
 # table.column is a column the patch adds
 PENDING=(
-  sql/v5.4.2-22-periods-snapshot-gl-aging.sql:accounting_periods
 )
 BASE=ci_base
 

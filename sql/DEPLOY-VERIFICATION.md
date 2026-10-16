@@ -3,6 +3,53 @@
 **Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-21, verified 2026-10-14.** After v5.4.2-21: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **479 FKs** / **582 CHECKs** / **22 EXCLUDE** / **455 triggers** / **536 functions** / **717 indexes**. tu.sql **40,652 lines**, md5 `3b1433a315ecc97be284525333185932` (the container init file matches by hash).
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-20, verified 2026-10-14.** After v5.4.2-20: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **477 FKs** / **575 CHECKs** / **22 EXCLUDE** / **415 triggers** / **527 functions** / **709 indexes**. tu.sql **39,349 lines**, md5 `e13f0d72ffdcf65782e789a58ed4cb32` (the container init file matches by hash).
+## v5.4.2-22 — wave 2, part 1: accounting periods as freeze boundaries, the close snapshot, GL code mapping, receivables aging, write-off recovery (D-2, D-3, R-02; Ryan 2026-10-15 "yes, start wave 2"; mirror approved by Ryan 2026-10-16 "yes, mirror it")
+`sql/v5.4.2-22-periods-snapshot-gl-aging.sql` (2,001 lines, md5 `d3422f3d9301e115893ec556929d44fb`, r9), mirrored into tu.sql (40,652 → **42,310**: a pure append of a blank line, a 4-line banner and the 1,653-line body; 1,658 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 347–1999.
+
+**What changes** (the patch header lists each item; residuals R1–R12 are left on purpose):
+- **Periods (P; D-2):**
+  - `accounting_periods`: no overlaps and no gaps; born open; closed only by the close; a closed period never reopens. The latest open period may be withdrawn, by status, never deleted.
+  - `accounting_close_heads`: one per tenant, "closed through", moved forward only by the close.
+  - The freeze: ledger, payment and customer-credit rows dated on or before the closed-through date are refused, at INSERT and on a date or tenant change.
+- **The close (P3, S):** `close_accounting_period()`, owned by the new seal role `tally_close` (NOLOGIN, no BYPASSRLS, an exact grant list). It is a supervisor's act, at READ COMMITTED, in order, after the period's last day has ended at UTC-12. It writes the snapshot and its lines (balances, activity by ledger type, aging by the edges in force at its instant, stored with it) at one recorded instant, then moves the head. Unbilled revenue is a reported figure with its basis, never a ledger row.
+- **GL code mapping (G; CI-048):** `gl_account_mappings`, tenant configuration, dated and recorded. It is never edited; it may be closed once. It is frozen with the period. `gl_mapping_as_of()` applies the stated precedence.
+- **Receivables aging (W; D-3; CI-076):** `receivables_aging_as_of()`. Every coordinate is required; RLS-safe; it nets a reversal's same-customer tree and carries the customer's status at the recorded instant. The tenant's bucket edges are validated wherever they are recorded.
+- **Write-off recovery (W3; R-02; CI-110):** `write_off_recovery` names its write-off, of its own tenant and customer, with the opposite sign. Everything netted into a write-off stays between 0 and the amount written off, at every date of its tree. Its tree is in date order and recorded at finite times already reached. Reversal chains never loop and end within 1,000 entries.
+- **Invariants:** `assert_periods_guard_invariants()`: every -22 guard and constraint exactly as defined, ENABLE ALWAYS, and the walks' plan settings. It is a CI step.
+- **Lock order:** stated as a rule over the close's four rows (head, period, closing user, tenant), with what takes each. Every writer retries 40P01. No list of shapes is promised complete.
+
+**Review** (`tests/v5.4.2-22/review/`), nine rounds:
+- **Round 1:** all three "not yet". Loops, edges, the cap's scope, the close's instant, moves between tenants. Folded into r2.
+- **Rounds 2–4:** Fable ready from round 2 and Opus from round 4. Codex held real blockers through round 4: the cap at every date, the close reading the edges without a lock, and a future-recorded row stranding a tree. Folded into r3–r5.
+- **Round 5:** all three ready. At Ryan's call, the should-fix items went into r6 before the mirror.
+- **Rounds 6–9:** Opus and Fable ready each round. They found the lock-order description still incomplete (r6, r7) and then notes only (r8). r7–r9 change comments and tests only. **Codex was not run after r5: its usage limit, then Ryan waived it** ("let's not wait for codex on this"). Codex had reviewed r1–r5 and said ready on r5; r6's one code change is the chosen-time 23514 split.
+- Codex reviewed source only. The author ran its probes in every round it ran (8, 11, 12, 15, 18), and each result matched its prediction.
+
+**Method.**
+1. Strict apply twice on a clone of the -21 build, TEMP revoked. It is clean; the second run is skipped by the gate.
+2. **battery-22: 167 PASS** on a vacuumed ledger.
+3. **races/close-22.sh: 30 PASS** (CR1–CR20), three runs on fresh clones at r7. The tests are unchanged since. Two-session legs are seen blocked or ordered by barriers. CR16–CR20 each produce exactly one 40P01, the other side committing.
+4. **mutations-22.py: 79 of 79**, each caught at its named check as the first failure of any kind (one full run at r9). The runner VACUUMs the ledger first and sets a 300 s statement timeout.
+5. Mirror.
+6. Image rebuilt on a fresh container: **zero error lines during init** (the 88 later lines are CI's expected refusals), and the init file equals tu.sql by md5 (`46af14814d8dea734264e5629da8b9cf`).
+7. **Schema parity, full identity:**
+   - `pg_dump --schema-only` of the build equals that of a clone of the -21 build with frozen r9 applied, with and without privileges. Only pg_dump's random `\restrict` token differs.
+   - `tests/v5.4.2-14/parity/catalog-identity.sql` on the build: 11,580 lines, md5 `48d462f36293d53b98c7b03eb237b474`.
+8. **On the build** (`tests/ci.sh --build`, all 33 steps pass): batteries 09–22, the -15/-17/-18 runners, isolation, every race script, and all seven invariants. The patch re-applied over the build twice is skipped. TEMP is false for `tally_app`, `tally_core`, `tally_seal`, `tally_void` and `tally_close`.
+9. `PENDING` in `tests/ci.sh` is empty again.
+
+**At deployment, on the real database** (Codex r5 N1): an INSERT trigger does not inspect rows already present. Before treating a database as deployed, run this; it must return 0. It is broader than the write-off tree on purpose. On the build it returns 0.
+```sql
+SELECT count(*) FROM public.account_ledger l
+ WHERE (l.transaction_type IN ('write_off', 'write_off_recovery') OR l.reverses_ledger_entry_id IS NOT NULL)
+   AND (NOT isfinite(l.created_at) OR l.created_at > clock_timestamp());
+```
+
+**Operational, from the header:**
+- Close, withdraw, and change tenant and user rows each in a transaction of its own.
+- Change the aging edges in an UPDATE that names no unique column.
+- Load write-off history one statement per recorded instant, in recorded order (R12).
+
 ## v5.4.2-21 — wave 1 built: retention (CI-014), bill-line arithmetic (CI-016), lineage (CI-017); the void's reversal; identity follow-ups (R1); the -20 notes (Ryan 2026-10-14 "ok go ahead with -21"; mirror approved by Ryan 2026-10-14 "yes, mirror it")
 `sql/v5.4.2-21-wave1-lineage-arithmetic-retention.sql` (1,468 lines, md5 `649db2b7094e585adde761f69a89a126`, r4), mirrored into tu.sql (39,349 → **40,652**: a pure append of a blank line, a 4-line banner and the 1,298-line body; 1,303 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 169–1466.
 

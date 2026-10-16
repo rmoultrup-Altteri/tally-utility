@@ -8,6 +8,28 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-10-16 (after v5.4.2-22)
+
+**How this was graded.** Re-graded by the session, as on 2026-10-15. Each CI was read against -22's header ("what changes" and residuals R1–R12), its nine review rounds and its battery (167 checks). Only the three CIs below changed; -22's source inventory maps no other CI to it (CI-013, 017, 049, 050, 053 and 056 are -23's). Every other row stands as of the 2026-10-15 update.
+
+| Class | 2026-10-15 | Now | Change |
+|---|---|---|---|
+| REP+PROT | 51 | **54** | +3 |
+| REP | 24 | **24** | 0 |
+| PARTIAL | 46 | **45** | −1 |
+| GAP | 13 | **11** | −2 |
+| BLOCKED | 0 | **0** | 0 |
+| N/A | 1 | **1** | 0 |
+| **Total** | 135 | 135 | |
+
+**Done for step 1** (REP+PROT + REP): **78 of 135**, plus CI-036 ruled out of platform scope. **Open: 56** (45 PARTIAL, 11 GAP).
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-048 | GAP | REP+PROT | med | -22 (G1–G4; D-2) | `gl_account_mappings`: GL account, subaccount, USOA code and cost centre per charge, customer class, territory and tax jurisdiction, as tenant configuration. Dated and recorded; never edited, closed once; frozen with the closed period. `gl_mapping_as_of()` applies the stated precedence. Under D-2 there is no posting table: the platform exports. | The export's refusal of a line with no mapping is the core's (G2). R6: the charge vocabularies repeat the source tables' CHECKs. R7: a mapping's places are not checked for their kind. |
+| CI-076 | PARTIAL | REP+PROT | med | -22 (W1–W3; D-3; R-02) | `write_off_recovery` names its write-off, of its own tenant and customer, with the opposite sign. Everything netted into a write-off stays between 0 and the amount written off, at every date of its tree, under a lock. `receivables_aging_as_of()` ages the receivables with the customer's status, every coordinate required. The write-off threshold setting is stored. | When to write off is the core's (it reads the aging and the threshold). R3: aging is customer-level until -23's per-bill applications. R8: the general reversal rules (every reversal capped) are -23's. |
+| CI-110 | GAP | REP+PROT | med | -22 (P1–P3, S1–S2; D-2) | Accounting periods are freeze boundaries; the close writes a snapshot at one recorded instant (balances, activity, aging by its stored edges), reproducible afterwards. Unbilled revenue is a reported figure on the snapshot with its basis, never a ledger row (D-2). | The estimate itself is the core's. The register's text (post and reverse an accrual) still contradicts D-2; GBM's grades are frozen, so it is noted here only. |
+
 ## Update — 2026-10-15 (after v5.4.2-19, -20 and -21; Kyle's 2026-10-14 and 2026-10-15 answers)
 
 **How this was graded.** Re-graded by the session, not re-measured by agents. Each touched CI was read against the patch's own header ("what changes" and "residuals"), the patch's four-round reviews, and its battery. tally-utility's live catalog was spot-checked for CI-014's remaining DELETE grants and the PGA columns. Only the CIs named below changed. Every other row of the full table stands as measured on 2026-10-13.
