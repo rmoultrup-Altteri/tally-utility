@@ -6,6 +6,21 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-15 (v5.4.2-22 drafted) — drafting calls inside D-2, D-3 and R-02, reported to Ryan
+
+**What:** v5.4.2-22 (periods, the freeze, the close snapshot, GL mapping, aging, write-off recovery) is drafted. Seven calls go beyond the rulings as written. They are listed in `application/wave2-build-2026-10-15/source-inventory-wave2.md` ("-22 as drafted"):
+- the freeze is a per-tenant closed-through date that every money write locks;
+- closing is a supervisor's act;
+- a period closes only after its last day has ended at UTC-12;
+- unbilled revenue is supplied with its basis;
+- aging is balance-forward from the ledger, netted by lineage within a customer;
+- status on the aging is as recorded;
+- no GL mapping takes effect inside a closed period.
+
+*Why:* the standing rules: count-guards need a lock handshake; guard the act, not the label; a caller-chosen setting is not a fact; derive, do not store. *Where it lives:* the patch header (residuals R1–R9) and the inventory.
+
+---
+
 ## 2026-10-15 (wave 2, Q1) — Ryan: under add-only money, a status column stays but only moves forward, and each move names the row behind it
 
 **What:** Ryan (2026-10-15): "yes, go with the default". R-05 makes payments, customer credits and one-off charges add-only. Their `status` columns (payment `posted → nsf`, credit `active → refunded`, charge `pending → billed → void`) stay as columns. A status may only move forward, and each move must name the add-only money row that caused it: an NSF its reversing ledger entry, a refund its refund row, a charge's void its reversal. The database refuses a move with no such row.

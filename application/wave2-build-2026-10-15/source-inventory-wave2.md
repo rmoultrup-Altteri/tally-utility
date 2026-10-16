@@ -122,3 +122,28 @@ R-05 says payments, credits and one-off charges are add-only. The money part is 
 Either is cheap now (the tables are empty). Changing from (a) to (b) later is a meaning change: every reader is rewritten.
 
 **Answer.** Ryan, 2026-10-15: "yes, go with the default". (a): the status stays a column; it only moves forward; every move names the add-only row behind it (an NSF its reversing ledger entry, a refund its refund row, a charge's void its reversal). -23 builds M3 this way.
+
+## -22 as drafted (2026-10-15)
+
+`sql/v5.4.2-22-periods-snapshot-gl-aging.sql`; tests in `tests/v5.4.2-22/` (battery-22, races/close-22.sh, mutations-22.py).
+
+| Req | Built as | Checks |
+|---|---|---|
+| P1 | `accounting_periods`: born open, contiguous (starts the day after the latest; advisory chain lock, READ COMMITTED), EXCLUDE on overlap, never edited or deleted; `status` changes only in the close | P1–P8c, CR4b, CR6 |
+| P2 | `accounting_close_heads` (one per tenant, `closed_through`); `enforce_accounting_freeze` on `account_ledger.transaction_date`, `payments.payment_date`, `customer_credits.issued_date` (insert, and a date moved to or from a frozen date) | H1–H6, F1–F5, CR2, CR3 |
+| P3 | `close_accounting_period(period, unbilled, basis)`: SECURITY DEFINER owned by `tally_close`; supervisor; READ COMMITTED; head then period locked; ended at UTC-12; next in order | C1–C8, C13, C16–C17, CR1, CR4 |
+| S1, S2 | `accounting_period_snapshots` + `_lines` (activity by ledger type; aging by bucket), computed by the close at one recorded instant taken after the head lock; append-only, written only as `tally_close` | C9–C12, C14–C15c, C18, CR1b, CR7 |
+| G1–G4 | `gl_account_mappings` (four-part wildcard key, dated and recorded, close-only edit, no row in force inside a closed period); `gl_mapping_as_of()` most-specific, tie raises | G1–G10, CR8 |
+| W1 | `receivables_aging_as_of(tenant, on, recorded)`: per customer, status (D-3), last located entry, buckets | W1–W9, W13 |
+| W2 | `tenants.receivables_aging_bucket_days` (default 30/60/90/120), recorded in the configuration history; `receivables_aging_bucket_days_as_of()` | W1c, W10–W12 |
+| W3 | `write_off_recovery`: names a write_off of its customer, with a reason; opposite sign; capped (advisory lock, READ COMMITTED) | R1–R6c, CR4c, CR5 |
+| W4 | `idx_ledger_tenant_date` exists | — |
+
+**Drafting calls (settled by standing rule; reported to Ryan, not asked):**
+1. **A "closed through" date per tenant** carries the freeze, not a lookup of the containing period. Every money write takes it FOR SHARE and the close takes it FOR UPDATE. This is the lock handshake rule: a write in flight finishes before the close reads, and a stale snapshot gets a serialisation error. It also freezes dates before the first period once that period closes, so onboarding history is loaded before the first close.
+2. **Closing is a supervisor's act.** It is irreversible ("guard the act"). `tally_close` reads three columns of `users` for the check.
+3. **A period closes only after its last day has ended everywhere** (UTC-12), so a caller's time zone setting cannot close it early.
+4. **The unbilled-revenue figure is supplied to the close with its basis, or omitted.** It is the core's estimate. D-2 makes it a reported figure, and the schema cannot compute an estimate.
+5. **Aging is balance-forward from the ledger.** Each entry is netted with its customer's reversals that name it. What is left is aged newest first, the debt-side view of K-05's oldest-first payment. Per-bill aging waits for -23's applications.
+6. **The customer status on the aging is as recorded at the recorded instant.** Status has transaction time only.
+7. **A GL mapping may not start, nor close, on or before the closed-through date.** A closed period's export never changes (D-2).
