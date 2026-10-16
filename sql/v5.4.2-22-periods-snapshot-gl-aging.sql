@@ -71,6 +71,17 @@
 --   under a write-off post one statement per recorded instant (Codex S1,
 --   R12).
 --
+-- Revision r6 (review round 5: Opus, Fable and Codex all "ready";
+--   tests/v5.4.2-22/review/review-findings-22-r5.md): the lock-order
+--   paragraph states every lock the close takes and every deadlock they can
+--   make — the closing user's row beside the tenant row, any write that
+--   takes the head as the other side, and a transaction that posts and then
+--   closes (Opus S1, Fable S1/S2, Codex S1); a row with a chosen recorded
+--   time before a row already in its tree is refused for good (23514), not
+--   for a retry that cannot succeed (Opus N1); messages and the function's
+--   comment name the non-finite case and the write-off itself (Opus N2,
+--   Fable N1, Codex S2).
+--
 -- ----------------------------------------------------------------------------
 -- What changes
 -- ----------------------------------------------------------------------------
@@ -182,7 +193,8 @@
 --   order. A period INSERT or withdrawal and a recovery run at READ
 --   COMMITTED only, behind an advisory lock (tenant's period chain; the
 --   recovered write-off).
---   Shared locks on one row per tenant: writers never wait for each other.
+--   Shared locks on one row per tenant: writers do not wait for each other
+--   at the head (r6: they may at the advisory locks below).
 --   A row under a write-off takes the advisory lock of each write-off above
 --   it, in id order, after its tenant's head (r3). The order holds within
 --   one row only: rows fire in row order, and a transaction keeps the locks
@@ -191,17 +203,30 @@
 --   nothing is written by it (Fable S1, Codex S1, Opus N1, r4). Writers
 --   retry a deadlock (40P01) and a recorded-order refusal (40001).
 --   A change of the aging edges takes its tenant's head FOR SHARE, as a
---   money write does (r4), while holding the tenant row. The close takes the
---   head, then (its snapshot rows' tenant key) the tenant row FOR KEY SHARE.
---   A transaction that holds the tenant row FOR UPDATE (a key column in its
---   SET, an ORM save) and then changes the edges, against a close, can
---   deadlock; PostgreSQL aborts one and nothing is written by it (Opus S1,
---   Fable S1, r5). Change the edges in a statement of their own.
+--   money write and a GL mapping write do (r4).
+--   r6 (Opus S1, Fable S1/S2, Codex S1): after the head and the period, the
+--   close takes FOR KEY SHARE on the tenant row (its snapshot rows' tenant
+--   key) and on the closing user's users row (closed_by on the period and
+--   the snapshot). So these deadlock with a close, and in each PostgreSQL
+--   aborts one side and nothing is written by it:
+--   - a transaction that holds the tenant row or a users row FOR UPDATE
+--     (SELECT ... FOR UPDATE, a DELETE, or an UPDATE that changes a column
+--     under a unique index: id, slug, cognito_sub) and then takes the
+--     head by any path — a money write, a GL mapping write, an edges change.
+--     Change tenant and user rows in a transaction of their own;
+--   - two transactions that each post money (or write a GL mapping, or
+--     change the edges) and then close: each holds the head FOR SHARE and
+--     asks for it FOR UPDATE. Close in a transaction of its own.
 --   A withdrawal locks the period row, then (should its transaction go on to
 --   post money) the head FOR SHARE — the reverse of the close. A withdrawal
 --   and a money write in one transaction, against a close of that period,
 --   can deadlock; PostgreSQL aborts one side and nothing is written by it
 --   (Opus N1, r3). Withdraw in a transaction of its own.
+--   These are the cycles -22's locks can make: writers under two write-offs;
+--   a withdrawal then a write; the tenant or a users row held FOR UPDATE
+--   then the head; and a write then a close. The close takes no advisory
+--   lock and no customer, GL mapping or other period row; a period insert
+--   never takes the head. Writers retry 40P01. (Races CR16-CR18.)
 --
 -- ----------------------------------------------------------------------------
 -- Residuals (left on purpose)
@@ -247,7 +272,11 @@
 --  R12. A history load under a write-off posts one statement per recorded
 --       instant, in recorded order: rows of one statement see each other,
 --       so a row recorded before a sibling already in the tree is refused
---       (40001) though the load is valid (Codex S1, r5).
+--       though the load is valid (Codex S1, r5). A row with a chosen
+--       recorded time (not its transaction's start) before a row already in
+--       the tree is refused for good, 23514: no retry can change its time
+--       (Opus N1, r6). Only a row stamped at its transaction's start gets
+--       40001, and its retry is stamped later.
 --
 -- Tests. battery-22 (one row per requirement), races/close-22.sh,
 --   mutations-22.py.
@@ -605,7 +634,7 @@ BEGIN
     v_future := NOT pg_catalog.isfinite(NEW.created_at) OR NEW.created_at > pg_catalog.clock_timestamp();
     IF NEW.transaction_type = 'write_off' AND v_future THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('write-off %s is recorded in the future (%s): a row in a write-off''s tree is recorded at a time already reached (R-02, v5.4.2-22)', NEW.id, NEW.created_at),
+            MESSAGE = format('write-off %s is recorded at a non-finite or future time (%s): a row in a write-off''s tree is recorded at a time already reached (R-02, v5.4.2-22)', NEW.id, NEW.created_at),
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.reverses_ledger_entry_id IS NULL THEN
@@ -664,7 +693,7 @@ BEGIN
         SELECT * INTO v_wo FROM public.account_ledger l WHERE l.id = v_wo_id;
         IF v_future THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('a row under write-off %s is recorded in the future (%s): a row in a write-off''s tree is recorded at a time already reached (R-02, v5.4.2-22)', v_wo.id, NEW.created_at),
+                MESSAGE = format('a row under write-off %s is recorded at a non-finite or future time (%s): a row in a write-off''s tree is recorded at a time already reached (R-02, v5.4.2-22)', v_wo.id, NEW.created_at),
                 ERRCODE = 'check_violation';
         END IF;
         -- r4 (Opus B1): aging nets the tree date by date, so the tree is
@@ -694,10 +723,18 @@ BEGIN
         -- already in the tree (a transaction that began earlier, posting
         -- later) would let an earlier instant see it without that row; the
         -- writer retries. Recorded order then follows the order checked here.
+        -- r6 (Opus N1): a row whose recorded time was chosen (the owner's
+        -- history load: not its transaction's start) keeps that time on any
+        -- retry, so it is refused for good.
         SELECT l.id, l.created_at INTO v_later_id, v_later_at
           FROM public.account_ledger l
          WHERE (l.id = v_wo.id OR l.id = ANY (v_tree)) AND l.created_at > NEW.created_at
          ORDER BY l.created_at DESC LIMIT 1;
+        IF FOUND AND NEW.created_at <> pg_catalog.now() THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('write-off %s: %s is recorded at %s, a time chosen for it, before %s (recorded at %s) already in its tree — a history row is recorded after every row already in its tree (R-02, R12, v5.4.2-22)', v_wo.id, NEW.id, NEW.created_at, v_later_id, v_later_at),
+                ERRCODE = 'check_violation';
+        END IF;
         IF FOUND THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('write-off %s: %s is recorded at %s, before %s (recorded at %s) already in its tree — a transaction that began earlier is posting later; retry it (R-02, v5.4.2-22)', v_wo.id, NEW.id, NEW.created_at, v_later_id, v_later_at),
@@ -722,7 +759,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_write_off_recovery() IS
-    'v5.4.2-22 (W3; R-02), r3. AFTER INSERT on account_ledger, for a row naming an entry, after the lineage walk: every row of the statement is visible. A row naming a write_off directly is a write_off_recovery; a write_off_recovery names a write_off of its own tenant and customer, positive against a negative write-off. For every write_off above the new row within its customer, at READ COMMITTED behind an advisory lock on that write-off (taken in id order), the net of its whole same-customer tree stays between 0 and the amount written off. r4: at every date of the tree; a row under a write-off is dated on or after the entry it names and is not recorded before a row already in the tree (40001, retry); the walks run with sequential scans, hash and merge joins off.';
+    'v5.4.2-22 (W3; R-02), r3. AFTER INSERT on account_ledger, for a row naming an entry or a write_off (r5), after the lineage walk: every row of the statement is visible. r5: a write_off, and a row under one, is recorded at a finite time already reached (23514). A row naming a write_off directly is a write_off_recovery; a write_off_recovery names a write_off of its own tenant and customer, positive against a negative write-off. For every write_off above the new row within its customer, at READ COMMITTED behind an advisory lock on that write-off (taken in id order), the net of its whole same-customer tree stays between 0 and the amount written off. r4: at every date of the tree; a row under a write-off is dated on or after the entry it names and is not recorded before a row already in the tree (40001, retry; r6: 23514 for a recorded time chosen for it, which no retry changes); the walks run with sequential scans, hash and merge joins off.';
 CREATE TRIGGER enforce_write_off_recovery AFTER INSERT ON public.account_ledger
     FOR EACH ROW WHEN (NEW.reverses_ledger_entry_id IS NOT NULL OR NEW.transaction_type = 'write_off') EXECUTE FUNCTION public.enforce_write_off_recovery();
 ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_write_off_recovery;
@@ -1330,7 +1367,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.close_accounting_period(uuid, numeric, text) IS
-    'v5.4.2-22 (D-2; P3, S2). Closes an accounting period — the only way. At READ COMMITTED, by a supervisor (app.user_id): locks the tenant''s close head, then the period; refuses a closed period, one whose last day has not ended everywhere (UTC-12), and one that is not next in order. At one recorded instant taken after the lock it writes the snapshot (opening and closing balance, entry count, activity by ledger type, aging on period_end by the tenant''s buckets as its row holds them at that instant (r3), the unbilled-revenue figure and basis if reported), moves closed_through to period_end and closes the period with closed_at = that instant. Refuses while a row dated on or before period_end is recorded after the instant (r2). Returns the instant. Runs as tally_close (SECURITY DEFINER, subject to RLS): a period the caller cannot see is "not found".';
+    'v5.4.2-22 (D-2; P3, S2). Closes an accounting period — the only way. At READ COMMITTED, by a supervisor (app.user_id): locks the tenant''s close head, then the period; refuses a closed period, one whose last day has not ended everywhere (UTC-12), and one that is not next in order. At one recorded instant taken after the lock it writes the snapshot (opening and closing balance, entry count, activity by ledger type, aging on period_end by the tenant''s buckets as its row holds them at that instant (r3), the unbilled-revenue figure and basis if reported), moves closed_through to period_end and closes the period with closed_at = that instant. Refuses while a row dated on or before period_end is recorded after the instant (r2). Returns the instant. Runs as tally_close (SECURITY DEFINER, subject to RLS): a period the caller cannot see is "not found". r6: after the head and the period it takes the tenant row and the closing user''s row FOR KEY SHARE (the snapshot''s keys); call it in a transaction of its own (the header''s lock order lists the deadlocks).';
 ALTER FUNCTION public.close_accounting_period(uuid, numeric, text) OWNER TO tally_close;
 REVOKE ALL ON FUNCTION public.close_accounting_period(uuid, numeric, text) FROM PUBLIC, tally_core;
 GRANT EXECUTE ON FUNCTION public.close_accounting_period(uuid, numeric, text) TO tally_app;

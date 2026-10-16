@@ -31,9 +31,20 @@
 #        changes them; July's snapshot keeps the edges of its instant.
 #   CR15 (r4) A begins, then B posts under a write-off and commits, then A
 #        posts under it: A is refused for retry (recorded before a row
-#        already in the tree), and the retry is admitted. Not a lock wait.
-# Every race leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
-# (pg_blocking_pids, polled while A holds). Setup failures exit 2.
+#        already in the tree), and the retry is admitted. Not a lock wait;
+#        r6: ordered by barriers, not sleeps.
+#   CR16 (r6) A and B each post into August, then each close it: one is
+#        aborted by a deadlock (40P01), the other closes.
+#   CR17 (r6) A holds the tenant row FOR UPDATE; B closes September and
+#        waits on it (the snapshot's tenant key); A posts money: one is
+#        aborted by a deadlock, the other commits.
+#   CR18 (r6) As CR17 with the closing user's users row (closed_by) and a GL
+#        mapping write, on a second tenant.
+# Every two() leg (CR1, CR2, CR5, CR6, CR9, CR11-CR14) checks that session B
+# ITSELF was SEEN BLOCKED BY SESSION A (pg_blocking_pids, polled while A
+# holds). CR3, CR15 and CR16-CR18 order their sessions by barriers: a
+# session names its step in application_name and the other polls
+# pg_stat_activity for it, or for a session it blocks. Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
 set -uo pipefail
 DB="${1:-r22}"
@@ -286,18 +297,32 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
   ('$REC2', '$T', '$C', DATE '2026-08-02', 'write_off_recovery', 'recovered', 50.00, '$WO2', 'paid');
 SQL
 UNDER() { echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '$1', 'adjustment', '$3', $2, '$REC2', 'x');"; }
+# Barriers (as the owner): signal names this session's step; await_app polls
+# for another session's step; await_blocked polls for a session this one
+# blocks. Each gives up after 10 s with an error. pg_stat_activity is read
+# once per transaction unless its snapshot is cleared, so each poll clears it.
+signal() { echo "SET application_name = '$1';"; }
+await_app() { echo "DO \$w\$ BEGIN FOR i IN 1..200 LOOP PERFORM pg_stat_clear_snapshot(); EXIT WHEN EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND application_name = '$1'); IF i = 200 THEN RAISE EXCEPTION 'barrier: % never seen', '$1'; END IF; PERFORM pg_sleep(0.05); END LOOP; END \$w\$;"; }
+await_blocked() { echo "DO \$w\$ BEGIN FOR i IN 1..200 LOOP PERFORM pg_stat_clear_snapshot(); EXIT WHEN EXISTS (SELECT 1 FROM pg_stat_activity b WHERE pg_backend_pid() = ANY (pg_blocking_pids(b.pid))); IF i = 200 THEN RAISE EXCEPTION 'barrier: no session waits on this one'; END IF; PERFORM pg_sleep(0.05); END LOOP; END \$w\$;"; }
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race22_a';
 BEGIN;
 $AS_OP
 SELECT now();
-SELECT pg_sleep(2);
+RESET ROLE;
+$(signal race22_a_begun)
+$(await_app race22_b_done)
+SET ROLE tally_app;
 $(UNDER 2026-08-05 -10.00 'CR15 began first')
 COMMIT;
 SQL
 APID=$!
-sleep 0.7
 "${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
+$(await_app race22_a_begun)
 BEGIN; $AS_OP $(UNDER 2026-08-04 -5.00 'CR15 began second') COMMIT;
+RESET ROLE;
+$(signal race22_b_done)
+SELECT pg_sleep(0.5);
 SQL
 BST=$?
 wait $APID; AST=$?
@@ -308,5 +333,107 @@ BEGIN; $AS_OP $(UNDER 2026-08-05 -10.00 'CR15 retried') COMMIT;
 SQL
 )
 if [ $? -eq 0 ]; then echo "PASS CR15b the retry is admitted (net 35 of 50)"; else echo "FAIL CR15b: $OUT"; fail=1; fi
+
+# CR16-CR18: deadlocks the header states. PostgreSQL picks the victim, so
+# either side may be aborted; exactly one is, with 40P01, and the other
+# commits.
+deadlock() {  # $1 label; uses AST/BST and A_OUT/B_OUT
+local a=0 b=0
+grep -q "40P01" "$A_OUT" && a=1
+grep -q "40P01" "$B_OUT" && b=1
+if { [ $a -eq 1 ] && [ "$AST" -ne 0 ] && [ $b -eq 0 ] && [ "$BST" -eq 0 ]; } || { [ $b -eq 1 ] && [ "$BST" -ne 0 ] && [ $a -eq 0 ] && [ "$AST" -eq 0 ]; }
+then echo "PASS $1"
+else echo "FAIL $1: expected one side aborted with 40P01 and the other committed, got A ($AST): $(cat "$A_OUT") B ($BST): $(cat "$B_OUT")"; fail=1; fi
+}
+
+# CR16
+AUG=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T' AND period_start = DATE '2026-08-01'")
+postclose() {  # $1 me, $2 other, $3 date
+cat <<SQL
+SET application_name = 'race22_$1';
+BEGIN;
+$AS_SUP
+$(post "$3" 1.00 "CR16 $1")
+RESET ROLE;
+$(signal "race22_$1_posted")
+$(await_app "race22_$2_posted")
+SET ROLE tally_app;
+SELECT public.close_accounting_period('$AUG');
+COMMIT;
+SQL
+}
+postclose a b 2026-08-20 | "${PSQL[@]}" >"$A_OUT" 2>&1 &
+APID=$!
+postclose b a 2026-08-21 | "${PSQL[@]}" >"$B_OUT" 2>&1 &
+BPID=$!
+wait $APID; AST=$?
+wait $BPID; BST=$?
+deadlock "CR16 two transactions that each post and then close deadlock; one closes"
+expect "CR16b August is closed once, with the survivor's posting" \
+  "$("${PSQL[@]}" -c "SELECT count(*) || '/' || bool_and(s.ledger_entry_count = (SELECT count(*) FROM public.account_ledger l WHERE l.tenant_id = '$T' AND l.transaction_date BETWEEN DATE '2026-08-01' AND DATE '2026-08-31')) FROM public.accounting_period_snapshots s WHERE s.period_id = '$AUG'")" "1/true"
+
+# CR17
+"${PSQL[@]}" >/dev/null -c "INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T', DATE '2026-09-01', DATE '2026-09-30')" \
+  || { echo "SETUP FAIL: September"; exit 2; }
+SEP=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T' AND period_start = DATE '2026-09-01'")
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race22_a';
+BEGIN;
+SELECT 1 FROM public.tenants WHERE id = '$T' FOR UPDATE;
+$(signal race22_a_locked)
+$(await_blocked)
+$AS_OP
+$(post 2026-09-10 2.00 'CR17 after the tenant row')
+COMMIT;
+SQL
+APID=$!
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+$(await_app race22_a_locked)
+SET application_name = 'race22_b';
+BEGIN;
+$AS_SUP
+SELECT public.close_accounting_period('$SEP');
+COMMIT;
+SQL
+BPID=$!
+wait $APID; AST=$?
+wait $BPID; BST=$?
+deadlock "CR17 the tenant row held FOR UPDATE, then a money write, against a close: one is aborted"
+
+# CR18
+T3=00000000-0000-4000-8000-0000000022e0
+OP3=00000000-0000-4000-8000-0000000022e2
+SUP3=00000000-0000-4000-8000-0000000022e3
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: CR18 tenant"; exit 2; }
+INSERT INTO public.tenants (id, name, slug) VALUES ('$T3', 'Race22 three', 'race22-three');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('$OP3', '$T3', 'Op3', 'op3@race22.test', 'operator'),
+  ('$SUP3', '$T3', 'Sup3', 'sup3@race22.test', 'tenant_admin');
+INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T3', DATE '2026-01-01', DATE '2026-01-31');
+SQL
+T3JAN=$("${PSQL[@]}" -c "SELECT id FROM public.accounting_periods WHERE tenant_id = '$T3'")
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race22_a';
+BEGIN;
+SELECT 1 FROM public.users WHERE id = '$SUP3' FOR UPDATE;
+$(signal race22_a_locked3)
+$(await_blocked)
+SET LOCAL app.user_id = '$OP3'; SET ROLE tally_app;
+INSERT INTO public.gl_account_mappings (tenant_id, charge_source, charge_code, gl_account, effective_from) VALUES ('$T3', 'ledger_entry', 'payment', '1100', DATE '2026-03-01');
+COMMIT;
+SQL
+APID=$!
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+$(await_app race22_a_locked3)
+SET application_name = 'race22_b';
+BEGIN;
+SET LOCAL app.user_id = '$SUP3'; SET ROLE tally_app;
+SELECT public.close_accounting_period('$T3JAN');
+COMMIT;
+SQL
+BPID=$!
+wait $APID; AST=$?
+wait $BPID; BST=$?
+deadlock "CR18 the closing user's row held FOR UPDATE, then a GL mapping write, against a close: one is aborted"
 
 exit $fail

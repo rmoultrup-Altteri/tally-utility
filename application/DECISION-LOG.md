@@ -6,6 +6,16 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-16 (-22 review round 5) — Ryan: fix the should-fix items before the mirror; one call settled by standing rule
+
+**What:** all three reviewers said "ready" on -22 r5 (`tests/v5.4.2-22/review/review-findings-22-r5.md`). Their should-fix items were wording, tests, and one misleading refusal.
+- **Ryan chose to fix them now, as r6, with one more short review round,** over the offered default (mirror r5 exactly as reviewed and carry the fixes as follow-ups in the deploy notes and -23).
+- **A history row with a chosen recorded time, before a row already in its tree, is refused for good (23514), not for retry (40001) (Opus N1).** The test is `created_at <> now()`: only the owner can choose a time, and no retry changes it. A row stamped at its transaction's start keeps 40001, since its retry is stamped later.
+
+*Why:* Ryan wants the deadlock description in tu.sql's own header, not in the deploy notes until -23. The 23514 split: a retry signal that can never succeed sends a writer's retry loop spinning to its cap, and the operator loading history learns nothing from it. *Where it lives:* v5.4.2-22 r6 (header r6 paragraph, lock order, R12, `enforce_write_off_recovery`).
+
+---
+
 ## 2026-10-16 (-22 review round 3) — calls settled by standing rule, reported to Ryan
 
 **What:** three reviewers on -22 r3 (`tests/v5.4.2-22/review/review-findings-22-r3.md`). Three calls go beyond the rulings as written:
