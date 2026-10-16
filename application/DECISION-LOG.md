@@ -6,6 +6,14 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-15 (wave 2, Q1) — Ryan: under add-only money, a status column stays but only moves forward, and each move names the row behind it
+
+**What:** Ryan (2026-10-15): "yes, go with the default". R-05 makes payments, customer credits and one-off charges add-only. Their `status` columns (payment `posted → nsf`, credit `active → refunded`, charge `pending → billed → void`) stay as columns. A status may only move forward, and each move must name the add-only money row that caused it: an NSF its reversing ledger entry, a refund its refund row, a charge's void its reversal. The database refuses a move with no such row.
+
+*Why:* screens and reports keep reading the status as they do today, and the database guarantees it never changes without money behind it. This is the CI-012 precedent (an issued bill keeps a writable lifecycle). *Rejected:* (b) no status column, status derived from the add-only rows on every read. Purer, but every reader changes; switching from (a) to (b) later is a meaning change, so it was weighed now while the tables are empty. *Where it lives:* `application/wave2-build-2026-10-15/source-inventory-wave2.md` (M3, Q1); built in v5.4.2-23.
+
+---
+
 ## 2026-10-15 (parity record) — Ryan: the tally-utility measurement is the single live parity record; GBM's grades frozen at v5.4.2-12
 
 **What:** The grades in GBM `application/canonical-invariants.md` were last updated for v5.4.2-12 (2026-09-23). Since then, -13 through -21 landed without GBM re-grades (the handoff had said "two patches behind"). `application/invariant-parity-measurement-2026-10-13.md` is now the only live per-invariant record. It gets a dated update section after each mirrored patch; the first, 2026-10-15, covers -19, -20 and -21 and the unblocks from Kyle's 2026-10-14 and 2026-10-15 answers. GBM gets a pointer, not re-grades: a preamble note in the register (item 5), a frozen status line on `schema-parity-plan.md`, and ingestion manifest Sections BP (Kyle's 2026-10-15 decisions) and BQ (the freeze plus a table of patches -13 to -21).

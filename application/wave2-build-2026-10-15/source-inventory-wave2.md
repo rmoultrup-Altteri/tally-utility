@@ -2,7 +2,7 @@
 
 **Authority:** Ryan, 2026-10-15: "yes, start wave 2". The wave's content is `application/step1-sequencing-2026-10-13.md` (wave 2), widened by the rulings of 2026-10-15.
 
-**Status:** inventory only. Nothing is drafted. One shape question is open for Ryan (Q1 below). Everything else is settled by a ruling or a standing rule, and each settlement names it.
+**Status:** inventory. Q1 answered by Ryan 2026-10-15 (default (a)); nothing open. Everything else is settled by a ruling or a standing rule, and each settlement names it. -22 drafting started 2026-10-15.
 
 ## Sources
 
@@ -35,7 +35,7 @@
 The wave is L-sized. One patch would put about 1,500 lines of meaning-changing money code and the additive reporting structures in front of reviewers together. Split by migration cost (memory `frame-shapes-by-migration-cost`):
 
 - **v5.4.2-22, periods and reporting (additive; no ruling needed).** P, S, G and W below. It goes first: the period freeze is what every later money write respects, and it changes no existing meaning.
-- **v5.4.2-23, cash (meaning-changing).** M, X, A, C, U and L below. It waits on Q1.
+- **v5.4.2-23, cash (meaning-changing).** M, X, A, C, U and L below. Q1 is answered (a).
 
 ## v5.4.2-22 — periods and reporting
 
@@ -65,11 +65,11 @@ The wave is L-sized. One patch would put about 1,500 lines of meaning-changing m
 
 ## v5.4.2-23 — cash
 
-### M: add-only money (R-05; CI-013). Its shape depends on Q1.
+### M: add-only money (R-05; CI-013)
 
 - **M1.** The counters go: `payments.applied_amount` and `unapplied_amount`, and `customer_credits.applied_amount` and `remaining_amount`. Each becomes a sum over the add-only application rows (A), read through an as-of function. Settled by standing rule (derive, do not store; the -19 precedent for `running_balance`, Ryan 2026-10-13).
 - **M2.** Amounts and identity are write-once on all three tables from insert, not from posting (R-05).
-- **M3.** What happens to `status`: **Q1**.
+- **M3.** `status` stays a column, moves forward only, and each move names the add-only row that caused it (Q1 (a), Ryan 2026-10-15).
 
 ### X: reversals (R-02; CI-017)
 
@@ -112,7 +112,7 @@ The wave is L-sized. One patch would put about 1,500 lines of meaning-changing m
 5. **Periods go first, as their own patch**: additive before meaning-changing, and the freeze is what the cash patch must respect.
 6. **No GL posting table** (G2): D-2.
 
-## Q1 (open, for Ryan): R-05 and the status columns
+## Q1 (answered 2026-10-15: (a)): R-05 and the status columns
 
 R-05 says payments, credits and one-off charges are add-only. The money part is clear (M1, M2). The status columns are not: a payment goes `posted → nsf`, a credit goes `active → refunded`, and a charge goes `pending → billed → void`. Each of those is an in-place edit today.
 
@@ -120,3 +120,5 @@ R-05 says payments, credits and one-off charges are add-only. The money part is 
 - **(b).** No status column: status is derived from the add-only rows on demand. This is purer, but every reader computes it, and the app's existing status reads all change.
 
 Either is cheap now (the tables are empty). Changing from (a) to (b) later is a meaning change: every reader is rewritten.
+
+**Answer.** Ryan, 2026-10-15: "yes, go with the default". (a): the status stays a column; it only moves forward; every move names the add-only row behind it (an NSF its reversing ledger entry, a refund its refund row, a charge's void its reversal). -23 builds M3 this way.
