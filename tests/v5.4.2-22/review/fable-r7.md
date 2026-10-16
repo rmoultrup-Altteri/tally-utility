@@ -1,0 +1,49 @@
+# Fable review: v5.4.2-22 r7
+
+**Date:** 2026-10-16. **Reviewer:** Fable (claude-fable-5-1). **Round:** 7 (short round: the patch's comments, two races, one battery check, two mutation anchors).
+**Frozen files:** all four md5s match the brief (executed): patch `5c972f8f…`, battery `45b95d5c…`, close-22 `58886f4c…`, mutations `aac49900…`; brief `126b6456…`. `diff -u` of r6→r7 frozen battery, close-22 and mutations read in full; the patch diff is `diff-22-r6-r7.diff`, comments only (executed: no code line changes).
+**Clone:** `rv22fable7` (TEMPLATE tally; TEMP revoked from PUBLIC, tally_app, tally_core — `has_database_privilege(…, 'TEMP')` f/f/f, executed). Strict apply (`search_path=''`, `check_function_bodies=on`) twice: the first silent, the second skipped on the `accounting_periods` marker (executed). `assert_periods_guard_invariants()` and `assert_seal_role_invariants()` pass (executed). Dropped at the end (executed).
+**Read:** my r6 report, `review-findings-22-r6.md`, the patch's header (lock-order paragraph, R12), `close_accounting_period`, `enforce_accounting_period`, `enforce_write_off_recovery`, the snapshot tables' DDL and the head's grants; the battery's R5b and R12i; the race script's helpers (`signal`, `await_app`, `await_blocked`, `deadlock`), `newtenant`, CR19 and CR20; the mutations' M54 and M71 lines. Not read: any other reviewer's file.
+
+## Verdict: ready
+
+No blocking item. The lock-order rule is true for the code as written (the close's locks, in the order the function takes them: head FOR UPDATE, period FOR UPDATE, the users row FOR KEY SHARE by the FK check on `closed_by`, the tenant row FOR KEY SHARE by the lines' FK — the snapshot row's own FKs are the period and `closed_by`, so the tenant row is taken only with lines, as the rule says). Every shape the paragraph lists as executed I either executed in r6 or re-ran now (CR16–CR20), and its one predicted shape (a write, then a key change: no deadlock) is now executed too (P2). One should-fix: "what takes the rows" leaves out that tally_app (and tally_void, on the head) can lock the head and the period in any mode by a bare SELECT (S1, executed). One note: the rule is pairwise; a cycle through a row the close never takes needs three transactions and is covered by the paragraph's advice (N1, executed).
+
+## Reproduced (executed)
+
+- `battery-22-frozen-r7.sql` on the clone after `VACUUM public.account_ledger`, `statement_timeout=300s`: **167 PASS**, 0 FAIL/ERROR, exit 0. R5b PASS ("refused by R5b sentinel": the two same-date rows were admitted together). R12i PASS with 40001 and "retry it".
+- `close-22-frozen-r7.sh rv22fable7`: **30 PASS** lines (CR1–CR20 and sub-checks), nothing else printed, exit 0. CR19 and CR20 PASS.
+- Did not run `mutations-22.py` (fixed `m22` name). M54 and M71 are anchor renames only (diff read); R5b is placed before R10/R10f/R12h, so under M71 (row-by-row net) the first failing check is R5b whatever the same-date order, as the findings say.
+
+## The brief's three points
+
+**The rule is true (executed, with the code).** The function's statements in order: plain SELECT of the period's tenant (no lock); head FOR UPDATE; period FOR UPDATE; plain SELECT of the tenant's edges; `UPDATE accounting_periods … closed_by` → RI check, users row FOR KEY SHARE; `INSERT accounting_period_snapshots` → FKs (period_id, tenant_id) → periods (already held) and closed_by → users (held); `INSERT … snapshot_lines` → FK tenant_id → tenants, FOR KEY SHARE. No advisory lock on the close path (`enforce_accounting_period`'s close branch returns before the advisory lock; the snapshot write trigger takes none). The UPDATE of the head and the period re-check no FK (their key columns are unchanged). So the four rows and their order are exactly as stated, and "when it writes snapshot lines" is exact. A two-party cycle with the close needs the other side to hold a row the close takes later (in a conflicting mode) while asking for one it holds, or to hold the head FOR SHARE and close — which is the rule.
+- Reverse order, **P2 (executed):** A posts money as tally_app (head FOR SHARE), waits until the close is blocked on the head, then `UPDATE users SET cognito_sub = cognito_sub WHERE id = <closing user>` (FOR UPDATE on the users row) and commits; the close then closes; period `closed`, `ledger_entry_count` 2 (A's row counted). No 40P01. The paragraph's "predicted" can read "executed".
+- "Changed or not", **P3 (executed):** `UPDATE users SET tenant_id = tenant_id` blocks a concurrent `SELECT … FOR KEY SHARE` (57014 at a 1.5 s timeout); the control `SET display_name = display_name` does not. The key-column lists match `pg_index` (executed): tenants: `tenants_pkey(id)`, `tenants_slug_key(slug)`; users: `users_pkey(id)`, `users_id_tenant_id_key(id, tenant_id)`, `users_cognito_sub_key(cognito_sub)`; all unique, immediate, non-partial, non-expression. No unique index on `email`.
+
+**"What takes the rows" — S1.** Per `information_schema.column_privileges` (executed): tally_app and tally_void hold UPDATE (updated_at) on the head; tally_app holds UPDATE (status, withdrawn_at, withdrawn_by) on the period, and table UPDATE on tenants and users; tally_core and tally_close hold no UPDATE on tenants or users (tally_close: the head's closed_through/updated_at and the period's close columns). One column privilege suffices for a row lock in any mode, so **P6 (executed):** as tally_app, `SELECT … FROM accounting_close_heads … FOR UPDATE`, `… FROM accounting_periods … FOR UPDATE` and `… FOR NO KEY UPDATE` all succeed. The paragraph says "the head … FOR UPDATE: a close" and "the period: a withdrawal (FOR UPDATE), or SELECT … FOR SHARE or FOR KEY SHARE". Not complete for the roles: tally_app (and tally_void, on the head) may take either row FOR UPDATE by a SELECT. No new deadlock shape follows (the head is the first row, so a holder of it alone cannot cycle with a close; any mode on the period conflicts with the close's FOR UPDATE, and a FOR UPDATE holder then writing money is CR19's shape), but a tally_app head FOR UPDATE blocks every writer and close of the tenant until it commits. Wording only.
+
+**CR19, CR20, R5b test what they say (executed, read).** CR19: A, as tally_app, `SELECT … FOR SHARE` on the period, signals, waits until a session is blocked on it (B's close holds the head, asks the period), then posts money (head FOR SHARE, blocked by B) — a cycle; `deadlock()` requires exactly one side with 40P01 and a non-zero exit and the other committed. CR20: A, the owner, tenant row FOR UPDATE; B closes a period with a ledger row (so lines are written) and blocks on the tenant row having taken the users row FOR KEY SHARE; A then `SELECT users … FOR UPDATE` on the closing user — blocked by B's KEY SHARE; a cycle with no head on A's side, as labelled. The `newtenant` fixture gives each race its own tenant with one January row and an open, closable January. R5b: write-off −100 on Feb 1; one statement inserts a +150 recovery (Feb 10) naming it and a −50 adjustment (Feb 10) naming the recovery; the AFTER ROW guards run after both rows are in, the cap's window (`sum() OVER (ORDER BY transaction_date)`, RANGE frame with peers) nets the date to +100 = the cap, admitted, and the sentinel's P0001 rolls it back; a row-by-row net is 150 or −50 first, outside the cap either way. The label is right; the check is positive (admitted), which is what M71 must break.
+
+## Should-fix
+
+- **S1** (executed, P6): add to "what takes the rows" that tally_app (and tally_void, the head only) can lock the head and the period FOR UPDATE or FOR NO KEY UPDATE by a SELECT, since any UPDATE column privilege allows it; for the period, "or any SELECT … FOR … lock mode". No test needed; no rule change.
+
+## Notes
+
+- **N1** (executed, P1): the rule is pairwise. A three-party cycle through a row the close never takes: A holds the tenant row FOR UPDATE; T2 holds a customer row FOR UPDATE; the close blocks on A (tenant, at the lines); A asks the customer row (blocked by T2); T2 posts money as tally_app — blocked by the close's head FOR UPDATE, and also by A directly (the ledger FK takes KEY SHARE on the tenant row). PostgreSQL aborted A and the close (each detector saw its own cycle), T2 committed, the period stayed open, nothing written by the aborted sides. The advice already given — tenant and user rows in a transaction of their own — covers it; so does the general one. Optional wording: "two-transaction cycles with a close are exactly these; longer ones go through rows the close never takes and the same advice avoids them".
+- **N2** (executed, P2): the paragraph's "(a write, then a key change: predicted)" is now executed, as above.
+- **N3** (predicted from the grants): tally_core can lock none of the four rows (no UPDATE privilege on any), so "a close deadlocks with" is complete for it; tally_close only ever runs inside the close.
+- **N4.** R12's new sentence is what Opus S2 showed and what R12i's relabel says; R12i's refusal message prints the 40001 "retry it" text (executed).
+- **N5.** Seal: the diff touches no grant or role; `assert_seal_role_invariants()` passes (executed).
+
+## Answers to the brief
+
+1. Implemented: unchanged from r6; nothing missed or half-done.
+2. Paths around a rule: none found; the diff is comments and tests. The battery's P/H/C/F/G/W rows and CR1–CR18 pass unchanged (executed).
+3. Seal: meets -20; grants unchanged and least (N5).
+4. Snapshot: unchanged (C rows, CR7, CR16b pass).
+5. Aging: unchanged; RLS-safe, coordinates required (W1 passes).
+6. Invariants: unchanged and passing; each claim matches its check.
+7. Tests: CR19, CR20, R5b test their labels; no mutation anchor moved to a check that passes for a wrong reason; nothing missing I would block on.
+8. Residuals R1–R12: none blocking; R12's r7 sentence is accurate.
