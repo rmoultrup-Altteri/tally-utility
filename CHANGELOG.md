@@ -4,6 +4,74 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-16 (afternoon) — v5.4.2-22 review rounds 5–9; r5–r9 frozen; -22 mirrored into tu.sql (parity 78 of 135)
+
+**What was done:**
+- **r5 frozen (`6d3d709`); round 5:** Opus, Fable and Codex all ready.
+  - Codex's 18 probes were executed. Its S1 (two transactions that each post then close deadlock) was reproduced with two sessions.
+  - The should-fix items: the deadlock list was incomplete (all three); the "retry it" signal for a chosen-time history row could never succeed (Opus N1); test gaps.
+  - **Ryan: fix them before the mirror** (default offered: mirror r5).
+- **r6 (`e3393f2`):**
+  - the lock order is rewritten;
+  - a chosen-time row before a tree row gets 23514, a row stamped at its start keeps 40001;
+  - new message text;
+  - battery R11b/R11c, R12i–R12o (166); races CR16–CR18, using barriers; mutations M73–M79 (79/79).
+- **Round 6:** Opus and Fable ready. Both showed the "complete" deadlock list still missing shapes: the period row, then a write; the tenant row, then the user's row; either, then a withdrawal. Codex hit its usage limit. **Ryan waived Codex for r6–r9.**
+- **r7 (`7c887f2`):**
+  - the lock order is a rule over the close's four rows, in order;
+  - races CR19 and CR20;
+  - battery R5b (167): no order of its same-date rows passes, so M71 and M54 are caught at one check every run.
+- **r8 (`6176902`), comments only:** the rule counts indirect waits; no list is promised complete; every writer retries 40P01; one UPDATE that changes the edges and names slug can deadlock by itself.
+- **Round 7:** both ready.
+- **r9 (`f75f90e`), comments only:** lock-mode naming fixed; `tally_void`'s grant noted as unused; the users/tenant DELETE noted as owner-only and refused (checked in `pg_trigger`/grants). Ryan asked for this rather than a correction in -23.
+- **Rounds 8 and 9:** both ready; nothing to fix in round 9.
+- **Mirror (`eef5122`, Ryan: "yes, mirror it"):**
+  - tu.sql went from 40,652 to 42,310 lines; the body is byte-identical to patch lines 347–1999;
+  - `ci.sh --build`: 33/33, zero init errors;
+  - pg_dump parity with the -21 build plus frozen r9;
+  - catalog identity 11,580 lines;
+  - PENDING emptied;
+  - DEPLOY-VERIFICATION entry, with a deploy-time audit query.
+- **Parity update 2026-10-16:** CI-048, CI-076 and CI-110 are REP+PROT, so 78 of 135 are done. GBM manifest Section BR (`bab1da5`).
+- **Memory:**
+  - `race-barriers-clear-stat-snapshot.md` (new);
+  - `v5422-periods-landed.md` (new);
+  - the Codex waiver added to `all-three-reviewers-before-mirror.md`.
+
+**Decisions made:**
+- Fix before the mirror, twice (Ryan): tu.sql's mirrored text is never edited, so a wrong sentence would stay there until -23 corrected it.
+- Codex waived after r5 (Ryan): it had said ready on r5; what followed was one small code change and wording.
+- The 23514 split, logged in DECISION-LOG: a chosen time never changes on a retry.
+- The own-transaction 40001 case (owner only) is stated in R12, not coded: telling "its own" apart needs subtransaction-aware xmin checks.
+- The lock order is a rule, not a list: four rounds each found a missing shape, and no deadlock ever admitted a row.
+
+**Failed approaches:**
+- Barriers that poll `pg_stat_activity` without `pg_stat_clear_snapshot()`: the view is cached per transaction, so CR15 and CR17 timed out.
+- A "these are the cycles" list: incomplete in rounds 5, 6, 7 and 8.
+- A named mutation catch that depended on same-date tie order: M71 moved between R10f and R12h from run to run.
+- An edit to the battery during a mutation run. It was a broken quote, fixed in about 30 s. No mutation was affected: 79/79 named catches.
+- R12i read as "the retry succeeds": the later row was the transaction's own.
+- `email` listed as a unique users column: it isn't (checked `pg_index`).
+
+**Accuracy / test results:**
+
+| Revision | Battery | Races | Mutations | CI |
+|---|---|---|---|---|
+| r5 (frozen) | 157 | CR1–CR15 | 72/72 | 35/35 |
+| r6 | 166 | CR1–CR18 (28, ×3) | 79/79 | 35/35 |
+| r7 | 167 | CR1–CR20 (30, ×3) | 79/79 (78 + M54 renamed, re-run) | 35/35 |
+| r8, r9 | unchanged | unchanged | 79/79, one full run each | 35/35 |
+| build after the mirror | — | — | — | 33/33 (`--build`) |
+
+- Codex probes (r5): 18 of 18 matched their predictions. The deploy-time audit returns 0 on the build.
+
+**Open / next:**
+- v5.4.2-23, cash: M, X, A, C, U, L in the source inventory. It is meaning-changing, and it restates the lock order in -22's form.
+- Refresh the go-live roadmap dashboard.
+- Carried items unchanged (see HANDOFF).
+
+---
+
 ## 2026-10-16 — v5.4.2-22 review rounds 3 and 4; r3 and r4 frozen; r5 drafted (cap at every date and recorded instant, edges wait for the close, walks' plans pinned)
 
 **What was done:**

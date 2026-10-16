@@ -1,96 +1,64 @@
-# Handoff: v5.4.2-22 r5 drafted after review round 4 — freeze r5, launch round 5
+# Handoff: v5.4.2-22 mirrored into tu.sql — next is v5.4.2-23 (cash)
 
-**Generated**: 2026-10-16 (afternoon)
+**Generated**: 2026-10-16, about 4 PM CDT
 **Branch**: `main` in both repos.
-- tally-utility is at `341590e`, clean and pushed. Kyle pushed three `ui-concepts` commits today; they don't touch the database work.
-- GBM `main` is at `954c472`; Kyle pushed nothing there.
-- `Clippings/` in GBM is untracked on purpose: never commit it.
+- tally-utility is at `eef5122`, clean and pushed (the wrap-up commit follows).
+- GBM `main` is at `bab1da5` (manifest Section BR). `Clippings/` there is untracked on purpose: never commit it.
 
-**Status**: In progress.
-- The r5 draft is written, tested and committed.
-- It is **not frozen**, and round 5 has **not** launched: Ryan wants it started in a fresh session.
+**Status**: -22 is done. -23 is not started.
 
 ## Goal
 
 Reach the C# core build. Ryan's gate, in order:
-1. schema parity with CI-001…CI-135 (**we are here**: 75 of 135);
+1. schema parity with CI-001…CI-135 (**we are here**: now 78 of 135);
 2. scenarios and a test strategy;
 3. a phase plan;
 4. build.
 
-Wave 2 is two patches:
-- -22, periods and reporting (additive);
-- -23, cash (meaning-changing).
+Wave 2 is two patches. -22 (periods and reporting, additive) has landed. -23 (cash, meaning-changing) is next.
 
 ## Completed (this session)
 
-- [x] **r3 freeze (`0b31d2b`).** A real defect turned up first.
-  - The last session's mutation run never finished: one backend had sat in battery check R11 for 12 hours.
-  - The cause: the write-off cap's walks scanned the customer's ledger at every step.
-  - The fix: each step joins on the link only. New checks R10f and R10g; new mutations M62 and M63.
-  - The runner now sets a 300 s statement timeout. M49 was rewritten to read the tenant's live setting.
-- [x] **Round 3:**
-
-  | Reviewer | Verdict | Blocker |
-  |---|---|---|
-  | Opus | not yet | B1: the cap held only at the end, not at every date |
-  | Codex | not yet | B1: the close read the edges after its instant, without a lock |
-  | Fable | ready | none |
-
-  - Codex's 12 probes were executed and appended to `codex-r3.md`.
-- [x] **r4, frozen at `94d3b99`.** The patch md5 was `5228060d…`.
-  - The cap holds at every date of the tree, and the tree is in date order.
-  - A row recorded before a row already in its tree is refused with 40001. Found by the author: `created_at` is the transaction's *start*.
-  - A new trigger, `enforce_aging_edges_close_order`, makes an edges change take the head FOR SHARE.
-  - The upward walk carries type and customer.
-  - Both walk functions run with `enable_seqscan`, `enable_hashjoin` and `enable_mergejoin` off.
-  - The mutation runner VACUUMs the ledger before each battery.
-- [x] **Round 4:**
-
-  | Reviewer | Verdict | Blocker |
-  |---|---|---|
-  | Opus | ready | none |
-  | Fable | ready | none |
-  | Codex | not yet | B1: a superuser history row recorded at `infinity` or in the future strands a write-off tree; every later posting gets 40001 forever |
-
-  - Codex's B1 was reproduced: its 15 probes were executed and appended to `codex-r4.md`.
-- [x] **r5 draft (`341590e`).** `sql/v5.4.2-22-periods-snapshot-gl-aging.sql` is 1,913 lines, md5 `7e914bda…`.
-  - A row in a write-off's tree is recorded at a finite time already reached. The write-off itself is covered: the trigger now fires `WHEN (reverses IS NOT NULL OR transaction_type = 'write_off')`.
-  - The invariant pins both walk functions' `proconfig`.
-  - The header states the tenant-row deadlock (the close's snapshot FK against an edges change) and adds residual R12: history loads post one statement per recorded instant.
-- [x] **Tests on r5:**
-  - strict apply twice (the second run is skipped);
-  - battery **157/157** on a vacuumed ledger;
-  - races **CR1–CR15**;
-  - mutations **72/72**;
-  - `tests/ci.sh` **all pass, 35 steps**.
-- [x] **Review files:**
-  - `review-findings-22-r3.md` and `review-findings-22-r4.md`;
-  - `review-brief-22-r5.md` (only the four md5 placeholders remain);
-  - DECISION-LOG entry for 2026-10-16 (-22 review round 3).
-- [x] **Memory:** `recursive-walks-join-on-link-alone.md` (pin the plan; test after VACUUM).
+- [x] **r5 frozen (`6d3d709`); round 5:** all three ready.
+  - Codex's 18 probes were executed and appended to `codex-r5.md`. Its S1 (post-then-close deadlock) was reproduced in two sessions.
+  - Ryan chose to **fix the should-fix items before the mirror** over the default (mirror r5).
+- [x] **r6 (`e3393f2`):**
+  - lock order rewritten;
+  - a history row whose `created_at` was chosen (`<> now()`) and falls before a tree row is refused for good (23514), while a row stamped at its transaction's start keeps 40001;
+  - messages ("non-finite or future time") and the function comment fixed;
+  - battery R11b/R11c, R12i–R12o; races CR16–CR18; mutations M73–M79.
+- [x] **Round 6:** Opus and Fable ready, with lock-order wording findings. Codex hit its usage limit (reset 4:01 PM). **Ryan waived Codex for r6–r9.**
+- [x] **r7 (`7c887f2`):**
+  - the lock order is stated as a rule over the close's four rows (head, period, closing user, tenant), not a list;
+  - races CR19 and CR20;
+  - battery **R5b**, so M71 (and M54) are caught at one check every run.
+- [x] **r8 (`6176902`):** comments only. The rule counts indirect waits and promises no complete list; every writer retries 40P01. Round 7: both ready.
+- [x] **r9 (`f75f90e`):** comments only. The round-8 notes were fixed at Ryan's request rather than carried into -23. Round 9: both ready, nothing to fix.
+- [x] **Mirror (`eef5122`), on Ryan's approval:**
+  - tu.sql is 42,310 lines; the body is byte-identical to patch lines 347–1999 (r9 md5 `d3422f3d…`);
+  - `tests/ci.sh --build`: 33/33, zero init errors;
+  - schema identical to the -21 build plus frozen r9;
+  - catalog identity 11,580 lines, md5 `48d462f3…`;
+  - PENDING is empty.
+- [x] **DEPLOY-VERIFICATION** -22 entry, including the deploy-time audit query (it must return 0 on the real database).
+- [x] **Parity:** update 2026-10-16. CI-048, CI-076 and CI-110 are REP+PROT: 54 REP+PROT, 24 REP, 45 PARTIAL, 11 GAP.
+- [x] **GBM** manifest Section BR.
+- [x] **DECISION-LOG** entry for 2026-10-16 (round 5): fix before the mirror, and the 23514 split.
+- [x] **Memory:**
+  - `race-barriers-clear-stat-snapshot.md` (new);
+  - `v5422-periods-landed.md` (new);
+  - the waiver added to `all-three-reviewers-before-mirror.md`.
 
 ## Not Yet Done
 
-- [ ] **Freeze r5:**
-  - copy the four live files to `tests/v5.4.2-22/review/*-frozen-r5.*`;
-  - `diff -u patch-22-frozen-r4.sql patch-22-frozen-r5.sql > diff-22-r4-r5.diff`;
-  - fill `@@PATCH@@`, `@@BATTERY@@`, `@@CLOSE@@` and `@@MUTATIONS@@` in `review-brief-22-r5.md`;
-  - write `review-brief-22-r5.md5`;
-  - commit and push.
-- [ ] **Launch round 5** (Opus, Fable, Codex), the same way as round 4 (below). Run Codex's probes yourself.
-- [ ] **If all three say ready,** ask Ryan to approve the mirror into tu.sql: one plain-language question, with a default.
-- [ ] **After the mirror:**
-  - remove -22 from PENDING in `tests/ci.sh`;
-  - re-grade the parity measurement (CI-048, CI-076, CI-110);
-  - add GBM manifest section BR;
-  - write DEPLOY-VERIFICATION.
-- [ ] **v5.4.2-23, cash:** M, X, A, C, U, L (see the inventory).
+- [ ] **v5.4.2-23, cash:** requirements M (add-only money, R-05, CI-013), X (reversals, R-02, CI-017), A (payment application, R-06/K-05/D7-1, CI-049/050), C, U (unapplied cash, CI-053), L (agency pledges, CI-056). They are in `application/wave2-build-2026-10-15/source-inventory-wave2.md`.
+  - -23 is meaning-changing: frame each shape by its migration cost (memory).
+  - Restate the ledger's and the close's lock order in -22's form.
 - [ ] **Carried over:**
   - the reply to Kyle on D-2's location;
   - the -05 defect (`meters_last_validated_actual_reading_id_fkey`);
   - -21 R9;
-  - the R-03 scoping;
+  - the R-03 scoping (CI-014's remaining DELETE grants);
   - `pga_monthly_reconciliations.deferred_balance_after`;
   - the backbilling tariff table;
   - the GitHub Actions bump;
@@ -99,100 +67,79 @@ Wave 2 is two patches:
   - low-confidence measurement rows;
   - the -15 r8 follow-ups;
   - gate steps 2–4.
+- [ ] **Go-live roadmap dashboard:** refresh it at wrap-up per memory. It was not refreshed this session.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Tenant or customer predicates in a recursive step's join.** The planner picked `idx_ledger_type(tenant_id)` or a bitmap AND over the PK or reversal index, so each step scanned about 1,000 rows. Under M57 that hung for 12 hours. Join on the link alone, and test tenant and customer through a CASE or a carried `mine` flag.
-- **Link-only joins without pinned plans.**
-  - On a ledger the planner believes empty (fresh, or after VACUUM, reltuples 0), the step hash-joined a sequential scan of the whole ledger.
-  - With only `enable_seqscan` off, it merge-joined a full index scan instead.
-  - R10g alternated between passing (1.5 s) and failing (30 s) from run to run.
-  - Turn off all three: seqscan, hashjoin and mergejoin.
-- **Testing plan-sensitive claims on a fresh clone.** The slow plan appears only after VACUUM. M68 was MISSED until the runner VACUUMed first.
-- **`refuses_at`/`WHEN OTHERS` to catch a statement timeout.** `query_canceled` is not caught by OTHERS. R10g uses its own DO block with `WHEN query_canceled`.
-- **A same-date check (R12h) as the catcher for the ROWS-frame mutation.** R10f's same-date rows cross first, so M71 is labeled R10f. Rename to the earlier check; never loosen the runner.
-- **R10f with only the foreign-customer row.** A C1 row never triggers C5's cap, so M62 was MISSED. R10f now adds a C5 row after it.
-- **psql `LAST_ERROR_SQLSTATE` after a failed COPY.** It stays `00000`, which broke r2 n7 and r3 n7. Print the error text.
-- **"The close never locks the tenant row".** False: the snapshot rows' tenant FK takes FOR KEY SHARE. The deadlock is now stated.
-- **Earlier sessions' failures still hold:**
-  - an AFTER (not BEFORE) cap;
-  - the net of the whole tree;
-  - a fail-closed lineage bound;
-  - no close read of the config history;
-  - P9f run as owner;
-  - `repr()` anchors;
-  - withdraw by status;
-  - the head handshake;
-  - no TEMP under `tally_app`;
-  - and the rest.
+- **Barrier loops polling `pg_stat_activity` without `pg_stat_clear_snapshot()`.** The view is snapshotted once per transaction, so CR15 and CR17 timed out ("barrier: race22_b_done never seen"). CR16 and CR18 passed only because the signal arrived before the first read. Clear the snapshot on every poll.
+- **A deadlock list presented as complete.** Each of rounds 5–8 found a missing shape: the users row, write-then-close, the period row, a third party, and the single statement with edges and slug. State the rule (rows in order; holding a later one and waiting for an earlier one, directly or indirectly), give examples, and say that every writer retries 40P01.
+- **A named mutation catch that depends on same-date row order.** M71 was caught at R10f in one run and at R12h in the next, because a ROWS frame orders ties arbitrarily. Use a fixture where no order passes (R5b: +150 and −50 on one date against 100). A mutation caught earlier for a valid reason gets its expected check renamed (M54 → R5b), never a looser runner.
+- **Editing the battery while `mutations-22.py` runs.** The runner reads the live file on every mutation, and a bad quote (`adjustment's` inside a SQL literal) would have broken every mutation that ran after it. Edit between runs only.
+- **R12i as proof that a retry succeeds.** In one transaction the later row is the transaction's own, so the retry meets it again. Only CR15, with two transactions, shows a retry succeed.
+- **"email" listed as a unique users column.** It isn't. Check `pg_index` before naming key columns: users has id, tenant_id and cognito_sub; tenants has id and slug.
+- **Earlier sessions' failures still hold:** link-only recursive joins with pinned plans; VACUUM before plan-sensitive tests; `query_canceled` escapes `WHEN OTHERS`; psql's `LAST_ERROR_SQLSTATE` after COPY; and the rest (see the CHANGELOG).
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| The cap holds at every date; tree rows are dated on or after the entry they name | Guard the act: aging and the close net the tree at a date (Opus B1 froze 200 recovered against 100) |
-| A row recorded before a tree row is refused with 40001 (retry) | `created_at` is the transaction start; otherwise a recorded-instant view sees an over-cap state |
-| Tree rows, write-off included, are recorded at a finite time already reached | Otherwise a superuser history row at `infinity` makes 40001 permanent (Codex r4 B1) |
-| The edges change waits for the close (head FOR SHARE); the promise is not reworded | Design permanent; the same handshake as money writes, and no new grants |
-| The tenant-row deadlock is stated, the FK is not rerouted | Both reviewers accepted either; rerouting changes the snapshot keys, and the `closed_by` FK still locks a users row |
-| Walk functions run with seqscan, hashjoin and mergejoin off, pinned in the invariant | Plans are otherwise statistics-dependent (measured 30 s against 1.5 s) |
-| History loads under a write-off post one statement per recorded instant (R12) | Siblings in one statement see each other; a valid mixed batch is refused (Codex r4 S1) |
+| Fix the should-fix items and the notes before the mirror (r6, then r9) | Ryan's call, twice: tu.sql's mirrored text is never edited, so a wrong sentence there stays until -23 corrects it |
+| Codex waived for r6–r9 | Ryan: "let's not wait for codex on this". Codex said ready on r5; after r5 only one small code change and wording followed |
+| A chosen-time history row before a tree row gets 23514, not 40001 | A retry cannot change a chosen time; 40001 would spin a retry loop to its cap |
+| The own-transaction 40001 case (owner only) is stated in R12, not coded | Telling "its own" apart needs subtransaction-aware xmin tests; the owner is the only one who can reach it |
+| The lock order is a rule, not a list; writers retry 40P01 | Lists proved incomplete four times; no deadlock ever admitted a row or lost data |
+| Mirror r9 exactly as frozen | Those are the bytes both reviewers passed |
 
 ## Current State
 
-**Working:** r5 passes everything: battery 157, CR1–CR15, mutations 72/72, CI 35/35.
-**Broken:** nothing known. Codex's r4 B1 is fixed in r5 but not yet reviewed.
-**Uncommitted changes:** none. **Scratch DBs:** none left.
+**Working:**
+- tu.sql through -22;
+- the rebuilt `tally-pg` container (fresh from tu.sql);
+- `tests/ci.sh`: 33/33;
+- -22: battery 167, races CR1–CR20 (30 PASS), mutations 79/79.
+
+**Broken:** nothing known.
+**Uncommitted changes:** only this wrap-up (HANDOFF.md, CHANGELOG.md). **Scratch DBs:** none.
 
 ## Code Context
 
 ```sql
--- AFTER INSERT on account_ledger, fired by name: enforce_ledger_lineage_acyclic, then enforce_write_off_recovery
--- enforce_write_off_recovery: SET search_path=public, pg_temp; enable_seqscan/hashjoin/mergejoin=off
---   WHEN (NEW.reverses_ledger_entry_id IS NOT NULL OR NEW.transaction_type = 'write_off')
---   raises: 23514 "recorded in the future" | "dated on or after the entry it names" | "on <date> the rows netted" (R-02 cap)
---           40001 "... retry it" (recorded before a tree row) | 23503 "names a write_off entry" | 25000 at non-READ COMMITTED
--- enforce_aging_edges_close_order: BEFORE UPDATE OF receivables_aging_bucket_days ON tenants; head FOR SHARE
--- assert_periods_guard_invariants(): exact triggerdefs, constraintdefs, and the walks' proconfig
---   {"search_path=public, pg_temp",enable_seqscan=off,enable_hashjoin=off,enable_mergejoin=off}
+-- the close's rows, in order (r7 rule): head FOR UPDATE; period FOR UPDATE;
+--   closing user's users row FOR KEY SHARE (closed_by); tenant row FOR KEY SHARE (snapshot lines, only if lines are written)
+-- enforce_write_off_recovery (AFTER INSERT, WHEN reverses_ledger_entry_id IS NOT NULL OR transaction_type = 'write_off'):
+--   23514 "recorded at a non-finite or future time" | 23514 "a time chosen for it" (created_at <> now(), before a tree row)
+--   40001 "retry it" (stamped at its start, before a tree row) | 23514 "on <date> the rows netted" (cap) | 25000 non-READ COMMITTED
+-- deploy-time audit (DEPLOY-VERIFICATION -22): must return 0
+SELECT count(*) FROM public.account_ledger l
+ WHERE (l.transaction_type IN ('write_off','write_off_recovery') OR l.reverses_ledger_entry_id IS NOT NULL)
+   AND (NOT isfinite(l.created_at) OR l.created_at > clock_timestamp());
 ```
 
-- The per-date cap is `sum(amount) OVER (ORDER BY transaction_date)` over `v_tree`. The default RANGE frame nets same-date rows together.
-- The mutation runner VACUUMs `public.account_ledger` before every battery, and passes `PGOPTIONS=-c statement_timeout=300s`.
+```bash
+# race barriers (tests/v5.4.2-22/races/close-22.sh): signal / await_app / await_blocked
+# DO loop: PERFORM pg_stat_clear_snapshot(); EXIT WHEN EXISTS (... application_name = '<step>') ...
+```
 
 ## Resume Instructions
 
-1. `git pull --ff-only` in both repos. Check GBM for Kyle's pushes.
-2. Freeze r5:
-   ```
-   cd tests/v5.4.2-22/review
-   cp ../../../sql/v5.4.2-22-periods-snapshot-gl-aging.sql patch-22-frozen-r5.sql
-   cp ../battery-22.sql battery-22-frozen-r5.sql
-   cp ../races/close-22.sh close-22-frozen-r5.sh
-   cp ../mutations-22.py mutations-22-frozen-r5.py
-   diff -u patch-22-frozen-r4.sql patch-22-frozen-r5.sql > diff-22-r4-r5.diff
-   ```
-   - Fill the four md5 placeholders in `review-brief-22-r5.md` (`md5 -q`).
-   - Write `review-brief-22-r5.md5`.
-   - Commit and push.
-   - Expected: `grep -c @@ review-brief-22-r5.md` returns 0.
-3. Launch round 5 in parallel:
-   - **Opus and Fable:** Agent `general-purpose`, model opus / fable, background, named `opus-r5` / `fable-r5`, pointed at `review-brief-22-r5.md` and its md5. Each reads its own r4 report. Scratch clones: `rv22opus5` and `rv22fable5`.
-   - **Codex:** `mkdir -p tests/v5.4.2-22/review/codex-r5-probes && PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C ~/code/tally-utility -o tests/v5.4.2-22/review/codex-r5-final.txt - < tests/v5.4.2-22/review/codex-prompt-r5.md`. The prompt is ready in the repo.
-4. Run Codex's probes yourself:
-   - one fresh clone per probe, from a template with frozen r5 applied, TEMP revoked, `statement_timeout=300s`;
-   - append the outputs to `codex-r5.md`.
-5. If all three say ready, ask Ryan to approve the mirror (one question, plain language, with a default). Otherwise fold the findings into r6.
+1. `git pull --ff-only` in both repos, and check GBM for Kyle's pushes.
+   - Expected: tally-utility at the wrap-up commit after `eef5122`; GBM at `bab1da5` or later.
+2. `bash tests/ci.sh`.
+   - Expected: `ci: all pass`, 33 steps.
+   - If the container is missing: `bash tests/ci.sh --build` (it recreates `tally-pg` from tu.sql).
+3. Start -23:
+   - read the source inventory's M, X, A, C, U, L sections and the "-22 as drafted" mapping;
+   - draft per memory "source inventory first, triage by rule";
+   - raise only real conflicts with Ryan, one decision per message, in plain language, with a default.
+4. Refresh the go-live roadmap dashboard (memory `go-live-roadmap-dashboard`) at the next wrap-up.
 
 ## Warnings
 
-- **Never edit the frozen review copies or tu.sql's mirrored body.** tu.sql is mirrored only on Ryan's approval.
+- **Never edit tu.sql's mirrored bodies or the frozen review copies.** Corrections go in the next patch's header.
 - **Revoke TEMP from PUBLIC, `tally_app` and `tally_core` after every `CREATE DATABASE … TEMPLATE`.**
 - **Roles are cluster-wide;** reviewers must not touch roles.
 - **`tests/ci.sh --build` deletes the container.**
-- **Plan-sensitive tests:** VACUUM first, or a slow plan will not show.
-- **Codex runs source-only.** You run its probes, and check each probe's own error capture.
 - **Never `git add -A` in gas-billing-memory.**
-- **Commits go straight to main.** `git pull --rebase` before pushing: Kyle pushes `ui-concepts` work to tally-utility.
+- **Commits go straight to main.** `git pull --rebase` before pushing.
 - **Background reviewers' final messages repeat as idle notifications.** Don't act on a second copy.
-- **Ask Ryan one decision per message, in plain language, with a default.**
+- **Ask Ryan one decision per message, in plain language, with a default.** He picked "fix it now" over the default twice this session: offer it as a real option.
