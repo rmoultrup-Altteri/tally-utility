@@ -3,6 +3,32 @@
 **Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-21, verified 2026-10-14.** After v5.4.2-21: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **479 FKs** / **582 CHECKs** / **22 EXCLUDE** / **455 triggers** / **536 functions** / **717 indexes**. tu.sql **40,652 lines**, md5 `3b1433a315ecc97be284525333185932` (the container init file matches by hash).
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-20, verified 2026-10-14.** After v5.4.2-20: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **477 FKs** / **575 CHECKs** / **22 EXCLUDE** / **415 triggers** / **527 functions** / **709 indexes**. tu.sql **39,349 lines**, md5 `e13f0d72ffdcf65782e789a58ed4cb32` (the container init file matches by hash).
+## v5.4.2-23 — cash: reversals, positions, payment application, credits from overpayment (drafted 2026-10-17; in review, not mirrored)
+`sql/v5.4.2-23-cash-reversals-positions-application.sql`. This entry is completed at the mirror. Until then it holds what a real database needs before the patch applies, which the patch's precondition refuses and names.
+
+**Before applying, on a database that holds data** (the build has none):
+- **Cash rows.** The patch refuses while any payment, customer credit or invoice application exists. The counters become derived positions and applications move to bill lines, so each row has to be migrated first:
+  - an application needs its bill line, money date, basis and cited tariff;
+  - an overpayment credit needs its customer's approval row;
+  - a status needs the row that caused it (`status_cause_id`).
+- **Bill lines.** The patch refuses while any `invoice_line_items` row exists, because `regulatory_class` is added NOT NULL with no default (K-07). Classify each line first, from its one-off charge or rate item where it has one.
+- **Tenants.** The patch refuses while any tenant has `overpayment_handling = 'apply_to_specific_invoices'` (retired by K-05).
+- **Cross-customer reversals.** The new reversal FK is validated as it is added, so the patch fails if a ledger row names another customer's entry.
+
+**At deployment, run these; each must return 0.** An INSERT trigger does not inspect rows already present. On the build each returns 0, because the ledger is empty.
+```sql
+-- every ledger row recorded at a finite time already reached (X2)
+SELECT count(*) FROM public.account_ledger l WHERE NOT isfinite(l.created_at) OR l.created_at > clock_timestamp();
+-- every reversal: the opposite sign, dated on or after its entry (X2)
+SELECT count(*) FROM public.account_ledger l JOIN public.account_ledger p ON p.id = l.reverses_ledger_entry_id
+ WHERE NOT ((l.amount > 0 AND p.amount < 0) OR (l.amount < 0 AND p.amount > 0)) OR l.transaction_date < p.transaction_date;
+-- every entry's tree within its cap at every date (X2): what is left lies between 0 and the entry
+SELECT count(*) FROM public.account_ledger e
+ WHERE EXISTS (SELECT 1 FROM public.account_ledger l WHERE l.reverses_ledger_entry_id = e.id)
+   AND (sign(e.amount) * public.ledger_entry_remaining(e.id) < 0 OR abs(public.ledger_entry_remaining(e.id)) > abs(e.amount));
+```
+The third query checks each tree as it stands today, not at every earlier date. The date-by-date audit will be written with the mirror entry.
+
 ## v5.4.2-22 — wave 2, part 1: accounting periods as freeze boundaries, the close snapshot, GL code mapping, receivables aging, write-off recovery (D-2, D-3, R-02; Ryan 2026-10-15 "yes, start wave 2"; mirror approved by Ryan 2026-10-16 "yes, mirror it")
 `sql/v5.4.2-22-periods-snapshot-gl-aging.sql` (2,001 lines, md5 `d3422f3d9301e115893ec556929d44fb`, r9), mirrored into tu.sql (40,652 → **42,310**: a pure append of a blank line, a 4-line banner and the 1,653-line body; 1,658 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 347–1999.
 

@@ -151,7 +151,8 @@
 --       C19) are rewritten for X1b, X2 and the time rule; -19's payment
 --       moves (P9c-P9g, races C8/C9) for M2.
 --
--- Tests. battery-23, races/cash-23.sh. assert_cash_guard_invariants() runs
+-- Tests. battery-23 (107 checks), races/cash-23.sh (CR1-CR8), mutations-23.py
+--   (71 of 71 caught). assert_cash_guard_invariants() runs
 --   in the tail and in CI.
 --
 -- PRECONDITION. v5.4.2-22 applied (tu.sql). No payments, customer credits,
