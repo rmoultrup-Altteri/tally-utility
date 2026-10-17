@@ -6,6 +6,23 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-16 (-23 triage) — Ryan: cash goes out as two patches; four calls settled by standing rule
+
+**What:** cash, planned as one patch (-23), is split by migration cost.
+- **-23 (meaning-changing):** M (add-only money), X (reversals), A (payment application per bill line) and C (credits from overpayment), plus the payment restriction A6 needs.
+- **-24 (additive, after -23):** U (unmatched cash) and L (agency pledges). Both are new tables that point at payments.
+- Ryan took the default: "split it, go with the default".
+
+Four drafting calls are recorded in the source inventory's "-23 triage" section:
+- each bill line carries its own regulated/unregulated class;
+- the within-bill order is a tariff row, with no Texas law row, and regulated first is a fixed term;
+- an agency restriction against the regulated-first floor is recorded, not decided (for Kyle);
+- the customer-initiation date (CI-058) stays out of -23.
+
+*Why:* -22, with four additive requirements, ran to about 2,000 lines and nine review rounds. The four meaning-changing requirements deserve the reviewers' full attention. U and L change nothing existing, and they depend on -23, not the reverse. *Not one patch:* one review cycle, but the risky part waits on the safe part and gets diluted attention. *Where it lives:* `application/wave2-build-2026-10-15/source-inventory-wave2.md`.
+
+---
+
 ## 2026-10-16 (-22 review round 5) — Ryan: fix the should-fix items before the mirror; one call settled by standing rule
 
 **What:** all three reviewers said "ready" on -22 r5 (`tests/v5.4.2-22/review/review-findings-22-r5.md`). Their should-fix items were wording, tests, and one misleading refusal.
