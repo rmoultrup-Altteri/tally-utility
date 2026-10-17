@@ -19,6 +19,7 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 # patch DROPS (the patch is pending while that table still exists); a marker
 # table.column is a column the patch adds
 PENDING=(
+  sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
 )
 BASE=ci_base
 
@@ -90,7 +91,7 @@ done
 battery() {  # $1 file
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16 19 20 21 22; do
+for n in 09 10 11 12 13 14 16 19 20 21 22 23; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
@@ -117,6 +118,7 @@ cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
 cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
 cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
 cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22
+cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
 cstep ci_e13 "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh
 step "tenant isolation invariants" q "$BASE" -c "SELECT public.assert_tenant_isolation_invariants()"
@@ -126,6 +128,9 @@ step "rule table invariants" q "$BASE" -c "SELECT public.assert_rule_table_invar
 step "retention invariants" q "$BASE" -c "SELECT public.assert_no_hard_delete_invariants()"
 step "wave-1 guard invariants" q "$BASE" -c "SELECT public.assert_wave1_guard_invariants()"
 step "periods guard invariants" q "$BASE" -c "SELECT public.assert_periods_guard_invariants()"
+if [ "$(q "$BASE" -c "SELECT to_regprocedure('public.assert_cash_guard_invariants()') IS NOT NULL")" = "t" ]; then
+  step "cash guard invariants" q "$BASE" -c "SELECT public.assert_cash_guard_invariants()"
+fi
 
 printf '%s\n' "${results[@]}"
 echo "ci: $([ $fail -eq 0 ] && echo 'all pass' || echo 'FAILURES')"

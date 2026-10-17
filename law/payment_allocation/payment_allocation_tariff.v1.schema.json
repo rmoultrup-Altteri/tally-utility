@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/payment_allocation/payment_allocation_tariff.v1.schema.json",
+  "title": "Payment allocation tariff, version 1",
+  "description": "A utility's own order for applying a payment to the charges within one bill, from its tariff, confirmed at setup (K-05, K-07: no assumed default). Two lists of bill-line charge types, the regulated ones first (CI-050's floor is the shape). Every charge type appears exactly once across the two lists (the insert check), so the core always has a place for a line.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "citation",
+    "within_bill"
+  ],
+  "properties": {
+    "citation": {
+      "$ref": "#/$defs/citation"
+    },
+    "within_bill": {
+      "$ref": "#/$defs/order"
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "string",
+      "pattern": "[A-Za-z0-9]"
+    },
+    "charge_type": {
+      "type": "string",
+      "enum": [
+        "base_charge",
+        "usage_charge",
+        "surcharge",
+        "tax",
+        "late_fee",
+        "deposit",
+        "credit",
+        "adjustment",
+        "penalty",
+        "adhoc",
+        "minimum_bill_adjustment",
+        "consolidated_summary",
+        "misc"
+      ]
+    },
+    "charge_types": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/charge_type"
+      },
+      "uniqueItems": true,
+      "maxItems": 13
+    },
+    "order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "regulated",
+        "unregulated"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "charge_type_order"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "regulated": {
+          "$ref": "#/$defs/charge_types"
+        },
+        "unregulated": {
+          "$ref": "#/$defs/charge_types"
+        }
+      }
+    }
+  }
+}

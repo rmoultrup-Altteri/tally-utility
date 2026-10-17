@@ -1,0 +1,37 @@
+# Texas gas: the order in which a payment is applied within a bill (K-05, Kyle 2026-10-15).
+# Kyle found no statewide Texas rule dictating the order across charge types: 16 TAC 7.45 covers
+# service standards, deferred payment plans and disconnection. So for an investor-owned or
+# cooperative distribution system the law leaves the order to the utility's tariff, and the tenant
+# confirms it from its own tariff at setup. A city-owned system is outside GURA (Tex. Util. Code
+# 101.003(7)); its tariff is its policy. No other state, service or system kind has a row: a tariff
+# there is refused (unknown law is not permission) until its law is entered.
+table: public.payment_allocation_rules
+kind: payment_allocation
+version: 1
+key: []
+schema: payment_allocation.v1.schema.json
+rows:
+  - name: tx_gas_iou_coop
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    effective_from: "2004-07-12"
+    source_note: "K-05 (Kyle, 2026-10-15): no statewide Texas rule dictates the within-bill order; 16 TAC 7.45 covers service standards, deferred payment plans and disconnection. The utility's tariff sets the order."
+    terms:
+      governs: delegated_to_utility
+      citation: 16 TAC 7.45
+      note: Sets no order across charge types within a bill (K-05); the utility's tariff does.
+  - name: tx_gas_municipal
+    state_code: TX
+    service_type: gas
+    owner_types: [municipal]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    effective_from: "2004-07-12"
+    source_note: "Tex. Util. Code 101.003(7): a municipal corporation is not a gas utility; a city-owned system sets its own payment rules in its tariff (K-05, K-07)."
+    terms:
+      governs: delegated_to_utility
+      citation: Tex. Util. Code 101.003(7)
+      note: A municipal corporation is not a gas utility under GURA; its own tariff sets the order.

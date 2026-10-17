@@ -127,11 +127,14 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-000000002155', '00000000-0000-4000-8000-0000000021a1', 'FX'),
   ('00000000-0000-4000-8000-000000002156', '00000000-0000-4000-8000-0000000021a1', 'JF'),
   ('00000000-0000-4000-8000-000000002159', '00000000-0000-4000-8000-0000000021a2', 'T2PU');
-INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, remaining_amount) VALUES
-  ('00000000-0000-4000-8000-000000002161', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'overpayment', 40, 40),
-  ('00000000-0000-4000-8000-000000002162', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'goodwill', 5, 5),
-  ('00000000-0000-4000-8000-000000002163', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c2', 'overpayment', 9, 9),
-  ('00000000-0000-4000-8000-000000002169', '00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-0000000021c9', 'overpayment', 7, 7);
+-- v5.4.2-23: an overpayment credit needs the customer's approval of a
+-- payment (C1); these credits only need to exist, so they are adjustments,
+-- and remaining_amount is derived now (M1).
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES
+  ('00000000-0000-4000-8000-000000002161', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'adjustment', 40, DATE '2026-01-15'),
+  ('00000000-0000-4000-8000-000000002162', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'goodwill', 5, DATE '2026-01-15'),
+  ('00000000-0000-4000-8000-000000002163', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c2', 'adjustment', 9, DATE '2026-01-15'),
+  ('00000000-0000-4000-8000-000000002169', '00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-0000000021c9', 'adjustment', 7, DATE '2026-01-15');
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES
   ('00000000-0000-4000-8000-000000002181', '00000000-0000-4000-8000-0000000021a1', 'B21-P1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-05', 40, 'check', DATE '2026-02-05', 'other');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
@@ -167,13 +170,13 @@ $$;
 CREATE FUNCTION pg_temp.line(p_inv uuid, p_service text, p_kind text, p_cols jsonb) RETURNS void LANGUAGE sql AS $$
   INSERT INTO public.invoice_line_items (tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, rate_item_id,
          usage_quantity, usage_unit, rate, coverage_start, coverage_end, days_covered, days_in_period, partial_period_policy_applied,
-         gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate)
+         gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate, regulatory_class)
   SELECT '00000000-0000-4000-8000-0000000021a1', p_inv, coalesce((SELECT max(line_order) + 1 FROM public.invoice_line_items WHERE invoice_id = p_inv), 0),
          p_service, p_kind, p_kind || ' line', 10.00, (p_cols ->> 'rate_item_id')::uuid,
          (p_cols ->> 'usage_quantity')::numeric, p_cols ->> 'usage_unit', (p_cols ->> 'rate')::numeric,
          (p_cols ->> 'coverage_start')::date, (p_cols ->> 'coverage_end')::date, (p_cols ->> 'days_covered')::int, (p_cols ->> 'days_in_period')::int,
          p_cols ->> 'partial_period_policy_applied',
-         (p_cols ->> 'gas_meter_factor')::numeric, (p_cols ->> 'gas_ccf_used')::numeric, (p_cols ->> 'gas_therms_billed')::numeric, (p_cols ->> 'gas_commodity_rate')::numeric;
+         (p_cols ->> 'gas_meter_factor')::numeric, (p_cols ->> 'gas_ccf_used')::numeric, (p_cols ->> 'gas_therms_billed')::numeric, (p_cols ->> 'gas_commodity_rate')::numeric, 'regulated';
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.draft(uuid, text), pg_temp.line(uuid, text, text, jsonb) TO tally_app;
 
@@ -467,7 +470,7 @@ SELECT pg_temp.refuses_at('G1 a correction that names no bill',
 SELECT pg_temp.refuses_at('G2a a void_reversal that names nothing',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'invoice_void', 'wrong_rate')$q$,
-  '23514', 'account_ledger_void_reversal_lineage_check');
+  '23514', 'account_ledger_reversal_types_name_check');  -- v5.4.2-23 (X1): caught first by the general rule
 SELECT pg_temp.refuses_at('G2b a void_reversal with a blank reason',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-02', 'void_reversal', 'x', -30, 'invoice_void', '00000000-0000-4000-8000-000000002171', ' - ')$q$,

@@ -20,9 +20,9 @@
 #   CR9  A closes April and holds; B inserts a GL mapping in force in April:
 #        waits on A, then is refused (G4).
 #   CR10 The latest period, once closed, is not withdrawn.
-#   CR11 (r3) A posts +15 naming CR5's recovery (net 45 of 50) and holds; B
-#        posts +10 naming it: waits on A (the write-off's lock, reached
-#        through the recovery), then is refused by the cap.
+#   CR11 (r3; v5.4.2-23) A posts a further recovery of +15 (net 45 of 50)
+#        and holds; B posts +10: waits on A (the tree's lock, on the
+#        write-off), then is refused by the cap.
 #   CR12 (r3) A withdraws June and holds; B closes June: waits on A (the
 #        period row), then is refused, the period named withdrawn.
 #   CR13 (r4) A changes the aging edges and holds; B closes June: waits on A
@@ -259,7 +259,10 @@ else echo "FAIL CR10: $OUT"; fail=1; fi
 
 # CR11
 REC1=$("${PSQL[@]}" -c "SELECT id FROM public.account_ledger WHERE reverses_ledger_entry_id = '$WO' AND transaction_type = 'write_off_recovery'")
-NAMES() { echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '2026-06-02', 'adjustment', 'names the recovery', $1, '$REC1', 'x');"; }
+# v5.4.2-23 (X2): a row naming the recovery reverses it (opposite sign), so
+# the two writers post further recoveries of the write-off; both meet at the
+# tree's lock (its root, the write-off).
+NAMES() { echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '2026-06-02', 'write_off_recovery', 'a further recovery', $1, '$WO', 'x');"; }
 two "$AS_OP" "$(NAMES 15)" "$AS_OP" "$(NAMES 10)"
 verdict "CR11 a row under a write-off, reached through its recovery, waits for another, then is refused by the cap" 1 "R-02 cap"
 

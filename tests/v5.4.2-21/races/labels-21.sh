@@ -219,8 +219,8 @@ INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, servi
   VALUES ('$T', '$IF', 'fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial');
 INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
   VALUES ('$B', '$T', 'R21-AR1', '$C', '$L', DATE '2026-02-01', '2026-01', DATE '2026-01-01', DATE '2026-01-31', DATE '2026-02-20', 10);
-INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate_item_id)
-  VALUES ('$T', '$B', 'gas', 'surcharge', 'rider', 10, '$IF');
+INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate_item_id, regulatory_class)
+  VALUES ('$T', '$B', 'gas', 'surcharge', 'rider', 10, '$IF', 'regulated');
 COMMIT;
 SQL
 sleep 1.2

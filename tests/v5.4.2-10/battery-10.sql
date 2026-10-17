@@ -51,8 +51,8 @@ BEGIN
   VALUES (p_id, '00000000-0000-4000-8000-00000000aa01', p_num, p_run, '00000000-0000-4000-8000-00000000ac01', '00000000-0000-4000-8000-00000000ad01',
           p_type, p_replaces, p_pe + 1, to_char(p_pe, 'YYYY-MM'), p_ps, p_pe, p_pe + 21);
   -- v5.4.2-21 (CI-016): a base line carries its rate at issue.
-  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate)
-  VALUES ('00000000-0000-4000-8000-00000000aa01', p_id, 'gas', 'base_charge', 'Customer charge', 12.50, 12.50);
+  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate, regulatory_class)
+  VALUES ('00000000-0000-4000-8000-00000000aa01', p_id, 'gas', 'base_charge', 'Customer charge', 12.50, 12.50, 'regulated');
 END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.inv(uuid, text, uuid, text, uuid, date, date) TO tally_app;
 
@@ -138,8 +138,8 @@ DO $$ DECLARE c timestamptz; BEGIN
   IF c <> now() THEN RAISE EXCEPTION 'F4 FAILED: created_at % not stamped', c; END IF;
   RAISE NOTICE 'PASS F4: caller-supplied invoices.created_at is overwritten with now()';
 END $$;
-INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate)
-VALUES ('00000000-0000-4000-8000-00000000aa01', '00000000-0000-4000-8000-00000000c104', 'gas', 'base_charge', 'Customer charge', 12.50, 12.50);
+INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate, regulatory_class)
+VALUES ('00000000-0000-4000-8000-00000000aa01', '00000000-0000-4000-8000-00000000c104', 'gas', 'base_charge', 'Customer charge', 12.50, 12.50, 'regulated');
 DO $$ BEGIN
   UPDATE public.invoices SET first_issued_at = '2020-01-01' WHERE id = '00000000-0000-4000-8000-00000000c104';
   RAISE EXCEPTION 'F29b FAILED: first_issued_at caller-written';

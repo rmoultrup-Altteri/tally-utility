@@ -1,0 +1,7 @@
+# A city-owned system's own order: gas service and its riders, then taxes, then fees; add-on services last.
+citation: City gas tariff, payments section
+within_bill:
+  strategy: charge_type_order
+  version: 1
+  regulated: [base_charge, usage_charge, surcharge, minimum_bill_adjustment, tax, late_fee, penalty, deposit, adjustment, credit, consolidated_summary]
+  unregulated: [adhoc, misc]

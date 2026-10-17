@@ -235,8 +235,8 @@ DO $$ BEGIN
 END $$;
 
 SELECT pg_temp.refuses('Q2 coverage ends before it starts',
-  $q$INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, coverage_start, coverage_end)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001901', 'gas', 'base_charge', 'x', 1, DATE '2026-01-31', DATE '2026-01-01')$q$, '23514');
+  $q$INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, coverage_start, coverage_end, regulatory_class)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001901', 'gas', 'base_charge', 'x', 1, DATE '2026-01-31', DATE '2026-01-01', 'regulated')$q$, '23514');
 
 INSERT INTO public.wna_zones (id, tenant_id, zone_code) VALUES ('00000000-0000-4000-8000-000000001931', '00000000-0000-4000-8000-0000000019a1', 'Z1');
 -- v5.4.2-20: a version row is written only after the version check.
@@ -350,7 +350,12 @@ SELECT pg_temp.refuses('P1c a method outside the vocabulary',
 -- A pending payment may wait for its effective date; it is set as it posts.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
 VALUES ('00000000-0000-4000-8000-000000001961', '00000000-0000-4000-8000-0000000019a1', 'P-1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-05', 10, 'check', 'pending');
-UPDATE public.payments SET status = 'posted', effective_date = DATE '2026-02-03', effective_date_method = 'postmark' WHERE id = '00000000-0000-4000-8000-000000001961';
+-- v5.4.2-23 (Q1 (a)): the move to posted names its posting ledger entry.
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES ('00000000-0000-4000-8000-000000001965', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-05',
+        'payment', 'P-1', -10, 'payment', '00000000-0000-4000-8000-000000001961');
+UPDATE public.payments SET status = 'posted', effective_date = DATE '2026-02-03', effective_date_method = 'postmark',
+       status_cause_id = '00000000-0000-4000-8000-000000001965' WHERE id = '00000000-0000-4000-8000-000000001961';
 DO $$ BEGIN RAISE NOTICE 'PASS P2: a pending payment posts with its effective date and method (CI-058)'; END $$;
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
 VALUES ('00000000-0000-4000-8000-000000001963', '00000000-0000-4000-8000-0000000019a1', 'P-V', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-05', 10, 'check', 'pending');
@@ -367,11 +372,23 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
                              source_system, provider_transaction_id)
 VALUES ('00000000-0000-4000-8000-000000001962', '00000000-0000-4000-8000-0000000019a1', 'P-2', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-06', 20, 'ach',
         DATE '2026-02-06', 'bank_settlement', 'paymentus_webhook', 'TXN-1');
+-- v5.4.2-23: P-2's refund (P6b below) draws on it while it is posted (R-06),
+-- and its move to nsf names the nsf ledger row reversing its posting (Q1 (a)).
+INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
+                             source_system, provider_transaction_id, refunds_payment_id)
+VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', -20, 'refund',
+        DATE '2026-02-07', 'bank_settlement', 'paymentus_webhook', 'TXN-1', '00000000-0000-4000-8000-000000001962');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-000000001966', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-06',
+   'payment', 'P-2', -20, 'payment', '00000000-0000-4000-8000-000000001962');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES
+  ('00000000-0000-4000-8000-000000001967', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-10',
+   'nsf', 'P-2 returned', 20, 'payment', '00000000-0000-4000-8000-000000001962', '00000000-0000-4000-8000-000000001966');
 SELECT pg_temp.refuses('P5 an ACH return with no return code',
-  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-02-10' WHERE id = '00000000-0000-4000-8000-000000001962'$q$, '23514');
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-02-10', status_cause_id = '00000000-0000-4000-8000-000000001967' WHERE id = '00000000-0000-4000-8000-000000001962'$q$, '23514');
 SELECT pg_temp.refuses('P5b a return code not of NACHA form',
-  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-02-10', return_code = 'insufficient' WHERE id = '00000000-0000-4000-8000-000000001962'$q$, '23514');
-UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-02-10', return_code = 'R01' WHERE id = '00000000-0000-4000-8000-000000001962';
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-02-10', return_code = 'insufficient', status_cause_id = '00000000-0000-4000-8000-000000001967' WHERE id = '00000000-0000-4000-8000-000000001962'$q$, '23514');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-02-10', return_code = 'R01', status_cause_id = '00000000-0000-4000-8000-000000001967' WHERE id = '00000000-0000-4000-8000-000000001962';
 DO $$ BEGIN RAISE NOTICE 'PASS P5c: an ACH return records its NACHA code (CI-052)'; END $$;
 SELECT pg_temp.refuses('P5d a return code rewritten',
   $q$UPDATE public.payments SET return_code = 'R10' WHERE id = '00000000-0000-4000-8000-000000001962'$q$, '23001');
@@ -381,10 +398,6 @@ SELECT pg_temp.refuses('P6 the same processor transaction posted twice',
                                   source_system, provider_transaction_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-3', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-06', 20, 'ach',
              DATE '2026-02-06', 'bank_settlement', 'paymentus_webhook', 'TXN-1')$q$, '23505');
-INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
-                             source_system, provider_transaction_id, refunds_payment_id)
-VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', -20, 'refund',
-        DATE '2026-02-07', 'bank_settlement', 'paymentus_webhook', 'TXN-1', '00000000-0000-4000-8000-000000001962');
 INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
                              source_system, provider_transaction_id)
 VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-5', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-06', 20, 'credit_card',
@@ -414,7 +427,9 @@ SELECT pg_temp.refuses_at('P7c the same refund delivered twice',
 INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
                              source_system, provider_transaction_id, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4c', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-08', -5, 'refund',
-        DATE '2026-02-08', 'bank_settlement', 'paymentus_webhook', 'RFND-7', '00000000-0000-4000-8000-000000001962');
+        DATE '2026-02-08', 'bank_settlement', 'paymentus_webhook', 'RFND-7', '00000000-0000-4000-8000-000000001961');
+-- v5.4.2-23 (R-06): of P-1, which is posted and has room; P-2 is fully
+-- refunded and then returned, so nothing more is drawn on it.
 DO $$ BEGIN RAISE NOTICE 'PASS P7d: a further (partial) refund under its own processor id is recorded'; END $$;
 SELECT pg_temp.refuses_at('P7e a negative row with no lineage delivered twice',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
@@ -430,31 +445,35 @@ SELECT pg_temp.refuses_at('P9b a replacement for another customer''s bounced pay
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, nsf_original_payment_id)
      VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-9b', '00000000-0000-4000-8000-0000000019c2', DATE '2026-02-12', 20, 'check',
              DATE '2026-02-12', 'postmark', '00000000-0000-4000-8000-000000001962')$q$, '23503', 'is not a payment of this customer');
--- r4 (Codex B1, Opus S1): the parent side. A refund cites C1's payment
--- while it is still pending; the payment may not then move to C2.
+-- r4 (Codex B1, Opus S1): the parent side. A refund cites C1's payment;
+-- the payment may not then move to C2. v5.4.2-23 (R-05, M2): a payment's
+-- customer and lineage are fixed from insert, so every move below is refused
+-- by the payment's own guard (23001) before the FK would see it; and a refund
+-- draws on a posted payment (R-06), so R4-PARENT is posted.
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status, effective_date, effective_date_method)
+VALUES ('00000000-0000-4000-8000-0000000019f8', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'posted', DATE '2026-02-01', 'postmark');
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
-VALUES ('00000000-0000-4000-8000-0000000019f8', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending'),
-       ('00000000-0000-4000-8000-0000000019f9', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT2', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending'),
+VALUES ('00000000-0000-4000-8000-0000000019f9', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT2', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending'),
        ('00000000-0000-4000-8000-0000000019fa', '00000000-0000-4000-8000-0000000019a1', 'R4-LONE', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending');
 INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-0000000019a1', 'R4-REFUND', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-02', -5, 'refund', DATE '2026-02-02', 'other', '00000000-0000-4000-8000-0000000019f8');
 INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, nsf_original_payment_id)
 VALUES ('00000000-0000-4000-8000-0000000019a1', 'R4-REPL', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-02', 20, 'check', DATE '2026-02-02', 'postmark', '00000000-0000-4000-8000-0000000019f9');
 SELECT pg_temp.refuses_at('P9c a refunded payment moved to another customer',
-  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019f8'$q$, '23503', 'payments_refunds_payment_id_fkey');
+  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019f8'$q$, '23001', 'is written once');
 SELECT pg_temp.refuses_at('P9d a replaced (bounced) payment moved to another customer',
-  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019f9'$q$, '23503', 'payments_nsf_original_payment_id_fkey');
-UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019fa';
-DO $$ BEGIN RAISE NOTICE 'PASS P9e: a pending payment nothing cites may still be corrected to another customer'; END $$;
+  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019f9'$q$, '23001', 'is written once');
+SELECT pg_temp.refuses_at('P9e (v5.4.2-23: was admitted) a pending payment nothing cites is not moved to another customer either — void it and post a new one',
+  $q$UPDATE public.payments SET customer_id = '00000000-0000-4000-8000-0000000019c2' WHERE id = '00000000-0000-4000-8000-0000000019fa'$q$, '23001', 'is written once');
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-0000000019fc', '00000000-0000-4000-8000-0000000019a1', 'R4-PEND-REF', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-03', -5, 'refund', 'pending', '00000000-0000-4000-8000-0000000019f8');
 SELECT pg_temp.refuses_at('P9g a pending refund retargeted at another customer''s payment',
-  $q$UPDATE public.payments SET refunds_payment_id = '00000000-0000-4000-8000-0000000019fa' WHERE id = '00000000-0000-4000-8000-0000000019fc'$q$, '23503', 'is not a payment of this customer');
+  $q$UPDATE public.payments SET refunds_payment_id = '00000000-0000-4000-8000-0000000019fa' WHERE id = '00000000-0000-4000-8000-0000000019fc'$q$, '23001', 'is written once');
 -- An existing row is visible and of its own customer, so only the CHECK
 -- refuses a pending refund pointed at itself (an INSERT is refused earlier,
 -- by the lineage trigger: the row does not exist yet).
 SELECT pg_temp.refuses_at('P9f a pending refund pointed at itself',
-  $q$UPDATE public.payments SET refunds_payment_id = '00000000-0000-4000-8000-0000000019fc' WHERE id = '00000000-0000-4000-8000-0000000019fc'$q$, '23514', 'payments_lineage_not_self_check');
+  $q$UPDATE public.payments SET refunds_payment_id = '00000000-0000-4000-8000-0000000019fc' WHERE id = '00000000-0000-4000-8000-0000000019fc'$q$, '23001', 'is written once');
 RESET ROLE;
 
 
@@ -508,8 +527,8 @@ RESET ROLE;
 
 
 -- ====================================================================== L. logs
-INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, remaining_amount)
-VALUES ('00000000-0000-4000-8000-000000001981', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', 'goodwill', 10, 10);
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount)
+VALUES ('00000000-0000-4000-8000-000000001981', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', 'goodwill', 10);
 SET ROLE tally_app;
 INSERT INTO public.dunning_events (id, tenant_id, invoice_id, customer_id, event_type, created_at)
 VALUES ('00000000-0000-4000-8000-000000001982', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001901', '00000000-0000-4000-8000-0000000019c1', 'reminder_sent', TIMESTAMPTZ '2020-01-01 00:00Z');
@@ -735,7 +754,9 @@ INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, tra
   ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-01-31', 'adjustment', 'late', -10.00, TIMESTAMPTZ '2026-03-01 00:00Z');
 SET ROLE tally_app;
 DO $$ BEGIN
-  IF public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-12-31', TIMESTAMPTZ '2026-12-31 00:00Z') IS DISTINCT FROM 50.00
+  -- v5.4.2-23: 40, not 50 — P-1's posting entry (-10) and P-2's posting and
+  -- its nsf reversal (-20, +20) are C1's too (section P names them).
+  IF public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-12-31', TIMESTAMPTZ '2026-12-31 00:00Z') IS DISTINCT FROM 40.00
      OR public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-01-31', TIMESTAMPTZ '2026-12-31 00:00Z') IS DISTINCT FROM 90.00
      OR public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-01-31', TIMESTAMPTZ '2026-02-15 00:00Z') IS DISTINCT FROM 100.00
      OR public.account_balance_as_of('00000000-0000-4000-8000-0000000019c2', DATE '2026-12-31', now()) IS DISTINCT FROM 1.00

@@ -325,12 +325,12 @@ SELECT pg_temp.refuses_at('F2e a payment moved to another tenant leaves the clos
   '23514', 'a closed period is frozen');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b1', true);
 SELECT pg_temp.refuses_at('F3 a customer credit issued in the closed period',
-  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, remaining_amount, issued_date)
-     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', 'goodwill', 5, 5, DATE '2026-01-31')$q$,
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', 'goodwill', 5, DATE '2026-01-31')$q$,
   '23514', 'a closed period is frozen');
 SELECT pg_temp.admits('F3b and one issued after',
-  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, remaining_amount, issued_date)
-     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', 'goodwill', 5, 5, DATE '2026-02-01')$q$);
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', 'goodwill', 5, DATE '2026-02-01')$q$);
 RESET ROLE;
 SELECT pg_temp.refuses_at('F4 the owner is frozen out too',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount)
@@ -362,7 +362,7 @@ SELECT pg_temp.refuses_at('R2 it names a write_off, not a charge',
 SELECT pg_temp.refuses_at('R3 of its own customer',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-10', 'write_off_recovery', 'r', 10, '00000000-0000-4000-8000-0000000022e4', 'paid')$q$,
-  '23503', 'names a write_off entry');
+  '23503', 'account_ledger_reverses_ledger_entry_fkey');  -- v5.4.2-23 (X1b): the FK keeps a reversal within its customer
 SELECT pg_temp.refuses_at('R4 with the opposite sign',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-02-10', 'write_off_recovery', 'r', -10, '00000000-0000-4000-8000-0000000022e4', 'paid')$q$,
@@ -425,7 +425,7 @@ SELECT pg_temp.admits('R9c a recovery listed before its write-off in one stateme
 SELECT pg_temp.refuses_at('R10 a row naming the recovery is netted into the write-off: +70 would make 110 of 100',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-15', 'adjustment', 'more', 70, '00000000-0000-4000-8000-000000002252', 'x')$q$,
-  '23514', 'R-02 cap');
+  '23514', 'opposite sign');  -- v5.4.2-23 (X2): a row naming the +40 recovery reverses it, so it is negative; caught by the sign before the cap
 SELECT pg_temp.refuses_at('R10b nor below nothing recovered: -50 would make -10',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-15', 'adjustment', 'less', -50, '00000000-0000-4000-8000-000000002252', 'x')$q$,
@@ -440,16 +440,13 @@ SELECT pg_temp.refuses_at('R10e and not a cent more',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-16', 'write_off_recovery', 'x', 0.01, '00000000-0000-4000-8000-000000002251', 'x')$q$,
   '23514', 'R-02 cap');
-SELECT pg_temp.refuses_at('R10f another customer''s row naming into the tree stands alone: with it in, C5''s cap still nets 99 of 100 (rolled back by a sentinel)',
-  $q$DO $d$ BEGIN
-     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-16', 'adjustment', 'C1 row', 5, '00000000-0000-4000-8000-000000002252', 'x');
-     -- a C5 row runs C5's cap over the tree that now holds the C1 row: 100 - 1 = 99, not 104
-     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-16', 'adjustment', 'C5 row', -1, '00000000-0000-4000-8000-000000002252', 'x');
-     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R10f sentinel: admitted';
-   END $d$$q$,
-  'P0001', 'R10f sentinel');
+-- v5.4.2-23 (X1b): a reversal names an entry of its own customer, so another
+-- customer's row cannot join a tree; the -22 rule that let it stand alone is
+-- replaced by the FK.
+SELECT pg_temp.refuses_at('R10f another customer''s row cannot name into the tree (X1b)',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-16', 'adjustment', 'C1 row', -5, '00000000-0000-4000-8000-000000002252', 'x')$q$,
+  '23503', 'account_ledger_reverses_ledger_entry_fkey');
 -- r3 (mutation M57 hung the run): each walk step is an index lookup, not a
 -- scan of the customer's ledger. A 300-deep tree in one statement is quick.
 -- A statement timeout escapes WHEN OTHERS, so this check names it.
@@ -462,46 +459,46 @@ DO $d$ BEGIN
            CASE WHEN i = 0 THEN -1000 WHEN i % 2 = 1 THEN 1 ELSE -1 END,
            CASE WHEN i = 0 THEN NULL ELSE ('00000000-0000-4000-9023-' || lpad((i - 1)::text, 12, '0'))::uuid END,
            CASE WHEN i = 0 THEN NULL ELSE 'deep' END
-      FROM generate_series(0, 300) i;
+      FROM generate_series(0, 63) i;  -- v5.4.2-23: the depth bound is 64
     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R10g sentinel';
   EXCEPTION
     WHEN query_canceled THEN
-      RAISE EXCEPTION 'FAIL R10g: a 300-deep tree did not finish within 30 s';
+      RAISE EXCEPTION 'FAIL R10g: a 63-deep tree did not finish within 30 s';
     WHEN OTHERS THEN
       IF SQLERRM <> 'R10g sentinel' THEN
         RAISE EXCEPTION 'FAIL R10g: refused with % (%)', SQLSTATE, SQLERRM;
       END IF;
   END;
-  RAISE NOTICE 'PASS R10g a 300-deep tree under one write-off, in one statement, is admitted within 30 s (rolled back)';
+  RAISE NOTICE 'PASS R10g a 63-deep tree under one write-off, in one statement, is admitted within 30 s (rolled back)';
 END $d$;
 RESET statement_timeout;
-SELECT pg_temp.refuses_at('R11 a chain that does not reach an original within 1000 entries is refused (a ring of 1001)',
+SELECT pg_temp.refuses_at('R11 a chain that does not reach an original within 64 entries is refused (a ring of 65; v5.4.2-23: the bound was 1000)',
   $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      SELECT ('00000000-0000-4000-9022-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'ring', 1,
-            ('00000000-0000-4000-9022-' || lpad((i % 1001 + 1)::text, 12, '0'))::uuid, 'ring'
-       FROM generate_series(1, 1001) i$q$,
+            ('00000000-0000-4000-9022-' || lpad((i % 65 + 1)::text, 12, '0'))::uuid, 'ring'
+       FROM generate_series(1, 65) i$q$,
   '23514', 'does not reach an original');
 -- r6 (Codex S2): the bound's edge, as maintained checks. A chain of exactly
 -- 1000 entries from its original is admitted; the 1001st entry is refused.
-SELECT pg_temp.refuses_at('R11b a chain of exactly 1000 entries from its original is admitted (rolled back by a sentinel)',
+SELECT pg_temp.refuses_at('R11b a chain of exactly 64 entries from its original is admitted (rolled back by a sentinel)',
   $q$DO $d$ BEGIN
      INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', 1,
+     SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', CASE WHEN i % 2 = 1 THEN 1 ELSE -1 END,  -- v5.4.2-23 (X2): signs alternate down a chain
             CASE WHEN i = 1 THEN NULL ELSE ('00000000-0000-4000-9024-' || lpad((i - 1)::text, 12, '0'))::uuid END,
             CASE WHEN i = 1 THEN NULL ELSE 'chain' END
-       FROM generate_series(1, 1000) i;
+       FROM generate_series(1, 64) i;
      RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R11b sentinel: admitted';
    END $d$$q$,
   'P0001', 'R11b sentinel');
-SELECT pg_temp.refuses_at('R11c and the 1001st entry of that chain is refused',
+SELECT pg_temp.refuses_at('R11c and the 65th entry of that chain is refused',
   $q$DO $d$ BEGIN
      INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', 1,
+     SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', CASE WHEN i % 2 = 1 THEN 1 ELSE -1 END,  -- v5.4.2-23 (X2): signs alternate down a chain
             CASE WHEN i = 1 THEN NULL ELSE ('00000000-0000-4000-9024-' || lpad((i - 1)::text, 12, '0'))::uuid END,
             CASE WHEN i = 1 THEN NULL ELSE 'chain' END
-       FROM generate_series(1, 1000) i;
+       FROM generate_series(1, 64) i;
      INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', '1001st', 1, '00000000-0000-4000-9024-000000001000', 'chain');
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', '65th', 1, '00000000-0000-4000-9024-000000000064', 'chain');
    END $d$$q$,
   '23514', 'does not reach an original');
 -- r4 (Opus B1): aging nets the tree at a date, so the cap holds at every date.
@@ -549,34 +546,32 @@ SELECT pg_temp.refuses_at('R12n a nested write-off caps its own tree, and the ou
        ('00000000-0000-4000-8000-000000002274', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off_recovery', 'inner recovery', 30, '00000000-0000-4000-8000-000000002273', 'paid');
      BEGIN
        INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
-         ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'adjustment', 'inner overflow', 1, '00000000-0000-4000-8000-000000002274', 'x');
+         ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off_recovery', 'inner overflow', 1, '00000000-0000-4000-8000-000000002273', 'x');  -- v5.4.2-23 (X2): a second recovery, not a same-sign row under the first
        RAISE EXCEPTION 'R12n: the inner write-off''s 31 of 30 was admitted';
      EXCEPTION WHEN check_violation THEN
-       IF strpos(SQLERRM, 'write-off 00000000-0000-4000-8000-000000002273: on 2026-02-01') = 0 THEN RAISE; END IF;
+       IF strpos(SQLERRM, 'entry 00000000-0000-4000-8000-000000002273 (write_off, -30.00): on 2026-02-01') = 0 THEN RAISE; END IF;
      END;
      BEGIN
        INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
-         ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'adjustment', 'outer overflow', 21, '00000000-0000-4000-8000-000000002272', 'x');
+         ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off_recovery', 'outer overflow', 21, '00000000-0000-4000-8000-000000002271', 'x');  -- v5.4.2-23 (X2): a second recovery of the outer write-off
        RAISE EXCEPTION 'R12n: the outer write-off''s 101 of 100 was admitted';
      EXCEPTION WHEN check_violation THEN
-       IF strpos(SQLERRM, 'write-off 00000000-0000-4000-8000-000000002271: on 2026-02-01') = 0 THEN RAISE; END IF;
+       IF strpos(SQLERRM, 'entry 00000000-0000-4000-8000-000000002271 (write_off, -100.00): on 2026-02-01') = 0 THEN RAISE; END IF;
      END;
      RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R12n sentinel: both caps held';
    END $d$$q$,
   'P0001', 'R12n sentinel');
-SELECT pg_temp.refuses_at('R12o a walk that leaves the customer and returns is a new root: C1''s row and the C5 row naming it stay outside the tree (rolled back by a sentinel)',
+-- v5.4.2-23 (X1b): a walk can no longer leave the customer — the row that
+-- would leave it is refused by the FK.
+SELECT pg_temp.refuses_at('R12o a row of another customer naming a C5 recovery is refused (X1b)',
   $q$DO $d$ BEGIN
      INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
        ('00000000-0000-4000-8000-000000002271', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off', 'written off', -100, NULL, NULL),
        ('00000000-0000-4000-8000-000000002272', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'write_off_recovery', 'recovered', 80, '00000000-0000-4000-8000-000000002271', 'paid');
      INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
-       ('00000000-0000-4000-8000-000000002275', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-01', 'adjustment', 'other customer', 500, '00000000-0000-4000-8000-000000002272', 'x');
-     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
-       ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'adjustment', 'back to C5', 500, '00000000-0000-4000-8000-000000002275', 'x'),
-       ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-01', 'adjustment', 'the tree at 100 of 100', 20, '00000000-0000-4000-8000-000000002272', 'x');
-     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R12o sentinel: admitted';
+       ('00000000-0000-4000-8000-000000002275', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-01', 'adjustment', 'other customer', -50, '00000000-0000-4000-8000-000000002272', 'x');
    END $d$$q$,
-  'P0001', 'R12o sentinel');
+  '23503', 'account_ledger_reverses_ledger_entry_fkey');
 -- r6 (Codex S2): an app writer's chosen recorded time is the database's: a
 -- recovery supplying infinity is stamped at its transaction's start.
 SELECT pg_temp.refuses_at('R12m an app writer''s supplied infinity is stamped at its transaction''s start, and admitted (rolled back by a sentinel)',
@@ -733,16 +728,18 @@ SELECT pg_temp.ok('W6 a zero balance is omitted: C3 (written off 50, recovered 5
 INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
   ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c3', DATE '2026-03-05', 'payment', 'C3 overpays', -25.00);
 -- A row the owner records "later": invisible at an earlier recorded instant.
+-- v5.4.2-23: every ledger row is recorded at a time already reached, so
+-- "later" is the statement's clock, after this transaction's start (now()).
 INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, created_at) VALUES
-  ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-03-10', 'charge', 'C1 later', 9.00, now() + interval '1 day');
+  ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-03-10', 'charge', 'C1 later', 9.00, clock_timestamp());
 SELECT pg_temp.ok('W7 a credit balance is one row with no bucket',
   (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount))
      FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
     WHERE customer_number = 'B22-C3') = '[[-25.00, null, -25.00]]'::jsonb);
 SELECT pg_temp.ok('W8 the recorded coordinate: a row recorded after it is not seen, then is',
-  (SELECT sum(amount) FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
+  (SELECT sum(amount) FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', now())
     WHERE customer_number = 'B22-C1') = 21.00
-  AND (SELECT sum(amount) FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', now() + interval '2 days')
+  AND (SELECT sum(amount) FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
     WHERE customer_number = 'B22-C1') = 30.00);
 SELECT pg_temp.ok('W9 the date coordinate: on February 15, C1 owes 41 of January 5 (41 days) and 50 of February 10 (5 days)',
   (SELECT jsonb_agg(jsonb_build_array(bucket_index, amount) ORDER BY bucket_index)
@@ -775,12 +772,13 @@ SELECT pg_temp.ok('W11 a change is recorded in the configuration history',
   (SELECT new_value FROM public.tenant_configuration_history
     WHERE tenant_id = '00000000-0000-4000-8000-0000000022a1' AND config_key = 'receivables_aging_bucket_days'
     ORDER BY effective_from DESC, seq DESC LIMIT 1) = '[15, 45]'::jsonb);
+-- v5.4.2-23: at the transaction's start (now()), before W8's "later" row.
 SELECT pg_temp.ok('W12 aging reads the edges as recorded: C2''s 80 (120 days) and 5 (59 days) are both over 45',
   (SELECT jsonb_agg(jsonb_build_array(bucket_index, bucket_from_days, bucket_to_days, amount) ORDER BY bucket_index)
-     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
+     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', now())
     WHERE customer_number = 'B22-C2') = '[[2, 46, null, 85.00]]'::jsonb
   AND (SELECT jsonb_agg(jsonb_build_array(bucket_index, bucket_from_days, bucket_to_days, amount) ORDER BY bucket_index)
-     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
+     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', now())
     WHERE customer_number = 'B22-C1') = '[[2, 46, null, 21.00]]'::jsonb);
 SELECT pg_temp.ok('W12b explicit edges age by those edges, whatever is recorded',
   (SELECT jsonb_agg(jsonb_build_array(bucket_index, amount) ORDER BY bucket_index)
@@ -788,15 +786,13 @@ SELECT pg_temp.ok('W12b explicit edges age by those edges, whatever is recorded'
     WHERE customer_number = 'B22-C2') = '[[1, 5.00], [3, 80.00]]'::jsonb);
 
 
-INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
-  ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-03-15', 'adjustment', 'C1 names C2''s charge', -10.00, '00000000-0000-4000-8000-0000000022e1', 'misfiled');
-SELECT pg_temp.ok('W13 a reversal is netted only within its customer: C2 still owes December''s 80, C1''s 10 credit is aged balance-forward',
-  (SELECT jsonb_agg(jsonb_build_array(bucket_index, amount) ORDER BY bucket_index)
-     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
-    WHERE customer_number = 'B22-C2') = '[[2, 85.00]]'::jsonb
-  AND (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount) ORDER BY bucket_index)
-     FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
-    WHERE customer_number = 'B22-C1') = '[[11.00, 2, 11.00]]'::jsonb);
+-- v5.4.2-23 (X1b): a reversal names an entry of its own customer, so C1's
+-- row naming C2's charge is refused; -22's netting-within-customer rule has
+-- nothing left to net.
+SELECT pg_temp.refuses_at('W13 a reversal names an entry of its own customer (X1b)',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+  ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-03-15', 'adjustment', 'C1 names C2''s charge', -10.00, '00000000-0000-4000-8000-0000000022e1', 'misfiled')$q$,
+  '23503', 'account_ledger_reverses_ledger_entry_fkey');
 -- C4: a chain (charge X 60; -20 naming X; +5 naming the -20) and an early-
 -- dated reversal (-10 on March 1 naming charge Y of 30 on March 20).
 INSERT INTO public.customers (id, tenant_id, customer_number) VALUES
@@ -805,18 +801,24 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
   ('00000000-0000-4000-8000-0000000022ec', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-10', 'charge', 'X', 60.00, NULL, NULL),
   ('00000000-0000-4000-8000-0000000022ed', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-12', 'adjustment', 'X less 20', -20.00, '00000000-0000-4000-8000-0000000022ec', 'partly'),
   ('00000000-0000-4000-8000-0000000022ee', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-13', 'adjustment', 'undo 5 of it', 5.00, '00000000-0000-4000-8000-0000000022ed', 'over-credited'),
-  ('00000000-0000-4000-8000-0000000022ef', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-20', 'charge', 'Y', 30.00, NULL, NULL),
-  ('00000000-0000-4000-8000-0000000022f9', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-01', 'adjustment', 'Y less 10, dated early', -10.00, '00000000-0000-4000-8000-0000000022ef', 'agreed');
-SELECT pg_temp.ok('W14 a chain nets into its original, and a reversal dated before its original stands alone until the original is in the window',
+  ('00000000-0000-4000-8000-0000000022ef', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-20', 'charge', 'Y', 30.00, NULL, NULL);
+SELECT pg_temp.ok('W14 a chain nets into its original',
   (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount) ORDER BY bucket_index)
      FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-15', clock_timestamp())
-    WHERE customer_number = 'B22-C4') = '[[35.00, 0, 35.00]]'::jsonb
+    WHERE customer_number = 'B22-C4') = '[[45.00, 0, 45.00]]'::jsonb
   AND (SELECT jsonb_agg(jsonb_build_array(balance, bucket_index, amount) ORDER BY bucket_index)
      FROM public.receivables_aging_as_of('00000000-0000-4000-8000-0000000022a1', DATE '2026-03-31', clock_timestamp())
-    WHERE customer_number = 'B22-C4') = '[[65.00, 0, 20.00], [65.00, 1, 45.00]]'::jsonb);
+    WHERE customer_number = 'B22-C4') = '[[75.00, 0, 30.00], [75.00, 1, 45.00]]'::jsonb);
+-- v5.4.2-23 (X2; -22 residual R8 closed): every reversal is dated on or after
+-- the entry it names, not only one under a write-off.
+SELECT pg_temp.refuses_at('W14b a reversal dated before its original is refused',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
+  ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-01', 'adjustment', 'Y less 10, dated early', -10.00, '00000000-0000-4000-8000-0000000022ef', 'agreed')$q$,
+  '23514', 'dated on or after the entry it names');
 SELECT pg_temp.refuses_at('W16 should a loop ever be in the ledger (the loop guard disabled by the owner), aging raises rather than drop it',
   $q$DO $d$ BEGIN
        ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_lineage_acyclic;
+       ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_reversal;  -- v5.4.2-23: the cap would walk the loop too
        INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES
          ('00000000-0000-4000-8000-0000000022fa', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-21', 'adjustment', 'a', 100, '00000000-0000-4000-8000-0000000022fb', 'loop'),
          ('00000000-0000-4000-8000-0000000022fb', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c4', DATE '2026-03-21', 'adjustment', 'b', -40, '00000000-0000-4000-8000-0000000022fa', 'loop');
@@ -957,9 +959,17 @@ SELECT pg_temp.ok('C17 February opens at January''s closing balance, and the hea
 SELECT pg_temp.ok('C18 February''s closing balance is the ledger''s through February 28',
   (SELECT closing_balance FROM public.accounting_period_snapshots WHERE period_id = '00000000-0000-4000-8000-000000002212')
   = (SELECT sum(amount) FROM public.account_ledger WHERE tenant_id = '00000000-0000-4000-8000-0000000022a1' AND transaction_date <= DATE '2026-02-28'));
+-- v5.4.2-23: every ledger row is now recorded at a time already reached, so
+-- the row C19 needs (recorded after the close's instant) can only be one that
+-- predates the rule; the owner plants it with the rule's trigger off. The
+-- close's own refusal is the defence this checks.
+ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_reversal;
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, created_at) VALUES
+  ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-03-10', 'charge', 'C1 recorded tomorrow', 0.01, now() + interval '1 day');
+ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_reversal;
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b4', true);
-SELECT pg_temp.refuses_at('C19 a close refuses while a row it would freeze is recorded after its instant (W8''s "later" row, March 10)',
+SELECT pg_temp.refuses_at('C19 a close refuses while a row it would freeze is recorded after its instant (a row recorded tomorrow, March 10)',
   $q$SELECT public.close_accounting_period('00000000-0000-4000-8000-000000002214')$q$,
   '23514', 'recorded after the close''s instant');
 SELECT pg_temp.refuses_at('P9e a closed period is not withdrawn',

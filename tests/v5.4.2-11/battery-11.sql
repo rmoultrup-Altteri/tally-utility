@@ -59,8 +59,8 @@ BEGIN
                                replaces_invoice_id, invoice_date, billing_period, period_start, period_end, due_date)
   VALUES (p_id, p_tenant, p_num, p_run, p_cust, p_loc, p_type, p_replaces, p_pe + 1, to_char(p_pe, 'YYYY-MM'), p_ps, p_pe, p_pe + 21);
   -- v5.4.2-21 (CI-016): a base line carries its rate at issue.
-  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate)
-  VALUES (p_tenant, p_id, 'gas', 'base_charge', 'Customer charge', 12.50, 12.50);
+  INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate, regulatory_class)
+  VALUES (p_tenant, p_id, 'gas', 'base_charge', 'Customer charge', 12.50, 12.50, 'regulated');
 END $$;
 
 GRANT EXECUTE ON FUNCTION pg_temp.inv(uuid, text, uuid, uuid, uuid, uuid, text, uuid, date, date) TO tally_app;

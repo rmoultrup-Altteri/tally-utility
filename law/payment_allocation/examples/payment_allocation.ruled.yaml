@@ -1,0 +1,8 @@
+# A fictional state that rules the order: regulated distribution first, then taxes, then the rest.
+governs: law
+citation: ZZ Admin. Code 9.1
+within_bill:
+  strategy: charge_type_order
+  version: 1
+  regulated: [base_charge, usage_charge, surcharge, tax, minimum_bill_adjustment, late_fee, penalty, deposit, adhoc, misc, adjustment, credit, consolidated_summary]
+  unregulated: []

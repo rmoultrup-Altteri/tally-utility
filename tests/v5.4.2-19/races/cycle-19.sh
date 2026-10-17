@@ -13,11 +13,9 @@
 #       supersession rewrites the predecessor even when nothing changes.
 #   C6  READ COMMITTED: the same; B re-reads, sees the successor, is refused.
 #   C7  both inactive predecessors stayed inactive.
-#   C8  (r4, Codex B1) A cites a pending payment in a refund and holds; B
-#       moves that payment to another customer, waits on A's key lock, then
-#       is refused (foreign_key_violation): a citation and a move serialise.
-#   C9  the reverse: A moves a pending payment and holds; B cites it for the
-#       old customer, waits on A, then is refused (foreign_key_violation).
+#   C8, C9  (r4, Codex B1; v5.4.2-23) a payment's customer and lineage are
+#       fixed from insert (R-05), so the move these legs raced is refused at
+#       once; they are one-session checks now.
 # Every leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids of B's backend contains A's, polled while A holds), so a
 # leg cannot pass by running sequentially. Setup failures exit 2.
@@ -129,12 +127,26 @@ check "C6 READ COMMITTED: reactivating an inactive method being superseded waits
 N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.payment_methods WHERE id IN ('$PM2', '$PM3') AND NOT is_active AND NOT is_default")
 if [ "$N" = "2" ]; then echo "PASS C7: both superseded methods stayed inactive"; else echo "FAIL C7: $N of 2 superseded methods inactive"; fail=1; fi
 
-refund="INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id) VALUES ('$T', 'R19-REF', '$C', DATE '2026-02-02', -5, 'refund', DATE '2026-02-02', 'other', '$PAY');"
-two "$refund" "READ COMMITTED" "UPDATE public.payments SET customer_id = '$C2' WHERE id = '$PAY';"
-check "C8 a payment moved to another customer while a refund cites it: the move waits, then is refused" "23503" "payments_refunds_payment_id_fkey"
-refund2="INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id) VALUES ('$T', 'R19-REF2', '$C', DATE '2026-02-02', -5, 'refund', DATE '2026-02-02', 'other', '$PAY2');"
-two "UPDATE public.payments SET customer_id = '$C2' WHERE id = '$PAY2';" "READ COMMITTED" "$refund2"
-check "C9 a refund citing a payment being moved: the citation waits, then is refused" "23503" "payments_refunds_payment_id_fkey"
+# v5.4.2-23 (R-05, M2): a payment's customer and lineage are fixed from
+# insert, so the move C8 and C9 raced is refused at once, by the payment's
+# own guard, whoever cites it; there is nothing left to serialise. The two
+# legs are one-session checks now (the draw on a payment is -23's race).
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$APP
+UPDATE public.payments SET customer_id = '$C2' WHERE id = '$PAY';
+ROLLBACK;
+SQL
+)
+if echo "$OUT" | grep -q "23001" && echo "$OUT" | grep -q "customer_id is written once"; then echo "PASS C8 a pending payment is never moved to another customer (v5.4.2-23: fixed from insert)"; else echo "FAIL C8: got $OUT"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$APP
+UPDATE public.payments SET refunds_payment_id = '$PAY' WHERE id = '$PAY2';
+ROLLBACK;
+SQL
+)
+if echo "$OUT" | grep -q "23001" && echo "$OUT" | grep -q "refunds_payment_id is written once"; then echo "PASS C9 nor given a lineage after insert (v5.4.2-23)"; else echo "FAIL C9: got $OUT"; fail=1; fi
 
 N=$("${PSQL[@]}" -c "SELECT count(*) FROM public.rate_item_dependencies WHERE rate_schedule_id = '$S'")
 if [ "$N" = "2" ]; then echo "PASS C4: exactly one half of each cycle was stored"; else echo "FAIL C4: $N dependencies stored, expected 2"; fail=1; fi
