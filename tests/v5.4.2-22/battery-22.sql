@@ -448,8 +448,11 @@ SELECT pg_temp.refuses_at('R10f another customer''s row cannot name into the tre
      VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c1', DATE '2026-02-16', 'adjustment', 'C1 row', -5, '00000000-0000-4000-8000-000000002252', 'x')$q$,
   '23503', 'account_ledger_reverses_ledger_entry_fkey');
 -- r3 (mutation M57 hung the run): each walk step is an index lookup, not a
--- scan of the customer's ledger. A 300-deep tree in one statement is quick.
+-- scan of the customer's ledger. A deep tree in one statement is quick.
 -- A statement timeout escapes WHEN OTHERS, so this check names it.
+-- v5.4.2-23: the cap nets every entry on each row's path, so a whole chain in
+-- one statement costs about the cube of its depth (300 takes ~7 s); 200 keeps
+-- the check well inside its 30 s.
 SET LOCAL statement_timeout = '30s';
 DO $d$ BEGIN
   BEGIN
@@ -459,48 +462,78 @@ DO $d$ BEGIN
            CASE WHEN i = 0 THEN -1000 WHEN i % 2 = 1 THEN 1 ELSE -1 END,
            CASE WHEN i = 0 THEN NULL ELSE ('00000000-0000-4000-9023-' || lpad((i - 1)::text, 12, '0'))::uuid END,
            CASE WHEN i = 0 THEN NULL ELSE 'deep' END
-      FROM generate_series(0, 63) i;  -- v5.4.2-23: the depth bound is 64
+      FROM generate_series(0, 199) i;
     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R10g sentinel';
   EXCEPTION
     WHEN query_canceled THEN
-      RAISE EXCEPTION 'FAIL R10g: a 63-deep tree did not finish within 30 s';
+      RAISE EXCEPTION 'FAIL R10g: a 200-deep tree did not finish within 30 s';
     WHEN OTHERS THEN
       IF SQLERRM <> 'R10g sentinel' THEN
         RAISE EXCEPTION 'FAIL R10g: refused with % (%)', SQLSTATE, SQLERRM;
       END IF;
   END;
-  RAISE NOTICE 'PASS R10g a 63-deep tree under one write-off, in one statement, is admitted within 30 s (rolled back)';
+  RAISE NOTICE 'PASS R10g a 200-deep tree under one write-off, in one statement, is admitted within 30 s (rolled back)';
 END $d$;
 RESET statement_timeout;
-SELECT pg_temp.refuses_at('R11 a chain that does not reach an original within 64 entries is refused (a ring of 65; v5.4.2-23: the bound was 1000)',
+SELECT pg_temp.refuses_at('R11 a chain that does not reach an original within 1000 entries is refused (a ring of 1001)',
   $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
      SELECT ('00000000-0000-4000-9022-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'ring', 1,
-            ('00000000-0000-4000-9022-' || lpad((i % 65 + 1)::text, 12, '0'))::uuid, 'ring'
-       FROM generate_series(1, 65) i$q$,
+            ('00000000-0000-4000-9022-' || lpad((i % 1001 + 1)::text, 12, '0'))::uuid, 'ring'
+       FROM generate_series(1, 1001) i$q$,
   '23514', 'does not reach an original');
 -- r6 (Codex S2): the bound's edge, as maintained checks. A chain of exactly
 -- 1000 entries from its original is admitted; the 1001st entry is refused.
-SELECT pg_temp.refuses_at('R11b a chain of exactly 64 entries from its original is admitted (rolled back by a sentinel)',
+-- v5.4.2-23: built in one statement the chain would take minutes (the cap's
+-- cube), so the owner plants the first 998 entries with the two chain guards
+-- off; the last entries are posted one statement each, as real corrections
+-- arrive, with the guards on: at 1000 deep each takes 0.3-0.8 s here, checked
+-- within 5 s; at 500 deep (R11d) within a second.
+RESET ROLE;
+CREATE FUNCTION pg_temp.plant_chain(p_n integer) RETURNS void LANGUAGE plpgsql AS $f$
+BEGIN
+  ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_lineage_acyclic;
+  ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_reversal;
+  INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+  SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', CASE WHEN i % 2 = 1 THEN 1 ELSE -1 END,  -- v5.4.2-23 (X2): signs alternate down a chain
+         CASE WHEN i = 1 THEN NULL ELSE ('00000000-0000-4000-9024-' || lpad((i - 1)::text, 12, '0'))::uuid END,
+         CASE WHEN i = 1 THEN NULL ELSE 'chain' END
+    FROM generate_series(1, p_n) i;
+  ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_lineage_acyclic;
+  ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_reversal;
+END $f$;
+-- Posts entry p_i of the chain, one statement, and fails past p_ms.
+CREATE FUNCTION pg_temp.post_link(p_i integer, p_ms integer) RETURNS void LANGUAGE plpgsql AS $f$
+DECLARE t0 timestamptz := clock_timestamp();
+BEGIN
+  INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+  VALUES (('00000000-0000-4000-9024-' || lpad(p_i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', CASE WHEN p_i % 2 = 1 THEN 1 ELSE -1 END,
+          ('00000000-0000-4000-9024-' || lpad((p_i - 1)::text, 12, '0'))::uuid, 'chain');
+  IF clock_timestamp() - t0 > make_interval(secs => p_ms / 1000.0) THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = format('entry %s took %s', p_i, clock_timestamp() - t0);
+  END IF;
+END $f$;
+SELECT pg_temp.refuses_at('R11b a chain of exactly 1000 entries from its original is admitted, the 999th and 1000th each checked within 5 s (rolled back by a sentinel)',
   $q$DO $d$ BEGIN
-     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', CASE WHEN i % 2 = 1 THEN 1 ELSE -1 END,  -- v5.4.2-23 (X2): signs alternate down a chain
-            CASE WHEN i = 1 THEN NULL ELSE ('00000000-0000-4000-9024-' || lpad((i - 1)::text, 12, '0'))::uuid END,
-            CASE WHEN i = 1 THEN NULL ELSE 'chain' END
-       FROM generate_series(1, 64) i;
+     PERFORM pg_temp.plant_chain(998);
+     PERFORM pg_temp.post_link(999, 5000);
+     PERFORM pg_temp.post_link(1000, 5000);
      RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R11b sentinel: admitted';
    END $d$$q$,
   'P0001', 'R11b sentinel');
-SELECT pg_temp.refuses_at('R11c and the 65th entry of that chain is refused',
+SELECT pg_temp.refuses_at('R11c and the 1001st entry of that chain is refused',
   $q$DO $d$ BEGIN
-     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     SELECT ('00000000-0000-4000-9024-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain', CASE WHEN i % 2 = 1 THEN 1 ELSE -1 END,  -- v5.4.2-23 (X2): signs alternate down a chain
-            CASE WHEN i = 1 THEN NULL ELSE ('00000000-0000-4000-9024-' || lpad((i - 1)::text, 12, '0'))::uuid END,
-            CASE WHEN i = 1 THEN NULL ELSE 'chain' END
-       FROM generate_series(1, 64) i;
-     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
-     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', '65th', 1, '00000000-0000-4000-9024-000000000064', 'chain');
+     PERFORM pg_temp.plant_chain(1000);
+     PERFORM pg_temp.post_link(1001, 60000);
    END $d$$q$,
   '23514', 'does not reach an original');
+SELECT pg_temp.refuses_at('R11d a correction at depth 500 is checked within a second (rolled back by a sentinel)',
+  $q$DO $d$ BEGIN
+     PERFORM pg_temp.plant_chain(499);
+     PERFORM pg_temp.post_link(500, 1000);
+     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R11d sentinel: admitted';
+   END $d$$q$,
+  'P0001', 'R11d sentinel');
+SET ROLE tally_app;
 -- r4 (Opus B1): aging nets the tree at a date, so the cap holds at every date.
 SELECT pg_temp.refuses_at('R12 a later-dated reversal makes no room for an earlier-dated recovery: on Feb 20 the tree would net 200 of 100',
   $q$DO $d$ BEGIN

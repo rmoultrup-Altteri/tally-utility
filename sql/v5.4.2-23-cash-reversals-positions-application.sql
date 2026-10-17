@@ -35,9 +35,7 @@
 --     before a row already in its tree (40001 retry; 23514 for a chosen
 --     time); every ledger row is recorded at a finite time already reached.
 --     A recovery still names a write_off, and only a recovery names one.
---   * A reversal tree is at most 64 deep (-22 walked 1000): the cap nets
---     every entry on a new row's path at every date, a cost of about the
---     cube of the depth for a chain posted in one statement (R1).
+--   * A reversal tree stays at most 1000 deep, as in -22 (R1).
 --   * void_invoice() reverses what is left of the bill's charge, under the
 --     head and the tree's lock; nothing left, no row (X3). -21's one void
 --     per entry stays (X4).
@@ -129,7 +127,12 @@
 -- ----------------------------------------------------------------------------
 -- Residuals (left on purpose)
 -- ----------------------------------------------------------------------------
---   R1. The depth bound is 64. A deeper correction is a new entry.
+--   R1. The depth bound stays 1000. The cap nets every entry on a new
+--       row's path at every date: one row appended at depth d costs about
+--       d squared (measured: 2 ms at 64, 70-170 ms at 500, 0.3-0.8 s at
+--       1000), and a whole chain posted in one statement about d cubed
+--       (200 deep about 2 s, 300 deep about 7 s). A deeper
+--       correction is a new entry.
 --   R2. A refund's status in a position is read as it is now (status has
 --       transaction time only), as -22 R4 reads a customer's.
 --   R3. Invoice status paid / partial stays app-written lifecycle (CI-012)
@@ -220,48 +223,10 @@ ALTER TABLE public.account_ledger
 DROP TRIGGER enforce_write_off_recovery ON public.account_ledger;
 DROP FUNCTION public.enforce_write_off_recovery();
 
--- The depth bound of a reversal tree: 64 (-22 walked 1000). The general cap
--- (below) nets every entry on a new row's path at every date, which costs
--- about the cube of the depth for a chain posted in one statement; no real
--- correction runs past a few levels, and a deeper one is a new entry.
-CREATE OR REPLACE FUNCTION public.enforce_ledger_lineage_acyclic() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path = public, pg_temp
-    SET enable_seqscan = off
-    SET enable_hashjoin = off
-    SET enable_mergejoin = off
-    AS $$
-DECLARE
-    c_max  CONSTANT integer := 64;  -- v5.4.2-23 (was 1000): the depth bound of a reversal tree
-    v_loop boolean;
-    v_long boolean;
-BEGIN
-    WITH RECURSIVE up(id, depth) AS (
-        SELECT NEW.reverses_ledger_entry_id, 1
-        UNION ALL
-        SELECT l.reverses_ledger_entry_id, u.depth + 1
-          FROM up u JOIN public.account_ledger l ON l.id = u.id
-         WHERE u.id <> NEW.id AND u.depth < c_max
-    )
-    SELECT coalesce(bool_or(up.id = NEW.id), false),
-           coalesce(bool_or(up.depth = c_max AND up.id IS NOT NULL AND up.id <> NEW.id), false)
-      INTO v_loop, v_long
-      FROM up;
-    IF v_loop THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('account_ledger %s: its reversal chain returns to itself; a reversal names an earlier entry (R-02, v5.4.2-22)', NEW.id),
-            ERRCODE = 'check_violation';
-    END IF;
-    IF v_long THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('account_ledger %s: its reversal chain does not reach an original within %s entries (too long, or a loop); a reversal names an earlier entry (R-02, v5.4.2-22)', NEW.id, c_max),
-            ERRCODE = 'check_violation';
-    END IF;
-    RETURN NULL;
-END;
-$$;
+-- The depth bound stays -22's 1000 (R1), and -22's lineage walk is unchanged;
+-- its comment named the recovery trigger dropped above.
 COMMENT ON FUNCTION public.enforce_ledger_lineage_acyclic() IS
-    'v5.4.2-22 r2, r3; v5.4.2-23 (the bound is 64). AFTER INSERT on account_ledger, for a row naming an entry: walks the chain of reverses_ledger_entry_id up from the new row and refuses it if the chain comes back to it (rows of one statement naming each other), or does not reach an original within 64 entries — a longer chain, or one entering a loop. A cycle has no original, so aging could not place its amount. Fires before enforce_write_off_recovery (trigger name order).';
+    'v5.4.2-22 r2, r3; v5.4.2-23 (comment only). AFTER INSERT on account_ledger, for a row naming an entry: walks the chain of reverses_ledger_entry_id up from the new row and refuses it if the chain comes back to it (rows of one statement naming each other), or (r3) does not reach an original within 1000 entries — a longer chain, or one entering a loop. A cycle has no original, so aging could not place its amount. Fires before enforce_ledger_reversal (trigger name order).';
 
 CREATE OR REPLACE FUNCTION public.ledger_tree_ids(p_root uuid) RETURNS uuid[]
     LANGUAGE sql STABLE
@@ -312,18 +277,18 @@ CREATE OR REPLACE FUNCTION public.ledger_tree_root(p_entry uuid) RETURNS uuid
     SET enable_mergejoin = off
     AS $$
     -- The root of p_entry's tree: follow the reversal link up until an entry
-    -- names nothing. Bounded as the lineage walk is (64).
+    -- names nothing. Bounded as the lineage walk is (1000).
     WITH RECURSIVE up(id, next_id, depth) AS (
         SELECT l.id, l.reverses_ledger_entry_id, 1 FROM public.account_ledger l WHERE l.id = p_entry
         UNION ALL
         SELECT l.id, l.reverses_ledger_entry_id, u.depth + 1
           FROM up u JOIN public.account_ledger l ON l.id = u.next_id
-         WHERE u.depth < 64
+         WHERE u.depth < 1000
     )
     SELECT u.id FROM up u WHERE u.next_id IS NULL
 $$;
 COMMENT ON FUNCTION public.ledger_tree_root(uuid) IS
-    'v5.4.2-23 (X2, X3). The root of a ledger entry''s tree (the entry itself when it names nothing). NULL for an unknown or invisible entry, or a chain past 64 (which the lineage walk refuses at insert). void_invoice() locks the root of the charge it reverses: a charge may itself name an entry (X1), and the lock is the tree''s.';
+    'v5.4.2-23 (X2, X3). The root of a ledger entry''s tree (the entry itself when it names nothing). NULL for an unknown or invisible entry, or a chain past 1000 (which the lineage walk refuses at insert). void_invoice() locks the root of the charge it reverses: a charge may itself name an entry (X1), and the lock is the tree''s.';
 REVOKE ALL ON FUNCTION public.ledger_tree_root(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ledger_tree_root(uuid) TO tally_app, tally_core, tally_void;
 
@@ -355,7 +320,7 @@ DECLARE
     v_on       date;
     v_later_id uuid;
     v_later_at timestamptz;
-    c_max      CONSTANT integer := 64;
+    c_max      CONSTANT integer := 1000;
 BEGIN
     -- -22 r5, made general: every row is recorded at a finite time already
     -- reached. A root recorded in the future would make every later row of

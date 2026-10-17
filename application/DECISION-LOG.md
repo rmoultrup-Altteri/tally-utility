@@ -6,6 +6,12 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-17 (-23 draft) — Ryan: a correction chain stays at most 1,000 deep
+
+**What:** -23's general reversal cap keeps -22's depth bound of 1,000 entries (a charge, a correction of it, a correction of that, and so on). Ryan: "yes, go with 1,000".
+
+*Why:* the draft proposed 64, on the evidence of -22's stress test, which posts a whole 1,000-deep chain in one statement and ran for over ten minutes (the cap costs about the cube of the depth that way). Ryan asked what is wrong with slow if deep chains are rare. Measured one correction at a time, as real postings arrive: about 2 ms at 64 deep, 70–170 ms at 500, and 0.3–0.8 s at 1,000. Separate corrections to one charge stay near 1 ms at 500, because they don't add depth. So the bound costs nothing in practice. *Not 64:* it would refuse chains for no real gain, and lowering a bound later is the hard direction. A correction past 1,000 is refused and posted as a new, unlinked entry. *Tests:* -22's R11b and R11c plant the first entries with the chain guards off, then post the last ones live within 5 s; R11d checks depth 500 within 1 s; R10g builds a 200-deep chain in one statement, within 30 s.
+
 ## 2026-10-16 (-23 triage) — Ryan: cash goes out as two patches; four calls settled by standing rule
 
 **What:** cash, planned as one patch (-23), is split by migration cost.
