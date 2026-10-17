@@ -385,6 +385,13 @@ BEGIN
     -- One lock per tree, on its root (the last on the path). Taken after the
     -- tenant's close head, which the freeze locked before the row went in.
     SELECT * INTO v_root FROM public.account_ledger l WHERE l.id = v_path[cardinality(v_path)];
+    -- Fail closed: a walk that stopped at its bound has not found the root,
+    -- and a cap and lock taken on the wrong entry would hold nothing.
+    IF v_root.reverses_ledger_entry_id IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('account_ledger %s: its reversal chain does not reach an original within %s entries (R-02, v5.4.2-23)', NEW.id, c_max),
+            ERRCODE = 'check_violation';
+    END IF;
     PERFORM pg_catalog.pg_advisory_xact_lock(public.ledger_tree_lock_key(v_root.id));
     -- The root's whole tree, walked once: each row with the entries above it
     -- (the root included). Each step is found by the reversal link alone.

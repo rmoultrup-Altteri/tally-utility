@@ -15,7 +15,9 @@
 #        on the tree's lock, then is refused (R-02 cap).
 #   CR6  A reverses 30 of a bill's charge and holds; B voids the bill: waits
 #        on the tree's lock, then reverses the 60 left (X3), not 90.
-#   CR7  An application and a reversal under REPEATABLE READ are refused.
+#   CR7  An application and a reversal under REPEATABLE READ are refused,
+#        each by its own pin (the application is an operator's choice: a
+#        rule-chosen one meets rule_row_cite's pin first).
 #   CR8  A refunds 30 of a 50 payment and holds; B applies 30 of it: waits,
 #        then is refused (the payment's money goes three ways, never past it).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
@@ -226,11 +228,11 @@ expect "CR6b the void reversed 60, not 90" \
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ;
 $AS_OP
-$(apply "$P8" "$L32" "$I3" 1)
+INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by, reason) VALUES ('$T', '$C', '$I3', '$L32', '$P8', 1, DATE '2026-03-07', 'operator_override', '$OP', 'race');
 COMMIT;
 SQL
 )
-if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "READ COMMITTED"; then echo "PASS CR7 an application under REPEATABLE READ is refused"; else echo "FAIL CR7: $OUT"; fail=1; fi
+if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a row drawing on"; then echo "PASS CR7 an application under REPEATABLE READ is refused"; else echo "FAIL CR7: $OUT"; fail=1; fi
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ;
 $AS_OP
@@ -238,7 +240,7 @@ $(reverse "$CH" -1 'RR')
 COMMIT;
 SQL
 )
-if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "READ COMMITTED"; then echo "PASS CR7b a reversal under REPEATABLE READ is refused"; else echo "FAIL CR7b: $OUT"; fail=1; fi
+if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a reversal is posted at READ COMMITTED"; then echo "PASS CR7b a reversal under REPEATABLE READ is refused"; else echo "FAIL CR7b: $OUT"; fail=1; fi
 
 # CR8
 REFUND="INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id) VALUES ('$T', 'R23-REF', '$C', DATE '2026-03-06', -30, 'refund', DATE '2026-03-06', 'other', '$P7');"

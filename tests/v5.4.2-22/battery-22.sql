@@ -533,6 +533,29 @@ SELECT pg_temp.refuses_at('R11d a correction at depth 500 is checked within a se
      RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'R11d sentinel: admitted';
    END $d$$q$,
   'P0001', 'R11d sentinel');
+-- v5.4.2-23: the cap holds at the root through the whole depth. A root of 10
+-- with a sibling of -1 under it and a chain of -10, +10, ... below: every
+-- entry of the chain stays within its own cap, but the 1000th entry (-10)
+-- brings the root's tree to -11. A walk that stopped short of the root would
+-- miss it (or, failing closed, refuse it as too long).
+SELECT pg_temp.refuses_at('R11e the cap holds at the root of a 1000-deep chain (10, then -1 beside a chain netting -10: -11)',
+  $q$DO $d$ BEGIN
+     ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_lineage_acyclic;
+     ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_reversal;
+     INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     SELECT ('00000000-0000-4000-9025-' || lpad(i::text, 12, '0'))::uuid, '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'chain',
+            CASE WHEN i = 1 THEN 10 WHEN i % 2 = 0 THEN -10 ELSE 10 END,
+            CASE WHEN i = 1 THEN NULL ELSE ('00000000-0000-4000-9025-' || lpad((i - 1)::text, 12, '0'))::uuid END,
+            CASE WHEN i = 1 THEN NULL ELSE 'chain' END
+       FROM generate_series(1, 999) i;
+     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', 'sibling', -1, '00000000-0000-4000-9025-000000000001', 'sibling');
+     ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_lineage_acyclic;
+     ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_reversal;
+     INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+     VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c5', DATE '2026-02-17', 'adjustment', '1000th', -10, '00000000-0000-4000-9025-000000000999', 'chain');
+   END $d$$q$,
+  '23514', 'entry 00000000-0000-4000-9025-000000000001 (adjustment, 10.00)');
 SET ROLE tally_app;
 -- r4 (Opus B1): aging nets the tree at a date, so the cap holds at every date.
 SELECT pg_temp.refuses_at('R12 a later-dated reversal makes no room for an earlier-dated recovery: on Feb 20 the tree would net 200 of 100',

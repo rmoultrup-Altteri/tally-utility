@@ -141,9 +141,9 @@ SELECT pg_temp.refuses_at('T4 the shape admits no other class order: an "order" 
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'TX', 'gas', 'distribution', DATE '2026-01-01', 'City tariff 7', 'payment_allocation_tariff', 1,
              '{"citation": "City tariff 7", "within_bill": {"strategy": "charge_type_order", "version": 1, "order": ["unregulated", "regulated"], "regulated": [], "unregulated": []}}')$q$,
   '23514', 'payment_allocation_tariff');
-SELECT pg_temp.admits('T5 the utility''s own complete order, regulated first',
-  $q$INSERT INTO public.payment_allocation_tariffs (id, tenant_id, state_code, service_type, system_kind, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
-     VALUES ('00000000-0000-4000-8000-0000000023ab', '00000000-0000-4000-8000-0000000023a1', 'TX', 'gas', 'distribution', DATE '2026-01-01', 'City tariff 7', 'payment_allocation_tariff', 1,
+SELECT pg_temp.admits('T5 the utility''s own complete order, regulated first (in force January 1 to March 31)',
+  $q$INSERT INTO public.payment_allocation_tariffs (id, tenant_id, state_code, service_type, system_kind, effective_from, effective_to, tariff_reference, terms_kind, terms_version, terms_source)
+     VALUES ('00000000-0000-4000-8000-0000000023ab', '00000000-0000-4000-8000-0000000023a1', 'TX', 'gas', 'distribution', DATE '2026-01-01', DATE '2026-04-01', 'City tariff 7', 'payment_allocation_tariff', 1,
              '{"citation": "City tariff 7", "within_bill": {"strategy": "charge_type_order", "version": 1, "regulated": ["base_charge", "usage_charge", "surcharge", "minimum_bill_adjustment", "tax", "late_fee", "penalty", "deposit", "adjustment", "credit", "consolidated_summary"], "unregulated": ["adhoc", "misc"]}}')$q$);
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b2', true);
 SELECT pg_temp.refuses_at('T6 another utility writes no tariff for T1',
@@ -171,6 +171,11 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date)
 VALUES ('00000000-0000-4000-8000-000000002371', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', 'goodwill', 25, DATE '2026-03-02');
 RESET ROLE;
+-- K73: a credit of C1's loaded as voided (history), for A3k. K74: an active
+-- credit issued before the March 1 bills, for A3l.
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, status) VALUES
+  ('00000000-0000-4000-8000-000000002373', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', 'goodwill', 5, DATE '2026-03-02', 'voided'),
+  ('00000000-0000-4000-8000-000000002374', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', 'goodwill', 5, DATE '2026-02-20', 'active');
 
 
 -- ============================================================== A6 the restriction
@@ -240,6 +245,11 @@ SELECT pg_temp.refuses_at('A2f an undo is of the same source',
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002301', '00000000-0000-4000-8000-000000002311',
              '00000000-0000-4000-8000-000000002371', -10, DATE '2026-03-06', 'undo', '00000000-0000-4000-8000-000000002341', '00000000-0000-4000-8000-0000000023b1', 'keyed wrong')$q$,
   '23514', 'of the same source and line');
+SELECT pg_temp.refuses_at('A2i an undo is of the same payment (P4 for P1''s application)',
+  $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, undoes_application_id, applied_by, reason)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002301', '00000000-0000-4000-8000-000000002311',
+             '00000000-0000-4000-8000-000000002364', -10, DATE '2026-03-06', 'undo', '00000000-0000-4000-8000-000000002341', '00000000-0000-4000-8000-0000000023b1', 'keyed wrong')$q$,
+  '23514', 'of the same source and line');
 SELECT pg_temp.admits('A2g a partial undo, with its reason and user',
   $q$INSERT INTO public.invoice_applications (id, tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, undoes_application_id, applied_by, reason)
      VALUES ('00000000-0000-4000-8000-000000002342', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002301', '00000000-0000-4000-8000-000000002311',
@@ -297,6 +307,16 @@ SELECT pg_temp.admits('A3j a credit pays a line',
   $q$INSERT INTO public.invoice_applications (id, tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, allocation_tariff_id)
      VALUES ('00000000-0000-4000-8000-000000002343', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002314',
              '00000000-0000-4000-8000-000000002371', 25, DATE '2026-03-07', 'oldest_first', '00000000-0000-4000-8000-0000000023ab')$q$);
+SELECT pg_temp.refuses_at('A3k a voided credit pays nothing',
+  $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, allocation_tariff_id)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002314',
+             '00000000-0000-4000-8000-000000002373', 1, DATE '2026-03-07', 'oldest_first', '00000000-0000-4000-8000-0000000023ab')$q$,
+  '23514', 'from an active credit');
+SELECT pg_temp.refuses_at('A3l money is applied on or after its bill (K74 issued February 20, applied February 25, before I2''s March 1)',
+  $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, allocation_tariff_id)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002314',
+             '00000000-0000-4000-8000-000000002374', 1, DATE '2026-02-25', 'oldest_first', '00000000-0000-4000-8000-0000000023ab')$q$,
+  '23514', 'on or after both');
 -- A4: how each application was chosen.
 SELECT pg_temp.refuses_at('A4 an operator''s choice says why',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by)
@@ -308,11 +328,15 @@ SELECT pg_temp.refuses_at('A4b a rule-chosen application names its tariff',
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-000000002317',
              '00000000-0000-4000-8000-000000002365', 5, DATE '2026-03-07', 'oldest_first')$q$,
   '23514', 'invoice_applications_tariff_check');
-SELECT pg_temp.refuses_at('A4c the tariff is in force on the application''s date (the row starts January 1, 2026)',
+-- T1's next tariff row, in force from April 1, when T5's ends.
+INSERT INTO public.payment_allocation_tariffs (id, tenant_id, state_code, service_type, system_kind, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
+SELECT '00000000-0000-4000-8000-0000000023ac', t.tenant_id, t.state_code, t.service_type, t.system_kind, DATE '2026-04-01', 'City tariff 8', t.terms_kind, t.terms_version, t.terms_source
+  FROM public.payment_allocation_tariffs t WHERE t.id = '00000000-0000-4000-8000-0000000023ab';
+SELECT pg_temp.refuses_at('A4c the tariff is in force on the application''s date (a row from April 1, cited on March 7)',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, allocation_tariff_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-000000002317',
-             '00000000-0000-4000-8000-000000002365', 5, DATE '2025-12-31', 'oldest_first', '00000000-0000-4000-8000-0000000023ab')$q$,
-  '23514', 'on or after both');
+             '00000000-0000-4000-8000-000000002365', 5, DATE '2026-03-07', 'oldest_first', '00000000-0000-4000-8000-0000000023ac')$q$,
+  '23514', 'is not in force on');
 SELECT pg_temp.admits('A4d an operator''s choice with a reason and user',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by, reason)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-000000002318',
@@ -367,6 +391,15 @@ SELECT pg_temp.ok('M1f K71''s position: 25 applied, nothing left; I2''s line 14 
   AND (SELECT applied = 45 AND open = 15 FROM public.invoice_line_position_as_of('00000000-0000-4000-8000-000000002314', DATE '2026-12-31', clock_timestamp())));
 SELECT pg_temp.ok('M1g I1''s position from its lines: 90 of lines, 100 applied, 0 open on its positive lines',
   (SELECT lines_total = 90 AND applied = 100 AND open = 0 FROM public.invoice_position_as_of('00000000-0000-4000-8000-000000002301', DATE '2026-12-31', clock_timestamp())));
+-- P68 (C2, 10) recorded two hours ago, and 5 of it applied to I3's gas line
+-- an hour ago (a history load: the owner's times are kept).
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, status, created_at)
+VALUES ('00000000-0000-4000-8000-000000002368', '00000000-0000-4000-8000-0000000023a1', 'B23-P8', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-05', 10, 'check', DATE '2026-03-05', 'postmark', 'posted', now() - interval '2 hours');
+INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, allocation_tariff_id, created_at)
+VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-000000002317', '00000000-0000-4000-8000-000000002368', 5, DATE '2026-03-07', 'oldest_first', '00000000-0000-4000-8000-0000000023ab', now() - interval '1 hour');
+SELECT pg_temp.ok('M1j by the recorded instant: 90 minutes ago P8 was known and nothing of it applied; now 5 is',
+  (SELECT applied = 0 AND remaining = 10 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002368', DATE '2026-12-31', now() - interval '90 minutes'))
+  AND (SELECT applied = 5 AND remaining = 5 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002368', DATE '2026-12-31', clock_timestamp())));
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
 SELECT pg_temp.refuses_at('M1h a credit is not "fully applied": what is left is read, not stored',
@@ -479,9 +512,35 @@ SELECT pg_temp.admits('C1m the rest refunded (45)',
      VALUES ('00000000-0000-4000-8000-000000002367', '00000000-0000-4000-8000-0000000023a1', 'B23-R1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-11', -45, 'refund', DATE '2026-03-11', 'other', '00000000-0000-4000-8000-000000002366')$q$);
 SELECT pg_temp.admits('M3g refunded, naming the refund, with nothing left',
   $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002367' WHERE id = '00000000-0000-4000-8000-000000002366'$q$);
-SELECT pg_temp.refuses_at('M3h a credit is voided only when nothing of it is applied (K71 paid 25 of I2)',
+-- P5 (C2, 30) paid 5 of I3 (A4d); 10 of it is refunded, 15 left.
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
+VALUES ('00000000-0000-4000-8000-000000002369', '00000000-0000-4000-8000-0000000023a1', 'B23-R2', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-11', -10, 'refund', DATE '2026-03-11', 'other', '00000000-0000-4000-8000-000000002365');
+SELECT pg_temp.refuses_at('M3i a payment is refunded only when nothing of it is left (P5: 30 less 5 applied, 10 refunded)',
+  $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002369' WHERE id = '00000000-0000-4000-8000-000000002365'$q$,
+  '23001', 'only when nothing of it is left');
+-- P9: C2 pays 20, still pending; the customer's approval to hold 5 of it.
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
+VALUES ('00000000-0000-4000-8000-00000000236a', '00000000-0000-4000-8000-0000000023a1', 'B23-P9', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-10', 20, 'ach', 'pending');
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+VALUES ('00000000-0000-4000-8000-000000002353', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-00000000236a', 5, '00000000-0000-4000-8000-0000000023b1');
+SELECT pg_temp.refuses_at('C1m2 a pending payment holds no credit (money not yet arrived)',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', 'overpayment', 5, DATE '2026-03-10', '00000000-0000-4000-8000-00000000236a', '00000000-0000-4000-8000-000000002353')$q$,
+  '23514', 'an overpayment credit draws on a posted bill payment');
+SELECT pg_temp.refuses_at('M3h0 a credit''s void names the row behind it',
   $q$UPDATE public.customer_credits SET status = 'voided', status_cause_id = NULL WHERE id = '00000000-0000-4000-8000-000000002371'$q$,
   '23503', 'the ledger row reversing its issuing entry');
+RESET ROLE;
+-- K71's issuing entry and a reversal of it, so the void names its row.
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-000000002384', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-02', 'adjustment', 'K71 issued', -25, 'customer_credit', '00000000-0000-4000-8000-000000002371');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES
+  ('00000000-0000-4000-8000-000000002385', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', 'adjustment', 'K71 withdrawn', 25, '00000000-0000-4000-8000-000000002384');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
+SELECT pg_temp.refuses_at('M3h a credit is voided only when nothing of it is applied (K71 paid 25 of I2)',
+  $q$UPDATE public.customer_credits SET status = 'voided', status_cause_id = '00000000-0000-4000-8000-000000002385' WHERE id = '00000000-0000-4000-8000-000000002371'$q$,
+  '23001', 'cannot be voided while it is applied');
 -- C2.
 RESET ROLE;
 SELECT pg_temp.refuses_at('C2 overpayment_handling no longer applies to a bill of the payer''s choosing (K-05)',
@@ -507,7 +566,7 @@ SELECT pg_temp.refuses_at('X1b of its own customer',
 SELECT pg_temp.refuses_at('X2 with the opposite sign',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-02', 'adjustment', 'x', 10, '00000000-0000-4000-8000-000000002391')$q$,
-  '23514', 'opposite sign');
+  '23514', 'a reversal has the opposite sign of the entry it names');
 SELECT pg_temp.refuses_at('X2b and never dated before it',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-02-28', 'adjustment', 'x', -10, '00000000-0000-4000-8000-000000002391')$q$,
@@ -545,11 +604,20 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
   ('00000000-0000-4000-8000-000000002395', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-01', 'charge', 'I3', 90.00, 'invoice', '00000000-0000-4000-8000-000000002303');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES
   ('00000000-0000-4000-8000-000000002396', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-02', 'adjustment', 'I3 less 30', -30.00, '00000000-0000-4000-8000-000000002395');
+-- void(): void_invoice's result, or its error as {"error": ...}.
+CREATE FUNCTION pg_temp.void(p_inv uuid, p_code text, p_ack boolean) RETURNS jsonb LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN public.void_invoice(p_inv, '00000000-0000-4000-8000-0000000023b1', p_code, NULL, p_ack);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'void of % refused: %', p_inv, SQLERRM;
+  RETURN jsonb_build_object('error', SQLERRM);
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.void(uuid, text, boolean) TO tally_app;
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
 SELECT pg_temp.ok('X3 the void reverses the 60 left of the charge, not -(amount_due), and names it',
   (SELECT (r ->> 'reversal_amount')::numeric = -60 AND (r ->> 'reverses_ledger_entry_id')::uuid = '00000000-0000-4000-8000-000000002395'
-     FROM public.void_invoice('00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-0000000023b1', 'wrong_rate', NULL, true) r));
+     FROM pg_temp.void('00000000-0000-4000-8000-000000002303', 'wrong_rate', true) r));
 SELECT pg_temp.ok('X3b nothing of the charge is left after it',
   public.ledger_entry_remaining('00000000-0000-4000-8000-000000002395') = 0);
 RESET ROLE;
@@ -560,8 +628,8 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
 SELECT pg_temp.ok('X3c a charge already fully reversed voids with no ledger row',
-  (SELECT (r ->> 'reversal_amount') IS NULL AND (r ->> 'ledger_entry_id') IS NULL
-     FROM public.void_invoice('00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-0000000023b1', 'duplicate', NULL, false) r));
+  (SELECT (r ->> 'reversal_amount') IS NULL AND (r ->> 'ledger_entry_id') IS NULL AND (r ->> 'error') IS NULL
+     FROM pg_temp.void('00000000-0000-4000-8000-000000002302', 'duplicate', false) r));
 SELECT pg_temp.refuses_at('X3d a void bill takes no new money',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, allocation_tariff_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002314',
@@ -589,12 +657,12 @@ BEGIN
   END;
   SET CONSTRAINTS enforce_invoice_line_class DEFERRED;
   IF v_state = '23514' AND strpos(v_msg, 'its one-off charge') > 0 THEN
-    RAISE NOTICE 'PASS A1b a line classed against its one-off charge wrongly is refused at issue (%)', left(v_msg, 120);
+    RAISE NOTICE 'PASS LC1 a line classed against its one-off charge wrongly is refused at issue (%)', left(v_msg, 120);
   ELSE
-    RAISE EXCEPTION 'FAIL A1b: got % (%)', v_state, v_msg;
+    RAISE EXCEPTION 'FAIL LC1: got % (%)', v_state, v_msg;
   END IF;
 END $$;
-SELECT pg_temp.refuses_at('A1c every line carries a class (NOT NULL; no assumed default)',
+SELECT pg_temp.refuses_at('LC2 every line carries a class (NOT NULL; no assumed default)',
   $q$INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-000000002305', 'gas', 'tax', 'Tax', 1.00)$q$,
   '23502', 'regulatory_class');
