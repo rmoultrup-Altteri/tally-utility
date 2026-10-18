@@ -23,8 +23,10 @@
 -- ----------------------------------------------------------------------------
 --   Reversals (X; R-02, CI-017)
 --   * A ledger row is a reversal if and only if it names an entry. void_
---     reversal, nsf, write_off_recovery and refund must name one; any other
---     type may (an adjustment naming a charge is a partial reversal) (X1).
+--     reversal, nsf, write_off_recovery and refund must name one; an
+--     adjustment (a partial reversal) and a write_off (-22's nested write-off)
+--     may; no other type names one (r2: a payment row does not undo a charge)
+--     (X1). A row naming an entry is dated no later than today.
 --   * A reversal names an entry of its own tenant and customer (the FK, X1b):
 --     money moved between customers is a transfer.
 --   * -22's write-off rule, made general (X2): a reversal has the opposite
@@ -52,11 +54,21 @@
 --   * Payments, customer credits and one-off charges are fixed from insert
 --     (amount, identity, lineage, designation, restriction, class); a
 --     reference that arrives later is written once.
---   * A status moves forward only and names its row in status_cause_id: a
---     payment's posting entry, nsf row, ledger reversal or refund; a credit's
---     refund, ledger reversal, escheatment event or donation row. Money that
---     bounced, was reversed or never arrived is not still applied or held as
---     a credit; refunded means nothing is left (guard the act).
+--   * A payment is born pending and a credit active, with no cause (r2).
+--     A status moves forward only and names its row in status_cause_id: a
+--     payment's posting entry (of its own kind), the nsf row or other
+--     reversal that leaves nothing of that entry, or a refund still standing;
+--     a credit's refund, the reversal that leaves nothing of its
+--     credit_issued entry (an overpayment credit's void names nothing), its
+--     escheated_to_state event, or its donation row. Each move is stamped
+--     status_recorded_at by the database and runs at READ COMMITTED. Money
+--     that bounced, was reversed or never arrived is not still applied or
+--     held as a credit; refunded, donated and escheated mean nothing is left
+--     (guard the act).
+--   * A source gives money only while its money stands on the ledger (a
+--     payment's posting entry, a credit's credit_issued entry, not undone),
+--     and the ledger row that would undo it waits until nothing draws on it
+--     (r2).
 --   * Payments and customer credits are stamped created_at by the database
 --     (a superuser's history load keeps its own), as the ledger is.
 --
@@ -107,22 +119,28 @@
 --   A money write takes, in this order:
 --     1. its tenant's close head, FOR SHARE (the freeze; the void takes it
 --        explicitly before its charge's tree);
---     2. for a reversal, its tree's advisory lock (the root's); for an
---        application, the cited tariff row's lock (shared, rule_row_cite),
---        then its source's lock (the payment or credit), then its line's;
---        for an overpayment credit or a refund, its source's lock;
+--     2. for a reversal, its tree's advisory lock (the root's), then, if it
+--        undoes a payment's posting entry or a credit's credit_issued entry,
+--        that source's lock; for an application, the cited tariff row's lock
+--        (shared, rule_row_cite), then its source's lock (the payment or
+--        credit), then its line's; for an overpayment credit, a refund, a
+--        donation or an escheat, its source's lock;
 --     3. nothing else.
---   A status move that ends a payment or a credit takes that source's lock
---   (after its own row's, which the UPDATE holds). The close's rule (-22) is
---   unchanged: head, period, the closing user's row, the tenant row.
+--   The void takes its own invoice row (FOR UPDATE) before the head. A
+--   status move takes its own row (the UPDATE) and then its source's lock;
+--   a refund's move that could end its source then takes that source's lock.
+--   An approval and a status move take no head: they move no money, and the
+--   rows that do take it. The close's rule (-22) is unchanged: head, period,
+--   the closing user's row, the tenant row.
 --   A transaction that holds a later lock and waits — directly, or through
 --   other transactions — for an earlier one can deadlock; so can two
 --   writers taking locks of one rank in opposite orders (two trees, two
 --   sources, two lines, a multi-row statement). PostgreSQL aborts one, which
 --   writes nothing. No list of shapes is promised complete: every writer
 --   retries 40P01 and 40001. Post each act in a transaction of its own.
---   Every draw, application and reversal runs at READ COMMITTED (25000
---   otherwise): its cap must see every row committed while it waited.
+--   Every draw, application, reversal and status move runs at READ
+--   COMMITTED (25000 otherwise): it must see every row committed while it
+--   waited. Each reads its source after taking the source's lock.
 --
 -- ----------------------------------------------------------------------------
 -- Residuals (left on purpose)
@@ -133,8 +151,9 @@
 --       1000), and a whole chain posted in one statement about d cubed
 --       (200 deep about 2 s, 300 deep about 7 s). A deeper
 --       correction is a new entry.
---   R2. A refund's status in a position is read as it is now (status has
---       transaction time only), as -22 R4 reads a customer's.
+--   R2. Closed in r2: a position reads a refund's and a credit's status at
+--       its recorded instant (status_recorded_at). A position at (d, R) is
+--       fixed once R is older than every open transaction (-22's model).
 --   R3. Invoice status paid / partial stays app-written lifecycle (CI-012)
 --       and can disagree with invoice_position_as_of.
 --   R4. A void leaves the bill's applications in place; the core undoes them
@@ -149,10 +168,33 @@
 --       W13), a same-sign row under a recovery (R10, R12n), a reversal dated
 --       before its entry (W14) and a ledger row recorded in the future (W8,
 --       C19) are rewritten for X1b, X2 and the time rule; -19's payment
---       moves (P9c-P9g, races C8/C9) for M2.
+--       moves (P9c-P9g, races C8/C9) for M2. r2: -19 and -21 post their
+--       payments and credits on the ledger (born pending; money stands on
+--       the ledger); -22 R12n keeps its nested write-off.
+--   R9. The tariff an application cites is not matched to the line's
+--       service and system: the bill carries neither; choosing it is the
+--       core's (R7).
+--   R10. Several deposit refund credits against one deposit: -15's events
+--       cap the deposit, not this patch.
+--   R11. A long chain posted in one statement holds the tree and the head
+--       for minutes: tally_app's statement_timeout (DEPLOY-VERIFICATION).
 --
--- Tests. battery-23 (107 checks), races/cash-23.sh (CR1-CR8), mutations-23.py
---   (71 of 71 caught). assert_cash_guard_invariants() runs
+-- ----------------------------------------------------------------------------
+-- Open with Kyle (r1 behaviour kept; application/kyle-brief-2026-10-17-
+-- refund-then-bounce.md)
+-- ----------------------------------------------------------------------------
+--   K1. Whether a refund undoes its payment (it names the payment's posting
+--       entry and counts in its tree, as now) or is its own movement of
+--       money. If the latter, r3 drops refunds from X1, from the posting
+--       entry's tree in cash_arrival_stands and from the bounce-row guard's
+--       exemption.
+--   K2. A payment with a refund still pending moving to nsf or reversed:
+--       refused until the refund is voided (now), or the bounce voids it.
+--   Also Kyle's: restriction against the floor (A6), and the floor once its
+--   target is paid; the record carries either answer.
+--
+-- Tests. battery-23 (168 checks), races/cash-23.sh (CR1-CR13, 18 results),
+--   mutations-23.py (110 of 110 caught). assert_cash_guard_invariants() runs
 --   in the tail and in CI.
 --
 -- PRECONDITION. v5.4.2-22 applied (tu.sql). No payments, customer credits,

@@ -29,6 +29,11 @@ SELECT count(*) FROM public.account_ledger e
 ```
 The third query checks each tree as it stands today, not at every earlier date. The date-by-date audit will be written with the mirror entry.
 
+**At deployment, set a statement timeout for the application role** (patch residual R11). A reversal chain posted in one statement holds its tree's lock and the tenant's close head for as long as it runs: about 2 s at 200 deep, about 7 s at 300 deep, and minutes near the 1,000 bound. A timeout ends such a statement, and the chain is posted one row per statement instead. The value is the deployment's choice.
+```sql
+ALTER ROLE tally_app SET statement_timeout = '30s';
+```
+
 ## v5.4.2-22 — wave 2, part 1: accounting periods as freeze boundaries, the close snapshot, GL code mapping, receivables aging, write-off recovery (D-2, D-3, R-02; Ryan 2026-10-15 "yes, start wave 2"; mirror approved by Ryan 2026-10-16 "yes, mirror it")
 `sql/v5.4.2-22-periods-snapshot-gl-aging.sql` (2,001 lines, md5 `d3422f3d9301e115893ec556929d44fb`, r9), mirrored into tu.sql (40,652 → **42,310**: a pure append of a blank line, a 4-line banner and the 1,653-line body; 1,658 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 347–1999.
 
