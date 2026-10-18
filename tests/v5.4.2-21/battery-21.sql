@@ -140,6 +140,13 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
   ('00000000-0000-4000-8000-000000002171', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-01', 'charge', 'a T1 charge', 30.00),
   ('00000000-0000-4000-8000-000000002179', '00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-0000000021c9', DATE '2026-02-01', 'charge', 'a T2 charge', 70.00);
+-- v5.4.2-23 r2: a refund draws only on money on the ledger (Opus B2): credit
+-- 2161's credit_issued entry, and payment 2181 posted by its payment entry.
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-000000002172', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-01-15', 'credit_issued', 'credit 2161', -40.00, 'customer_credit', '00000000-0000-4000-8000-000000002161'),
+  ('00000000-0000-4000-8000-000000002173', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', DATE '2026-02-05', 'payment', 'B21-P1', -40.00, 'payment', '00000000-0000-4000-8000-000000002181');
+UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-000000002173'
+ WHERE id = '00000000-0000-4000-8000-000000002181';
 -- Rate item versions: PU per unit, TU tiered, FX fixed (a version is written
 -- after the version check, in this transaction).
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);

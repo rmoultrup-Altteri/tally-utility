@@ -6,8 +6,9 @@
 #        another line: waits on the source's lock, then is refused (cap).
 #   CR2  A applies 40 to a 60 line and holds; B applies 30 more to it from
 #        another payment: waits on the line's lock, then is refused (cap).
-#   CR3  A applies a payment and holds; B moves it to nsf: waits on the
-#        source's lock, then is refused (bounced money still paying a bill).
+#   CR3  A applies a payment and holds; B writes the nsf row undoing its
+#        posting entry: waits on the source's lock, then is refused (bounced
+#        money still paying a bill; r2, Opus B2).
 #   CR4  A's transaction begins, B applies to a line and commits, then A
 #        applies to the same line: refused for retry (40001); the retry is
 #        admitted.
@@ -20,6 +21,18 @@
 #        rule-chosen one meets rule_row_cite's pin first).
 #   CR8  A refunds 30 of a 50 payment and holds; B applies 30 of it: waits,
 #        then is refused (the payment's money goes three ways, never past it).
+# r2 (Codex B2, S4): each race the other way round, and the status moves'
+# READ COMMITTED pin.
+#   CR9  A writes a payment's nsf row and moves it to nsf, and holds; B
+#        applies it: waits on the source's lock, then is refused (ended).
+#   CR9b A writes only the nsf row, and holds; B applies the payment: waits,
+#        then is refused (its money is not on the ledger).
+#   CR10 A reverses a credit's credit_issued entry and voids it, and holds;
+#        B applies the credit: waits, then is refused (ended).
+#   CR11 A applies 40 of a 60 payment and holds; B refunds 30 of it: waits,
+#        then is refused (cap).
+#   CR12 A payment's and a credit's status move under REPEATABLE READ are
+#        refused (25000).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -50,6 +63,13 @@ P5=00000000-0000-4000-8000-000000002465
 P6=00000000-0000-4000-8000-000000002466
 P7=00000000-0000-4000-8000-000000002467
 P8=00000000-0000-4000-8000-000000002468
+P9=00000000-0000-4000-8000-000000002469
+P9B=00000000-0000-4000-8000-00000000246a
+P10=00000000-0000-4000-8000-00000000246b
+K1=00000000-0000-4000-8000-000000002471
+K2=00000000-0000-4000-8000-000000002472
+EK1=00000000-0000-4000-8000-000000002491
+EK2=00000000-0000-4000-8000-000000002492
 E6=00000000-0000-4000-8000-000000002486
 E6N=00000000-0000-4000-8000-000000002487
 CH=00000000-0000-4000-8000-000000002488
@@ -79,6 +99,13 @@ SQL
 pay() {  # $1 id, $2 number, $3 amount
 echo "('$1', '$T', '$2', '$C', DATE '2026-03-05', $3, 'check', DATE '2026-03-05', 'postmark')"
 }
+post() {  # $1 payment, $2 its posting entry, $3 amount (r2: a payment is born pending)
+cat <<SQL
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES ('$2', '$T', '$C', DATE '2026-03-05', 'payment', 'posted', -$3, 'payment', '$1');
+UPDATE public.payments SET status = 'posted', status_cause_id = '$2' WHERE id = '$1';
+SQL
+}
 
 "${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: fixtures"; exit 2; }
 BEGIN;
@@ -97,13 +124,25 @@ $(bill "$I1" R23-I1 "$L11" "$L12")
 $(bill "$I2" R23-I2 "$L21" "$L22")
 $(bill "$I3" R23-I3 "$L31" "$L32")
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES
-  $(pay "$P3" R23-P3 70), $(pay "$P4" R23-P4 100), $(pay "$P5" R23-P5 100), $(pay "$P6" R23-P6 50), $(pay "$P7" R23-P7 50), $(pay "$P8" R23-P8 100);
+  $(pay "$P3" R23-P3 70), $(pay "$P4" R23-P4 100), $(pay "$P5" R23-P5 100), $(pay "$P6" R23-P6 50), $(pay "$P7" R23-P7 50), $(pay "$P8" R23-P8 100),
+  $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60);
+$(post "$P3" 00000000-0000-4000-8000-000000002483 70)
+$(post "$P4" 00000000-0000-4000-8000-000000002484 100)
+$(post "$P5" 00000000-0000-4000-8000-000000002485 100)
+$(post "$P6" "$E6" 50)
+$(post "$P7" 00000000-0000-4000-8000-00000000248a 50)
+$(post "$P8" 00000000-0000-4000-8000-00000000248b 100)
+$(post "$P9" 00000000-0000-4000-8000-00000000248c 50)
+$(post "$P9B" 00000000-0000-4000-8000-00000000248d 50)
+$(post "$P10" 00000000-0000-4000-8000-00000000248e 60)
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES
+  ('$K1', '$T', '$C', 'goodwill', 30, DATE '2026-03-05'),
+  ('$K2', '$T', '$C', 'goodwill', 20, DATE '2026-03-05');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
-  ('$E6', '$T', '$C', DATE '2026-03-05', 'payment', 'P6 posted', -50, 'payment', '$P6'),
+  ('$EK1', '$T', '$C', DATE '2026-03-05', 'credit_issued', 'K1', -30, 'customer_credit', '$K1'),
+  ('$EK2', '$T', '$C', DATE '2026-03-05', 'credit_issued', 'K2', -20, 'customer_credit', '$K2'),
   ('$CH', '$T', '$C', DATE '2026-03-01', 'charge', 'a charge', 100, NULL, NULL),
   ('$CHI2', '$T', '$C', DATE '2026-03-01', 'charge', 'I2', 90, 'invoice', '$I2');
-INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES
-  ('$E6N', '$T', '$C', DATE '2026-03-09', 'nsf', 'P6 returned', 50, 'payment', '$P6', '$E6');
 COMMIT;
 SQL
 
@@ -119,6 +158,12 @@ echo 0
 AS_OP="SET LOCAL app.user_id = '$OP'; SET ROLE tally_app;"
 apply() {  # $1 payment, $2 line, $3 bill, $4 amount, $5 date
 echo "INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, allocation_tariff_id) VALUES ('$T', '$C', '$3', '$2', '$1', $4, DATE '${5:-2026-03-07}', 'oldest_first', '$TAR');"
+}
+applyc() {  # $1 credit, $2 line, $3 bill, $4 amount
+echo "INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, allocation_tariff_id) VALUES ('$T', '$C', '$3', '$2', '$1', $4, DATE '2026-03-07', 'oldest_first', '$TAR');"
+}
+nsf() {  # $1 nsf row, $2 payment, $3 its posting entry, $4 amount
+echo "INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES ('$1', '$T', '$C', DATE '2026-03-09', 'nsf', 'returned', $4, 'payment', '$2', '$3');"
 }
 reverse() {  # $1 entry, $2 amount, $3 description
 echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '2026-03-07', 'adjustment', '$3', $2, '$1', 'race');"
@@ -171,8 +216,8 @@ two "$(apply "$P4" "$L21" "$I2" 40)" "$(apply "$P5" "$L21" "$I2" 30)"
 verdict "CR2 two applications to one line: the second waits on the line, then is refused by its cap" 1 "more than the line"
 
 # CR3
-two "$(apply "$P6" "$L22" "$I2" 10)" "UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-09', status_cause_id = '$E6N' WHERE id = '$P6';"
-verdict "CR3 a payment applied while it bounces: the move waits on the source, then is refused" 1 "while it is applied to bills"
+two "$(apply "$P6" "$L22" "$I2" 10)" "$(nsf "$E6N" "$P6" "$E6" 50)"
+verdict "CR3 a payment applied while it bounces: the nsf row waits on the source, then is refused" 1 "while the payment is applied to bills"
 
 # CR4: A's transaction begins before B's application and applies after it.
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
@@ -246,5 +291,43 @@ if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a reversal is posted 
 REFUND="INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id) VALUES ('$T', 'R23-REF', '$C', DATE '2026-03-06', -30, 'refund', DATE '2026-03-06', 'other', '$P7');"
 two "$REFUND" "$(apply "$P7" "$L32" "$I3" 30)"
 verdict "CR8 a refund in flight and an application of the same payment: the application waits, then is refused" 1 "more than its 50"
+
+# CR9
+E9=00000000-0000-4000-8000-00000000248c; E9N=00000000-0000-4000-8000-00000000249c
+two "$(nsf "$E9N" "$P9" "$E9" 50) UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-09', status_cause_id = '$E9N' WHERE id = '$P9';" "$(apply "$P9" "$L12" "$I1" 5)"
+verdict "CR9 a payment bounced while an application of it is in flight: the application waits, then is refused" 1 "money is drawn from a posted payment"
+
+# CR9b
+E9B=00000000-0000-4000-8000-00000000248d; E9BN=00000000-0000-4000-8000-00000000249d
+two "$(nsf "$E9BN" "$P9B" "$E9B" 50)" "$(apply "$P9B" "$L12" "$I1" 5)"
+verdict "CR9b its nsf row alone, in flight: the application waits, then is refused (its money is not on the ledger)" 1 "its money is not on the ledger"
+
+# CR10
+EK1R=00000000-0000-4000-8000-00000000249e
+two "INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$EK1R', '$T', '$C', DATE '2026-03-07', 'adjustment', 'K1 withdrawn', 30, '$EK1', 'race'); UPDATE public.customer_credits SET status = 'voided', status_cause_id = '$EK1R' WHERE id = '$K1';" \
+    "$(applyc "$K1" "$L12" "$I1" 5)"
+verdict "CR10 a credit voided while an application of it is in flight: the application waits, then is refused" 1 "money is drawn from a posted payment"
+
+# CR11
+two "$(apply "$P10" "$L32" "$I3" 40)" "INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id) VALUES ('$T', 'R23-REF10', '$C', DATE '2026-03-08', -30, 'refund', DATE '2026-03-08', 'other', '$P10');"
+verdict "CR11 an application in flight and a refund of the same payment: the refund waits, then is refused" 1 "more than its 60"
+
+# CR12
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+$AS_OP
+UPDATE public.payments SET status = 'reversed' WHERE id = '$P8';
+COMMIT;
+SQL
+)
+if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a status move is written at READ COMMITTED"; then echo "PASS CR12 a payment's status move under REPEATABLE READ is refused"; else echo "FAIL CR12: $OUT"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+$AS_OP
+UPDATE public.customer_credits SET status = 'voided' WHERE id = '$K2';
+COMMIT;
+SQL
+)
+if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a status move is written at READ COMMITTED"; then echo "PASS CR12b a credit's status move under REPEATABLE READ is refused"; else echo "FAIL CR12b: $OUT"; fail=1; fi
 
 exit $fail

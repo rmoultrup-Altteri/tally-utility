@@ -338,9 +338,6 @@ END $$;
 
 -- ================================================================== P. payments
 SET ROLE tally_app;
-SELECT pg_temp.refuses('P1 a posted payment with no effective date',
-  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-X', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-05', 10, 'check')$q$, '23514');
 SELECT pg_temp.refuses('P1b a date with no method',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date)
      VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-X', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-05', 10, 'check', DATE '2026-02-03')$q$, '23514');
@@ -354,6 +351,11 @@ VALUES ('00000000-0000-4000-8000-000000001961', '00000000-0000-4000-8000-0000000
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
 VALUES ('00000000-0000-4000-8000-000000001965', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-05',
         'payment', 'P-1', -10, 'payment', '00000000-0000-4000-8000-000000001961');
+-- v5.4.2-23 r2: a payment is born pending, so P1 is the move to posted.
+SELECT pg_temp.refuses_at('P1 a posted payment with no effective date',
+  $q$UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-000000001965'
+      WHERE id = '00000000-0000-4000-8000-000000001961'$q$,
+  '23514', 'payments_effective_date_required_check');
 UPDATE public.payments SET status = 'posted', effective_date = DATE '2026-02-03', effective_date_method = 'postmark',
        status_cause_id = '00000000-0000-4000-8000-000000001965' WHERE id = '00000000-0000-4000-8000-000000001961';
 DO $$ BEGIN RAISE NOTICE 'PASS P2: a pending payment posts with its effective date and method (CI-058)'; END $$;
@@ -374,13 +376,15 @@ VALUES ('00000000-0000-4000-8000-000000001962', '00000000-0000-4000-8000-0000000
         DATE '2026-02-06', 'bank_settlement', 'paymentus_webhook', 'TXN-1');
 -- v5.4.2-23: P-2's refund (P6b below) draws on it while it is posted (R-06),
 -- and its move to nsf names the nsf ledger row reversing its posting (Q1 (a)).
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-000000001966', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-06',
+   'payment', 'P-2', -20, 'payment', '00000000-0000-4000-8000-000000001962');
+UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-000000001966'
+ WHERE id = '00000000-0000-4000-8000-000000001962';
 INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
                              source_system, provider_transaction_id, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', -20, 'refund',
         DATE '2026-02-07', 'bank_settlement', 'paymentus_webhook', 'TXN-1', '00000000-0000-4000-8000-000000001962');
-INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
-  ('00000000-0000-4000-8000-000000001966', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-06',
-   'payment', 'P-2', -20, 'payment', '00000000-0000-4000-8000-000000001962');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES
   ('00000000-0000-4000-8000-000000001967', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-10',
    'nsf', 'P-2 returned', 20, 'payment', '00000000-0000-4000-8000-000000001962', '00000000-0000-4000-8000-000000001966');
@@ -451,7 +455,13 @@ SELECT pg_temp.refuses_at('P9b a replacement for another customer''s bounced pay
 -- by the payment's own guard (23001) before the FK would see it; and a refund
 -- draws on a posted payment (R-06), so R4-PARENT is posted.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status, effective_date, effective_date_method)
-VALUES ('00000000-0000-4000-8000-0000000019f8', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'posted', DATE '2026-02-01', 'postmark');
+VALUES ('00000000-0000-4000-8000-0000000019f8', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending', DATE '2026-02-01', 'postmark');
+-- v5.4.2-23 r2: born pending, posted by its payment entry.
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-0000000019f7', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01',
+   'payment', 'R4-PARENT', -20, 'payment', '00000000-0000-4000-8000-0000000019f8');
+UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-0000000019f7'
+ WHERE id = '00000000-0000-4000-8000-0000000019f8';
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
 VALUES ('00000000-0000-4000-8000-0000000019f9', '00000000-0000-4000-8000-0000000019a1', 'R4-PARENT2', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending'),
        ('00000000-0000-4000-8000-0000000019fa', '00000000-0000-4000-8000-0000000019a1', 'R4-LONE', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-01', 20, 'check', 'pending');
@@ -754,9 +764,10 @@ INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, tra
   ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-01-31', 'adjustment', 'late', -10.00, TIMESTAMPTZ '2026-03-01 00:00Z');
 SET ROLE tally_app;
 DO $$ BEGIN
-  -- v5.4.2-23: 40, not 50 — P-1's posting entry (-10) and P-2's posting and
-  -- its nsf reversal (-20, +20) are C1's too (section P names them).
-  IF public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-12-31', TIMESTAMPTZ '2026-12-31 00:00Z') IS DISTINCT FROM 40.00
+  -- v5.4.2-23: 20, not 50 — P-1's posting entry (-10), P-2's posting and
+  -- its nsf reversal (-20, +20) and (r2) R4-PARENT's posting entry (-20) are
+  -- C1's too (section P names them).
+  IF public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-12-31', TIMESTAMPTZ '2026-12-31 00:00Z') IS DISTINCT FROM 20.00
      OR public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-01-31', TIMESTAMPTZ '2026-12-31 00:00Z') IS DISTINCT FROM 90.00
      OR public.account_balance_as_of('00000000-0000-4000-8000-0000000019c1', DATE '2026-01-31', TIMESTAMPTZ '2026-02-15 00:00Z') IS DISTINCT FROM 100.00
      OR public.account_balance_as_of('00000000-0000-4000-8000-0000000019c2', DATE '2026-12-31', now()) IS DISTINCT FROM 1.00
