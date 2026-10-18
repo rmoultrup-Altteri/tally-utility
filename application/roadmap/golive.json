@@ -2,7 +2,7 @@
  {
   "scenario": "low",
   "ready_to_onboard": "2027-04-28",
-  "weeks_to_ready": 28,
+  "weeks_to_ready": 27,
   "go_live": "2027-09-01",
   "onboarding_weeks": 18,
   "critical_path": "P1 > P2 > P3 > P4 > P5 > P7 > P8"
@@ -10,7 +10,7 @@
  {
   "scenario": "likely",
   "ready_to_onboard": "2027-06-16",
-  "weeks_to_ready": 35,
+  "weeks_to_ready": 34,
   "go_live": "2027-12-15",
   "onboarding_weeks": 26,
   "critical_path": "P1 > P2 > P3 > P4 > P5 > P6 > P8"
@@ -18,7 +18,7 @@
  {
   "scenario": "high",
   "ready_to_onboard": "2027-09-15",
-  "weeks_to_ready": 48,
+  "weeks_to_ready": 47,
   "go_live": "2028-06-07",
   "onboarding_weeks": 38,
   "critical_path": "P1 > P2 > P3 > P5 > P6 > P8"

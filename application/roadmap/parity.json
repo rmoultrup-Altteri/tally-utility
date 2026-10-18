@@ -1,9 +1,9 @@
 [
  {"block": "Bi-temporality, immutability, ledger", "range": "CI-001-019", "protected": 10, "represented": 4, "partial": 5, "gap": 0, "blocked": 0},
  {"block": "Meters, reads, PGA", "range": "CI-020-038", "protected": 7, "represented": 5, "partial": 4, "gap": 2, "blocked": 0, "not_applicable": 1},
- {"block": "WNA, taxes, payments", "range": "CI-039-058", "protected": 9, "represented": 1, "partial": 7, "gap": 3, "blocked": 0},
- {"block": "Programs, collections, disconnects", "range": "CI-059-081", "protected": 3, "represented": 6, "partial": 13, "gap": 1, "blocked": 0},
+ {"block": "WNA, taxes, payments", "range": "CI-039-058", "protected": 10, "represented": 1, "partial": 7, "gap": 2, "blocked": 0},
+ {"block": "Programs, collections, disconnects", "range": "CI-059-081", "protected": 4, "represented": 6, "partial": 12, "gap": 1, "blocked": 0},
  {"block": "Bankruptcy, Texas rules, audit, notices", "range": "CI-082-099", "protected": 5, "represented": 0, "partial": 10, "gap": 3, "blocked": 0},
- {"block": "Pipeline, exceptions, tenant isolation", "range": "CI-100-119", "protected": 7, "represented": 5, "partial": 6, "gap": 2, "blocked": 0},
+ {"block": "Pipeline, exceptions, tenant isolation", "range": "CI-100-119", "protected": 8, "represented": 5, "partial": 6, "gap": 1, "blocked": 0},
  {"block": "Lifecycle, deposits, cross-cutting", "range": "CI-120-135", "protected": 10, "represented": 3, "partial": 1, "gap": 2, "blocked": 0}
 ]

@@ -4,6 +4,80 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-16 (evening) to 2026-10-18 — v5.4.2-23 (cash): triage, design, r1 and r2 drafted, two review rounds; r3 waits on Kyle
+
+**What was done:**
+- **Triage and design** (`0cb882a`, `23be62c`):
+  - cash split into -23 (M, X, A, C) and -24 (U, L) (Ryan: "split it, go with the default");
+  - design in `application/wave2-build-2026-10-15/v5.4.2-23-design.md`;
+  - CI-058 corrected.
+- **r1** (`d7d0d82`, `df41294`, `2c80188`, `3d329c2`):
+  - the general reversal cap at every entry on the path, at every date, with one lock per tree root;
+  - derived positions replace the counters;
+  - payment application per bill line with source and line caps;
+  - overpayment approvals; the within-bill order tariff; the line class at issue.
+
+  Ryan kept the 1,000-deep reversal bound. Mutations 71/71. Frozen.
+- **Round 1** (`3adeb8c`): Opus, Fable and Codex all "not yet". Codex's probes were run, and every predicted blocker was confirmed.
+- **Kyle brief** (`3ff52bc`, `ff402b3`): `application/kyle-brief-2026-10-17-refund-then-bounce.md`. A $50 check refunded $30 then bounces: is a refund an undo of the payment or its own movement (K1)? What happens to a pending refund at the bounce (K2)? Is a refund allowed while a return is possible? Ryan sent it.
+- **r2 plan** (`6b96f47`): every round-1 finding settled by a standing rule; refund-and-bounce held for Kyle.
+- **r2 implemented** (`6452119`):
+  - `check_cash_source` takes the source lock before reading the source;
+  - births pending/active;
+  - exact causes for nsf, reversed, refunded, voided, escheated and donated;
+  - `cash_arrival_stands` and the bounce-row guard;
+  - donations and escheats are draws;
+  - `status_recorded_at`; positions gated on `first_issued_at`;
+  - no future-dated reversal;
+  - only the reversal types, `adjustment` and `write_off` name an entry;
+  - the approver of the tenant's own;
+  - column-grant invariants.
+- **Older tests:**
+  - -19: P1 became a move; P-2 and R4-PARENT posted by their entries; B1 20 not 40.
+  - -21: credit 2161's `credit_issued` entry; 2181 posted.
+  - -22 R12n kept: `write_off` may name an entry.
+- **Tests** (`e72a311`):
+  - battery-23 168 (R1–R18b, LC3; R4 rewritten to use Q2's own nsf row, the old case kept as R4a);
+  - races CR1–CR13 (CR3 = the bounce row against an application in flight; CR9–CR12 reverse orders and REPEATABLE READ; CR13 a move to refunded against the refund's void);
+  - mutations 110/110 (10 re-anchored, N72–N110 new).
+- **r2 frozen** (`8570e95`): brief with six md5s; header (R2 closed, R9–R11, "Open with Kyle", lock order restated); DEPLOY-VERIFICATION `statement_timeout` (R11).
+- **Round 2** (`852e68d`): all three "not yet". Codex's 14 probes were run, and all seven of its blockers reproduced.
+- **Go-live dashboard refreshed:** P1 78/135, parity after -22, K-10 added. Likely ready-to-onboard is still 2027-06-16.
+
+**Decisions made:**
+- **Split cash into -23 and -24** (Ryan).
+- **Keep the reversal depth at 1,000** (Ryan; memory `measure-the-real-shape-before-limiting`).
+- **Send r2 for review before Kyle answers** (Ryan): most of r2 is independent of the refund question.
+- **Wait for Kyle before r3** (Ryan, 2026-10-18): under K1 = A the refund exemption, and three blockers with it, are deleted rather than fixed.
+- **`write_off` may name an entry:** -22's nested write-off.
+- **A payment is born pending:** a born-posted payment had no posting entry behind it (guard the act).
+
+**Failed approaches:**
+- **The refund exemption keyed on `reference_id`:** a +100 adjustment citing a 0.01 refund undid an applied payment's money (all three reviewers).
+- **No test posted a refund on the ledger:** the exemption and the refund's posting row were untested. Removing the exemption left 168/168.
+- **K2 "refused" stated in the header, plan and brief, but not coded:** the patch admitted the bounce.
+- **The old R4 named another payment's nsf row:** refused for the wrong reason, so N76 slipped past.
+- **N31, N34 and N32 named at checks that no longer ran first or no longer exercised the lock:** renamed to M3f2 and M3h2, and CR13 added.
+
+**Accuracy / test results:**
+
+| Revision | Battery | Races | Mutations | CI |
+|---|---|---|---|---|
+| r1 (frozen) | 107 | CR1–CR8 (11) | 71/71 | all pass (38 steps) |
+| r2 (frozen) | 168 | CR1–CR13 (18) | 110/110 (first run 106/110: N31, N32, N34, N76) | all pass |
+
+**Round-2 findings:**
+- **Codex probes:** B1–B7 all executed as ACCEPTED where a refusal was expected (B4: refused under its own `credit_issued` entry and accepted under an unrelated payment's).
+- **Opus:** five blockers, all executed.
+- **Fable:** three blockers, all executed.
+
+**Open / next:**
+- Kyle's K-10 answer, then the r3 plan (HANDOFF lists the merged findings, split into "either answer" and "depends on K1").
+- While waiting: the wave-3 source inventory (disputes and collections). -24 waits until r3 settles.
+- Carried items unchanged (see HANDOFF).
+
+---
+
 ## 2026-10-16 (afternoon) — v5.4.2-22 review rounds 5–9; r5–r9 frozen; -22 mirrored into tu.sql (parity 78 of 135)
 
 **What was done:**
