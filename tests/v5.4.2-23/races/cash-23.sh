@@ -33,6 +33,9 @@
 #        then is refused (cap).
 #   CR12 A payment's and a credit's status move under REPEATABLE READ are
 #        refused (25000).
+#   CR13 A voids a pending refund of a whole payment and holds; B moves the
+#        payment to refunded naming it: waits on the payment's lock, then is
+#        refused (the refund it names no longer stands).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -66,6 +69,8 @@ P8=00000000-0000-4000-8000-000000002468
 P9=00000000-0000-4000-8000-000000002469
 P9B=00000000-0000-4000-8000-00000000246a
 P10=00000000-0000-4000-8000-00000000246b
+P11=00000000-0000-4000-8000-00000000246c
+R11=00000000-0000-4000-8000-00000000246d
 K1=00000000-0000-4000-8000-000000002471
 K2=00000000-0000-4000-8000-000000002472
 EK1=00000000-0000-4000-8000-000000002491
@@ -125,7 +130,7 @@ $(bill "$I2" R23-I2 "$L21" "$L22")
 $(bill "$I3" R23-I3 "$L31" "$L32")
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES
   $(pay "$P3" R23-P3 70), $(pay "$P4" R23-P4 100), $(pay "$P5" R23-P5 100), $(pay "$P6" R23-P6 50), $(pay "$P7" R23-P7 50), $(pay "$P8" R23-P8 100),
-  $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60);
+  $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60), $(pay "$P11" R23-P11 40);
 $(post "$P3" 00000000-0000-4000-8000-000000002483 70)
 $(post "$P4" 00000000-0000-4000-8000-000000002484 100)
 $(post "$P5" 00000000-0000-4000-8000-000000002485 100)
@@ -135,6 +140,9 @@ $(post "$P8" 00000000-0000-4000-8000-00000000248b 100)
 $(post "$P9" 00000000-0000-4000-8000-00000000248c 50)
 $(post "$P9B" 00000000-0000-4000-8000-00000000248d 50)
 $(post "$P10" 00000000-0000-4000-8000-00000000248e 60)
+$(post "$P11" 00000000-0000-4000-8000-00000000248f 40)
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
+VALUES ('$R11', '$T', 'R23-R11', '$C', DATE '2026-03-06', -40, 'refund', '$P11');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES
   ('$K1', '$T', '$C', 'goodwill', 30, DATE '2026-03-05'),
   ('$K2', '$T', '$C', 'goodwill', 20, DATE '2026-03-05');
@@ -329,5 +337,9 @@ COMMIT;
 SQL
 )
 if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a status move is written at READ COMMITTED"; then echo "PASS CR12b a credit's status move under REPEATABLE READ is refused"; else echo "FAIL CR12b: $OUT"; fail=1; fi
+
+# CR13
+two "UPDATE public.payments SET status = 'voided' WHERE id = '$R11';" "UPDATE public.payments SET status = 'refunded', status_cause_id = '$R11' WHERE id = '$P11';"
+verdict "CR13 a payment moved to refunded while the refund it names is being voided: the move waits, then is refused" 1 "a refund payment returning it"
 
 exit $fail

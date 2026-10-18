@@ -7,7 +7,7 @@ and runs the script that owns the named check:
 
   battery check (T A M C X LC F I)  battery-23.sql
   b22:<check>                       battery-22.sql (the -22 rows -23 re-reads)
-  CR1-CR12                          races/cash-23.sh
+  CR1-CR13                          races/cash-23.sh
   APPLY:<phrase>                    the patch itself must refuse (its tail runs
                                     the invariants), with that phrase
 
@@ -130,13 +130,13 @@ MUTATIONS = [
     ("N30", "a move to posted may name another payment's entry", "M3b",
      rep("AND l.reference_type IN ('payment', 'refund') AND l.reference_id = NEW.id AND l.amount = -NEW.amount)",
          "AND l.reference_type IN ('payment', 'refund'))")),
-    ("N31", "bounced money still pays bills", "M3f",
+    ("N31", "bounced money still pays bills", "M3f2",
      rep("    IF NEW.status IN ('nsf', 'reversed', 'voided') THEN", "    IF false THEN")),
-    ("N32", "a payment's move takes no source lock", "CR3",
+    ("N32", "a payment's move takes no source lock", "CR13",
      rep("    PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', OLD.id));\n", "")),
     ("N33", "a payment is refunded with money left", "M3i",
      rep("        IF v_left IS DISTINCT FROM 0 THEN", "        IF false THEN")),
-    ("N34", "a credit is voided while applied", "M3h",
+    ("N34", "a credit is voided while applied", "M3h2",
      rep("    IF NEW.status = 'voided' AND v_left <> 0 THEN", "    IF false THEN")),
     ("N35", "a one-off charge's class is not fixed", "M2g",
      rep("        IF NEW.regulatory_class IS DISTINCT FROM OLD.regulatory_class THEN v_changed := v_changed || ARRAY['regulatory_class']; END IF;\n", "")),

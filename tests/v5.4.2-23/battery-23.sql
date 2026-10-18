@@ -800,9 +800,29 @@ SELECT pg_temp.refuses_at('R3e and is never written by a caller',
   $q$UPDATE public.payments SET status_recorded_at = now() - interval '1 day' WHERE id = '00000000-0000-4000-8000-000000002461'$q$,
   '23001', 'change only with the status');
 -- reversed: a reversal of the posting entry that leaves nothing (Fable S6).
+-- R4: an nsf row wholly undoing Q2's own posting entry is still not a
+-- reversal (rolled back).
+DO $$
+DECLARE v_state text; v_msg text;
+BEGIN
+  BEGIN
+    INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES
+      ('00000000-0000-4000-8000-00000000249f', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-11', 'nsf', 'Q2 returned', 25, 'payment',
+       '00000000-0000-4000-8000-000000002462', '00000000-0000-4000-8000-000000002482');
+    UPDATE public.payments SET status = 'reversed', status_cause_id = '00000000-0000-4000-8000-00000000249f' WHERE id = '00000000-0000-4000-8000-000000002462';
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'admitted';
+  EXCEPTION WHEN OTHERS THEN
+    v_state := SQLSTATE; v_msg := SQLERRM;
+  END;
+  IF v_state = '23503' AND strpos(v_msg, 'not nsf') > 0 THEN
+    RAISE NOTICE 'PASS R4 reversed names a reversal that is not an nsf (an nsf row wholly undoing its own posting entry is refused)';
+  ELSE
+    RAISE EXCEPTION 'FAIL R4 reversed names a reversal that is not an nsf: got % (%)', v_state, v_msg;
+  END IF;
+END $$;
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES
   ('00000000-0000-4000-8000-000000002487', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-11', 'adjustment', 'Q2 keyed to the wrong customer', 25, '00000000-0000-4000-8000-000000002482');
-SELECT pg_temp.refuses_at('R4 reversed names a reversal that is not an nsf',
+SELECT pg_temp.refuses_at('R4a nor another payment''s nsf row',
   $q$UPDATE public.payments SET status = 'reversed', status_cause_id = '00000000-0000-4000-8000-000000002486' WHERE id = '00000000-0000-4000-8000-000000002462'$q$,
   '23503', 'not nsf');
 SELECT pg_temp.admits('R4b reversed, naming the adjustment that undoes its posting entry',
