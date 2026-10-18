@@ -1,0 +1,10 @@
+Verdict: **not yet**. All five MD5s matched.
+
+Blocking findings, all **predicted**:
+
+- **B1:** Donation/escheat spending is missing from credit caps.
+- **B2:** Status/draw races can admit applications from ended payments.
+- **B3:** As-of positions are not reproducible at fixed coordinates.
+- **B4:** Status causes can name the wrong kind of act.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-23/review/codex-r1.md). Fourteen author-run probes supplied; no database tests executed.
