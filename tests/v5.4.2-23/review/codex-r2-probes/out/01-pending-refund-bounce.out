@@ -1,0 +1,79 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+SET
+ pay 
+-----
+ 
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:190: NOTICE:  B1 full NSF with pending refund: ACCEPTED SQLSTATE=00000
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:191: NOTICE:  B1 move despite pending refund: ACCEPTED SQLSTATE=00000
+ attempt 
+---------
+ 
+(1 row)
+
+ payment_number | status  
+----------------+---------
+ CDXR2-2        | pending
+ CDXR2-1        | nsf
+(2 rows)
+
+ amount | applied | credited | refunded | remaining 
+--------+---------+----------+----------+-----------
+ 100.00 |       0 |        0 |    30.00 |     70.00
+(1 row)
+
+RESET
+ROLLBACK

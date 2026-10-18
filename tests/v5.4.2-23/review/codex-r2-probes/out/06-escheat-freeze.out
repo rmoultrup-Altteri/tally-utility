@@ -1,0 +1,73 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+SET
+ credit 
+--------
+ 
+(1 row)
+
+RESET
+SET
+UPDATE 1
+RESET
+SET
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:198: NOTICE:  B6 remittance after its UTC day was closed: ACCEPTED SQLSTATE=00000
+ amount | applied | refunded | given_up | remaining 
+--------+---------+----------+----------+-----------
+ 100.00 |       0 |        0 |   100.00 |      0.00
+(1 row)
+
+psql:/tmp/probe.sql:200: NOTICE:  B6 control: donation respects closed day: SQLSTATE=23514 message=account_ledger: dated 2026-03-10, on or before 2026-03-31, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+ attempt 
+---------
+ 
+(1 row)
+
+RESET
+ROLLBACK

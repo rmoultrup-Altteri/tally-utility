@@ -1,0 +1,80 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+SET
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ pay 
+-----
+ 
+(1 row)
+
+UPDATE 1
+ amount | applied | credited | refunded | remaining 
+--------+---------+----------+----------+-----------
+ 100.00 |       0 |    50.00 |    50.00 |      0.00
+(1 row)
+
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:197: NOTICE:  B7 void credit returns 50 to ended payment: ACCEPTED SQLSTATE=00000
+  status  
+----------
+ refunded
+(1 row)
+
+ amount | applied | credited | refunded | remaining 
+--------+---------+----------+----------+-----------
+ 100.00 |       0 |        0 |    50.00 |     50.00
+(1 row)
+
+RESET
+ROLLBACK

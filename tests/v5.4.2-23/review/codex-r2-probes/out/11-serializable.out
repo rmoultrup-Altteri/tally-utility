@@ -1,0 +1,51 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+SET
+RESET
+INSERT 0 1
+ entry 
+-------
+ 
+(1 row)
+
+SET
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:150: NOTICE:  isolation: valid pending to posted cause: SQLSTATE=25000 message=payment CDXR2-isolation: a status move is written at READ COMMITTED (this transaction is serializable): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:151: NOTICE:  isolation: direct draw pin: SQLSTATE=25000 message=a row drawing on payment c0de0000-0000-4000-8000-000000000001 is written at READ COMMITTED (this transaction is serializable): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+ attempt 
+---------
+ 
+(1 row)
+
+ attempt 
+---------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:152: NOTICE:  isolation: reversal pin: SQLSTATE=25000 message=a reversal is posted at READ COMMITTED (this transaction is serializable): its cap must see every row committed while it waited (R-02, v5.4.2-23)
+ROLLBACK

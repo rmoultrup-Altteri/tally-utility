@@ -1,0 +1,260 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+SET
+psql:/tmp/probe.sql:189: NOTICE:  unknown source fails closed: SQLSTATE=23503 message=a row drawing on payment c0de0000-0000-4000-8000-000000099999: no such payment is visible (R-06, v5.4.2-23)
+ attempt 
+---------
+ 
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+SET
+ amount | applied | credited | refunded | remaining 
+--------+---------+----------+----------+-----------
+ 100.00 |       0 |        0 |        0 |    100.00
+(1 row)
+
+psql:/tmp/probe.sql:193: NOTICE:  core cap EXECUTE denied: SQLSTATE=42501 message=permission denied for function check_cash_source
+psql:/tmp/probe.sql:194: NOTICE:  core money write denied: SQLSTATE=42501 message=permission denied for table payments
+ attempt 
+---------
+ 
+(1 row)
+
+ attempt 
+---------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:196: NOTICE:  cash invariant baseline: ACCEPTED SQLSTATE=00000
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:197: NOTICE:  seal invariant baseline: ACCEPTED SQLSTATE=00000
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:198: NOTICE:  period invariant baseline: ACCEPTED SQLSTATE=00000
+ attempt 
+---------
+ 
+(1 row)
+
+SAVEPOINT
+GRANT
+psql:/tmp/probe.sql:201: NOTICE:  column UPDATE drift caught: SQLSTATE=0LP01 message=tally_app can UPDATE (a table or any column), DELETE or TRUNCATE invoice_applications or customer_credit_approvals: both are add-only (R-05, v5.4.2-23)
+ attempt 
+---------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+REVOKE
+psql:/tmp/probe.sql:205: NOTICE:  S2 missing app EXECUTE is not pinned: ACCEPTED SQLSTATE=00000
+ attempt 
+---------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+CREATE POLICY
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:209: NOTICE:  S2 extra permissive approval policy: ACCEPTED SQLSTATE=00000
+ROLLBACK
+      tgrelid       |                 tgname                  |                                                                                                 pg_get_triggerdef                                                                                                  
+--------------------+-----------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ customer_credits   | a_enforce_accounting_freeze             | CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT OR UPDATE OF issued_date, tenant_id ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze('issued_date')
+ customer_credits   | a_enforce_cash_birth                    | CREATE TRIGGER a_enforce_cash_birth BEFORE INSERT ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_cash_birth()
+ customer_credits   | a_stamp_created_at                      | CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()
+ customer_credits   | enforce_cash_draw                       | CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.customer_credits FOR EACH ROW WHEN ((new.source_payment_id IS NOT NULL)) EXECUTE FUNCTION enforce_cash_draw()
+ customer_credits   | enforce_customer_credit_deposit_lineage | CREATE TRIGGER enforce_customer_credit_deposit_lineage BEFORE INSERT OR UPDATE OF origin_type, deposit_id ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_customer_credit_deposit_lineage()
+ customer_credits   | enforce_customer_credit_immutable       | CREATE TRIGGER enforce_customer_credit_immutable BEFORE UPDATE ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_customer_credit_immutable()
+ customer_credits   | no_hard_delete                          | CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()
+ customer_credits   | no_truncate                             | CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.customer_credits FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()
+ customer_credits   | set_updated_at                          | CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION update_updated_at()
+ escheatment_events | a_stamp_created_at                      | CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.escheatment_events FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()
+ escheatment_events | append_only                             | CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.escheatment_events FOR EACH ROW EXECUTE FUNCTION enforce_append_only()
+ escheatment_events | enforce_cash_draw                       | CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.escheatment_events FOR EACH ROW WHEN ((new.event_type = 'escheated_to_state'::text)) EXECUTE FUNCTION enforce_cash_draw()
+ escheatment_events | no_hard_delete                          | CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.escheatment_events FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()
+ escheatment_events | no_truncate                             | CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.escheatment_events FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()
+ payments           | a_enforce_accounting_freeze             | CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT OR UPDATE OF payment_date, tenant_id ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze('payment_date')
+ payments           | a_enforce_cash_birth                    | CREATE TRIGGER a_enforce_cash_birth BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_cash_birth()
+ payments           | a_enforce_payment_lineage               | CREATE TRIGGER a_enforce_payment_lineage BEFORE INSERT OR UPDATE OF refunds_payment_id, nsf_original_payment_id, customer_id, tenant_id ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_payment_lineage()
+ payments           | a_stamp_created_at                      | CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()
+ payments           | enforce_cash_draw                       | CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.payments FOR EACH ROW WHEN (((new.refunds_payment_id IS NOT NULL) OR (new.refunds_customer_credit_id IS NOT NULL))) EXECUTE FUNCTION enforce_cash_draw()
+ payments           | enforce_payment_effective_date          | CREATE TRIGGER enforce_payment_effective_date BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_payment_effective_date()
+ payments           | enforce_payment_immutable               | CREATE TRIGGER enforce_payment_immutable BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_payment_immutable()
+ payments           | no_hard_delete                          | CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()
+ payments           | no_truncate                             | CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.payments FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()
+ payments           | set_updated_at                          | CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION update_updated_at()
+(24 rows)
+
+                                                                                                                                                             pg_get_functiondef                                                                                                                                                              
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.check_cash_source(p_kind text, p_id uuid, p_row_created_at timestamp with time zone, p_purpose text, p_on date)                                                                                                                                                                                          +
+  RETURNS void                                                                                                                                                                                                                                                                                                                              +
+  LANGUAGE plpgsql                                                                                                                                                                                                                                                                                                                          +
+  SET search_path TO 'public', 'pg_temp'                                                                                                                                                                                                                                                                                                    +
+ AS $function$                                                                                                                                                                                                                                                                                                                              +
+ DECLARE                                                                                                                                                                                                                                                                                                                                    +
+     v_amount   numeric;                                                                                                                                                                                                                                                                                                                    +
+     v_date     date;                                                                                                                                                                                                                                                                                                                       +
+     v_status   text;                                                                                                                                                                                                                                                                                                                       +
+     v_deposit  boolean := false;                                                                                                                                                                                                                                                                                                           +
+     v_src_at   timestamptz;                                                                                                                                                                                                                                                                                                                +
+     v_ok       boolean;                                                                                                                                                                                                                                                                                                                    +
+     v_on       date;                                                                                                                                                                                                                                                                                                                       +
+     v_drawn    numeric;                                                                                                                                                                                                                                                                                                                    +
+     v_later_id uuid;                                                                                                                                                                                                                                                                                                                       +
+     v_later_at timestamptz;                                                                                                                                                                                                                                                                                                                +
+ BEGIN                                                                                                                                                                                                                                                                                                                                      +
+     IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN                                                                                                                                                                                                                                                        +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('a row drawing on %s %s is written at READ COMMITTED (this transaction is %s): its cap must see every row committed while it waited (R-06, v5.4.2-23)', p_kind, p_id, pg_catalog.current_setting('transaction_isolation')),                                                                                   +
+             ERRCODE = 'invalid_transaction_state';                                                                                                                                                                                                                                                                                         +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key(p_kind, p_id));                                                                                                                                                                                                                                                   +
+     IF p_kind = 'payment' THEN                                                                                                                                                                                                                                                                                                             +
+         SELECT p.amount, p.payment_date, p.status, p.is_deposit, p.created_at                                                                                                                                                                                                                                                              +
+           INTO v_amount, v_date, v_status, v_deposit, v_src_at FROM public.payments p WHERE p.id = p_id;                                                                                                                                                                                                                                   +
+     ELSE                                                                                                                                                                                                                                                                                                                                   +
+         SELECT c.original_amount, c.issued_date, c.status, c.created_at                                                                                                                                                                                                                                                                    +
+           INTO v_amount, v_date, v_status, v_src_at FROM public.customer_credits c WHERE c.id = p_id;                                                                                                                                                                                                                                      +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     -- Fail closed (Fable S5): a source this session cannot see is not one it                                                                                                                                                                                                                                                              +
+     -- may draw on.                                                                                                                                                                                                                                                                                                                        +
+     IF NOT FOUND THEN                                                                                                                                                                                                                                                                                                                      +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('a row drawing on %s %s: no such %s is visible (R-06, v5.4.2-23)', p_kind, p_id, p_kind),                                                                                                                                                                                                                     +
+             ERRCODE = 'foreign_key_violation';                                                                                                                                                                                                                                                                                             +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     -- Which source may give money for what. An undo gives money back, so it                                                                                                                                                                                                                                                               +
+     -- needs only a source not yet ended (Opus B3: an undo on a refunded                                                                                                                                                                                                                                                                   +
+     -- payment would leave it ended with money on it).                                                                                                                                                                                                                                                                                     +
+     v_ok := CASE p_purpose                                                                                                                                                                                                                                                                                                                 +
+         WHEN 'undo' THEN v_status IN ('posted', 'active')                                                                                                                                                                                                                                                                                  +
+         WHEN 'application' THEN v_status IN ('posted', 'active') AND NOT v_deposit AND v_amount > 0                                                                                                                                                                                                                                        +
+         WHEN 'overpayment_credit' THEN p_kind = 'payment' AND v_status = 'posted' AND NOT v_deposit AND v_amount > 0                                                                                                                                                                                                                       +
+         WHEN 'refund' THEN v_status IN ('posted', 'active') AND v_amount > 0                                                                                                                                                                                                                                                               +
+         WHEN 'donation' THEN p_kind = 'credit' AND v_status = 'active'                                                                                                                                                                                                                                                                     +
+         WHEN 'escheat' THEN p_kind = 'credit' AND v_status = 'active'                                                                                                                                                                                                                                                                      +
+         ELSE false END;                                                                                                                                                                                                                                                                                                                    +
+     IF NOT v_ok THEN                                                                                                                                                                                                                                                                                                                       +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('a row drawing on %s %s (%s%s) for %s: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)', p_kind, p_id, v_status, CASE WHEN v_deposit THEN ', a deposit' ELSE '' END, p_purpose),+
+             ERRCODE = 'check_violation';                                                                                                                                                                                                                                                                                                   +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     IF p_purpose <> 'undo' AND p_on < v_date THEN                                                                                                                                                                                                                                                                                          +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('a row drawing on %s %s is dated %s, before the %s (%s): money is drawn on or after it arrives (A3, R-06; v5.4.2-23)', p_kind, p_id, p_on, p_kind, v_date),                                                                                                                                                   +
+             ERRCODE = 'check_violation';                                                                                                                                                                                                                                                                                                   +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     IF p_purpose <> 'undo' AND NOT public.cash_arrival_stands(p_kind, p_id) THEN                                                                                                                                                                                                                                                           +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('a row drawing on %s %s: its money is not on the ledger, or something under its posting entry undoes it (a bounce, a reversal) — it gives no money (guard the act; A3, R-06; v5.4.2-23)', p_kind, p_id),                                                                                                      +
+             ERRCODE = 'check_violation';                                                                                                                                                                                                                                                                                                   +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     -- r2 (Opus S3): recorded order covers the source itself.                                                                                                                                                                                                                                                                              +
+     IF p_row_created_at < v_src_at THEN                                                                                                                                                                                                                                                                                                    +
+         IF p_row_created_at <> pg_catalog.now() THEN                                                                                                                                                                                                                                                                                       +
+             RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                          +
+                 MESSAGE = format('%s %s: a row drawing on it is recorded at %s, a time chosen for it, before the %s itself (recorded at %s) (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, p_kind, v_src_at),                                                                                                                         +
+                 ERRCODE = 'check_violation';                                                                                                                                                                                                                                                                                               +
+         END IF;                                                                                                                                                                                                                                                                                                                            +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('%s %s: a row drawing on it is recorded at %s, before the %s itself (recorded at %s) — a transaction that began earlier is writing later; retry it (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, p_kind, v_src_at),                                                                                     +
+             ERRCODE = 'serialization_failure';                                                                                                                                                                                                                                                                                             +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     SELECT d.id, d.created_at INTO v_later_id, v_later_at                                                                                                                                                                                                                                                                                  +
+       FROM public.cash_source_draws(p_kind, p_id) d                                                                                                                                                                                                                                                                                        +
+      WHERE d.created_at > p_row_created_at                                                                                                                                                                                                                                                                                                 +
+      ORDER BY d.created_at DESC LIMIT 1;                                                                                                                                                                                                                                                                                                   +
+     IF FOUND AND p_row_created_at <> pg_catalog.now() THEN                                                                                                                                                                                                                                                                                 +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('%s %s: a row drawing on it is recorded at %s, a time chosen for it, before %s (recorded at %s) already counted — a history row is recorded after every row already drawing on its source (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, v_later_id, v_later_at),                                        +
+             ERRCODE = 'check_violation';                                                                                                                                                                                                                                                                                                   +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     IF FOUND THEN                                                                                                                                                                                                                                                                                                                          +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('%s %s: a row drawing on it is recorded at %s, before %s (recorded at %s) already counted — a transaction that began earlier is writing later; retry it (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, v_later_id, v_later_at),                                                                          +
+             ERRCODE = 'serialization_failure';                                                                                                                                                                                                                                                                                             +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+     SELECT x.on_date, x.drawn INTO v_on, v_drawn                                                                                                                                                                                                                                                                                           +
+       FROM (SELECT d.on_date, sum(d.amount) OVER (ORDER BY d.on_date) AS drawn                                                                                                                                                                                                                                                             +
+               FROM public.cash_source_draws(p_kind, p_id) d) x                                                                                                                                                                                                                                                                             +
+      WHERE x.drawn > v_amount                                                                                                                                                                                                                                                                                                              +
+      ORDER BY x.on_date LIMIT 1;                                                                                                                                                                                                                                                                                                           +
+     IF FOUND THEN                                                                                                                                                                                                                                                                                                                          +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                                                                                                              +
+             MESSAGE = format('%s %s: on %s its applications, credits, refunds, donation and escheat would come to %s, more than its %s (R-06 cap, v5.4.2-23)', p_kind, p_id, v_on, v_drawn, v_amount),                                                                                                                                     +
+             ERRCODE = 'check_violation';                                                                                                                                                                                                                                                                                                   +
+     END IF;                                                                                                                                                                                                                                                                                                                                +
+ END;                                                                                                                                                                                                                                                                                                                                       +
+ $function$                                                                                                                                                                                                                                                                                                                                 +
+ 
+(1 row)
+
+INSERT 0 1
+ status | status_cause_id | status_recorded_at 
+--------+-----------------+--------------------
+ nsf    |                 | infinity
+(1 row)
+
+RESET
+ROLLBACK

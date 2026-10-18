@@ -1,0 +1,1380 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:149: NOTICE:  PASS T1 Texas gas has two law rows for distribution systems, both delegating to the utility (K-05)
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:156: NOTICE:  caught SQLSTATE=23514 message=payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — missing adhoc, adjustment, consolidated_summary, credit, deposit, late_fee, minimum_bill_adjustment, penalty, surcharge, tax, usage_charge (K-07: no assumed default; v5.4.2-23)
+psql:/tmp/probe.sql:156: NOTICE:  PASS T2 a tariff order that leaves a charge type out (K-07: no assumed default): refused by every bill-line charge type exactly once (payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — missing adhoc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:161: NOTICE:  caught SQLSTATE=23514 message=payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — listed twice adhoc, adjustment, base_charge, consolidated_summary, credit, deposit, late_fee, minimum_bill_adjustment, misc, penalty, surcharge, tax, usage_charge (K-07: no assumed default; v5.4.2-23)
+psql:/tmp/probe.sql:161: NOTICE:  PASS T3 a charge type in both lists: refused by listed twice (payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — listed twice )
+psql:/tmp/probe.sql:166: NOTICE:  caught SQLSTATE=23514 message=payment_allocation_tariffs: the document is not a valid payment_allocation_tariff v1: /within_bill/order: unknown key (v5.4.2-17)
+psql:/tmp/probe.sql:166: NOTICE:  PASS T4 the shape admits no other class order: an "order" list in place of the two lists is not a document: refused by payment_allocation_tariff (payment_allocation_tariffs: the document is not a valid payment_allocation_tariff v1: /within_bill/order: unknown key (v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:170: NOTICE:  PASS T5 the utility's own complete order, regulated first (in force January 1 to March 31)
+ admits 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b2
+(1 row)
+
+psql:/tmp/probe.sql:176: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "payment_allocation_tariffs": a utility writes its own tariff only (v5.4.2-23)
+psql:/tmp/probe.sql:176: NOTICE:  PASS T6 another utility writes no tariff for T1: refused by row-level security (new row violates row-level security policy for table "payment_allocation_tariffs": a utility writes its own tariff only )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 5
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+RESET
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:218: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_restriction_agency_check"
+psql:/tmp/probe.sql:218: NOTICE:  PASS A6 only an agency payment carries a restriction: refused by payments_restriction_agency_check (new row for relation "payments" violates check constraint "payments_restriction_agency_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:223: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "payments" violates foreign key constraint "payments_restricted_line_fkey"
+psql:/tmp/probe.sql:223: NOTICE:  PASS A6b a restricted line is a line of the restricted bill: refused by payments_restricted_line_fkey (insert or update on table "payments" violates foreign key constraint "payments_restricted_line_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:228: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "payments" violates foreign key constraint "payments_restricted_invoice_fkey"
+psql:/tmp/probe.sql:228: NOTICE:  PASS A6c a restricted bill is the payment's customer's: refused by payments_restricted_invoice_fkey (insert or update on table "payments" violates foreign key constraint "payments_restricted_invoice_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:238: NOTICE:  PASS A1 an application to a bill line, oldest first, citing the tariff in force
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:243: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_line_fkey"
+psql:/tmp/probe.sql:243: NOTICE:  PASS A1b a line of another bill: refused by invoice_applications_line_fkey (insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_line_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:248: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_invoice_fkey"
+psql:/tmp/probe.sql:248: NOTICE:  PASS A1c another customer's bill: refused by invoice_applications_invoice_fkey (insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_invoice_fkey")
+psql:/tmp/probe.sql:253: NOTICE:  caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_one_source_check"
+psql:/tmp/probe.sql:253: NOTICE:  PASS A1d one source, not two: refused by invoice_applications_one_source_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_one_source_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:256: NOTICE:  caught SQLSTATE=42501 message=permission denied for table invoice_applications
+psql:/tmp/probe.sql:256: NOTICE:  PASS A2 an application is never edited: refused by permission denied (permission denied for table invoice_applications)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:258: NOTICE:  caught SQLSTATE=42501 message=permission denied for table invoice_applications
+psql:/tmp/probe.sql:258: NOTICE:  PASS A2b nor deleted: refused by permission denied (permission denied for table invoice_applications)
+psql:/tmp/probe.sql:263: NOTICE:  caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check"
+psql:/tmp/probe.sql:263: NOTICE:  PASS A2c an undo says why and who: refused by invoice_applications_operator_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:268: NOTICE:  caught SQLSTATE=23514 message=application 00000000-0000-4000-8000-000000002341: its undos would come to 61.00, more than its 60.00 (A2 cap, v5.4.2-23)
+psql:/tmp/probe.sql:268: NOTICE:  PASS A2d an undo takes back at most the application: refused by A2 cap (application 00000000-0000-4000-8000-000000002341: its undos would come to 61.00, more than its 60.00 (A2 cap, v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:273: NOTICE:  caught SQLSTATE=23514 message=application 1245e4cf-5e7b-45a9-8074-82d4ac5ce558 is dated 2026-03-04, before the application it undoes (00000000-0000-4000-8000-000000002341, 2026-03-05): an undo is dated on or after it (A2, v5.4.2-23)
+psql:/tmp/probe.sql:273: NOTICE:  PASS A2e an undo is dated on or after what it undoes: refused by dated on or after it (application 1245e4cf-5e7b-45a9-8074-82d4ac5ce558 is dated 2026-03-04, before the application it undoes (00000000-0000-40)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:278: NOTICE:  caught SQLSTATE=23514 message=application 1af509e4-a9e6-4843-b4f7-563069030495 undoes 00000000-0000-4000-8000-000000002341: an undo names an application (not an undo) of the same source and line (A2, v5.4.2-23)
+psql:/tmp/probe.sql:278: NOTICE:  PASS A2f an undo is of the same source: refused by of the same source and line (application 1af509e4-a9e6-4843-b4f7-563069030495 undoes 00000000-0000-4000-8000-000000002341: an undo names an applicati)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:283: NOTICE:  caught SQLSTATE=23514 message=application d00f922c-f856-4ad1-be88-2e181bd7b716 undoes 00000000-0000-4000-8000-000000002341: an undo names an application (not an undo) of the same source and line (A2, v5.4.2-23)
+psql:/tmp/probe.sql:283: NOTICE:  PASS A2i an undo is of the same payment (P4 for P1's application): refused by of the same source and line (application d00f922c-f856-4ad1-be88-2e181bd7b716 undoes 00000000-0000-4000-8000-000000002341: an undo names an applicati)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:287: NOTICE:  PASS A2g a partial undo, with its reason and user
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:292: NOTICE:  caught SQLSTATE=23514 message=application 983a2437-3dc8-4592-af29-5ff336af9e9a undoes 00000000-0000-4000-8000-000000002342: an undo names an application (not an undo) of the same source and line (A2, v5.4.2-23)
+psql:/tmp/probe.sql:292: NOTICE:  PASS A2h an undo is never undone (re-apply instead): a well-formed undo naming an undo: refused by (not an undo) (application 983a2437-3dc8-4592-af29-5ff336af9e9a undoes 00000000-0000-4000-8000-000000002342: an undo names an applicati)
+psql:/tmp/probe.sql:297: NOTICE:  caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_sign_check"
+psql:/tmp/probe.sql:297: NOTICE:  PASS A2j an undo's sign is negative (a positive row naming an application): refused by invoice_applications_sign_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_sign_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:303: NOTICE:  caught SQLSTATE=23514 message=line 0 of invoice B23-I1: on 2026-03-07 its applications would come to 61.00, more than the line's 60.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:303: NOTICE:  PASS A3 a line takes no more than it is (50 applied of 60, then 11): refused by more than the line's (line 0 of invoice B23-I1: on 2026-03-07 its applications would come to 61.00, more than the line's 60.00 (R-06 cap, v5.4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:307: NOTICE:  PASS A3b and exactly what is left (10)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:312: NOTICE:  caught SQLSTATE=23514 message=application 3a9c4775-60c0-4ad0-b734-d87bd62d1eae: line 2 of invoice B23-I1 is -10.00 — only a positive line takes money; a credit or adjustment line is the bill's own netting (A3, v5.4.2-23)
+psql:/tmp/probe.sql:312: NOTICE:  PASS A3c a credit line takes no money (the bill's own netting): refused by only a positive line takes money (application 3a9c4775-60c0-4ad0-b734-d87bd62d1eae: line 2 of invoice B23-I1 is -10.00 — only a positive line takes money;)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:316: NOTICE:  PASS A3d the add-on line from the same payment (40: 100 of 100 drawn)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:321: NOTICE:  caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002361: on 2026-03-07 its applications, credits, refunds, donation and escheat would come to 101.00, more than its 100.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:321: NOTICE:  PASS A3e a payment pays no more than it is: 1 more of P1's 100: refused by more than its 100 (payment 00000000-0000-4000-8000-000000002361: on 2026-03-07 its applications, credits, refunds, donation and escheat wou)
+psql:/tmp/probe.sql:326: NOTICE:  caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002362 (pending) for application: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:/tmp/probe.sql:326: NOTICE:  PASS A3f a pending payment pays nothing: refused by drawn from a posted payment (a row drawing on payment 00000000-0000-4000-8000-000000002362 (pending) for application: money is drawn from a posted pa)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:331: NOTICE:  caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002363 (posted, a deposit) for application: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:/tmp/probe.sql:331: NOTICE:  PASS A3g a deposit pays no bill (K-05): refused by a deposit (a row drawing on payment 00000000-0000-4000-8000-000000002363 (posted, a deposit) for application: money is drawn from a)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:336: NOTICE:  caught SQLSTATE=23514 message=application c9feea75-eaa8-437c-8774-2737203367ed: invoice B23-I4 is draft — money is applied to an issued, unvoided bill (A3, v5.4.2-23)
+psql:/tmp/probe.sql:336: NOTICE:  PASS A3h a draft bill takes no money: refused by an issued, unvoided bill (application c9feea75-eaa8-437c-8774-2737203367ed: invoice B23-I4 is draft — money is applied to an issued, unvoided bill)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:341: NOTICE:  caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002371 is dated 2026-03-01, before the credit (2026-03-02): money is drawn on or after it arrives (A3, R-06; v5.4.2-23)
+psql:/tmp/probe.sql:341: NOTICE:  PASS A3i money is applied on or after it arrived (credit issued March 2, applied March 1): refused by drawn on or after it arrives (a row drawing on credit 00000000-0000-4000-8000-000000002371 is dated 2026-03-01, before the credit (2026-03-02): money )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:345: NOTICE:  PASS A3j a credit pays a line
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:350: NOTICE:  caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002373 (voided) for application: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:/tmp/probe.sql:350: NOTICE:  PASS A3k a voided credit pays nothing: refused by or an active credit (a row drawing on credit 00000000-0000-4000-8000-000000002373 (voided) for application: money is drawn from a posted paym)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:355: NOTICE:  caught SQLSTATE=23514 message=application a0de54db-7fab-4092-a15c-53c7f4dff2c1 is dated 2026-02-25, before its bill (2026-03-01): money is applied on or after it (A3, v5.4.2-23)
+psql:/tmp/probe.sql:355: NOTICE:  PASS A3l money is applied on or after its bill (K74 issued February 20, applied February 25, before I2's March 1): refused by before its bill (application a0de54db-7fab-4092-a15c-53c7f4dff2c1 is dated 2026-02-25, before its bill (2026-03-01): money is applied on )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:361: NOTICE:  caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check"
+psql:/tmp/probe.sql:361: NOTICE:  PASS A4 an operator's choice says why: refused by invoice_applications_operator_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:366: NOTICE:  caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_tariff_check"
+psql:/tmp/probe.sql:366: NOTICE:  PASS A4b a rule-chosen application names its tariff: refused by invoice_applications_tariff_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_tariff_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:375: NOTICE:  caught SQLSTATE=23514 message=payment_allocation_tariffs row 00000000-0000-4000-8000-0000000023ac is not in force on 2026-03-07 (v5.4.2-17)
+psql:/tmp/probe.sql:375: NOTICE:  PASS A4c the tariff is in force on the application's date (a row from April 1, cited on March 7): refused by is not in force on (payment_allocation_tariffs row 00000000-0000-4000-8000-0000000023ac is not in force on 2026-03-07 (v5.4.2-17))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:379: NOTICE:  PASS A4d an operator's choice with a reason and user
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:384: NOTICE:  caught SQLSTATE=23514 message=application c0a1ac5c-9ebd-4bb0-a5c1-5eaba3c4c176 says restriction: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:/tmp/probe.sql:384: NOTICE:  PASS A4e an unrestricted payment says no restriction: refused by restriction is a restricted payment (application c0a1ac5c-9ebd-4bb0-a5c1-5eaba3c4c176 says restriction: restriction is a restricted payment's own target; flo)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:389: NOTICE:  caught SQLSTATE=23514 message=application a72d796f-b44a-4cb4-9d43-94e1a14ab460 says oldest_first: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:/tmp/probe.sql:389: NOTICE:  PASS A4f a restricted payment is not applied oldest first: refused by restriction is a restricted payment (application a72d796f-b44a-4cb4-9d43-94e1a14ab460 says oldest_first: restriction is a restricted payment's own target; fl)
+psql:/tmp/probe.sql:393: NOTICE:  PASS A4g the agency's money goes to its target, the add-on (D7-1 b)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:397: NOTICE:  PASS A4h or to gas service ahead of the unregulated target, said so (CI-050's floor; Kyle to rule which wins)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:402: NOTICE:  caught SQLSTATE=23514 message=application 1c9d1767-89e9-434b-bf91-d46e54c89661 says floor_over_restriction: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:/tmp/probe.sql:402: NOTICE:  PASS A4i the floor takes a regulated line only (the add-on of I1 is not one): refused by floor_over_restriction a regulated line (application 1c9d1767-89e9-434b-bf91-d46e54c89661 says floor_over_restriction: restriction is a restricted payment's own )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:405: NOTICE:  PASS A5 every application to I1's gas line is visible on the line: 60 + 10 - 10 = 60 applied, nothing open
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:414: NOTICE:  PASS M1 the counters are gone
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:417: NOTICE:  PASS M1b P1's position: 100 applied (60 - 10 + 10 + 40), nothing left
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:419: NOTICE:  PASS M1c by the money date: on March 6, P1 had paid 50 (60 less the undo)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:421: NOTICE:  PASS M1d before the payment's date there is no position
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:424: NOTICE:  caught SQLSTATE=22004 message=payment_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-10-18 23:13:34.879684+00) (v5.4.2-23)
+psql:/tmp/probe.sql:424: NOTICE:  PASS M1e a position is read at given coordinates (no live fallback): refused by both given (payment_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-1)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:427: NOTICE:  PASS M1f K71's position: 25 applied, nothing left; I2's line 14 has 25 + 20 applied of 60
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:429: NOTICE:  PASS M1g I1's position from its lines: 90 of lines, 100 applied, 0 open on its positive lines
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+psql:/tmp/probe.sql:441: NOTICE:  PASS M1j by the recorded instant: 90 minutes ago P8 was known and nothing of it applied; now 5 is
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:446: NOTICE:  caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002371 cannot move from active to fully_applied (CI-013; v5.4.2-23): an active credit ends refunded, donated, escheated or voided, and those are terminal — issue a new credit
+psql:/tmp/probe.sql:446: NOTICE:  PASS M1h a credit is not "fully applied": what is left is read, not stored: refused by cannot move from active to fully_applied (customer credit 00000000-0000-4000-8000-000000002371 cannot move from active to fully_applied (CI-013; v5.4.2-23): an ac)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:452: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_status_check"
+psql:/tmp/probe.sql:452: NOTICE:  PASS M1i nor born so (the status vocabulary has no such value): refused by customer_credits_status_check (new row for relation "customer_credits" violates check constraint "customer_credits_status_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:457: NOTICE:  caught SQLSTATE=23001 message=payment B23-P2: amount is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment and post a new one
+psql:/tmp/probe.sql:457: NOTICE:  PASS M2 a pending payment's amount is fixed from insert (R-05): refused by is written once (payment B23-P2: amount is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:459: NOTICE:  PASS M2b a reference that arrives later is written once
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:461: NOTICE:  caught SQLSTATE=23001 message=payment B23-P2: provider_transaction_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment and post a new one
+psql:/tmp/probe.sql:461: NOTICE:  PASS M2c and never changed: refused by is written once (payment B23-P2: provider_transaction_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — re)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:463: NOTICE:  caught SQLSTATE=23001 message=payment B23-P4: restricted_to_line_item_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment and post a new one
+psql:/tmp/probe.sql:463: NOTICE:  PASS M2d a payment's restriction is fixed from insert: refused by is written once (payment B23-P4: restricted_to_line_item_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:465: NOTICE:  caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002371: original_amount is fixed from insert (R-05, CI-013; v5.4.2-23) — void it and issue a new credit
+psql:/tmp/probe.sql:465: NOTICE:  PASS M2e a credit's amount is fixed from insert: refused by fixed from insert (customer credit 00000000-0000-4000-8000-000000002371: original_amount is fixed from insert (R-05, CI-013; v5.4.2-23) — v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:472: NOTICE:  caught SQLSTATE=23001 message=adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to amount — void or waive it and create a new charge
+psql:/tmp/probe.sql:472: NOTICE:  PASS M2f a pending one-off charge's amount is fixed from insert: refused by fixed from insert (adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to amount — void or w)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:474: NOTICE:  caught SQLSTATE=23001 message=adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to regulatory_class — void or waive it and create a new charge
+psql:/tmp/probe.sql:474: NOTICE:  PASS M2g and its class (D7-2): refused by regulatory_class (adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to regulatory_class —)
+psql:/tmp/probe.sql:476: NOTICE:  caught SQLSTATE=23514 message=new row for relation "adhoc_charges" violates check constraint "adhoc_charges_void_reason_check"
+psql:/tmp/probe.sql:476: NOTICE:  PASS M2h a void says why: refused by adhoc_charges_void_reason_check (new row for relation "adhoc_charges" violates check constraint "adhoc_charges_void_reason_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:480: NOTICE:  caught SQLSTATE=23503 message=payment B23-P2: the move to posted names the row behind it in status_cause_id (none) — its posting ledger entry (of type payment, referencing this payment, at minus its amount) (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:480: NOTICE:  PASS M3 a move to posted names its posting ledger entry: refused by its posting ledger entry (payment B23-P2: the move to posted names the row behind it in status_cause_id (none) — its posting ledger entry (of type)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:486: NOTICE:  caught SQLSTATE=23503 message=payment B23-P2: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002382) — its posting ledger entry (of type payment, referencing this payment, at minus its amount) (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:486: NOTICE:  PASS M3b the entry is the payment's own, at minus its amount (P1's entry named for P2): refused by its posting ledger entry (payment B23-P2: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002382) — i)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:489: NOTICE:  PASS M3c posted, naming its entry
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:491: NOTICE:  caught SQLSTATE=23001 message=payment B23-P2 cannot move from posted to pending (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf, reversed or refunded, and the rest are terminal — post a new payment
+psql:/tmp/probe.sql:491: NOTICE:  PASS M3d nothing returns to pending: refused by cannot move from posted to pending (payment B23-P2 cannot move from posted to pending (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf,)
+psql:/tmp/probe.sql:493: NOTICE:  caught SQLSTATE=23001 message=payment B23-P2: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:493: NOTICE:  PASS M3e the cause changes only with the status: refused by change only with the status (payment B23-P2: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:497: NOTICE:  caught SQLSTATE=23001 message=account_ledger 001885f3-d5f0-4fc5-ad83-5552fc36d79d undoes payment 00000000-0000-4000-8000-000000002361's posting entry 00000000-0000-4000-8000-000000002382 while the payment is applied to bills or held as a credit: undo its applications and void its credit first (guard the act; CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:497: NOTICE:  PASS M3f bounced money is not still paying bills: the bounce row itself waits while P1 is applied (guard the act): refused by while the payment is applied to bills (account_ledger 001885f3-d5f0-4fc5-ad83-5552fc36d79d undoes payment 00000000-0000-4000-8000-000000002361's posting entry )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ALTER TABLE
+INSERT 0 1
+ALTER TABLE
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:508: NOTICE:  caught SQLSTATE=23001 message=payment B23-P1 cannot move to nsf while it is applied to bills or held as a credit: undo its applications and void its credit first (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:508: NOTICE:  PASS M3f2 nor does the move to nsf pass while P1 is applied (the planted bounce row past the ledger's guard): refused by while it is applied to bills (payment B23-P1 cannot move to nsf while it is applied to bills or held as a credit: undo its applications and void its c)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:513: NOTICE:  caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002361: its money is not on the ledger, or something under its posting entry undoes it (a bounce, a reversal) — it gives no money (guard the act; A3, R-06; v5.4.2-23)
+psql:/tmp/probe.sql:513: NOTICE:  PASS M3f3 and P1 gives no more money: its posting entry is undone (O2): refused by its money is not on the ledger (a row drawing on payment 00000000-0000-4000-8000-000000002361: its money is not on the ledger, or something under its po)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:527: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check"
+psql:/tmp/probe.sql:527: NOTICE:  PASS C1 an overpayment credit cites the customer's approval: refused by customer_credits_overpayment_approved_check (new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:531: NOTICE:  PASS C1b the approval: the payment, the amount, who took it (the time is the database's)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:533: NOTICE:  PASS C1c its time is stamped, not supplied
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:537: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey"
+psql:/tmp/probe.sql:537: NOTICE:  PASS C1d the credit equals the approved amount: refused by customer_credits_approval_fkey (insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:541: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey"
+psql:/tmp/probe.sql:541: NOTICE:  PASS C1e and comes from the approved payment: refused by customer_credits_approval_fkey (insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey")
+psql:/tmp/probe.sql:545: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check"
+psql:/tmp/probe.sql:545: NOTICE:  PASS C1f an overpayment credit names its payment (an approval without one is not checked by the FK): refused by customer_credits_overpayment_approved_check (new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:548: NOTICE:  PASS C1g the credit, under its approval
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:552: NOTICE:  caught SQLSTATE=23505 message=duplicate key value violates unique constraint "customer_credits_one_per_approval"
+psql:/tmp/probe.sql:552: NOTICE:  PASS C1h one approval, one credit: refused by customer_credits_one_per_approval (duplicate key value violates unique constraint "customer_credits_one_per_approval")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:554: NOTICE:  caught SQLSTATE=42501 message=permission denied for table customer_credit_approvals
+psql:/tmp/probe.sql:554: NOTICE:  PASS C1i an approval is never edited: refused by permission denied (permission denied for table customer_credit_approvals)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:556: NOTICE:  PASS C1j P6's position counts the credit: 5 credited, 45 left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:563: NOTICE:  caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002366: on 2026-03-10 its applications, credits, refunds, donation and escheat would come to 51.00, more than its 50.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:563: NOTICE:  PASS C1k an approval for more than is left makes no credit past the payment (5 + 46 of 50): refused by more than its 50 (payment 00000000-0000-4000-8000-000000002366: on 2026-03-10 its applications, credits, refunds, donation and escheat wou)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:567: NOTICE:  caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002366: on 2026-03-11 its applications, credits, refunds, donation and escheat would come to 51.00, more than its 50.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:567: NOTICE:  PASS C1l a refund draws on the same money (45 left, 46 refunded): refused by more than its 50 (payment 00000000-0000-4000-8000-000000002366: on 2026-03-11 its applications, credits, refunds, donation and escheat wou)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:570: NOTICE:  PASS C1m the rest refunded (45)
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:572: NOTICE:  PASS M3g refunded, naming the refund, with nothing left
+INSERT 0 1
+psql:/tmp/probe.sql:578: NOTICE:  caught SQLSTATE=23001 message=payment B23-P5 moves to refunded only when nothing of it is left: 15.00 remains (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:578: NOTICE:  PASS M3i a payment is refunded only when nothing of it is left (P5: 30 less 5 applied, 10 refunded): refused by only when nothing of it is left (payment B23-P5 moves to refunded only when nothing of it is left: 15.00 remains (CI-013, v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:587: NOTICE:  caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-00000000236a (pending) for overpayment_credit: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:/tmp/probe.sql:587: NOTICE:  PASS C1m2 a pending payment holds no credit (money not yet arrived): refused by drawn from a posted payment (a row drawing on payment 00000000-0000-4000-8000-00000000236a (pending) for overpayment_credit: money is drawn from a po)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:590: NOTICE:  caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-000000002371: the move to voided names the row behind it in status_cause_id (none) — the ledger row reversing its credit_issued entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:590: NOTICE:  PASS M3h0 a credit's void names the row behind it: refused by the ledger row reversing its credit_issued entry (customer credit 00000000-0000-4000-8000-000000002371: the move to voided names the row behind it in status_cause_id (non)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:594: NOTICE:  caught SQLSTATE=23001 message=account_ledger e3a69b27-369d-4a79-aaf9-0e7d74087b45 undoes credit 00000000-0000-4000-8000-000000002371's credit_issued entry 00000000-0000-4000-8000-000000002384 while the credit is drawn on (applied, refunded, donated or escheated): undo those first (guard the act; CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:594: NOTICE:  PASS M3h a credit's money is not withdrawn on the ledger while it is drawn on (K71 paid 25 of I2; O6): refused by while the credit is drawn on (account_ledger e3a69b27-369d-4a79-aaf9-0e7d74087b45 undoes credit 00000000-0000-4000-8000-000000002371's credit_issued e)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ALTER TABLE
+INSERT 0 1
+ALTER TABLE
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:605: NOTICE:  caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002371 cannot be voided while 25.00 of it is drawn on (applied, refunded, donated or escheated): undo those first (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:605: NOTICE:  PASS M3h2 a credit is voided only when nothing of it is drawn on (K71 paid 25 of I2): refused by cannot be voided while (customer credit 00000000-0000-4000-8000-000000002371 cannot be voided while 25.00 of it is drawn on (applied, refunded, )
+RESET
+psql:/tmp/probe.sql:610: NOTICE:  caught SQLSTATE=23514 message=new row for relation "tenants" violates check constraint "tenants_overpayment_handling_check"
+psql:/tmp/probe.sql:610: NOTICE:  PASS C2 overpayment_handling no longer applies to a bill of the payer's choosing (K-05): refused by tenants_overpayment_handling_check (new row for relation "tenants" violates check constraint "tenants_overpayment_handling_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:612: NOTICE:  PASS C2b the allocation strategy column is retired (K-05: oldest first)
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:623: NOTICE:  caught SQLSTATE=23514 message=new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check"
+psql:/tmp/probe.sql:623: NOTICE:  PASS X1 an nsf names the entry it reverses: refused by account_ledger_reversal_types_name_check (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:627: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "account_ledger" violates foreign key constraint "account_ledger_reverses_ledger_entry_fkey"
+psql:/tmp/probe.sql:627: NOTICE:  PASS X1b of its own customer: refused by account_ledger_reverses_ledger_entry_fkey (insert or update on table "account_ledger" violates foreign key constraint "account_ledger_reverses_ledger_entry_fkey")
+psql:/tmp/probe.sql:631: NOTICE:  caught SQLSTATE=23514 message=account_ledger ac8c7926-64f1-42d5-be37-185914ace282 (10.00) reverses 00000000-0000-4000-8000-000000002391 (100.00): a reversal has the opposite sign of the entry it names, and neither is zero (R-02, v5.4.2-23)
+psql:/tmp/probe.sql:631: NOTICE:  PASS X2 with the opposite sign: refused by a reversal has the opposite sign of the entry it names (account_ledger ac8c7926-64f1-42d5-be37-185914ace282 (10.00) reverses 00000000-0000-4000-8000-000000002391 (100.00): a re)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:635: NOTICE:  caught SQLSTATE=23514 message=account_ledger d134b856-716f-457d-bff5-29970a26f0c3 is dated 2026-02-28, before 2026-03-01, the date of the entry it names (00000000-0000-4000-8000-000000002391): a reversal is dated on or after the entry it names (R-02, v5.4.2-23)
+psql:/tmp/probe.sql:635: NOTICE:  PASS X2b and never dated before it: refused by dated on or after the entry it names (account_ledger d134b856-716f-457d-bff5-29970a26f0c3 is dated 2026-02-28, before 2026-03-01, the date of the entry it nam)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:641: NOTICE:  caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-03 the rows netted against it would come to -110.00, outside 0 to -100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:/tmp/probe.sql:641: NOTICE:  PASS X2c reversals total at most the entry (60 + 50 of 100): refused by R-02 cap (entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-03 the rows netted against it would come to -110)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 2
+psql:/tmp/probe.sql:645: NOTICE:  PASS X2d a reversal of a reversal frees the room it took (R2 of 50 admitted after RR1)
+DO
+psql:/tmp/probe.sql:649: NOTICE:  caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-05 the rows netted against it would come to -110.00, outside 0 to -100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:/tmp/probe.sql:649: NOTICE:  PASS X2e three levels down still nets into the original: R3 under RR1 brings R1 back, 60 + 50 of 100: refused by entry 00000000-0000-4000-8000-000000002391 (entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-05 the rows netted against it would come to -110)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:653: NOTICE:  caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-02 the rows netted against it would come to -110.00, outside 0 to -100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:/tmp/probe.sql:653: NOTICE:  PASS X2f and at every date: an earlier-dated reversal is not made room for by a later one: refused by R-02 cap (entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-02 the rows netted against it would come to -110)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:658: NOTICE:  caught SQLSTATE=23514 message=account_ledger 670e0f80-b602-47b6-9956-8352d41b643f is recorded at a non-finite or future time (2026-10-19 23:13:34.809847+00): every ledger row is recorded at a time already reached (R-02, v5.4.2-23)
+psql:/tmp/probe.sql:658: NOTICE:  PASS X2g a ledger row is recorded at a time already reached (the owner's too): refused by non-finite or future time (account_ledger 670e0f80-b602-47b6-9956-8352d41b643f is recorded at a non-finite or future time (2026-10-19 23:13:34.8098)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:662: NOTICE:  caught SQLSTATE=23514 message=ledger tree 00000000-0000-4000-8000-000000002391: 11ae2697-aa7a-4f40-98e6-83f47b3c7cab is recorded at 2026-10-17 23:13:34.809847+00, a time chosen for it, before 00000000-0000-4000-8000-000000002392 (recorded at 2026-10-18 23:13:34.809847+00) already in the tree — a history row is recorded after every row already in its tree (R-02, v5.4.2-23)
+psql:/tmp/probe.sql:662: NOTICE:  PASS X2h a history row with a chosen time is recorded after every row already in its tree: refused by a time chosen for it (ledger tree 00000000-0000-4000-8000-000000002391: 11ae2697-aa7a-4f40-98e6-83f47b3c7cab is recorded at 2026-10-17 23:13:3)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:683: NOTICE:  PASS X3 the void reverses the 60 left of the charge, not -(amount_due), and names it
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:685: NOTICE:  PASS X3b nothing of the charge is left after it
+ ok 
+----
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:695: NOTICE:  PASS X3c a charge already fully reversed voids with no ledger row
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:700: NOTICE:  caught SQLSTATE=23514 message=application c43aefe4-1e45-495c-a399-6891f319c999: invoice B23-I2 is void — money is applied to an issued, unvoided bill (A3, v5.4.2-23)
+psql:/tmp/probe.sql:700: NOTICE:  PASS X3d a void bill takes no new money: refused by an issued, unvoided bill (application c43aefe4-1e45-495c-a399-6891f319c999: invoice B23-I2 is void — money is applied to an issued, unvoided bill )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+ snap 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:728: NOTICE:  caught SQLSTATE=23514 message=invoice B23-I5 cannot be issued: line 0 (adhoc, Surge protection) is classed against its source wrongly — it is regulated, its one-off charge 00000000-0000-4000-8000-0000000023e1 is unregulated (D7-2, CI-050; v5.4.2-23)
+DO
+psql:/tmp/probe.sql:728: NOTICE:  PASS LC1 a line classed against its one-off charge wrongly is refused at issue (invoice B23-I5 cannot be issued: line 0 (adhoc, Surge protection) is classed against its source wrongly — it is regulate)
+psql:/tmp/probe.sql:732: NOTICE:  caught SQLSTATE=23502 message=null value in column "regulatory_class" of relation "invoice_line_items" violates not-null constraint
+psql:/tmp/probe.sql:732: NOTICE:  PASS LC2 every line carries a class (NOT NULL; no assumed default): refused by regulatory_class (null value in column "regulatory_class" of relation "invoice_line_items" violates not-null constraint)
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+UPDATE 1
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:745: NOTICE:  caught SQLSTATE=23514 message=invoice_applications: dated 2026-03-06, on or before 2026-03-06, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+psql:/tmp/probe.sql:745: NOTICE:  PASS F1 an application dated in a closed period: refused by a closed period is frozen (invoice_applications: dated 2026-03-06, on or before 2026-03-06, the end of the tenant's last closed accounting period —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ bill 
+------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:/tmp/probe.sql:760: NOTICE:  caught SQLSTATE=23514 message=payments 499de3da-4759-4100-a9dd-ee6489e110c3 is born posted, naming none: a payment is born pending with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+psql:/tmp/probe.sql:760: NOTICE:  PASS R1 a payment is born pending: not posted with no posting entry: refused by is born posted (payments 499de3da-4759-4100-a9dd-ee6489e110c3 is born posted, naming none: a payment is born pending with no cause, and )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:764: NOTICE:  caught SQLSTATE=23514 message=payments 312ef97e-b1d9-4e56-aa34-677a1541f7d1 is born refunded, naming none: a payment is born pending with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+psql:/tmp/probe.sql:764: NOTICE:  PASS R1b nor refunded or nsf with no cause: refused by is born refunded (payments 312ef97e-b1d9-4e56-aa34-677a1541f7d1 is born refunded, naming none: a payment is born pending with no cause, an)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:768: NOTICE:  caught SQLSTATE=23514 message=customer_credits ac3d22da-6638-453c-bf64-14f9366ad5c4 is born voided, naming none: a credit is born active with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+psql:/tmp/probe.sql:768: NOTICE:  PASS R1c a credit is born active: refused by is born voided (customer_credits ac3d22da-6638-453c-bf64-14f9366ad5c4 is born voided, naming none: a credit is born active with no cause)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:770: NOTICE:  PASS R1d payments.status defaults to pending
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 5
+INSERT 0 1
+psql:/tmp/probe.sql:783: NOTICE:  caught SQLSTATE=23503 message=payment B23-Q1: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002480) — its posting ledger entry (of type payment, referencing this payment, at minus its amount) (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:783: NOTICE:  PASS R2 a payment is posted by a payment row, not an adjustment of its amount (Codex B4): refused by of type payment (payment B23-Q1: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002480) — i)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:793: NOTICE:  caught SQLSTATE=23503 message=payment B23-Q1: the move to nsf names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002485) — an nsf ledger row reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:793: NOTICE:  PASS R3 a 1.00 nsf row does not end a 30.00 payment (Opus B2 O3): refused by which then has nothing left (payment B23-Q1: the move to nsf names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002485) — an n)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:798: NOTICE:  caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002461: its money is not on the ledger, or something under its posting entry undoes it (a bounce, a reversal) — it gives no money (guard the act; A3, R-06; v5.4.2-23)
+psql:/tmp/probe.sql:798: NOTICE:  PASS R3b and the payment gives no money while any of its posting entry is undone: refused by its money is not on the ledger (a row drawing on payment 00000000-0000-4000-8000-000000002461: its money is not on the ledger, or something under its po)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:802: NOTICE:  PASS R3c the rest returned, the move to nsf names an nsf row and nothing is left
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:804: NOTICE:  PASS R3d the move's time is the database's
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:807: NOTICE:  caught SQLSTATE=23001 message=payment B23-Q1: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:807: NOTICE:  PASS R3e and is never written by a caller: refused by change only with the status (payment B23-Q1: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:829: NOTICE:  caught SQLSTATE=23503 message=payment B23-Q2: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-00000000249f) — a ledger row (not nsf, not a refund) reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:829: NOTICE:  PASS R4 reversed names a reversal that is not an nsf (an nsf row wholly undoing its own posting entry is refused)
+DO
+INSERT 0 1
+psql:/tmp/probe.sql:834: NOTICE:  caught SQLSTATE=23503 message=payment B23-Q2: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002486) — a ledger row (not nsf, not a refund) reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:834: NOTICE:  PASS R4a nor another payment's nsf row: refused by not nsf (payment B23-Q2: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002486) —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:836: NOTICE:  PASS R4b reversed, naming the adjustment that undoes its posting entry
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:838: NOTICE:  PASS R4c a pending payment is voided, naming nothing
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:843: NOTICE:  caught SQLSTATE=23514 message=new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_only_check"
+psql:/tmp/probe.sql:843: NOTICE:  PASS R5 a payment row does not "reverse" a charge (Fable S7): refused by account_ledger_reversal_types_only_check (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_only_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:847: NOTICE:  caught SQLSTATE=23514 message=account_ledger 0e6bbc5d-e07d-491c-8536-5a8d27e53322 is dated 2026-11-17, after today: a reversal is dated on or before the day it is posted (R-02, v5.4.2-23)
+psql:/tmp/probe.sql:847: NOTICE:  PASS R5b a reversal is not dated after today (Opus S2): refused by after today (account_ledger 0e6bbc5d-e07d-491c-8536-5a8d27e53322 is dated 2026-11-17, after today: a reversal is dated on or before t)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:852: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_payment_overpayment_check"
+psql:/tmp/probe.sql:852: NOTICE:  PASS R6 a goodwill credit naming a payment is refused: it would spend the payment twice (Fable B1): refused by customer_credits_payment_overpayment_check (new row for relation "customer_credits" violates check constraint "customer_credits_payment_overpayment_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:856: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "customer_credit_approvals" violates foreign key constraint "customer_credit_approvals_approved_by_fkey"
+psql:/tmp/probe.sql:856: NOTICE:  PASS R6b an approval is signed by the tenant's own user (Opus S4): refused by customer_credit_approvals_approved_by_fkey (insert or update on table "customer_credit_approvals" violates foreign key constraint "customer_credit_approvals_approve)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:865: NOTICE:  caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002463: on 2026-03-12 its applications, credits, refunds, donation and escheat would come to 21.00, more than its 20.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:865: NOTICE:  PASS R7 while the credit holds Q3's 20, Q3 refunds nothing: refused by more than its 20 (payment 00000000-0000-4000-8000-000000002463: on 2026-03-12 its applications, credits, refunds, donation and escheat wou)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:867: NOTICE:  PASS R7b an overpayment credit posts no ledger row, so its void names nothing
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:870: NOTICE:  PASS R7c the voided credit no longer holds Q3's money: Q3 refunds 20
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:872: NOTICE:  PASS R7d Q3's position: no credit, 20 refunded, nothing left
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:877: NOTICE:  PASS R8 Q4 (40) pays 15 of I6's gas line
+ admits 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:881: NOTICE:  PASS R8b Q4 refunded: 15 applied and 25 refunded leave nothing
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:886: NOTICE:  caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002464 (refunded) for undo: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:/tmp/probe.sql:886: NOTICE:  PASS R8c an undo does not bring money back to a refunded payment (Opus B3 O4b): refused by an undo only while its source has not ended (a row drawing on payment 00000000-0000-4000-8000-000000002464 (refunded) for undo: money is drawn from a posted payment )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:889: NOTICE:  caught SQLSTATE=23001 message=refund B23-QR3 cannot move to voided: the payment it returns is refunded, and would be ended with money on it (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:889: NOTICE:  PASS R8d nor is the refund it names voided (Opus B3 O4c): refused by would be ended with money on it (refund B23-QR3 cannot move to voided: the payment it returns is refunded, and would be ended with money on it (CI-013, v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+psql:/tmp/probe.sql:899: NOTICE:  caught SQLSTATE=23503 message=payment B23-Q9: the move to refunded names the row behind it in status_cause_id (00000000-0000-4000-8000-00000000246a) — a refund payment returning it, pending or posted (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:899: NOTICE:  PASS R8e a refunded move names a refund still standing, not a voided one (Fable S4): refused by pending or posted (payment B23-Q9: the move to refunded names the row behind it in status_cause_id (00000000-0000-4000-8000-00000000246a) —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 5
+INSERT 0 4
+psql:/tmp/probe.sql:916: NOTICE:  caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002476: its money is not on the ledger, or something under its posting entry undoes it (a bounce, a reversal) — it gives no money (guard the act; A3, R-06; v5.4.2-23)
+psql:/tmp/probe.sql:916: NOTICE:  PASS R9 a credit with no credit_issued entry gives no money (K6, Opus B2): refused by its money is not on the ledger (a row drawing on credit 00000000-0000-4000-8000-000000002476: its money is not on the ledger, or something under its pos)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:920: NOTICE:  caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002472: on 2026-03-12 its applications, credits, refunds, donation and escheat would come to 31.00, more than its 30.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:920: NOTICE:  PASS R10 a credit refunds no more than it is (K2: 31 of 30; Fable S6): refused by more than its 30 (credit 00000000-0000-4000-8000-000000002472: on 2026-03-12 its applications, credits, refunds, donation and escheat woul)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:923: NOTICE:  PASS R10b K2 refunded in full
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:925: NOTICE:  PASS R10c K2 moves to refunded, naming it
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:928: NOTICE:  caught SQLSTATE=23001 message=refund B23-KR2 cannot move to voided: the credit it returns is refunded, and would be ended with money on it (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:928: NOTICE:  PASS R10d the refund a refunded credit rests on is not voided (Opus B3): refused by would be ended with money on it (refund B23-KR2 cannot move to voided: the credit it returns is refunded, and would be ended with money on it (CI-013, v5)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:931: NOTICE:  PASS R11 K3 (100) donated in full: the donation is a draw on it
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:935: NOTICE:  caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002473: on 2026-03-12 its applications, credits, refunds, donation and escheat would come to 101.00, more than its 100.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:935: NOTICE:  PASS R11b nothing is refunded after a full donation (Codex B1): refused by more than its 100 (credit 00000000-0000-4000-8000-000000002473: on 2026-03-12 its applications, credits, refunds, donation and escheat woul)
+psql:/tmp/probe.sql:937: NOTICE:  PASS R11c K3 moves to donated, naming the donation, nothing left
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:940: NOTICE:  PASS R11d K4 (15): a donation of 1
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:943: NOTICE:  caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002474 moves to donated only when nothing of it is left: 14.00 remains (CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:943: NOTICE:  PASS R11e a donation of 1 does not end a credit with 14 left (Codex B1): refused by only when nothing of it is left (customer credit 00000000-0000-4000-8000-000000002474 moves to donated only when nothing of it is left: 14.00 remains (CI)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:947: NOTICE:  caught SQLSTATE=23514 message=account_ledger 993c305c-411d-4bbe-bc15-8e3514e479c7 donates credit 00000000-0000-4000-8000-000000002474: a donation of a credit is the amount given up, more than 0 (R-06, v5.4.2-23)
+psql:/tmp/probe.sql:947: NOTICE:  PASS R11f a donation of a credit is more than 0: refused by more than 0 (account_ledger 993c305c-411d-4bbe-bc15-8e3514e479c7 donates credit 00000000-0000-4000-8000-000000002474: a donation of a)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:950: NOTICE:  PASS R12 K5 (10): a dormancy flag is recorded
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:953: NOTICE:  caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-000000002475: the move to escheated names the row behind it in status_cause_id (00000000-0000-4000-8000-0000000024e1) — its escheated_to_state escheatment event (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:953: NOTICE:  PASS R12b a dormancy flag is not an escheat (Codex B4): refused by escheated_to_state (customer credit 00000000-0000-4000-8000-000000002475: the move to escheated names the row behind it in status_cause_id ()
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:957: NOTICE:  caught SQLSTATE=23514 message=escheatment event 3e13c930-0ded-483f-b60e-069786092b9e remits credit 00000000-0000-4000-8000-000000002475: an escheated_to_state event carries the amount remitted, more than 0 (R-06, v5.4.2-23)
+psql:/tmp/probe.sql:957: NOTICE:  PASS R12c a remittance carries its amount: refused by carries the amount remitted (escheatment event 3e13c930-0ded-483f-b60e-069786092b9e remits credit 00000000-0000-4000-8000-000000002475: an escheated_)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:961: NOTICE:  caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002475: on 2026-10-18 its applications, credits, refunds, donation and escheat would come to 11.00, more than its 10.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:961: NOTICE:  PASS R12d and remits no more than is left (11 of 10): refused by more than its 10 (credit 00000000-0000-4000-8000-000000002475: on 2026-10-18 its applications, credits, refunds, donation and escheat woul)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:964: NOTICE:  PASS R12e the remittance of 10
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:966: NOTICE:  PASS R12f K5 moves to escheated, naming its remittance
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:968: NOTICE:  PASS R12g K5's position: 10 given up, nothing left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:976: NOTICE:  caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-000000002476: the move to voided names the row behind it in status_cause_id (00000000-0000-4000-8000-0000000024a7) — the ledger row reversing its credit_issued entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:976: NOTICE:  PASS R13 a credit is voided only when its credit_issued entry is wholly reversed (4 of 12): refused by which then has nothing left (customer credit 00000000-0000-4000-8000-000000002476: the move to voided names the row behind it in status_cause_id (000)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:980: NOTICE:  PASS R13b and voided once it is
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:986: NOTICE:  caught SQLSTATE=23514 message=application da8dd0db-a61c-41ab-98ac-2af52375f845 says restriction: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:/tmp/probe.sql:986: NOTICE:  PASS R14 a restricted payment says restriction only for its target line (P4, restricted to I2's add-on, on I1's gas line): refused by restriction is a restricted payment (application da8dd0db-a61c-41ab-98ac-2af52375f845 says restriction: restriction is a restricted payment's own target; flo)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:997: NOTICE:  caught SQLSTATE=23514 message=line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:997: NOTICE:  PASS R15 two applications in one INSERT that together pass the line (35 + 30 of 60): refused by more than the line's (line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:1005: NOTICE:  caught SQLSTATE=23514 message=line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4.2-23)
+psql:/tmp/probe.sql:1005: NOTICE:  PASS R15b and through a writable CTE: refused by more than the line's (line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4)
+psql:/tmp/probe.sql:1009: NOTICE:  PASS R16 a draft bill's line has no position (Codex B3)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1012: NOTICE:  PASS R16b nor an issued bill before it was issued (I1, issued three hours ago, read four hours back)
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1014: NOTICE:  PASS R16c nor before its invoice date (I1, read on February 28)
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+psql:/tmp/probe.sql:1027: NOTICE:  PASS R17 a refund voided two hours ago still counts at an instant three hours ago, and not now (Codex B3, R2 closed)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1032: NOTICE:  caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000246b: a row drawing on it is recorded at 2026-10-17 23:13:34.809847+00, a time chosen for it, before the payment itself (recorded at 2026-10-18 23:13:34.809847+00) (R-06, v5.4.2-23)
+psql:/tmp/probe.sql:1032: NOTICE:  PASS R18 a history row is not recorded before its source (Opus S3): refused by before the payment itself (payment 00000000-0000-4000-8000-00000000246b: a row drawing on it is recorded at 2026-10-17 23:13:34.809847+00, a time c)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1037: NOTICE:  caught SQLSTATE=23514 message=application 0290dea7-33c6-4858-b64b-c6baa37f0649 is recorded at 2026-10-18 19:13:34.809847+00, a time chosen for it, before invoice B23-I1 was issued (2026-10-18 20:13:34.809847+00) (A3, v5.4.2-23)
+psql:/tmp/probe.sql:1037: NOTICE:  PASS R18b nor before its bill was issued: refused by before invoice B23-I1 was issued (application 0290dea7-33c6-4858-b64b-c6baa37f0649 is recorded at 2026-10-18 19:13:34.809847+00, a time chosen for it, bef)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ assert_reference_version 
+--------------------------
+                        2
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ snap 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1069: NOTICE:  caught SQLSTATE=23514 message=invoice B23-I7 cannot be issued: line 0 (base_charge, Gas service) is classed against its source wrongly — it is unregulated, its rate item 00000000-0000-4000-8000-0000000024c1 is regulated at (2026-03-31, 2026-10-18 23:13:34.809847+00) (D7-2, CI-050; v5.4.2-23)
+psql:/tmp/probe.sql:1069: NOTICE:  PASS LC3 a line classed against its rate item's version wrongly is refused at issue (invoice B23-I7 cannot be issued: line 0 (base_charge, Gas service) is classed against its source wrongly — it is unregul)
+DO
+RESET
+psql:/tmp/probe.sql:1078: NOTICE:  PASS I1 every -23 guard is in place, exactly
+DO
+psql:/tmp/probe.sql:1085: NOTICE:  PASS I2 the earlier invariants still hold with -23
+DO
+ROLLBACK
