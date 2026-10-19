@@ -1,0 +1,22 @@
+# Texas gas, investor-owned and cooperative systems, the customers 16 TAC 7.45 protects (residential and small
+# commercial). The disputed portion above the customer's average usage need not be paid until the earlier of
+# resolution or 60 days from issue, if the dispute came before the bill went delinquent (7.45(6)(D)).
+# late_fee in blocks is our reading (fail toward protection, K-CCK): the text says "not required to pay" and is
+# silent on a late fee.
+governs: law
+citation: 16 TAC 7.45(6)(D)
+subjects: {kind: any, excluded: [], citation: 16 TAC 7.45(6)(D)(i)}
+shelter_earned: {kind: before_delinquency, citation: 16 TAC 7.45(6)(D)(i)}
+must_pay:
+  strategy: average_usage_cap
+  version: 1
+  id: m1
+  history_years: 2
+  no_history: similar_customers
+  citation: 16 TAC 7.45(6)(D)(ii)
+shelter_ends: {kind: earlier_of_resolution_and_days, days: 60, from: issue, citation: 16 TAC 7.45(6)(D)(ii)}
+stages:
+  - {id: s1, decider: designated_employee, file_within: {kind: none}, decide_within: {kind: none}, final: false, citation: 16 TAC 7.45(6)(D)(i)}
+  - {id: s2, decider: regulator, file_within: {kind: none}, decide_within: {kind: days, days: 15}, final: true, citation: 16 TAC 7.45(2)(C)}
+blocks: {codes: [disconnect_order, disconnect_execute, late_fee], citation: 16 TAC 7.45(6)(D)(ii)}
+duties: {codes: [investigate, report_result, inform_complaint_route], citation: 16 TAC 7.45(6)(D)(i)}

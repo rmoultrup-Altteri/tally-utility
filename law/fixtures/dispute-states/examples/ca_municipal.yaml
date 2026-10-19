@@ -1,0 +1,13 @@
+# FIXTURE, never seeded. California Pub. Util. Code 10010 (binds municipal utilities): no termination during the
+# investigation; the customer may appeal to the governing body. What must be paid meanwhile is not stated.
+governs: law
+citation: Cal. Pub. Util. Code 10010
+subjects: {kind: any, excluded: [], citation: Cal. Pub. Util. Code 10010(a)}
+shelter_earned: {kind: before_termination, citation: Cal. Pub. Util. Code 10010(a)}
+must_pay: {strategy: unruled, version: 1, id: m1}
+shelter_ends: {kind: resolution, citation: Cal. Pub. Util. Code 10010(c)}
+stages:
+  - {id: s1, decider: designated_employee, file_within: {kind: none}, decide_within: {kind: none}, final: false, citation: Cal. Pub. Util. Code 10010(c)}
+  - {id: s2, decider: governing_body, file_within: {kind: none}, decide_within: {kind: none}, final: true, citation: Cal. Pub. Util. Code 10010(d)}
+blocks: {codes: [disconnect_order, disconnect_execute], citation: Cal. Pub. Util. Code 10010(a)}
+duties: {codes: [investigate], citation: Cal. Pub. Util. Code 10010(c)}

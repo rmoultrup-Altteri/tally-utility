@@ -1,0 +1,13 @@
+# CPS Energy (San Antonio) Customer Terms and Conditions, rev. 2019-03-01, section IV.4: a manager's review, then a
+# formal appeal filed within 30 days of that decision and decided within 90 by an executive, final. Ten subjects
+# cannot be disputed (five of them have a code here; the rest are "other"). Undisputed services must be paid.
+citation: CPS Energy Customer Terms and Conditions IV.4
+subjects: {kind: any, excluded: [ability_to_pay, deposit, rate_application, tamper_finding, consumption_on_accurate_meter]}
+shelter_earned: {kind: any_time}
+must_pay: {strategy: undisputed_charges, version: 1, id: m1}
+shelter_ends: {kind: resolution}
+stages:
+  - {id: s1, decider: manager, file_within: {kind: none}, decide_within: {kind: none}, final: false}
+  - {id: s2, decider: executive, file_within: {kind: days, days: 30, from: prior_decision}, decide_within: {kind: days, days: 90}, final: true}
+blocks: {codes: [disconnect_order, disconnect_execute]}
+duties: {codes: [investigate, report_result]}

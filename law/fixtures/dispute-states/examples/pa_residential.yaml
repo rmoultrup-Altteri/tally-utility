@@ -1,0 +1,15 @@
+# FIXTURE, never seeded. Pennsylvania 52 Pa. Code 56.140, 56.141, 56.151, 56.162-56.166: dispute any time before the
+# actual termination; no termination or notice on the subject while it is pending; undisputed portions must be
+# paid; the utility reports within 30 days; then the Bureau of Consumer Services. (No late fee on a DISPUTED
+# ESTIMATED bill, 56.22(c), is conditional and is not expressible in v1: late_fee is left out, see the residuals.)
+governs: law
+citation: 52 Pa. Code 56.141
+subjects: {kind: listed, codes: [credit, deposit, meter_accuracy, calculation, rate_application, responsible_party], excluded: [], citation: 52 Pa. Code 56.141(1)}
+shelter_earned: {kind: before_termination, citation: 52 Pa. Code 56.141(1)}
+must_pay: {strategy: undisputed_charges, version: 1, id: m1, citation: 52 Pa. Code 56.141(2)}
+shelter_ends: {kind: through_regulator_close, citation: 52 Pa. Code 56.141(2)}
+stages:
+  - {id: s1, decider: designated_employee, file_within: {kind: none}, decide_within: {kind: days, days: 30}, final: false, citation: 52 Pa. Code 56.151}
+  - {id: s2, decider: regulator, file_within: {kind: none}, decide_within: {kind: none}, final: true, citation: 52 Pa. Code 56.166}
+blocks: {codes: [notice_issue, disconnect_order, disconnect_execute], citation: 52 Pa. Code 56.140}
+duties: {codes: [investigate, report_result, offer_payment_arrangement, inform_complaint_route], citation: 52 Pa. Code 56.151}

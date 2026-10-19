@@ -1,0 +1,11 @@
+# City of Brenham gas (Sheet 511, eff. 2026-10-01; customer service and billing page): the customer pays the
+# whole disputed bill, and during the investigation the city does not discontinue service or impair credit.
+citation: City of Brenham gas tariff Sheet 511; Utility Customer Service/Billing
+subjects: {kind: any, excluded: []}
+shelter_earned: {kind: any_time}
+must_pay: {strategy: full_bill, version: 1, id: m1}
+shelter_ends: {kind: resolution}
+stages:
+  - {id: s1, decider: designated_employee, file_within: {kind: none}, decide_within: {kind: none}, final: true}
+blocks: {codes: [disconnect_order, disconnect_execute, credit_reporting]}
+duties: {codes: [investigate]}

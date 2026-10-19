@@ -1,0 +1,11 @@
+# Texas gas, investor-owned and cooperative systems, every other customer: 16 TAC 7.45 gives them no shelter.
+# Written down, so that no row is never read as "no protection" (no row is unknown law, which refuses).
+governs: law
+citation: 16 TAC 7.45(1)
+subjects: {kind: any, excluded: [], citation: 16 TAC 7.45(1)}
+shelter_earned: {kind: unruled}
+must_pay: {strategy: full_bill, version: 1, id: m1, citation: 16 TAC 7.45(1)}
+shelter_ends: {kind: unruled}
+stages: []
+blocks: {codes: [], citation: 16 TAC 7.45(1)}
+duties: {codes: [], citation: 16 TAC 7.45(1)}

@@ -1,0 +1,15 @@
+# FIXTURE, never seeded. Texas electric (16 TAC 25.28(e), 25.30), for contrast: no disconnection for the disputed
+# portion until the dispute is resolved, and not before the Commission completes its informal complaint process;
+# undisputed billings must be paid; investigation within 21 days, then supervisory review.
+governs: law
+citation: 16 TAC 25.28(e)
+subjects: {kind: any, excluded: [], citation: 16 TAC 25.30}
+shelter_earned: {kind: before_termination, citation: 16 TAC 25.28(e)(2)}
+must_pay: {strategy: undisputed_charges, version: 1, id: m1, citation: 16 TAC 25.28(e)(4)}
+shelter_ends: {kind: through_regulator_close, citation: 16 TAC 25.28(e)(3)}
+stages:
+  - {id: s1, decider: designated_employee, file_within: {kind: none}, decide_within: {kind: days, days: 21}, final: false, citation: 16 TAC 25.30(a)}
+  - {id: s2, decider: supervisor, file_within: {kind: none}, decide_within: {kind: none}, final: false, citation: 16 TAC 25.30(b)}
+  - {id: s3, decider: regulator, file_within: {kind: none}, decide_within: {kind: none}, final: true, citation: 16 TAC 25.30(c)}
+blocks: {codes: [disconnect_order, disconnect_execute], citation: 16 TAC 25.28(e)(2)}
+duties: {codes: [investigate, report_result, inform_complaint_route], citation: 16 TAC 25.30}

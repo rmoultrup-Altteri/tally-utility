@@ -1,0 +1,13 @@
+# FIXTURE, never seeded. Florida (Fla. Admin. Code 25-22.032(3)): while a complaint is before the Commission, no
+# discontinuance for the unpaid disputed amount until the complaint is closed; the undisputed part may be required;
+# staff may set an interim disputed amount (a dispute_amounts row determined_by regulator_interim).
+governs: law
+citation: Fla. Admin. Code 25-22.032(3)
+subjects: {kind: any, excluded: [], citation: Fla. Admin. Code 25-22.032}
+shelter_earned: {kind: on_regulator_complaint, citation: Fla. Admin. Code 25-22.032(3)}
+must_pay: {strategy: undisputed_charges, version: 1, id: m1, citation: Fla. Admin. Code 25-22.032(3)}
+shelter_ends: {kind: through_regulator_close, citation: Fla. Admin. Code 25-22.032(3)}
+stages:
+  - {id: s1, decider: regulator, file_within: {kind: none}, decide_within: {kind: none}, final: true, citation: Fla. Admin. Code 25-22.032}
+blocks: {codes: [disconnect_order, disconnect_execute], citation: Fla. Admin. Code 25-22.032(3)}
+duties: {codes: [], citation: Fla. Admin. Code 25-22.032}
