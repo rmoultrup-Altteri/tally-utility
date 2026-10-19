@@ -4,6 +4,67 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-19 — v5.4.2-26 (collections decisions, field verification) designed, tested first, drafted
+
+**What was done:**
+- **Orientation:** both repos were pulled. Kyle has not pushed K-10 (GBM is still at `bab1da5`), so -23 r3 still waits. Ryan chose "go ahead with -26" over freezing -25 early.
+- **Design** (`9870aea`): `application/wave3-build-2026-10-18/v5.4.2-26-design.md`.
+  - **C:** `collections_conditions` and `collections_decisions`, with the act, the subject at the CCK-7 grain, eligible / blocked / unevaluable, conditions, `valid_until`, inputs and fingerprint.
+  - **C7:** acts cite their decision.
+  - **E:** dunning keys, the stage moved by the database, the late-fee counters dropped, the `do_not_disconnect` fence.
+  - **F:** field visits, supervisor approvals, the disconnect order guard.
+- **Tests first** (`1f92514`): battery-26, races CR1–CR7, migration P0–P7. They failed first, at `collections_conditions`.
+- **The patch** (`cb9abed`, `sql/v5.4.2-26-collections-decisions.sql`):
+  - **New:**
+    - the conditions vocabulary (20 codes);
+    - the decision record and its guard, [C3a]–[C5];
+    - `collections_act_check`, shared by dunning events, late-fee charges, disconnect orders and executed visits;
+    - `service_order_field_visits`, where the database fills the expected values and the match;
+    - `service_order_field_approvals`, where the database stamps the supervisor.
+  - **Changed:**
+    - a composite bill key on `dunning_events`;
+    - the database moves `dunning_stage`;
+    - `invoices.late_fee_assessed` and `late_fee_amount` are dropped;
+    - `do_not_disconnect` is written only by `recompute_do_not_disconnect`.
+- **CI:** -26 is pending in `tests/ci.sh`, with `ci_pre26` as the migration base, plus the battery, races and migration steps.
+- **Mutations** (`tests/v5.4.2-26/mutations-26.py`): 127 of 127 caught. The first run caught 123; the four misses were renamed to the earlier check that rightly catches them (C3f6, A5g, CR6b, V4).
+- **Roadmap:** the phases summary was updated and the dashboard dataset refreshed. Dates are unchanged.
+
+**Decisions made (by standing rules):**
+- **A notice names its bill and the service it threatens.** Kyle's CCK-7 puts a disconnect notice at meter/service grain, correcting the inventory's bill-only grain.
+- **Idempotency is checked against the live decision, not by a unique key.** A unique key wedges A→B→A on one day (memory `append-only-vs-unique-deadlock`).
+- **Unevaluable blocks**, and an eligible execute decision holds for its own day only (fail toward protection).
+- **A disconnect is checked twice**, at order and at execution (CI-067, GBM rank 0).
+- **Orders: only the disconnect act is guarded.** Dispatch moves stay free.
+- **Rule citations wait for wave 7**, since no collections rule table exists yet. Adding them is additive.
+- **One tenant check only**, on field visits: elsewhere row security answers first.
+- **A visit takes its order's row `FOR SHARE`**, so an order cancelled while a crew executes it resolves one way or the other (CR8 and CR8b were added).
+
+**Failed approaches:**
+- **A unique idempotency key:** it wedges, as above.
+- **Dunning log lines that must cite the live decision:** a log written after the next sweep would be refused. The act's own record is checked live; the log needs that record and its date in the window.
+- **A vocabulary compared in the default collation:** `aged_suspense` sorts before `agency_pledge`. Use `COLLATE "C"`.
+- **A bill with no location that is not consolidated:** refused by `invoices_check`.
+- **Composite-key tests a guard beat first:** the fixtures were rebuilt so that only the key refuses (A5b, A5g).
+- **Guard pieces always beaten by another check:** they were removed (tenant checks on decisions and approvals, a "no successor" filter, a blocked-but-empty test, an executed-visit filter).
+
+**Accuracy / test results:**
+
+| Check | Result |
+|---|---|
+| battery-26 | 202 checks (first run: one test bug, V1's sort order; 194 after the fix, 202 after the mutation pass added checks) |
+| races/collections-26.sh | CR1–CR8, 11/11 |
+| migration-26.py | P0–P7, 22/22 |
+| mutations-26.py | 127/127 (first run 123/127, all renames) |
+| tests/ci.sh | all pass, 49 steps (all earlier batteries pass with -26 applied) |
+
+**Open / next:**
+- **K-10 is unanswered.** -23 r3 waits; then -25 and -26 go to the three reviewers. Mirror order: -23, then -25, then -26.
+- **At -26's mirror:** update APPLICATION-CONTRACTS (AC-10, AC-37, a new AC).
+- **Tell Kyle:** the UI concept's `do_not_disconnect` checkbox must become a protective enrollment.
+
+---
+
 ## 2026-10-18 (evening) — wave 3 begun: inventory, Q1, v5.4.2-25 (disputes) designed, tested first, drafted
 
 **What was done:**

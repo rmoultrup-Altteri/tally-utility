@@ -1,10 +1,10 @@
-# Handoff: wave 3 begun — v5.4.2-25 (disputes) drafted and tested; -23 r3 still waits on Kyle (K-10)
+# Handoff: wave 3 drafted — v5.4.2-26 (collections decisions, field verification) built and tested; -23 r3 still waits on Kyle (K-10)
 
-**Generated**: 2026-10-18, evening
-**Branch**: `main` in both repos. tally-utility is at the wrap-up commit (after the -25 patch commit), pushed. GBM had no new commits at wrap-up: Kyle has not answered K-10 there.
+**Generated**: 2026-10-19, 12:22 CDT
+**Branch**: `main` in both repos. tally-utility is at the wrap-up commit, pushed. GBM had no new commits; Kyle has not answered K-10.
 **Status**:
-- **-23** is blocked on Kyle. Ryan, 2026-10-18: "let's wait on Kyle"; r3 does not start before his answer.
-- **-25** is drafted and fully tested. It is not frozen or reviewed.
+- **-23** is blocked on Kyle (Ryan, 2026-10-18: "let's wait on Kyle"). Kyle pushes his answers to the repos.
+- **-25** (disputes) and **-26** (collections) are drafted and fully tested. Neither is frozen or reviewed.
 
 ## Goal
 
@@ -14,59 +14,46 @@ Reach the C# core build. Ryan's gate, in order:
 3. a phase plan;
 4. build.
 
-Wave 2 is -22 (landed) and -23 (cash; r3 waits on K-10); -24 follows -23. Wave 3 is -25 (disputes, drafted) and -26 (collections decisions, field verification).
+Wave 2: -22 landed; -23 waits for its r3; -24 follows -23. Wave 3: -25 and -26 are both drafted.
 
-## Completed (this session, 2026-10-18 evening)
+## Completed (this session, 2026-10-19)
 
-- [x] **Wave-3 source inventory** (`9b9057e`):
-  - `application/wave3-build-2026-10-18/source-inventory-wave3.md`, with sources under `sources/`;
-  - -25/-26 split;
-  - four items for Kyle, none blocking.
-- [x] **Q1** (`e1ce387`): Ryan, "go with the rule entries". Dispute policies are rule-terms rows, with one law table and one tariff table.
-- [x] **Design** (`e7a056f`): `application/wave3-build-2026-10-18/v5.4.2-25-design.md`. Its "Built" section records what the build settled and the test corrections.
-- [x] **Tests first** (`bfe4f21`), then **the patch** (`sql/v5.4.2-25-disputes.sql`; Ryan: "go ahead with the patch"):
-  - `law/dispute/` holds the schemas, `dispute_rules.yaml` and its seed, and the examples;
-  - `law/fixtures/dispute-states/`.
+- [x] Ryan: "go ahead with -26" (chosen over freezing -25 early).
+- [x] **Design** (`9870aea`, amended in `1f92514` and `cb9abed`): `application/wave3-build-2026-10-18/v5.4.2-26-design.md`.
+  - **Sections:** C (the decision record), E (hardening), F (field verification), the lock order, and the "Tests as written" and "Built" records.
+  - **Three corrections to the inventory**, each settled by a standing rule:
+    - a notice's subject is its bill plus the service it threatens (Kyle's CCK-7 grain);
+    - idempotency is checked against the live decision, not by a unique key (memory `append-only-vs-unique-deadlock`);
+    - only the disconnect act is guarded on orders, not dispatch moves.
+- [x] **Tests first** (`1f92514`), then **the patch** (`cb9abed`), `sql/v5.4.2-26-collections-decisions.sql`.
+- [x] **CI wiring:** -26 is in PENDING; `PRE26=ci_pre26` is cloned before -26 applies. The battery, races and migration are steps.
 - [x] **Results:**
 
   | Check | Result |
   |---|---|
-  | battery-25 | 201/201 |
-  | races DR1–DR9 | 12/12 |
-  | terms-25 | 0 failures |
-  | migration P0–P4 | pass |
-  | mutations-25 | 110/110 |
-  | `tests/ci.sh` | all pass, 44 steps |
-- [x] **CI wiring:** -25 is in the PENDING list. The migration runs on `ci_pre25`, the base cloned just before -25 applies (CI drops it at the start of each run).
-- [x] **battery-19 RW6** no longer writes `meter_readings.dispute_reason` (dropped by T2).
-- [x] **Go-live dashboard data:**
-  - wave 3 is in progress;
-  - W3-Q1 is in the decision queue;
-  - dates unchanged (likely ready-to-onboard is still 2027-06-16).
+  | battery-26 | 202 checks |
+  | races/collections-26.sh | CR1–CR8, 11/11 |
+  | migration-26.py | P0–P7, 22/22 |
+  | mutations-26.py | 127/127 |
+  | `tests/ci.sh` | all pass, 49 steps |
+- [x] **Roadmap:** the phases summary mentions -26; the dashboard's `phases` dataset was refreshed. Dates are unchanged (likely ready-to-onboard 2027-06-16).
+- [x] **Memory:** `v5426-collections-drafted`.
 
 ## Not Yet Done
 
-- [ ] **Kyle's K-10 answer**, then the -23 r3 plan. The merged round-2 findings are in the previous handoff (`git show 90b325c:HANDOFF.md`, "Not Yet Done"), split into "either answer" and "depends on K1". Fetch GBM first.
-- [ ] **-25 review:** freeze it (brief plus md5s, as `tests/v5.4.2-23/review/review-brief-23-r2.md`) and send it to all three reviewers (Opus, Fable, Codex).
-  - **Default order:** after -23 r3 settles, so the reviewers see -25 on the -23 it builds on. Ryan may say sooner.
-  - **Mirroring:** -25 mirrors only after -23.
-- [ ] **-25 known gaps** (in the design's "Built" section, and as residuals R1–R7 in the patch header):
-  - no race test exercises the reading-status move's dispute locks;
-  - Gov't Code 2251 has no governmental class (R1);
-  - the status move is a SECURITY DEFINER trigger function owned by the migration role (R7). Reviewers should weigh it against the NOLOGIN-owner pattern of -20.
-- [ ] **-26:** collections decisions and field verification (inventory sections E and F).
-- [ ] **Four items for Kyle** (inventory, "For Kyle"), none blocking:
-  - the day-26 elderly bar;
-  - the extreme-weather forecast is the high;
-  - closed days are the utility's staffed days;
-  - *Craft* due process for cities.
-
-  Ryan decides when to send them.
-- [ ] **After -23 mirrors:**
-  - re-grade the parity measurement;
-  - add a GBM manifest section;
-  - add a DEPLOY-VERIFICATION entry;
-  - update memory.
+- [ ] **Kyle's K-10, then the -23 r3 plan.** The merged round-2 findings are in `git show 90b325c:HANDOFF.md`, under "Not Yet Done". Fetch GBM first.
+- [ ] **Review -25 and -26.**
+  - Freeze each (a brief plus md5s, as `tests/v5.4.2-23/review/review-brief-23-r2.md`) and send to all three reviewers (Opus, Fable, Codex).
+  - **Default order:** after -23 r3 settles, so the reviewers see them on the -23 they build on.
+  - **Mirror order:** -23, then -25, then -26.
+- [ ] **For the reviewers to weigh:**
+  - -25's R7, the SECURITY DEFINER status move, against -20's NOLOGIN-owner pattern;
+  - -26's residuals R1–R5: UTC act dates, rule citations waiting for wave 7, two dunning types that move no stage, the core deciding conditions, and the trigger-depth fences.
+- [ ] **At -26's mirror:**
+  - update APPLICATION-CONTRACTS: AC-10 still lists `dunning_stage` and `late_fee_*` as writable; AC-37 should say a gated dunning step cites its decision; add a new AC for decisions, visits and approvals;
+  - DEPLOY-VERIFICATION, the parity re-grade and the GBM manifest, as for every mirror.
+- [ ] **Tell Kyle (not blocking):** `ui-concepts/components/accounts/AccountDetail.tsx` edits `do_not_disconnect` as a checkbox. After -26 that is refused; the screen must enroll the customer in a protective program instead.
+- [ ] **Four law findings for Kyle** (wave-3 inventory, "For Kyle"): the day-26 elderly bar, the forecast high, closed days, *Craft*. Ryan decides when to send them.
 - [ ] **Carried over:**
   - the reply to Kyle on D-2's location;
   - the -05 defect (`meters_last_validated_actual_reading_id_fkey`);
@@ -83,80 +70,93 @@ Wave 2 is -22 (landed) and -23 (cash; r3 waits on K-10); -24 follows -23. Wave 3
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Expecting document order from a rule table.** The -17 template stores owner types and every text[] facet distinct and sorted. Compare sorted values (K3, K5, U2 were wrong).
-- **Running `pg_temp.deferred()` as one tenant's operator** while other tenants' fixtures still have checks pending. `SET CONSTRAINTS ALL IMMEDIATE` fires every pending deferred trigger as the current role, and RLS hides the other tenants' rows. Flush the fixtures' checks as the owner first.
-- **Testing a no-truncate guard with a plain TRUNCATE on a referenced table.** PostgreSQL refuses it (0A000) before any trigger runs. Use CASCADE, so only the guard can refuse.
-- **Guard pieces another check always beats** (a tenant check where RLS answers, depth fences next to an event-match check, an early return before a CHECK). They can't be mutation-tested; remove them.
-- **A mutation's named check must be the first failure.** When another test rightly catches it first, rename it (DR7b, DR3, R3). When nothing catches it, add a test (N8). Never loosen the runner.
+- **A unique key on (act, subject, date, fingerprint) for idempotency.** It wedges: when facts go A, then B, then back to A on the same day, the decision restoring A can never be written. Compare against the live decision only ([C5]).
+- **Requiring a dunning log line to cite the live decision.** `late_fee_applied`, `shutoff_scheduled` and `disconnected` log an act that has its own record. If the next day's sweep writes a newer decision first, an honest log is refused. The act's own record (charge, order, executed visit) is checked live; the log needs that record and its date in the window ([A8]).
+- **`array_agg(... ORDER BY code)` against a literal list.** The default collation ignores `_`, so `aged_suspense` sorts before `agency_pledge`. Sort with `COLLATE "C"`.
+- **An invoice with no `location_id`.** `invoices_check` requires `is_consolidated = true`.
+- **A test of a composite FK that a guard check beats first.** Build the fixture so the guard's own checks pass and only the key can refuse (A5b, A5g).
+- **Guard pieces that are always beaten** (they can't be mutation-tested, so remove them): tenant checks where row security answers first (decisions, approvals); a "no successor" filter on the latest-recorded live decision; a blocked-but-empty test; an `outcome = 'executed'` filter the CHECK already guarantees.
+- **Mutating `ENABLE ALWAYS`.** The owner's battery runs as origin, so nothing distinguishes it. It isn't mutated.
 - **Earlier failures still hold:**
-  - the refund exemption keyed on `reference_id` (-23);
-  - an untested exempt path;
-  - a header default with no code behind it;
-  - `pg_stat_clear_snapshot()` in barrier polls;
-  - never edit tests during a mutation run;
-  - `codex exec` with the prompt as an argument needs `< /dev/null`.
+  - document-order comparisons of rule facets;
+  - `deferred()` as one tenant's operator;
+  - plain TRUNCATE of a referenced table;
+  - untested exempt branches;
+  - `pg_stat_clear_snapshot()` in race polls;
+  - never edit the patch or tests during a mutation run;
+  - `codex exec` needs `< /dev/null`.
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Dispute policies are rule entries (Ryan, wave-3 Q1) | One law table and one tariff table; the comparator keeps a utility's policy no looser than the law |
-| Determinations are written by tally_app with `calculated_by` | The nearest decision record, `deposit_return_due` |
-| The database writes the opened event and moves the status | Guards must act: the status cannot disagree with the events |
-| `shelter_ends_on` is the last sheltered day, inclusive | TX gas: April 29 for a March 1 bill (day 60 counting the issue day) |
-| `within_days` compares only with its own kind, same anchor | Fail toward protection; a window against "before delinquency" depends on the due date |
-| No lines means pro rata over the bill's positive lines | Stated in the reader's `basis`; cumulative rounding keeps the parts exact |
-| Wait for Kyle before -23 r3 (Ryan, carried) | Under K1 = A the refund exemption and three blockers are deleted, not fixed |
+| Go ahead with -26 before reviewing -25 (Ryan) | -26 is independent of K-10; reviewing -25 now risks a second pass after -23 changes |
+| Decisions written by tally_app with `calculated_by` | Same as `dispute_determinations` and `deposit_return_due` |
+| Unevaluable blocks; only eligible authorizes | Fail toward protection (K-CCK, R-26, R-30); a design rule, not law |
+| An eligible execute decision holds for its own day only | EWE is daily; GBM rank 0 refuses relying on an older evaluation |
+| A disconnect is checked at order and again at execution | CI-067's "every disconnect path consults it" |
+| `dunning_stage` and `do_not_disconnect` are written by the database, with depth fences | Guards must act; a projection nobody can type in |
+| `late_fee_assessed` and `late_fee_amount` dropped | Wave 2 M1: derive, do not store (no reader existed) |
+| Overrides: the database stamps the supervisor; a mismatch approval binds the captured values | D9-1, R-38 attachment 2; guard the act, not the label |
+| Rule citations wait for wave 7 | No collections rule table exists; adding a cite table later is additive |
+| Wait for Kyle before -23 r3 (Ryan, carried) | Under K1 = A, the refund exemption and three blockers are deleted, not fixed |
 
 ## Current State
 
 **Working:**
 - tu.sql through -22;
-- -23 r2 and -25 pending;
-- `tests/ci.sh` all pass (44 steps);
-- -25: battery 201, races 12/12, terms 0 failures, migration pass, mutations 110/110.
+- -23 r2, -25 and -26 pending in CI;
+- `tests/ci.sh` all pass (49 steps).
 
-**Broken (known):** -23 r2's round-2 findings (unchanged; repros in `tests/v5.4.2-23/review/`).
+**Broken (known):** -23 r2's round-2 findings (unchanged).
 
 **Uncommitted changes:** none after the wrap-up commit.
 
-**Scratch DBs** in tally-pg (throwaway; drop them freely): `q25` (tally + -23 r2), `p25` and `r25` (+ -25), `ci_pre25` (left by CI; the mutation runner's default base).
+**Scratch DBs** in tally-pg (throwaway; drop them freely):
+- `p25` (tally + -23 r2 + -25; the base for `fresh26.sh`);
+- `s26` and `r26` (+ -26);
+- `ci_pre26` (left by CI; the mutation base);
+- older `q25`, `r25`, `ci_pre25`.
 
 ## Code Context
 
 ```sql
--- the reader the core and collections read (both coordinates required, 22004 otherwise)
-public.dispute_shelter_as_of(p_invoice_id uuid, p_on date, p_recorded_at timestamptz)
-  RETURNS TABLE (dispute_id, determination_id, outcome, sheltered_amount, must_pay_amount, shelter_ends_on, blocks text[])
-public.dispute_line_shelter_as_of(p_line_id uuid, p_on date, p_recorded_at timestamptz)
-  RETURNS TABLE (dispute_id, determination_id, sheltered_amount, basis)   -- basis 'lines' | 'pro_rata'
--- lock order: the dispute's advisory lock (dispute_lock: RC only, 25000) -> cited law row (shared) -> cited tariff row (shared)
--- every refusal the patch raises carries its tag, e.g. [D4h]; the battery matches on it
+-- the decision (tally_app writes, with calculated_by); one live per (tenant, act, customer, invoice, location, meter)
+collections_decisions (act ∈ notice|late_fee|disconnect_order|disconnect_execute|collections_referral,
+  invoice_id, location_id, meter_id, evaluation_date, outcome ∈ eligible|blocked|unevaluable,
+  active_conditions text[], unevaluable_conditions text[], governing_condition, valid_until,
+  supersedes_id, inputs, inputs_fingerprint, calculated_by)
+public.collections_live_decision(tenant, act, customer, invoice, location, meter) -> collections_decisions
+public.collections_act_check(decision, act, invoice, location, meter, on date, live bool, what) -> collections_decisions
+-- acts: dunning_events / adhoc_charges / service_orders .collections_decision_id; service_order_field_visits; _approvals
+-- lock order: subject advisory lock (READ COMMITTED, 25000) -> bill row FOR NO KEY UPDATE (dunning) | order row FOR SHARE (visit)
+-- every refusal the patch raises carries its tag, e.g. [C3f], [A8], [F2b]
 ```
 
 ```bash
-S=<scratchpad>/fresh.sh          # recreate if gone: clone q25 -> <db>, REVOKE TEMP, strict-apply -25
-bash tests/v5.4.2-25/races/disputes-25.sh <throwaway db>
-python3 tests/v5.4.2-25/migration-25.py <pre-25 base>          # ci_pre25 after a CI run
-M25_BASE=ci_pre25 python3 tests/v5.4.2-25/mutations-25.py [--anchors] [M01 ...]   # ~25 min for 110
-tools/law/.venv/bin/python tests/v5.4.2-25/terms-25.py
+S=<scratchpad>/fresh26.sh <db>   # recreate if gone: clone p25 -> <db>, REVOKE TEMP, strict-apply -26
+bash tests/v5.4.2-26/races/collections-26.sh <throwaway db>
+python3 tests/v5.4.2-26/migration-26.py <pre-26 base>         # ci_pre26 after a CI run
+M26_BASE=ci_pre26 python3 tests/v5.4.2-26/mutations-26.py [--anchors] [M01 ...]   # ~30 min for 127
 ```
 
 ## Resume Instructions
 
-1. `git pull --ff-only` in tally-utility, and `git fetch` in `../gas-billing-memory`. Look for Kyle's K-10 answer there; ask Ryan about Slack.
-2. `bash tests/ci.sh`.
-   - Expected: all pass. The -17 RC5 race can flake under load: rerun it alone (`tests/v5.4.2-17/races/rule-close-17.sh ci_base <scratch>`).
+1. Run `git pull --ff-only` here and `git fetch` in `../gas-billing-memory`. Look for Kyle's K-10 there; Kyle pushes his answers to the repos.
+2. Run `bash tests/ci.sh`.
+   - Expected: all pass, 49 steps.
+   - The -17 RC5 race can flake under load; rerun it alone.
    - If `tally-pg` is missing: `bash tests/ci.sh --build`.
 3. **If Kyle has answered:** write `application/wave2-build-2026-10-15/v5.4.2-23-r3-plan.md`, implement it with the refund-posting tests first, re-run CI and the mutations, then freeze r3 for all three reviewers.
-4. **If not:** ask Ryan whether to freeze -25 for review now or start the -26 inventory work (sections E and F). Do not start -23 r3.
+4. **If not:** ask Ryan whether to freeze -25 and -26 for review now or keep going (-24 waits for -23; wave 4 is next in the sequencing). Do not start -23 r3.
 
 ## Warnings
 
-- **Never edit the frozen review copies** (`tests/v5.4.2-*/review/*-frozen-*`) or tu.sql's mirrored bodies.
-- **Revoke TEMP from PUBLIC, `tally_app` and `tally_core` after every `CREATE DATABASE … TEMPLATE`.**
-- **Don't edit the patch or tests while a mutation runner runs.** It re-reads them for every mutation.
-- **The -25 patch embeds** `law/dispute/*.schema.json` and `dispute_rules.seed.sql` verbatim. Edit the files, re-emit with `lawc.py emit`, and re-embed; lawfiles W2/W4 check it. The tariff schema is derived from the law schema: `python3 tools/law/derive_dispute_tariff_schema.py law/dispute/dispute.v1.schema.json law/dispute/dispute_tariff.v1.schema.json`.
+- **Never edit** the frozen review copies (`tests/v5.4.2-*/review/*-frozen-*`) or tu.sql's mirrored bodies.
+- **Revoke TEMP from PUBLIC, `tally_app` and `tally_core` after every `CREATE DATABASE … TEMPLATE`.** -26's depth fences depend on it.
+- **Don't edit the patch or tests while a mutation runner runs.**
+- **The -26 battery uses dates relative to today** for order decisions (`pg_temp.today()`). Other acts use fixed past dates; decisions can't be future-dated ([C3j]).
+- **-25 embeds law files verbatim:** re-emit with `lawc.py emit` after editing `law/dispute/*`.
 - **Codex:**
   - only under nvm v24.15.0;
   - run it as `codex exec -s workspace-write -C <repo> -o <final.txt> "$(cat prompt)" < /dev/null`.
