@@ -4,6 +4,61 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-18 (evening) — wave 3 begun: inventory, Q1, v5.4.2-25 (disputes) designed, tested first, drafted
+
+**What was done:**
+- **Wave-3 source inventory** (`9b9057e`): `application/wave3-build-2026-10-18/source-inventory-wave3.md`, with sources under `sources/`. Disputes and collections decision records (CI-074, 067, 069, 075, 071, 054's dispute side), split into -25 (disputes) and -26 (collections decisions, field verification). It also carries four items for Kyle, none blocking:
+  - the day-26 elderly bar;
+  - the extreme-weather forecast;
+  - "closed days";
+  - *Craft* due process for cities.
+- **Q1 answered** (`e1ce387`): Ryan, "go with the rule entries". Dispute policies are rule-terms rows, with one law table and one tariff table (DECISION-LOG).
+- **Design** (`e7a056f`): `application/wave3-build-2026-10-18/v5.4.2-25-design.md`, covering the law family L1–L7, the record D1–D6 and the meaning changes T1–T2.
+- **Tests first** (`bfe4f21`): battery-25 (183 checks), terms-25 (the document format), races DR1–DR7, migration P0–P4, plus the dispute examples and state fixtures (PA, FL, CA municipal, TX electric, TX governmental). All failed first, as intended.
+- **The patch** (`sql/v5.4.2-25-disputes.sql`; Ryan: "go ahead with the patch"):
+  - **Vocabularies:** customer classes, subjects, blocks, duties.
+  - **Kinds:** `dispute` and `dispute_tariff` v1, each with five facets.
+  - **`dispute_rules`:** seeded from `law/dispute/dispute_rules.yaml` (TX gas, investor-owned and co-op protected/unprotected; city delegations).
+  - **`dispute_tariffs`:** with the never-looser comparator.
+  - **The record:** `disputes`, `dispute_amounts` (+ lines), `dispute_determinations`, `dispute_events`. The database writes the opened event and moves the status.
+  - **Readers:** `dispute_shelter_as_of` and `dispute_line_shelter_as_of`.
+  - **T1:** `pending_dispute` is no longer protective and takes no new enrollment.
+  - **T2:** `meter_readings.dispute_*` are dropped; a reading's status `disputed` is tied to an open dispute.
+- **CI:** -25 is in `tests/ci.sh`: the pending list, battery, races, the format test, and the migration test on a base snapshotted just before -25.
+- **Mutations** (`tests/v5.4.2-25/mutations-25.py`): 110 of 110 caught.
+  - The first run caught 106. Three misses were renamed to the earlier test that rightly catches them (DR7b, DR3, R3).
+  - One was a real gap: nothing tested the order of shelter starts when the law starts wider than before delinquency. N8a and N8b were added against a test county law row.
+
+**Decisions made (by standing rules; recorded in the design's "Built" section):**
+- Duties are checked against their vocabulary by the insert checks; S3 fixes five facets.
+- `within_days` compares only with its own kind, with the same anchor and at least the days. Anything else is refused (fail toward protection).
+- The status move is a SECURITY DEFINER trigger function (residual R7): the application holds no UPDATE on disputes, and the update guard admits only the move that names its event.
+- Another tenant's amount, line, determination or event is refused as row security before a guard reads anything; for a dispute, row security itself answers.
+
+**Failed approaches:**
+- **Tests that compared list values in document order** (K3, K5, U2): the -17 template stores owner types and text[] facets sorted.
+- **`deferred()` run as one tenant's operator:** it fired the fixtures' deferred bill checks, which could not see another tenant's snapshot. The fixtures' checks now run as the owner.
+- **H10's plain TRUNCATE:** PostgreSQL's own foreign-key check refuses it before the guard can, so the test now uses CASCADE.
+- **Guard pieces that could never be what refuses** (a dispute's tenant check, two trigger-depth fences, an early return, the cited law row's attribute check): another check always answered first. They were removed.
+
+**Accuracy / test results:**
+
+| Check | Result |
+|---|---|
+| battery-25 | 201/201 (183 written first, 18 added from the mutation pass) |
+| races/disputes-25.sh | DR1–DR9, 12/12 |
+| terms-25.py | 0 failures (40 must-refuse cases; validators agree on every example and mutation) |
+| migration-25.py | P0–P4, 13/13 |
+| mutations-25.py | 110/110 (first run 106/110) |
+| tests/ci.sh | all pass, 44 steps (first run: two failures — battery-19 RW6 updated for T2, and a -17 RC5 timing flake that passes on rerun with and without -25) |
+
+**Open / next:**
+- Kyle's K-10 is still unanswered (GBM unchanged); -23 r3 waits on it.
+- -25 is not frozen and not reviewed. Freeze it and send it to all three reviewers after -23 r3 settles, or sooner if Ryan says so. It mirrors only after -23.
+- -26 (collections decisions, field verification) follows.
+
+---
+
 ## 2026-10-16 (evening) to 2026-10-18 — v5.4.2-23 (cash): triage, design, r1 and r2 drafted, two review rounds; r3 waits on Kyle
 
 **What was done:**
