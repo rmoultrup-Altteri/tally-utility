@@ -20,8 +20,11 @@ export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
 # table.column is a column the patch adds
 PENDING=(
   sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
+  sql/v5.4.2-25-disputes.sql:disputes
 )
 BASE=ci_base
+# A pending patch with a migration test gets the base as it stood just before it applied.
+PRE25=ci_pre25
 
 if [ "${1:-}" = "--build" ]; then
   docker build -q -t tally-postgres -f postgres/Dockerfile . >/dev/null || { echo "SETUP FAIL: image build"; exit 2; }
@@ -72,6 +75,7 @@ step() {  # $1 label, rest: the command
 }
 
 clone "$BASE" tally || { echo "SETUP FAIL: clone"; exit 2; }
+docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $PRE25" >/dev/null 2>&1
 for entry in ${PENDING[@]+"${PENDING[@]}"}; do
   patch=${entry%%:*}; marker=${entry##*:}
   if [ "${marker#!}" != "$marker" ]; then test_pending="to_regclass('public.${marker#!}') IS NOT NULL"
@@ -79,6 +83,9 @@ for entry in ${PENDING[@]+"${PENDING[@]}"}; do
     test_pending="NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${marker%%.*}' AND column_name = '${marker#*.}')"
   else test_pending="to_regclass('public.$marker') IS NULL"; fi
   if [ "$(q tally -c "SELECT $test_pending")" = "t" ]; then
+    if [ "$(basename "$patch")" = "v5.4.2-25-disputes.sql" ]; then
+      clone "$PRE25" "$BASE" || { echo "SETUP FAIL: clone $PRE25"; exit 2; }
+    fi
     docker cp "$patch" tally-pg:/tmp/pending.sql
     for pass in 1 2; do
       step "strict apply $(basename "$patch") (pass $pass)" \
@@ -91,7 +98,7 @@ done
 battery() {  # $1 file
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16 19 20 21 22 23; do
+for n in 09 10 11 12 13 14 16 19 20 21 22 23 25; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
@@ -119,6 +126,13 @@ cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh
 cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
 cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22
 cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
+cstep ci_r25 "races v5.4.2-25" bash tests/v5.4.2-25/races/disputes-25.sh ci_r25
+step "law format v5.4.2-25" env LAWC_DB="$BASE" "$LAWC_PYTHON" tests/v5.4.2-25/terms-25.py
+# The migration runs on the base as it stood before -25 (PRE25, cloned in the pending loop); once -25 is
+# mirrored the clone is never made and this is skipped.
+if [ "$(q postgres -c "SELECT 1 FROM pg_database WHERE datname = '$PRE25'")" = "1" ]; then
+  step "migration v5.4.2-25" python3 tests/v5.4.2-25/migration-25.py "$PRE25"
+fi
 cstep ci_e13 "evidence txn v5.4.2-13" tests/v5.4.2-13/evidence-txn-13.sh ci_e13
 step "races v5.4.2-12" tests/v5.4.2-12/races/pointer-mutex-12.sh
 step "tenant isolation invariants" q "$BASE" -c "SELECT public.assert_tenant_isolation_invariants()"

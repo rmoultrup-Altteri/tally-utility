@@ -1,0 +1,87 @@
+# Texas gas: a customer's dispute of a bill (v5.4.2-25; wave-3 Q1, Ryan 2026-10-18: dispute policies are rule entries).
+# 16 TAC 7.45(6)(D) protects residential and small commercial customers (class `protected`) of an investor-owned or
+# cooperative distribution system: a dispute made before the bill went delinquent shelters the disputed amount above
+# the customer's average usage until the earlier of resolution or 60 days from issue; the utility investigates, reports
+# the result and tells the customer how to complain to the Commission. Every other class (`unprotected`) gets no
+# shelter from 7.45 — written down, so that no row is never read as no protection (no row is unknown law).
+# A city-owned system is outside GURA (Tex. Util. Code 101.003(7); K-07): its own tariff is its policy, one
+# delegation per class. Gov't Code 2251 (governmental payers) waits for a governmental class (a residual; its
+# document is a test fixture, law/fixtures/dispute-states/examples/tx_governmental.yaml).
+table: public.dispute_rules
+kind: dispute
+version: 1
+key: [customer_class]
+schema: dispute.v1.schema.json
+rows:
+  - name: tx_gas_iou_coop_protected
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45(6)(D): the disputed portion above average usage need not be paid until the earlier of resolution or 60 days from issue, for a dispute made before the bill went delinquent. late_fee in blocks is our reading (fail toward protection, K-CCK): the text says 'not required to pay' and is silent on a late fee."
+    terms:
+      governs: law
+      citation: 16 TAC 7.45(6)(D)
+      subjects: {kind: any, excluded: [], citation: 16 TAC 7.45(6)(D)(i)}
+      shelter_earned: {kind: before_delinquency, citation: 16 TAC 7.45(6)(D)(i)}
+      must_pay:
+        strategy: average_usage_cap
+        version: 1
+        id: m1
+        history_years: 2
+        no_history: similar_customers
+        citation: 16 TAC 7.45(6)(D)(ii)
+      shelter_ends: {kind: earlier_of_resolution_and_days, days: 60, from: issue, citation: 16 TAC 7.45(6)(D)(ii)}
+      stages:
+        - {id: s1, decider: designated_employee, file_within: {kind: none}, decide_within: {kind: none}, final: false, citation: 16 TAC 7.45(6)(D)(i)}
+        - {id: s2, decider: regulator, file_within: {kind: none}, decide_within: {kind: days, days: 15}, final: true, citation: 16 TAC 7.45(2)(C)}
+      blocks: {codes: [disconnect_order, disconnect_execute, late_fee], citation: 16 TAC 7.45(6)(D)(ii)}
+      duties: {codes: [investigate, report_result, inform_complaint_route], citation: 16 TAC 7.45(6)(D)(i)}
+  - name: tx_gas_iou_coop_unprotected
+    state_code: TX
+    service_type: gas
+    owner_types: [investor_owned, cooperative]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    effective_from: "2004-07-12"
+    source_note: "16 TAC 7.45(1): the dispute shelter of 7.45(6)(D) reaches residential and small commercial customers only; a large commercial or industrial customer's dispute earns no shelter from it."
+    terms:
+      governs: law
+      citation: 16 TAC 7.45(1)
+      subjects: {kind: any, excluded: [], citation: 16 TAC 7.45(1)}
+      shelter_earned: {kind: unruled}
+      must_pay: {strategy: full_bill, version: 1, id: m1, citation: 16 TAC 7.45(1)}
+      shelter_ends: {kind: unruled}
+      stages: []
+      blocks: {codes: [], citation: 16 TAC 7.45(1)}
+      duties: {codes: [], citation: 16 TAC 7.45(1)}
+  - name: tx_gas_municipal_protected
+    state_code: TX
+    service_type: gas
+    owner_types: [municipal]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    effective_from: "2004-07-12"
+    source_note: "Tex. Util. Code 101.003(7): a municipal corporation is not a gas utility; a city-owned system sets its own dispute policy in its tariff (K-07)."
+    terms:
+      governs: delegated_to_utility
+      citation: Tex. Util. Code 101.003(7)
+      note: A municipal corporation is not a gas utility under GURA; its own tariff sets its dispute policy.
+  - name: tx_gas_municipal_unprotected
+    state_code: TX
+    service_type: gas
+    owner_types: [municipal]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    effective_from: "2004-07-12"
+    source_note: "Tex. Util. Code 101.003(7): a municipal corporation is not a gas utility; a city-owned system sets its own dispute policy in its tariff (K-07)."
+    terms:
+      governs: delegated_to_utility
+      citation: Tex. Util. Code 101.003(7)
+      note: A municipal corporation is not a gas utility under GURA; its own tariff sets its dispute policy.

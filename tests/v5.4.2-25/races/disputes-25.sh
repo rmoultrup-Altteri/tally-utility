@@ -15,8 +15,15 @@
 #   DR6  A writes a determination citing the utility's tariff and holds; B
 #        closes the tariff on the day the dispute was received: waits on the
 #        citation's lock, then is refused (the close floor; rule_row_cite).
+#   DR6b A writes a determination citing the city's law row and holds; B
+#        closes that law row on the day the dispute was received: waits on
+#        the citation's lock, then is refused (rule_law_row_cite).
 #   DR7  A determination and a resolution under REPEATABLE READ are refused
 #        (25000: the dispute row is the mutex only at READ COMMITTED).
+#   DR8  A resolves the dispute and holds; B records an amount on it: waits,
+#        then is refused (nothing after the resolution; D2e).
+#   DR9  An amount's lines are written in its own transaction: a line added
+#        to an amount committed earlier is refused (D2f).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -34,13 +41,15 @@ TAR=00000000-0000-4000-8000-0000000025f5
 I1=00000000-0000-4000-8000-000000002601
 L11=00000000-0000-4000-8000-000000002611
 L12=00000000-0000-4000-8000-000000002612
-# disputes 31-37, their amounts 41-47
+# disputes 31-3a, their amounts 41-4a
 D=(x 00000000-0000-4000-8000-000000002631 00000000-0000-4000-8000-000000002632 00000000-0000-4000-8000-000000002633
      00000000-0000-4000-8000-000000002634 00000000-0000-4000-8000-000000002635 00000000-0000-4000-8000-000000002636
-     00000000-0000-4000-8000-000000002637)
+     00000000-0000-4000-8000-000000002637 00000000-0000-4000-8000-000000002638 00000000-0000-4000-8000-000000002639
+     00000000-0000-4000-8000-00000000263a)
 A=(x 00000000-0000-4000-8000-000000002641 00000000-0000-4000-8000-000000002642 00000000-0000-4000-8000-000000002643
      00000000-0000-4000-8000-000000002644 00000000-0000-4000-8000-000000002645 00000000-0000-4000-8000-000000002646
-     00000000-0000-4000-8000-000000002647)
+     00000000-0000-4000-8000-000000002647 00000000-0000-4000-8000-000000002648 00000000-0000-4000-8000-000000002649
+     00000000-0000-4000-8000-00000000264a)
 DET2=00000000-0000-4000-8000-000000002652
 A_OUT=$(mktemp); B_OUT=$(mktemp)
 trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
@@ -94,7 +103,7 @@ VALUES ('$T', '$I1', DATE '2026-02-28', now(), 'v1', 'race25', $SNAP_INPUTS,
 UPDATE public.invoices SET status = 'pending' WHERE id = '$I1';
 SET LOCAL app.user_id = '$OP';
 SET LOCAL ROLE tally_app;
-$(for n in 1 2 3 4 5 6 7; do dispute $n; done)
+$(for n in 1 2 3 4 5 6 7 8 9 10; do dispute $n; done)
 $(det 2 40 '' 00000000-0000-4000-8000-000000002651)
 COMMIT;
 SQL
@@ -174,6 +183,10 @@ verdict "DR5 a withdrawal while the dispute is being resolved: it waits, then is
 two "$(det 6 40)" "UPDATE public.dispute_tariffs SET effective_to = DATE '2026-03-12' WHERE id = '$TAR';" "SET LOCAL app.user_id = '$OP';"
 verdict "DR6 a close of the tariff while a determination cites it for March 12: the close waits, then is refused" 1 "cannot close on"
 
+# DR6b: the law row's close runs as the owner (the platform closes law).
+two "$(det 10 40)" "UPDATE public.dispute_rules SET effective_to = DATE '2026-03-12' WHERE id = $LAW;" "SET LOCAL app.user_id = '$OP';"
+verdict "DR6b a close of the law row while a determination cites it for March 12: the close waits, then is refused" 1 "cannot close on"
+
 # DR7
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN ISOLATION LEVEL REPEATABLE READ;
@@ -191,5 +204,19 @@ COMMIT;
 SQL
 )
 if echo "$OUT" | grep -q "25000"; then echo "PASS DR7b a resolution under REPEATABLE READ is refused"; else echo "FAIL DR7b: $OUT"; fail=1; fi
+
+# DR8
+two "$(ev 8 resolved sustained)" "INSERT INTO public.dispute_amounts (tenant_id, dispute_id, amount, determined_by, effective_on) VALUES ('$T', '${D[8]}', 30, 'agreed', DATE '2026-04-10');"
+verdict "DR8 an amount while the dispute is being resolved: it waits, then is refused" 1 "[D2e]"
+
+# DR9 (not a race: two transactions in turn)
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+INSERT INTO public.dispute_amount_lines (tenant_id, dispute_amount_id, invoice_line_item_id, amount) VALUES ('$T', '${A[9]}', '$L12', 40);
+COMMIT;
+SQL
+)
+if echo "$OUT" | grep -qF "[D2f]"; then echo "PASS DR9 a line added to an amount of an earlier transaction is refused"; else echo "FAIL DR9: $OUT"; fail=1; fi
 
 exit $fail

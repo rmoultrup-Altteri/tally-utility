@@ -1,0 +1,697 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/dispute/dispute.v1.schema.json",
+  "title": "Dispute rule, version 1",
+  "description": "What a state's law says about a customer's dispute of a bill or a reading, for one customer class: what may be disputed, when a dispute earns protection, what the customer must still pay while protected, when the protection ends, the review stages, what the protection stops and the utility's duties. Every section is written: absent never means none, so an empty list or an explicit unruled is written, each with its citation. Every law kind also admits the document 'the law leaves this to the utility'. The core evaluates the document; the database stores it and checks the records that cite it.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/law"
+    },
+    {
+      "$ref": "#/$defs/delegated"
+    }
+  ],
+  "$defs": {
+    "citation": {
+      "type": "string",
+      "pattern": "[A-Za-z0-9]"
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "codes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/code"
+      },
+      "maxItems": 32
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3650
+    },
+    "subjects": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/subjects_any"
+        },
+        {
+          "$ref": "#/$defs/subjects_listed"
+        }
+      ]
+    },
+    "subjects_any": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "excluded",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any"
+        },
+        "excluded": {
+          "$ref": "#/$defs/codes"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "subjects_listed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "codes",
+        "excluded",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "listed"
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "excluded": {
+          "$ref": "#/$defs/codes"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "shelter_earned": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/earned_any_time"
+        },
+        {
+          "$ref": "#/$defs/earned_before_termination"
+        },
+        {
+          "$ref": "#/$defs/earned_before_delinquency"
+        },
+        {
+          "$ref": "#/$defs/earned_within_days"
+        },
+        {
+          "$ref": "#/$defs/earned_on_regulator_complaint"
+        },
+        {
+          "$ref": "#/$defs/earned_unruled"
+        }
+      ]
+    },
+    "earned_any_time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any_time"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "earned_before_termination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "before_termination"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "earned_before_delinquency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "before_delinquency"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "earned_within_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "within_days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "issue",
+            "receipt"
+          ]
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "earned_on_regulator_complaint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "on_regulator_complaint"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "earned_unruled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "unruled"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "must_pay": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/pay_undisputed_charges"
+        },
+        {
+          "$ref": "#/$defs/pay_average_usage_cap"
+        },
+        {
+          "$ref": "#/$defs/pay_full_bill"
+        },
+        {
+          "$ref": "#/$defs/pay_withhold_cap"
+        },
+        {
+          "$ref": "#/$defs/pay_unruled"
+        }
+      ]
+    },
+    "pay_undisputed_charges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id",
+        "citation"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "undisputed_charges"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "pay_average_usage_cap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id",
+        "history_years",
+        "no_history",
+        "citation"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "average_usage_cap"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "history_years": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "no_history": {
+          "type": "string",
+          "enum": [
+            "similar_customers"
+          ]
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "pay_full_bill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id",
+        "citation"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "full_bill"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "pay_withhold_cap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id",
+        "fraction",
+        "citation"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "withhold_cap"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "pay_unruled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "unruled"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "shelter_ends": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ends_resolution"
+        },
+        {
+          "$ref": "#/$defs/ends_earlier_of_resolution_and_days"
+        },
+        {
+          "$ref": "#/$defs/ends_through_regulator_close"
+        },
+        {
+          "$ref": "#/$defs/ends_unruled"
+        }
+      ]
+    },
+    "ends_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "resolution"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "ends_earlier_of_resolution_and_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "earlier_of_resolution_and_days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        },
+        "from": {
+          "type": "string",
+          "const": "issue"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "ends_through_regulator_close": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "through_regulator_close"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "ends_unruled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "unruled"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "within_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "file_within": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/within_none"
+        },
+        {
+          "$ref": "#/$defs/file_within_days"
+        }
+      ]
+    },
+    "file_within_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "prior_decision",
+            "issue",
+            "receipt"
+          ]
+        }
+      }
+    },
+    "decide_within": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/within_none"
+        },
+        {
+          "$ref": "#/$defs/decide_within_days"
+        }
+      ]
+    },
+    "decide_within_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "decider",
+        "file_within",
+        "decide_within",
+        "final",
+        "citation"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "decider": {
+          "type": "string",
+          "enum": [
+            "designated_employee",
+            "supervisor",
+            "manager",
+            "executive",
+            "governing_body",
+            "regulator"
+          ]
+        },
+        "file_within": {
+          "$ref": "#/$defs/file_within"
+        },
+        "decide_within": {
+          "$ref": "#/$defs/decide_within"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "code_list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codes",
+        "citation"
+      ],
+      "properties": {
+        "codes": {
+          "$ref": "#/$defs/codes"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        }
+      }
+    },
+    "law": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "governs",
+        "citation",
+        "subjects",
+        "shelter_earned",
+        "must_pay",
+        "shelter_ends",
+        "stages",
+        "blocks",
+        "duties"
+      ],
+      "properties": {
+        "governs": {
+          "type": "string",
+          "const": "law"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        },
+        "subjects": {
+          "$ref": "#/$defs/subjects"
+        },
+        "shelter_earned": {
+          "$ref": "#/$defs/shelter_earned"
+        },
+        "must_pay": {
+          "$ref": "#/$defs/must_pay"
+        },
+        "shelter_ends": {
+          "$ref": "#/$defs/shelter_ends"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stage"
+          },
+          "maxItems": 8
+        },
+        "blocks": {
+          "$ref": "#/$defs/code_list"
+        },
+        "duties": {
+          "$ref": "#/$defs/code_list"
+        }
+      }
+    },
+    "delegated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "governs",
+        "citation"
+      ],
+      "properties": {
+        "governs": {
+          "type": "string",
+          "const": "delegated_to_utility"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        },
+        "note": {
+          "type": "string",
+          "pattern": "[A-Za-z0-9]"
+        }
+      }
+    }
+  }
+}

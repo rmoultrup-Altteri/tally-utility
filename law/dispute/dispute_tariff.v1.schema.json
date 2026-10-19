@@ -1,0 +1,532 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tally-utility/law/dispute/dispute_tariff.v1.schema.json",
+  "title": "Dispute tariff, version 1",
+  "description": "A utility's own dispute policy, from its tariff, confirmed at setup (K-07: no assumed default): the same sections as the dispute law, so the two compare like with like. A tariff is the utility's policy, not law: it carries one citation (the tariff provision), no governs key, and no unruled section — a utility's own policy says what it does. Measured against the law in force when written (never looser).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "citation",
+    "subjects",
+    "shelter_earned",
+    "must_pay",
+    "shelter_ends",
+    "stages",
+    "blocks",
+    "duties"
+  ],
+  "properties": {
+    "citation": {
+      "$ref": "#/$defs/citation"
+    },
+    "subjects": {
+      "$ref": "#/$defs/subjects"
+    },
+    "shelter_earned": {
+      "$ref": "#/$defs/shelter_earned"
+    },
+    "must_pay": {
+      "$ref": "#/$defs/must_pay"
+    },
+    "shelter_ends": {
+      "$ref": "#/$defs/shelter_ends"
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stage"
+      },
+      "maxItems": 8
+    },
+    "blocks": {
+      "$ref": "#/$defs/code_list"
+    },
+    "duties": {
+      "$ref": "#/$defs/code_list"
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "string",
+      "pattern": "[A-Za-z0-9]"
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "codes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/code"
+      },
+      "maxItems": 32
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3650
+    },
+    "subjects": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/subjects_any"
+        },
+        {
+          "$ref": "#/$defs/subjects_listed"
+        }
+      ]
+    },
+    "subjects_any": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "excluded"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any"
+        },
+        "excluded": {
+          "$ref": "#/$defs/codes"
+        }
+      }
+    },
+    "subjects_listed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "codes",
+        "excluded"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "listed"
+        },
+        "codes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/code"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "excluded": {
+          "$ref": "#/$defs/codes"
+        }
+      }
+    },
+    "shelter_earned": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/earned_any_time"
+        },
+        {
+          "$ref": "#/$defs/earned_before_termination"
+        },
+        {
+          "$ref": "#/$defs/earned_before_delinquency"
+        },
+        {
+          "$ref": "#/$defs/earned_within_days"
+        },
+        {
+          "$ref": "#/$defs/earned_on_regulator_complaint"
+        }
+      ]
+    },
+    "earned_any_time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "any_time"
+        }
+      }
+    },
+    "earned_before_termination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "before_termination"
+        }
+      }
+    },
+    "earned_before_delinquency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "before_delinquency"
+        }
+      }
+    },
+    "earned_within_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "within_days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "issue",
+            "receipt"
+          ]
+        }
+      }
+    },
+    "earned_on_regulator_complaint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "on_regulator_complaint"
+        }
+      }
+    },
+    "must_pay": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/pay_undisputed_charges"
+        },
+        {
+          "$ref": "#/$defs/pay_average_usage_cap"
+        },
+        {
+          "$ref": "#/$defs/pay_full_bill"
+        },
+        {
+          "$ref": "#/$defs/pay_withhold_cap"
+        }
+      ]
+    },
+    "pay_undisputed_charges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "undisputed_charges"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "pay_average_usage_cap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id",
+        "history_years",
+        "no_history"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "average_usage_cap"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "history_years": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "no_history": {
+          "type": "string",
+          "enum": [
+            "similar_customers"
+          ]
+        }
+      }
+    },
+    "pay_full_bill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "full_bill"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "pay_withhold_cap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "version",
+        "id",
+        "fraction"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "const": "withhold_cap"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "shelter_ends": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ends_resolution"
+        },
+        {
+          "$ref": "#/$defs/ends_earlier_of_resolution_and_days"
+        },
+        {
+          "$ref": "#/$defs/ends_through_regulator_close"
+        }
+      ]
+    },
+    "ends_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "resolution"
+        }
+      }
+    },
+    "ends_earlier_of_resolution_and_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "earlier_of_resolution_and_days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        },
+        "from": {
+          "type": "string",
+          "const": "issue"
+        }
+      }
+    },
+    "ends_through_regulator_close": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "through_regulator_close"
+        }
+      }
+    },
+    "within_none": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "none"
+        }
+      }
+    },
+    "file_within": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/within_none"
+        },
+        {
+          "$ref": "#/$defs/file_within_days"
+        }
+      ]
+    },
+    "file_within_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "prior_decision",
+            "issue",
+            "receipt"
+          ]
+        }
+      }
+    },
+    "decide_within": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/within_none"
+        },
+        {
+          "$ref": "#/$defs/decide_within_days"
+        }
+      ]
+    },
+    "decide_within_days": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "days"
+        },
+        "days": {
+          "$ref": "#/$defs/days"
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "decider",
+        "file_within",
+        "decide_within",
+        "final"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "decider": {
+          "type": "string",
+          "enum": [
+            "designated_employee",
+            "supervisor",
+            "manager",
+            "executive",
+            "governing_body",
+            "regulator"
+          ]
+        },
+        "file_within": {
+          "$ref": "#/$defs/file_within"
+        },
+        "decide_within": {
+          "$ref": "#/$defs/decide_within"
+        },
+        "final": {
+          "type": "boolean"
+        }
+      }
+    },
+    "code_list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codes"
+      ],
+      "properties": {
+        "codes": {
+          "$ref": "#/$defs/codes"
+        }
+      }
+    }
+  }
+}

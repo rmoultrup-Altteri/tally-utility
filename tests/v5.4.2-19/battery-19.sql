@@ -170,9 +170,10 @@ SELECT pg_temp.refuses('RW2 raw read value', $q$UPDATE public.meter_readings SET
 SELECT pg_temp.refuses('RW3 estimation reason', $q$UPDATE public.meter_readings SET estimation_reason = 'other' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('RW4 read timestamp', $q$UPDATE public.meter_readings SET reading_timestamp = now() WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
 SELECT pg_temp.refuses('RW5 validated_by', $q$UPDATE public.meter_readings SET validated_by = '00000000-0000-4000-8000-0000000019b1' WHERE id = '00000000-0000-4000-8000-000000001911'$q$, '23001');
-UPDATE public.meter_readings SET requires_followup = true, followup_notes = 'check', dispute_reason = 'customer call', triggers_correction_workflow = true
+-- v5.4.2-25 (T2) dropped the reading's dispute_* notes (a dispute is a disputes row).
+UPDATE public.meter_readings SET requires_followup = true, followup_notes = 'check', triggers_correction_workflow = true
  WHERE id = '00000000-0000-4000-8000-000000001911';
-DO $$ BEGIN RAISE NOTICE 'PASS RW6: follow-up and dispute fields stay editable'; END $$;
+DO $$ BEGIN RAISE NOTICE 'PASS RW6: follow-up fields stay editable'; END $$;
 
 -- R4/R5: a "void" that writes more than void_invoice() writes. Since
 -- v5.4.2-20 the void is the write made as tally_void, void_invoice()'s

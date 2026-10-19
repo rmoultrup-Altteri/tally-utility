@@ -116,12 +116,16 @@ GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok
 INSERT INTO public.tenants (id, name, slug) VALUES
   ('00000000-0000-4000-8000-0000000025a1', 'T1 City Gas', 'bat25-t1'),
   ('00000000-0000-4000-8000-0000000025a2', 'T2 Gasco', 'bat25-t2'),
-  ('00000000-0000-4000-8000-0000000025a3', 'T3 Town Gas', 'bat25-t3');
+  ('00000000-0000-4000-8000-0000000025a3', 'T3 Town Gas', 'bat25-t3'),
+  ('00000000-0000-4000-8000-0000000025a4', 'T4 District Gas', 'bat25-t4'),
+  ('00000000-0000-4000-8000-0000000025a5', 'T5 County Gas', 'bat25-t5');
 INSERT INTO public.users (id, tenant_id, display_name, email, role, is_active) VALUES
   ('00000000-0000-4000-8000-0000000025b1', '00000000-0000-4000-8000-0000000025a1', 'Op1', 'op1@bat25.test', 'operator', true),
   ('00000000-0000-4000-8000-0000000025b2', '00000000-0000-4000-8000-0000000025a2', 'Op2', 'op2@bat25.test', 'operator', true),
   ('00000000-0000-4000-8000-0000000025b3', '00000000-0000-4000-8000-0000000025a3', 'Op3', 'op3@bat25.test', 'operator', true),
-  ('00000000-0000-4000-8000-0000000025b4', '00000000-0000-4000-8000-0000000025a1', 'Admin1', 'ad1@bat25.test', 'tenant_admin', true);
+  ('00000000-0000-4000-8000-0000000025b4', '00000000-0000-4000-8000-0000000025a1', 'Admin1', 'ad1@bat25.test', 'tenant_admin', true),
+  ('00000000-0000-4000-8000-0000000025b5', '00000000-0000-4000-8000-0000000025a4', 'Op4', 'op4@bat25.test', 'operator', true),
+  ('00000000-0000-4000-8000-0000000025b6', '00000000-0000-4000-8000-0000000025a5', 'Op5', 'op5@bat25.test', 'operator', true);
 INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
   ('00000000-0000-4000-8000-0000000025c1', '00000000-0000-4000-8000-0000000025a1', 'B25-C1', 'residential'),
   ('00000000-0000-4000-8000-0000000025c2', '00000000-0000-4000-8000-0000000025a1', 'B25-C2', 'residential'),
@@ -140,11 +144,19 @@ SELECT v.id::uuid, 'municipality', 'TX', v.code, v.name, s.id, DATE '2000-01-01'
        (VALUES ('00000000-0000-4000-8000-0000000025a7', 'TX-B25-CITY', 'Battery City 25'),
                ('00000000-0000-4000-8000-0000000025a8', 'TX-B25-TOWN', 'Battery Town 25')) v(id, code, name)
  WHERE s.kind_code = 'state' AND s.state_code = 'TX';
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT '00000000-0000-4000-8000-0000000025a9', 'special_purpose_district', 'TX', 'TX-B25-DIST', 'Battery District 25', s.id, DATE '2000-01-01', 'battery-25 fixture'
+  FROM public.places s WHERE s.kind_code = 'state' AND s.state_code = 'TX';
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT '00000000-0000-4000-8000-0000000025aa', 'county', 'TX', '48925', 'Battery County 25', s.id, DATE '2000-01-01', 'battery-25 fixture'
+  FROM public.places s WHERE s.kind_code = 'state' AND s.state_code = 'TX';
 INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
                                              owning_place_id, effective_from, evidence_reference, evidence_date) VALUES
   ('00000000-0000-4000-8000-0000000025a1', 'gas', 'distribution', 'TX', 'municipal', false, '00000000-0000-4000-8000-0000000025a7', DATE '2000-01-01', 'Battery City charter', DATE '2000-01-01'),
   ('00000000-0000-4000-8000-0000000025a2', 'gas', 'distribution', 'TX', 'investor_owned', true, NULL, DATE '2000-01-01', 'RRC certificate bat25', DATE '2000-01-01'),
-  ('00000000-0000-4000-8000-0000000025a3', 'gas', 'distribution', 'TX', 'municipal', false, '00000000-0000-4000-8000-0000000025a8', DATE '2000-01-01', 'Battery Town charter', DATE '2000-01-01');
+  ('00000000-0000-4000-8000-0000000025a3', 'gas', 'distribution', 'TX', 'municipal', false, '00000000-0000-4000-8000-0000000025a8', DATE '2000-01-01', 'Battery Town charter', DATE '2000-01-01'),
+  ('00000000-0000-4000-8000-0000000025a4', 'gas', 'distribution', 'TX', 'special_district', false, '00000000-0000-4000-8000-0000000025a9', DATE '2000-01-01', 'Battery district order', DATE '2000-01-01'),
+  ('00000000-0000-4000-8000-0000000025a5', 'gas', 'distribution', 'TX', 'political_subdivision', false, '00000000-0000-4000-8000-0000000025aa', DATE '2000-01-01', 'Battery county order', DATE '2000-01-01');
 INSERT INTO public.meters (id, tenant_id, meter_number, location_id, service_type) VALUES
   ('00000000-0000-4000-8000-0000000025e1', '00000000-0000-4000-8000-0000000025a1', 'B25-M1', '00000000-0000-4000-8000-0000000025d1', 'gas'),
   ('00000000-0000-4000-8000-0000000025e2', '00000000-0000-4000-8000-0000000025a1', 'B25-M2', '00000000-0000-4000-8000-0000000025d2', 'gas');
@@ -187,12 +199,17 @@ INSERT INTO public.invoice_line_items (id, tenant_id, invoice_id, service_type, 
   ('00000000-0000-4000-8000-00000000251a', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002504', 'gas', 'base_charge', 'Draft line', 25.00, 25.00, 'regulated');
 -- A goodwill credit of C1 (an adjusted dispute may name it; origin dispute_resolution).
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date)
-VALUES ('00000000-0000-4000-8000-000000002581', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-0000000025c1', 'dispute_resolution', 40, DATE '2026-04-10');
+VALUES ('00000000-0000-4000-8000-000000002581', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-0000000025c1', 'dispute_resolution', 40, DATE '2026-04-10'),
+       ('00000000-0000-4000-8000-000000002584', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-0000000025c1', 'goodwill', 10, DATE '2026-04-10');
 -- An adjustment entry of C1 and one of C2.
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
   ('00000000-0000-4000-8000-000000002582', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-0000000025c1', DATE '2026-04-10', 'adjustment', 'I2 dispute adjusted', -40, 'invoice', '00000000-0000-4000-8000-000000002502'),
   ('00000000-0000-4000-8000-000000002583', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-0000000025c2', DATE '2026-04-10', 'adjustment', 'I3 adjusted', -40, 'invoice', '00000000-0000-4000-8000-000000002503');
 --@fixtures-end
+-- The fixtures' deferred checks (CI-015's snapshot at issue, -21's line arithmetic) run here, as the owner:
+-- pg_temp.deferred() below fires every pending check, and as one tenant's operator it could not see
+-- another tenant's snapshot. Immediate from here on (no check below relies on deferral but deferred()'s).
+SET CONSTRAINTS ALL IMMEDIATE;
 
 -- law(owner, class): the Texas gas dispute law row binding an owner type for a class.
 CREATE FUNCTION pg_temp.law(p_owner text, p_class text) RETURNS uuid LANGUAGE sql STABLE AS $$
@@ -294,7 +311,7 @@ SELECT pg_temp.ok('K2 the investor-owned and cooperative rows hold exactly the 1
       ON r.state_code = 'TX' AND r.service_type = 'gas' AND r.customer_class = k.class AND k.owner = ANY (r.owner_types)
    WHERE k.owner = 'investor_owned'));
 SELECT pg_temp.ok('K3 they bind what 16 TAC 7.45 binds: investor-owned and cooperative owners, distribution systems, either jurisdiction status, from 2004-07-12, open-ended',
-  (SELECT bool_and(owner_types = '{investor_owned,cooperative}' AND system_kinds = '{distribution}' AND commission_jurisdiction IS NULL
+  (SELECT bool_and(owner_types = '{cooperative,investor_owned}' AND system_kinds = '{distribution}' AND commission_jurisdiction IS NULL
                    AND effective_from = DATE '2004-07-12' AND effective_to IS NULL)
      FROM public.dispute_rules WHERE state_code = 'TX' AND service_type = 'gas' AND terms ->> 'governs' = 'law'));
 SELECT pg_temp.ok('K4 a city-owned system gets a delegation for each class (K-07; Util. Code 101.003(7))',
@@ -302,8 +319,8 @@ SELECT pg_temp.ok('K4 a city-owned system gets a delegation for each class (K-07
      FROM k25 k JOIN public.dispute_rules r
       ON r.state_code = 'TX' AND r.service_type = 'gas' AND r.customer_class = k.class AND k.owner = ANY (r.owner_types)
    WHERE k.owner = 'municipal'));
-SELECT pg_temp.ok('K5 the facets are derived from the documents',
-  (SELECT block_codes = '{disconnect_order,disconnect_execute,late_fee}' AND stage_ids = '{s1,s2}' AND must_pay_ids = '{m1}'
+SELECT pg_temp.ok('K5 the facets are derived from the documents (a text[] facet is distinct and sorted, -17)',
+  (SELECT block_codes = '{disconnect_execute,disconnect_order,late_fee}' AND stage_ids = '{s1,s2}' AND must_pay_ids = '{m1}'
           AND subject_codes = '{}' AND excluded_subject_codes = '{}'
      FROM public.dispute_rules WHERE id = pg_temp.law('investor_owned', 'protected'))
   AND (SELECT block_codes = '{}' AND stage_ids = '{}' AND must_pay_ids = '{}'
@@ -345,8 +362,18 @@ SELECT pg_temp.refuses_at('X6 a final stage that is not the last',
   '23514', '[L2d]');
 SELECT pg_temp.refuses_at('X7 a customer class the state''s vocabulary lacks',
   pg_temp.law_sql('governmental', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')), '23503', 'dispute_customer_classes');
+SELECT pg_temp.refuses_at('X9 a duty code the vocabulary lacks',
+  pg_temp.law_sql('protected', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
+     || '{"duties": {"codes": ["apologize"], "citation": "x"}}'), '23503', 'dispute_duties');
+-- X8's row is the special districts' law below (N7): the Gov't Code 2251 shape (within 21 days of receipt,
+-- withhold up to 1.1 of the disputed amount), used here as a test shape only.
 SELECT pg_temp.admits('X8 a well-formed law row of another owner type is admitted (the owner writes law)',
-  pg_temp.law_sql('protected', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')));
+  pg_temp.law_sql('protected', '{"governs": "law", "citation": "Tex. Gov''t Code 2251.042", "subjects": {"kind": "any", "excluded": [], "citation": "Tex. Gov''t Code 2251.042(a)"}, "shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt", "citation": "Tex. Gov''t Code 2251.042(a)"}, "must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.1, "citation": "Tex. Gov''t Code 2251.042(d)"}, "shelter_ends": {"kind": "resolution", "citation": "Tex. Gov''t Code 2251.042(b)"}, "stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": true, "citation": "Tex. Gov''t Code 2251.042"}], "blocks": {"codes": ["late_fee"], "citation": "Tex. Gov''t Code 2251.002(a)(1)"}, "duties": {"codes": [], "citation": "Tex. Gov''t Code 2251.042"}}'));
+
+-- X10: T5's law (a county system; a test shape, PA/CA-like): shelter before termination (N8).
+INSERT INTO public.dispute_rules (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
+                                  effective_from, source_note, terms_kind, terms_version, terms_source)
+VALUES ('TX', 'gas', '{political_subdivision}', '{distribution}', NULL, 'protected', DATE '2026-01-01', 'battery rule', 'dispute', 1, '{"governs": "law", "citation": "Battery county rule", "subjects": {"kind": "any", "excluded": [], "citation": "x"}, "shelter_earned": {"kind": "before_termination", "citation": "x"}, "must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m1", "citation": "x"}, "shelter_ends": {"kind": "resolution", "citation": "x"}, "stages": [], "blocks": {"codes": ["disconnect_order", "disconnect_execute"], "citation": "x"}, "duties": {"codes": [], "citation": "x"}}');
 
 -- ============================================================== U the utility's tariff (L5)
 SET ROLE tally_app;
@@ -357,8 +384,8 @@ SELECT pg_temp.admits('U1 a city writes its own Brenham-shaped tariff from March
       "must_pay": {"strategy": "full_bill", "version": 1, "id": "m1"}, "shelter_ends": {"kind": "resolution"},
       "stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": true}],
       "blocks": {"codes": ["disconnect_order", "disconnect_execute", "credit_reporting"]}, "duties": {"codes": ["investigate"]}}'));
-SELECT pg_temp.ok('U2 its facets are derived from its document',
-  (SELECT block_codes = '{disconnect_order,disconnect_execute,credit_reporting}' AND stage_ids = '{s1}' AND must_pay_ids = '{m1}'
+SELECT pg_temp.ok('U2 its facets are derived from its document (distinct and sorted)',
+  (SELECT block_codes = '{credit_reporting,disconnect_execute,disconnect_order}' AND stage_ids = '{s1}' AND must_pay_ids = '{m1}'
      FROM public.dispute_tariffs WHERE id = '00000000-0000-4000-8000-0000000025ab'));
 SELECT pg_temp.refuses_at('U3 a second tariff over the same dates',
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a1', DATE '2026-05-01', pg_temp.tdoc()), '23P01', 'dispute_tariffs');
@@ -408,6 +435,9 @@ SELECT pg_temp.refuses_at('N4a a sooner end: 30 days from issue against the law'
 SELECT pg_temp.refuses_at('N4b a sooner end: 59 days',
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 59, "from": "issue"}}')),
   '23514', 'shelter_ends');
+SELECT pg_temp.refuses_at('N4d a different end: through the regulator''s close against earlier-of-resolution-and-60-days (not comparable: refused)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"shelter_ends": {"kind": "through_regulator_close"}}')),
+  '23514', 'shelter_ends');
 SELECT pg_temp.refuses_at('N5a a must-pay that asks for more: the full bill',
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"must_pay": {"strategy": "full_bill", "version": 1, "id": "m1"}}')),
   '23514', 'must_pay');
@@ -430,6 +460,27 @@ SELECT pg_temp.admits('N1b … and every block plus more, a wider start (before 
 SELECT pg_temp.ok('N6 the admitted tariff is the one in force for T2',
   public.rule_tariff_row_as_of('public.dispute_tariffs', '00000000-0000-4000-8000-0000000025a2', 'gas', 'distribution', 'TX', '{}', DATE '2026-03-15')
     = '00000000-0000-4000-8000-0000000025ac');
+-- N7: T4 is a special district; its law is X8's row (shelter within 21 days of receipt, withhold up to 1.1).
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b5', true);
+SELECT pg_temp.refuses_at('N7a a shorter window: 20 days of receipt against 21',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 20, "from": "receipt"}}')),
+  '23514', 'shelter_earned');
+SELECT pg_temp.refuses_at('N7b the same days from another anchor: 21 days of issue against 21 of receipt (not comparable: refused)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 21, "from": "issue"}}')),
+  '23514', 'shelter_earned');
+SELECT pg_temp.refuses_at('N7c before delinquency against a window of days (not comparable: refused)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc('{"shelter_earned": {"kind": "before_delinquency"}}')),
+  '23514', 'shelter_earned');
+SELECT pg_temp.refuses_at('N7d withholding less: 1 of the disputed amount against 1.1',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc(
+    '{"shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt"}, "must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1}}')),
+  '23514', 'must_pay');
+SELECT pg_temp.admits_undone('N7e … the law''s own window and cap are admitted',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc(
+    '{"shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt"}, "must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.1}}')));
+SELECT pg_temp.admits_undone('N7f … as are a longer window and a larger cap',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc(
+    '{"shelter_earned": {"kind": "within_days", "days": 30, "from": "receipt"}, "must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.5}}')));
 RESET ROLE;
 
 -- dispute_sql(id, tenant, customer, invoice, reading, subject, received, channel)
@@ -477,6 +528,16 @@ GRANT EXECUTE ON FUNCTION pg_temp.dispute_sql(text, text, text, text, text, text
   pg_temp.line_sql(text, text, text, numeric),
   pg_temp.det_sql(text, text, text, text, text, uuid, text, text, numeric, numeric, text, date, text[], text),
   pg_temp.ev_sql(text, text, text, date, text, text, text, text, text, text, text, text) TO tally_app;
+
+-- N8: T5's law shelters before termination; a tariff starting before delinquency is narrower.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b6', true);
+SELECT pg_temp.refuses_at('N8a a narrower start in the order: before delinquency against before termination',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a5', DATE '2026-02-01', pg_temp.tdoc('{"shelter_earned": {"kind": "before_delinquency"}}')),
+  '23514', 'shelter_earned');
+SELECT pg_temp.admits_undone('N8b … a wider one, any time, is admitted',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a5', DATE '2026-02-01', pg_temp.tdoc('{"shelter_earned": {"kind": "any_time"}}')));
+RESET ROLE;
 
 -- ============================================================== D1 the dispute (CI-074; CRAFT)
 SET ROLE tally_app;
@@ -615,6 +676,12 @@ SELECT pg_temp.admits('D2k T2: C5 disputes 40 of I5, all on its add-on line; C6 
      pg_temp.amount_sql('00000000-0000-4000-8000-000000002545', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002535', 40, 'customer_claim', DATE '2026-03-15')
      || '; ' || pg_temp.line_sql('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002545', '00000000-0000-4000-8000-000000002522', 40)) || ')'
   || '; ' || pg_temp.amount_sql('00000000-0000-4000-8000-000000002546', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002536', 90, 'customer_claim', DATE '2026-03-15'));
+SELECT pg_temp.refuses_at('D2n T2 writes no amount on T1''s dispute',
+  pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-03-15'),
+  '42501', 'row-level security');
+SELECT pg_temp.refuses_at('D2o … nor a line on T1''s amount',
+  pg_temp.line_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002541', '00000000-0000-4000-8000-000000002511', 10),
+  '42501', 'row-level security');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b3', true);
 SELECT pg_temp.admits('D2l T3: C7 disputes 40 of I7',
   pg_temp.amount_sql('00000000-0000-4000-8000-000000002547', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002537', 40, 'customer_claim', DATE '2026-03-15'));
@@ -707,6 +774,14 @@ SELECT pg_temp.refuses_at('D4n no terms that still shelters something',
 SELECT pg_temp.refuses_at('D4n2 no terms that names a must-pay component',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002532', '00000000-0000-4000-8000-000000002543',
                   'protected', pg_temp.law('municipal', 'protected'), NULL, 'no_terms', 0, 20, 'm1', NULL, '{}', '00000000-0000-4000-8000-000000002553'), '23514', '[D4n]');
+SELECT pg_temp.refuses_at('D4n3 sheltered with no amount to pay',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, NULL, 'm1', NULL,
+                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), '23514', '[D4n]');
+SELECT pg_temp.refuses_at('D4h2 the document''s blocks with one repeated',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 90, 'm1', NULL,
+                  '{disconnect_order,disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), '23514', '[D4h]');
 SELECT pg_temp.refuses_at('D4v a determination is never edited',
   $q$UPDATE public.dispute_determinations SET sheltered_amount = 1 WHERE id = '00000000-0000-4000-8000-000000002552'$q$, '42501', 'dispute_determinations');
 SELECT pg_temp.refuses_at('D4w nor deleted',
@@ -762,6 +837,20 @@ SELECT pg_temp.refuses_at('D5k a sustained resolution that names a correction',
 SELECT pg_temp.refuses_at('D5l an adjustment of another customer (C2''s entry for C1''s dispute)',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'adjusted',
                  '00000000-0000-4000-8000-000000002583'), '23514', '[D5e]');
+SELECT pg_temp.refuses_at('D5l2 an adjustment naming a credit that is not a dispute resolution (C1''s goodwill credit)',
+  pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'adjusted',
+                 NULL, '00000000-0000-4000-8000-000000002584'), '23514', '[D5e]');
+SELECT pg_temp.refuses_at('D5l3 an adjustment naming another customer''s bill (C2''s I3)',
+  pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'adjusted',
+                 NULL, NULL, '00000000-0000-4000-8000-000000002503'), '23514', '[D5e]');
+SELECT pg_temp.refuses_at('D5x an escalation that names a stage',
+  pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'escalated', DATE '2026-03-20', 's1', 'designated_employee', 'regulator'),
+  '23514', '[D5b]');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b2', true);
+SELECT pg_temp.refuses_at('D5w T2 writes no event on T1''s dispute',
+  pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'escalated', DATE '2026-03-20', NULL, NULL, 'regulator'),
+  '42501', 'row-level security');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b1', true);
 SELECT pg_temp.admits('D5m C1''s I1 dispute is resolved: the bill is sustained, April 10',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained',
                  NULL, NULL, NULL, '00000000-0000-4000-8000-000000002561'));
@@ -923,7 +1012,9 @@ SELECT pg_temp.ok('H8 each utility sees its own dispute records only: T2 sees it
 SELECT pg_temp.ok('H9 the law is the platform''s and every utility reads it',
   (SELECT count(*) >= 4 FROM public.dispute_rules));
 RESET ROLE;
-SELECT pg_temp.refuses_at('H10 a dispute record is never truncated', 'TRUNCATE public.dispute_events', '23001', 'dispute_events');
+-- CASCADE: a plain TRUNCATE of a referenced table is refused by PostgreSQL's own FK check (0A000) before
+-- any trigger runs; with CASCADE nothing but the guard stands in the way.
+SELECT pg_temp.refuses_at('H10 a dispute record is never truncated, even with CASCADE', 'TRUNCATE public.dispute_events CASCADE', '23001', 'dispute');
 SELECT pg_temp.admits('H11 the template''s invariants hold over both rule tables', $q$SELECT public.assert_rule_table_invariants()$q$);
 SELECT pg_temp.admits('H12 tenant isolation holds over the new tables and readers', $q$SELECT public.assert_tenant_isolation_invariants()$q$);
 SELECT pg_temp.admits('H13 the retention invariants hold: no new table can be deleted from', $q$SELECT public.assert_no_hard_delete_invariants()$q$);
