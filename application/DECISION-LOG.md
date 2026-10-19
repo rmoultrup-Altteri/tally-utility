@@ -6,6 +6,12 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-18 (wave 3, Q1) — Ryan: dispute policies are rule entries, one law table and one tariff table
+
+**What:** Ryan (2026-10-18): "go with the rule entries". -25 registers a `dispute` terms family under the rule-terms convention: a law table (Texas gas §7.45(6)(D) is one row) and a tariff table (each city's own policy, e.g. Brenham, CPS Energy). Terms hold the recognised grounds and excluded subjects, the must-pay strategy and its parameters, when the shelter starts and ends, the review stages and deadlines, and what the shelter blocks. Every dispute determination cites the row it applied. A city with no tariff row has no dispute terms, and the determination records that (K-07: no assumed defaults).
+
+*Why:* the two Texas city policies found are opposites (Brenham: pay 100%, no cutoff while investigated; CPS: pay the undisputed charges, two-stage appeal), so the policy varies by utility and each dispute must say which one it was judged under. *Not a text citation now and rule rows in wave 7:* that is a "for now" design and needs a later backfill rewriting every dispute's citation (memory `design-permanent-record-on-change`). Asked because the sequencing note reserved extending the convention to new areas for Ryan. Lives in `application/wave3-build-2026-10-18/source-inventory-wave3.md` (D6, Q1).
+
 ## 2026-10-17 (-23 draft) — Ryan: a correction chain stays at most 1,000 deep
 
 **What:** -23's general reversal cap keeps -22's depth bound of 1,000 entries (a charge, a correction of it, a correction of that, and so on). Ryan: "yes, go with 1,000".

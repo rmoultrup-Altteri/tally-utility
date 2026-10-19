@@ -2,7 +2,7 @@
 
 **Authority:** Ryan, 2026-10-18: "no answer yet, start the wave-3 inventory". The wave's content is `application/step1-sequencing-2026-10-13.md` (wave 3): CI-074, 067, 069, 075, 071, and the dispute side of 054. Kyle, 2026-10-15: "wave 3 needed K-07 only" (municipal utilities enter their own rules, with no assumed defaults).
 
-**Status:** inventory only. One question is open for Ryan (Q1, below), and I have a default for it. Everything else is settled by a ruling or a standing rule, and each settlement names the one it rests on.
+**Status:** inventory. Q1 answered by Ryan 2026-10-18 (the default: rule entries); nothing open. Everything else is settled by a ruling or a standing rule, and each settlement names the one it rests on.
 
 **Build order:** the dispute record reads bill positions from -23 (`invoice_position_as_of`, `invoice_line_position_as_of`). -23 r3 changes refunds and credits, not those two functions, so -25 can be drafted on top of -23 r2. It can't be mirrored until -23 has mirrored.
 
@@ -93,7 +93,7 @@ The wave is M–L. Split by dependency and migration cost (memory `frame-shapes-
   - the stages and their deadlines;
   - what the shelter blocks.
 
-  Texas gas is one law row (§7.45(6)(D)). Brenham and CPS are tariff rows. A city with no tariff row has no dispute terms, and the core's decision says so (K-07: no assumed defaults). **This is Q1.**
+  Texas gas is one law row (§7.45(6)(D)). Brenham and CPS are tariff rows. A city with no tariff row has no dispute terms, and the core's decision says so (K-07: no assumed defaults). **Q1, answered: build it in -25.**
 - **D7. `pending_dispute` stops being a protection.** Its `is_disconnect_protective` becomes false and the description points at `disputes`. A dispute protects the disputed amount, not the account. **Settled by rule:** CI-074 and A-15 are newer and more specific than A-11's seed. This is a meaning change on a seed row with no enrollments behind it today.
 - **D8. `meter_readings.dispute_*` retire.** A read dispute becomes a `disputes` row naming the reading. The six columns go, along with their place on the editable list for a consumed read. **Settled by rule:** dispute state is a record, not a field the app can overwrite (R-05's add-only principle; memory `guard-the-act-not-the-label`). The table is empty.
 
@@ -187,7 +187,7 @@ Found by the law research. Each one corrects a GBM decision table, and none chan
 3. **The closed-day bar is the utility's own staffed days**, not a fixed weekend and holiday list (§7.45(4)(F), §104.258(b)).
 4. **City systems still owe due process.** *Craft* applies to city utilities: before a cutoff, a protest heard by an employee with authority to cancel it. The dispute record (D1, D4) represents it either way. Kyle or counsel may want to confirm that a Texas city's customers have the property interest *Craft* rests on.
 
-## Q1 (open): dispute terms as a new rule family
+## Q1 (answered 2026-10-18: the default): dispute terms as a new rule family
 
 A city's dispute policy, like Texas gas law, has parts that vary: what may be disputed, how much the customer must still pay, when protection starts and ends, the review stages, and what the protection blocks. Brenham and CPS already show opposite answers. The dispute record (D3) has to say which policy it applied.
 
@@ -195,3 +195,5 @@ A city's dispute policy, like Texas gas law, has parts that vary: what may be di
 - **The alternative:** the dispute record stores the policy's figures and a free-text citation, and wave 7 adds the rule rows later. That means a later backfill that rewrites every dispute record's citation, and a "for now" design (memory `design-permanent-record-on-change`).
 
 It comes to you because the sequencing note reserved "extend the convention" to new areas for your call (wave 7). Disputes weren't on that list when it was written.
+
+**Answer.** Ryan, 2026-10-18: "go with the rule entries". -25 registers the dispute family (law table + tariff table), and every dispute determination cites the row it applied.
