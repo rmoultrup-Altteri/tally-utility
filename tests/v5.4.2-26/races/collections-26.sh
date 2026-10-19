@@ -20,6 +20,10 @@
 #        to as its previous stage (E2).
 #   CR7  A decision and an act under REPEATABLE READ are refused (25000: the
 #        subject's lock serializes only at READ COMMITTED).
+#   CR8  A cancels a disconnect order and holds; B executes it: waits on the
+#        order's row, then is refused (the order is closed; F1b).
+#   CR8b A executes a disconnect order and holds; B cancels it: waits, then is
+#        refused (an executed order can only be completed; F4d).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -43,6 +47,14 @@ DO2=00000000-0000-4000-8000-0000000026e6
 DX=00000000-0000-4000-8000-0000000026e7
 SO1=00000000-0000-4000-8000-0000000026e8
 SO2=00000000-0000-4000-8000-0000000026e9
+LOC3=00000000-0000-4000-8000-0000000026f5
+LOC4=00000000-0000-4000-8000-0000000026f6
+DO3=00000000-0000-4000-8000-0000000026ea
+DO4=00000000-0000-4000-8000-0000000026eb
+DX3=00000000-0000-4000-8000-0000000026ec
+DX4=00000000-0000-4000-8000-0000000026ed
+SO3=00000000-0000-4000-8000-0000000026ee
+SO4=00000000-0000-4000-8000-0000000026ef
 A_OUT=$(mktemp); B_OUT=$(mktemp)
 trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
 fail=0
@@ -72,8 +84,8 @@ local d="NULL"
 [ "$3" != NULL ] && d="'$3'"
 echo "INSERT INTO public.dunning_events (tenant_id, invoice_id, customer_id, event_type, event_date, collections_decision_id) VALUES ('$T', '$1', '$C', '$2', TIMESTAMPTZ '$4', $d);"
 }
-execute() {  # $1 order
-echo "INSERT INTO public.service_order_field_visits (tenant_id, service_order_id, arrived_at, captured_meter_serial, captured_location_number, outcome, collections_decision_id, evidence_refs) VALUES ('$T', '$1', TIMESTAMPTZ '2026-04-10 15:00Z', 'SN-R', 'L', 'executed', '$DX', '{photo-1}');"
+execute() {  # $1 order, $2 decision (default DX), $3 serial, $4 location number
+echo "INSERT INTO public.service_order_field_visits (tenant_id, service_order_id, arrived_at, captured_meter_serial, captured_location_number, outcome, collections_decision_id, evidence_refs) VALUES ('$T', '$1', TIMESTAMPTZ '2026-04-10 15:00Z', '${3:-SN-R}', '${4:-L}', 'executed', '${2:-$DX}', '{photo-1}');"
 }
 
 "${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: fixtures"; exit 2; }
@@ -94,6 +106,18 @@ INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, desc
 $(dec $DO2 disconnect_order NULL "$LOC" "$TODAY" "$TODAY + 7" $DO1 o2)
 INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id, collections_decision_id) VALUES ('$SO2', '$T', 'R26-SO2', 'disconnect', 'race', '$C', '$LOC', '$DO2');
 $(dec $DX disconnect_execute NULL "$LOC" "DATE '2026-04-10'" "DATE '2026-04-10'" NULL x)
+RESET ROLE;
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  ('$LOC3', '$T', '$C', 'L3', '3 Main', 'Brenham', 'TX', '77833'), ('$LOC4', '$T', '$C', 'L4', '4 Main', 'Brenham', 'TX', '77833');
+INSERT INTO public.meters (tenant_id, meter_number, serial_number, location_id, service_type, start_date) VALUES
+  ('$T', 'R26-M3', 'SN-3', '$LOC3', 'gas', DATE '2020-01-01'), ('$T', 'R26-M4', 'SN-4', '$LOC4', 'gas', DATE '2020-01-01');
+SET LOCAL ROLE tally_app;
+$(dec $DO3 disconnect_order NULL "$LOC3" "$TODAY" "$TODAY + 7" NULL o3)
+$(dec $DO4 disconnect_order NULL "$LOC4" "$TODAY" "$TODAY + 7" NULL o4)
+INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id, collections_decision_id) VALUES
+  ('$SO3', '$T', 'R26-SO3', 'disconnect', 'race', '$C', '$LOC3', '$DO3'), ('$SO4', '$T', 'R26-SO4', 'disconnect', 'race', '$C', '$LOC4', '$DO4');
+$(dec $DX3 disconnect_execute NULL "$LOC3" "DATE '2026-04-10'" "DATE '2026-04-10'" NULL x3)
+$(dec $DX4 disconnect_execute NULL "$LOC4" "DATE '2026-04-10'" "DATE '2026-04-10'" NULL x4)
 COMMIT;
 SQL
 
@@ -191,5 +215,13 @@ COMMIT;
 SQL
 )
 if echo "$OUT" | grep -q "25000"; then echo "PASS CR7b an act under REPEATABLE READ is refused"; else echo "FAIL CR7b: $OUT"; fail=1; fi
+
+# CR8
+two "UPDATE public.service_orders SET status = 'cancelled', cancellation_reason = 'race' WHERE id = '$SO3';" "$(execute $SO3 $DX3 SN-3 L3)"
+verdict "CR8 an execution while the order is being cancelled: it waits on the order, then is refused" 1 "[F1b]"
+
+# CR8b
+two "$(execute $SO4 $DX4 SN-4 L4)" "UPDATE public.service_orders SET status = 'cancelled', cancellation_reason = 'race' WHERE id = '$SO4';"
+verdict "CR8b a cancellation while the order is being executed: it waits, then is refused" 1 "[F4d]"
 
 exit $fail

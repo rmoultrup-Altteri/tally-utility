@@ -219,12 +219,15 @@ SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('02'), 'B26-I2', pg_temp.u('c1'),
 SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('03'), 'B26-I3', pg_temp.u('c2'), pg_temp.u('d2'), true);
 SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('04'), 'B26-I4', pg_temp.u('c1'), pg_temp.u('d1'), false);
 SELECT pg_temp.bill(pg_temp.u('a2'), pg_temp.u('05'), 'B26-I5', pg_temp.u('c3'), pg_temp.u('d3'), true);
+-- A T2 order (a meter test) T1 cannot see.
+INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id, meter_id)
+VALUES (pg_temp.id('SOT2'), pg_temp.u('a2'), 'B26-SOT2', 'meter_test', 'bat26 T2 order', pg_temp.u('c3'), pg_temp.u('d3'), pg_temp.u('e3'));
 
 
 -- ============================================================== V vocabulary, grants, columns
 SELECT pg_temp.ok('V1 the conditions vocabulary names the protections, the bars and the missing rule (C1)',
-  (SELECT array_agg(condition_code ORDER BY condition_code) FROM public.collections_conditions)
-  = ARRAY['agency_pledge', 'aged_suspense', 'arrears_below_floor', 'bankruptcy_stay', 'closed_day', 'deceased_hold', 'dispute',
+  (SELECT array_agg(condition_code ORDER BY condition_code COLLATE "C") FROM public.collections_conditions)
+  = ARRAY['aged_suspense', 'agency_pledge', 'arrears_below_floor', 'bankruptcy_stay', 'closed_day', 'deceased_hold', 'dispute',
           'elderly_due_date_delay', 'medical_hold', 'military_scra', 'no_rule_in_force', 'non_disconnectable_debt',
           'notice_sequence_incomplete', 'payment_arrangement', 'payment_pending', 'protected_status', 'regulatory_moratorium',
           'tariff_protection', 'third_party_notice_pending', 'weather_moratorium']);
@@ -313,6 +316,10 @@ SELECT pg_temp.refuses_at('C3f11 unevaluable with nothing it could not evaluate'
   pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'unevaluable', NULL, NULL, NULL, NULL, NULL, 'x'), '23514', '[C3f]');
 SELECT pg_temp.refuses_at('C3f12 unevaluable, crediting a condition',
   pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'unevaluable', NULL, '{weather_moratorium}', 'weather_moratorium', NULL, NULL, 'x'), '23514', '[C3f]');
+SELECT pg_temp.refuses_at('C3f15 eligible, crediting a condition',
+  pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'eligible', NULL, NULL, 'dispute', DATE '2026-04-20', NULL, 'x'), '23514', '[C3f]');
+SELECT pg_temp.refuses_at('C3f16 unevaluable, with a last day',
+  pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'unevaluable', NULL, '{weather_moratorium}', NULL, DATE '2026-04-20', NULL, 'x'), '23514', '[C3f]');
 SELECT pg_temp.admits_undone('C3f13 blocked by a known bar while another is unknown',
   pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'blocked', '{dispute}', '{weather_moratorium}', 'dispute', NULL, NULL, 'x'));
 SELECT pg_temp.admits_undone('C3f14 unevaluable: nothing known active, one unknown',
@@ -323,6 +330,8 @@ SELECT pg_temp.refuses_at('C3g2 a condition named twice',
   pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'blocked', '{dispute,dispute}', NULL, 'dispute', NULL, NULL, 'x'), '23514', '[C3g]');
 SELECT pg_temp.refuses_at('C3g3 an unevaluable condition outside the vocabulary',
   pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'unevaluable', NULL, '{sunspots}', NULL, NULL, NULL, 'x'), '23514', '[C3g]');
+SELECT pg_temp.refuses_at('C3g4 an unevaluable condition named twice',
+  pg_temp.dec('x', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-02', 'unevaluable', NULL, '{weather_moratorium,weather_moratorium}', NULL, NULL, NULL, 'x'), '23514', '[C3g]');
 SELECT pg_temp.refuses_at('C3h1 an execute decision holding past its own day',
   pg_temp.dec('x', 'disconnect_execute', 'c1', NULL, 'd5', NULL, DATE '2026-04-12', 'eligible', NULL, NULL, NULL, DATE '2026-04-13', NULL, 'x'), '23514', '[C3h]');
 SELECT pg_temp.admits_undone('C3h2 … holding for its own day',
@@ -357,19 +366,20 @@ SELECT pg_temp.admits('C4c a late fee on the same bill is another subject: its f
 
 
 -- ============================================================== A acts cite their decision (C7)
-SELECT pg_temp.admits('A0 decisions for the acts below', $q$SELECT 1$q$);
-DO $$ BEGIN
-  EXECUTE pg_temp.dec('R1', 'collections_referral', 'c1', '01', NULL, NULL, DATE '2026-04-05', 'blocked', '{bankruptcy_stay}', NULL, 'bankruptcy_stay', NULL, NULL, 'r1');
-  EXECUTE pg_temp.dec('R2', 'collections_referral', 'c1', '02', NULL, NULL, DATE '2026-04-05', 'unevaluable', NULL, '{no_rule_in_force}', NULL, NULL, NULL, 'r2');
-  EXECUTE pg_temp.dec('R3', 'collections_referral', 'c2', '03', NULL, NULL, DATE '2026-04-05', 'eligible', NULL, NULL, NULL, DATE '2026-04-30', NULL, 'r3');
-  EXECUTE pg_temp.dec('O1', 'disconnect_order', 'c2', NULL, 'd2', 'e2', pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o1');
-  EXECUTE pg_temp.dec('O1b', 'disconnect_order', 'c1', NULL, 'd5', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o1b');
-  EXECUTE pg_temp.dec('O2', 'disconnect_order', 'c1', NULL, 'd4', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o2');
-  EXECUTE pg_temp.dec('O3', 'disconnect_order', 'c1', NULL, 'd6', NULL, pg_temp.today() - 10, 'eligible', NULL, NULL, NULL, pg_temp.today() - 1, NULL, 'o3');
-  EXECUTE pg_temp.dec('X0', 'disconnect_execute', 'c2', NULL, 'd2', NULL, DATE '2026-04-09', 'blocked', '{payment_pending}', NULL, 'payment_pending', NULL, NULL, 'x0');
-  EXECUTE pg_temp.dec('X1', 'disconnect_execute', 'c2', NULL, 'd2', NULL, DATE '2026-04-10', 'eligible', NULL, NULL, NULL, DATE '2026-04-10', 'X0', 'x1');
-  EXECUTE pg_temp.dec('X2', 'disconnect_execute', 'c1', NULL, 'd5', NULL, DATE '2026-04-12', 'eligible', NULL, NULL, NULL, DATE '2026-04-12', NULL, 'x2');
-END $$;
+-- A0: each is the first decision of its subject — subjects differing only by
+-- bill (R1, R2), by location (O1b, O2, O3) or by meter (O1b, O7) are apart.
+SELECT pg_temp.admits('A0 decisions for the acts below, each its subject''s first', concat_ws('; ',
+  pg_temp.dec('R1', 'collections_referral', 'c1', '01', NULL, NULL, DATE '2026-04-05', 'blocked', '{bankruptcy_stay}', NULL, 'bankruptcy_stay', NULL, NULL, 'r1'),
+  pg_temp.dec('R2', 'collections_referral', 'c1', '02', NULL, NULL, DATE '2026-04-05', 'unevaluable', NULL, '{no_rule_in_force}', NULL, NULL, NULL, 'r2'),
+  pg_temp.dec('R3', 'collections_referral', 'c2', '03', NULL, NULL, DATE '2026-04-05', 'eligible', NULL, NULL, NULL, DATE '2026-04-30', NULL, 'r3'),
+  pg_temp.dec('O1', 'disconnect_order', 'c2', NULL, 'd2', 'e2', pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o1'),
+  pg_temp.dec('O1b', 'disconnect_order', 'c1', NULL, 'd5', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o1b'),
+  pg_temp.dec('O2', 'disconnect_order', 'c1', NULL, 'd4', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o2'),
+  pg_temp.dec('O3', 'disconnect_order', 'c1', NULL, 'd6', NULL, pg_temp.today() - 10, 'eligible', NULL, NULL, NULL, pg_temp.today() - 1, NULL, 'o3'),
+  pg_temp.dec('O7', 'disconnect_order', 'c1', NULL, 'd5', 'e7', pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'o7'),
+  pg_temp.dec('X0', 'disconnect_execute', 'c2', NULL, 'd2', NULL, DATE '2026-04-09', 'blocked', '{payment_pending}', NULL, 'payment_pending', NULL, NULL, 'x0'),
+  pg_temp.dec('X1', 'disconnect_execute', 'c2', NULL, 'd2', NULL, DATE '2026-04-10', 'eligible', NULL, NULL, NULL, DATE '2026-04-10', 'X0', 'x1'),
+  pg_temp.dec('X2', 'disconnect_execute', 'c1', NULL, 'd5', NULL, DATE '2026-04-12', 'eligible', NULL, NULL, NULL, DATE '2026-04-12', NULL, 'x2')));
 -- The notice (the event is the act: the live decision).
 SELECT pg_temp.refuses_at('A1a a shutoff notice with no decision',
   pg_temp.ev('x', '01', 'c1', 'shutoff_notice_sent', TIMESTAMPTZ '2026-04-10 12:00Z', NULL), '23514', '[A1]');
@@ -417,6 +427,12 @@ SELECT pg_temp.admits('A6f the late-fee charge dated April 10',
   pg_temp.chg('LF1', 'c1', '01', DATE '2026-04-10', 'L1'));
 SELECT pg_temp.refuses_at('A7b a second late fee on the same decision',
   pg_temp.chg('x', 'c1', '01', DATE '2026-04-10', 'L1'), '23505', 'adhoc_charges_one_per_decision');
+SELECT pg_temp.refuses_at('A9a the late fee''s decision cleared',
+  format($q$UPDATE public.adhoc_charges SET collections_decision_id = NULL WHERE id = %L$q$, pg_temp.id('LF1')), '23514', '[A9]');
+SELECT pg_temp.refuses_at('A9b the late fee moved to another bill',
+  format($q$UPDATE public.adhoc_charges SET triggered_by_invoice_id = %L WHERE id = %L$q$, pg_temp.u('02'), pg_temp.id('LF1')), '23514', '[A9]');
+SELECT pg_temp.admits('A9c … another charge''s bill may still be named later, as before',
+  format($q$UPDATE public.adhoc_charges SET triggered_by_invoice_id = %L WHERE id = %L$q$, pg_temp.u('02'), pg_temp.id('misc')));
 SELECT pg_temp.admits('A4b the next day''s sweep supersedes L1 (a dispute: blocked)',
   pg_temp.dec('L2', 'late_fee', 'c1', '01', NULL, NULL, DATE '2026-04-06', 'blocked', '{dispute}', NULL, 'dispute', NULL, 'L1', 'l2'));
 SELECT pg_temp.refuses_at('A4c a late-fee charge citing L1 now (the charge is the act: the live decision)',
@@ -533,6 +549,8 @@ DO $$ BEGIN
   EXECUTE pg_temp.dec('O4', 'disconnect_order', 'c2', NULL, 'd2', 'e2', pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, 'O1', 'o4');
   EXECUTE pg_temp.so('SO4', 'c2', 'd2', 'e2', 'O4');
 END $$;
+SELECT pg_temp.refuses_at('A4d an order citing O1, which O4 superseded',
+  pg_temp.so('x', 'c2', 'd2', 'e2', 'O1'), '23514', '[A4]');
 SELECT pg_temp.refuses_at('F1a a field visit to an order that is not a disconnect',
   pg_temp.visit('x', 'SOX', TIMESTAMPTZ '2026-04-09 10:00Z', 'SN-E1', 'L1', 'aborted', 'no_access', NULL, NULL, NULL, NULL), '23514', '[F1a]');
 SELECT pg_temp.admits('F1 V1: SO1 visited April 9, " sn-e2 " and "l2" captured, aborted (payment shown)',
@@ -545,6 +563,8 @@ SELECT pg_temp.refuses_at('F1c1 an abort with no reason',
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-09 11:00Z', 'SN-E2', 'L2', 'aborted', NULL, NULL, NULL, NULL, NULL), '23514', 'service_order_field_visits_outcome_check');
 SELECT pg_temp.refuses_at('F1c2 an execution with an abort reason',
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E2', 'L2', 'executed', 'safety', 'X1', NULL, NULL, '{photo-1}'), '23514', 'service_order_field_visits_outcome_check');
+SELECT pg_temp.refuses_at('F1c3 an abort citing a decision',
+  pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E2', 'L2', 'aborted', 'no_access', 'X1', NULL, NULL, NULL), '23514', 'service_order_field_visits_outcome_check');
 SELECT pg_temp.refuses_at('F1e an evidence reference that is blank',
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-09 11:00Z', 'SN-E2', 'L2', 'aborted', 'no_access', NULL, NULL, NULL, '{photo-1," "}'), '23514', '[F1e]');
 SELECT pg_temp.admits('F1f V2: SO1 visited April 10, "SN-E9" captured at L2 — the caller claims a match and an expected SN-E9',
@@ -562,6 +582,10 @@ SELECT pg_temp.admits('F1k V6: SO6 names no meter and L6 has two',
   pg_temp.visit('V6', 'SO6', TIMESTAMPTZ '2026-04-12 10:00Z', 'SN-E8', 'L6', 'aborted', 'meter_mismatch', NULL, NULL, NULL, NULL));
 SELECT pg_temp.ok('F1m … nothing single to expect, so nothing can match',
   (SELECT NOT matched AND expected_meter_id IS NULL AND expected_location_number = 'L6' FROM public.service_order_field_visits WHERE id = pg_temp.id('V6')));
+SELECT pg_temp.admits('F1n2 VP: SO1''s meter read at the wrong service point (L9)',
+  pg_temp.visit('VP', 'SO1', TIMESTAMPTZ '2026-04-09 12:00Z', 'SN-E2', 'L9', 'aborted', 'meter_mismatch', NULL, NULL, NULL, NULL));
+SELECT pg_temp.ok('F1p … the serial matches, the service point does not: a mismatch',
+  (SELECT NOT matched FROM public.service_order_field_visits WHERE id = pg_temp.id('VP')));
 -- F2 an executed visit.
 SELECT pg_temp.refuses_at('F2a1 an execution with no decision',
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E2', 'L2', 'executed', NULL, NULL, NULL, NULL, '{photo-1}'), '23514', '[A1]');
@@ -573,6 +597,8 @@ SELECT pg_temp.refuses_at('F2a4 an execution on April 11 under X1, which holds f
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-11 11:00Z', 'SN-E2', 'L2', 'executed', NULL, 'X1', NULL, NULL, '{photo-1}'), '23514', '[A6]');
 SELECT pg_temp.refuses_at('F2a5 an execution at L2 citing the decision for L5',
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-12 11:00Z', 'SN-E2', 'L2', 'executed', NULL, 'X2', NULL, NULL, '{photo-1}'), '23514', '[A5]');
+SELECT pg_temp.refuses_at('F2a6 an execution that records no captured serial (CI-071: the pair is recorded)',
+  pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', NULL, 'L2', 'executed', NULL, 'X1', NULL, NULL, '{photo-1}'), '23514', '[F2e]');
 SELECT pg_temp.refuses_at('F2b an execution on a mismatch with no supervisor''s approval',
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E9', 'L2', 'executed', NULL, 'X1', NULL, NULL, '{photo-1}'), '23514', '[F2b]');
 SELECT pg_temp.refuses_at('F2c an execution with no evidence and no supervisor''s approval (D9-1)',
@@ -610,6 +636,10 @@ SELECT pg_temp.refuses_at('F3g an execution citing a no-evidence approval as a m
   pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E9', 'L2', 'executed', NULL, 'X1', 'AN', NULL, '{photo-1}'), '23514', '[F3d]');
 SELECT pg_temp.admits('F2 VX: SO1 executed April 10 against SN-E9 at L2, under X1, AM and AN',
   pg_temp.visit('VX', 'SO1', TIMESTAMPTZ '2026-04-10 15:00Z', 'SN-E9', 'L2', 'executed', NULL, 'X1', 'AM', 'AN', NULL));
+SELECT pg_temp.as_user('b2');
+SELECT pg_temp.refuses_at('F3b8 a mismatch approval naming an execution (VX), not an abort',
+  pg_temp.appr('x', 'SO1', 'meter_mismatch', 'VX', 'dispatch_confirmed', 'ticket-78'), '23514', '[F3b]');
+SELECT pg_temp.as_user('b1');
 SELECT pg_temp.refuses_at('F2d an execution on SO4 citing X1, which VX used',
   pg_temp.visit('x', 'SO4', TIMESTAMPTZ '2026-04-10 16:00Z', 'SN-E2', 'L2', 'executed', NULL, 'X1', NULL, NULL, '{photo-1}'), '23505', 'service_order_field_visits_one_per_decision');
 SELECT pg_temp.admits('F2e X3: the next day''s execute decision for L2 supersedes X1',
@@ -660,8 +690,8 @@ SELECT pg_temp.admits('F4f other order types are as before: the meter test compl
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 T1''s session writes a decision for T2',
   pg_temp.dec('x', 'late_fee', 'c3', '05', NULL, NULL, DATE '2026-04-02', 'eligible', NULL, NULL, NULL, DATE '2026-04-20', NULL, 'x', 'a2'), '42501', 'row-level security');
-SELECT pg_temp.refuses_at('H2 T1''s session writes a visit for T2',
-  pg_temp.visit('x', 'SO1', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E2', 'L2', 'aborted', 'no_access', NULL, NULL, NULL, NULL, 'a2'), '42501', 'row-level security');
+SELECT pg_temp.refuses_at('H2 T1''s session writes a visit to T2''s order, which it cannot see (refused as row security, not "not found")',
+  pg_temp.visit('x', 'SOT2', TIMESTAMPTZ '2026-04-10 11:00Z', 'SN-E3', 'L3', 'aborted', 'no_access', NULL, NULL, NULL, NULL, 'a2'), '42501', 'row-level security');
 SELECT pg_temp.as_user('b2');
 SELECT pg_temp.refuses_at('H3 T1''s supervisor writes an approval for T2',
   pg_temp.appr('x', 'SO1', 'no_evidence', NULL, 'camera_failure', NULL, NULL, 'a2'), '42501', 'row-level security');
