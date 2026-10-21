@@ -1,7 +1,7 @@
 ---
 title: TallyUtility — a refunded payment that then bounces: questions for Kyle
 type: brief
-status: READY TO SEND (Ryan approved 2026-10-17). Not yet answered.
+status: ANSWERED 2026-10-21 (Kyle, relayed by Ryan) — gas-billing-memory `application/kyle-decisions-2026-10-21-refund-then-bounce.md`: 1 = A, 2 = refuse the bounce until the refund is cancelled, 3 = tenant policy.
 created: 2026-10-17
 blocks: the refund and bounce rules in v5.4.2-23 (cash), revision r2; R-02 as applied to refunds; CI-017, CI-055, CI-058
 ---
