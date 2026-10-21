@@ -53,6 +53,15 @@
 #   CR17 A voids an overpayment credit holding a whole payment and holds; B
 #        applies the payment: waits on the payment's lock (the void takes it,
 #        Codex B7), then is admitted.
+# r4 (Opus B3, Fable B1; Opus B2):
+#   CR18 A applies an overpayment credit and holds; B writes the nsf row
+#        returning the credit's payment: waits on the credit's lock (the
+#        bounce guard takes payment, then credit), then is refused (applied).
+#   CR18b A writes the nsf row returning a payment held as a credit and
+#        holds; B applies the credit: waits, then is refused (the cap: what
+#        the credit held went with the payment).
+#   CR19 A voids a pending payment and holds; B writes its posting row:
+#        waits on the payment's lock, then is refused (not pending).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -103,6 +112,15 @@ P17=00000000-0000-4000-8000-000000002506
 E17=00000000-0000-4000-8000-000000002518
 AP17=00000000-0000-4000-8000-000000002531
 K17=00000000-0000-4000-8000-000000002532
+P18=00000000-0000-4000-8000-000000002507
+E18=00000000-0000-4000-8000-000000002519
+AP18=00000000-0000-4000-8000-000000002533
+K18=00000000-0000-4000-8000-000000002534
+P18B=00000000-0000-4000-8000-000000002508
+E18B=00000000-0000-4000-8000-00000000251a
+AP18B=00000000-0000-4000-8000-000000002535
+K18B=00000000-0000-4000-8000-000000002536
+P19=00000000-0000-4000-8000-000000002509
 K1=00000000-0000-4000-8000-000000002471
 K2=00000000-0000-4000-8000-000000002472
 EK1=00000000-0000-4000-8000-000000002491
@@ -164,7 +182,7 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
   $(pay "$P3" R23-P3 70), $(pay "$P4" R23-P4 100), $(pay "$P5" R23-P5 100), $(pay "$P6" R23-P6 50), $(pay "$P7" R23-P7 50), $(pay "$P8" R23-P8 100),
   $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60), $(pay "$P11" R23-P11 40),
   $(pay "$P12" R23-P12 30), $(pay "$P13" R23-P13 40), $(pay "$P14" R23-P14 40), $(pay "$P15" R23-P15 20),
-  $(pay "$P16" R23-P16 25), $(pay "$P17" R23-P17 30);
+  $(pay "$P16" R23-P16 25), $(pay "$P17" R23-P17 30), $(pay "$P18" R23-P18 30), $(pay "$P18B" R23-P18B 30), $(pay "$P19" R23-P19 15);
 $(post "$P3" 00000000-0000-4000-8000-000000002483 70)
 $(post "$P4" 00000000-0000-4000-8000-000000002484 100)
 $(post "$P5" 00000000-0000-4000-8000-000000002485 100)
@@ -182,6 +200,12 @@ $(post "$P17" "$E17" 30)
 INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP17', '$T', '$C', '$P17', 30, '$OP');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
 VALUES ('$K17', '$T', '$C', 'overpayment', 30, DATE '2026-03-05', '$P17', '$AP17');
+$(post "$P18" "$E18" 30)
+$(post "$P18B" "$E18B" 30)
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP18', '$T', '$C', '$P18', 30, '$OP'), ('$AP18B', '$T', '$C', '$P18B', 30, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id) VALUES
+  ('$K18', '$T', '$C', 'overpayment', 30, DATE '2026-03-05', '$P18', '$AP18'),
+  ('$K18B', '$T', '$C', 'overpayment', 30, DATE '2026-03-05', '$P18B', '$AP18B');
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
 VALUES ('$R11', '$T', 'R23-R11', '$C', DATE '2026-03-06', -40, 'refund', '$P11'),
        ('$R15', '$T', 'R23-R15', '$C', DATE '2026-03-06', -20, 'refund', '$P15');
@@ -482,5 +506,13 @@ verdict "CR16 a payment applied while it is being posted: the application waits,
 # CR17
 two "UPDATE public.customer_credits SET status = 'voided' WHERE id = '$K17';" "$(apply "$P17" "$L12" "$I1" 5)"
 verdict "CR17 a payment applied while the overpayment credit holding it is voided: the application waits, then is admitted (Codex B7)" 0
+
+# CR18, CR18b, CR19
+two "$(applyc "$K18" "$L12" "$I1" 3)" "$(nsf 00000000-0000-4000-8000-00000000251b "$P18" "$E18" 30)"
+verdict "CR18 a payment's bounce while its overpayment credit is being applied: the bounce waits on the credit, then is refused" 1 "while the payment is applied to bills"
+two "$(nsf 00000000-0000-4000-8000-00000000251c "$P18B" "$E18B" 30)" "$(applyc "$K18B" "$L12" "$I1" 3)"
+verdict "CR18b an overpayment credit applied while its payment bounces: the application waits, then is refused (what it held went with the payment)" 1 "R-06 cap"
+two "UPDATE public.payments SET status = 'voided' WHERE id = '$P19';" "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('$T', '$C', DATE '2026-03-05', 'payment', 'late', -15, 'payment', '$P19');"
+verdict "CR19 a payment's posting row written while the payment is voided: it waits, then is refused (Opus B2)" 1 "still pending"
 
 exit $fail

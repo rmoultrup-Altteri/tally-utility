@@ -6,6 +6,22 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-21 (-23 r4) — Ryan: a refund that comes back after its credit was escheated goes into a new credit
+
+**What:** Ryan (2026-10-21): "go with option 1". When a refund of a credit comes back (the check bounces or goes uncashed) after the credit's remainder was escheated, the money goes into a new credit for the customer: origin `refund_reissue`, naming the returned refund (`customer_credits.reissues_refund_id`), for exactly its amount. It posts no ledger row (the refund's undo already put the money back on the account) and draws on the credit the refund came from, so that credit stays at nothing left. It is written in the same transaction as the refund's move to nsf or reversed, checked at commit (`enforce_escheated_credit_settled`), and then works like any credit: it pays bills, is refunded again, or reaches the state later on its own dormancy clock. It is not voided back onto an escheated credit.
+
+*Why:* the money is the customer's and is back with the utility, and escheated stays final. *Not "remit it to the state as more of the old credit":* it skips the customer's chance to use it and starts no new clock. *Not "leave it flagged on the old credit":* recorded but stuck. The other two ways money came back to an escheated credit are refused, not carried: escheat waits while a refund of the credit is pending (K-10 2 by analogy), and a donation is not undone onto it (as an application undo already is not).
+
+## 2026-10-21 (-23 r4) — round 3's findings settled by ruling or standing rule
+
+- **Overpayment credit and the bounce (Opus B3, Fable B1).** K-10 applied through the credit: the bounce waits only while the credit is applied or has a refund pending; what it paid out stands; what it still held goes with the payment. *Not Fable's measured "wait until the credit holds nothing":* in the common partial case the only ways to empty it are to refund or spend money that just bounced. To read a credit's standing from its payment, a payment holds **one live overpayment credit** (unique index); two would need an order between them (residual R16).
+- **A posting or credit_issued row is written only while its payment is pending or credit active, under its lock** (Opus B2, Fable S1, S3); a credit never issued is voided naming nothing.
+- **A source's money counts from its arrival entry's date** (Codex B3). *Not "the entry is dated the payment's date":* an ACH payment dated the 5th settles on the 8th (battery M3), so the dates may differ.
+- **The cap is checked from the new row's date on** (Codex S1): a deficit K-10 allowed earlier is not the new row's.
+- **The bounce guards are keyed on the act** (Fable S2): a row taking money away waits; one giving it back does not, but nothing is given back to an ended source (a re-presented check is a new payment).
+- **A row under a donation** is a capped draw when it takes money again, an undo when it gives it back (Codex B1).
+- **Recorded order** covers rows under the arrival entry (Opus S1).
+
 ## 2026-10-21 (-23 r3) — Ryan: "refunded" and "donated" are not stored statuses
 
 **What:** Ryan (2026-10-21): "go with option 1". Payments keep pending, posted, nsf, reversed and voided; customer credits keep active, escheated and voided. "Refunded" (both) and "donated" (credits) are read from the positions: nothing left, because of refunds or a donation. A refund that fails (its posting row undone, the refund moved to nsf or reversed) or a donation undone frees the money again. A refund that leaves takes its source's lock, an overpayment credit's void takes its payment's, and a draw begun before either is retried, so no position counts both.

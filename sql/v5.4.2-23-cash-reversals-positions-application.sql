@@ -35,7 +35,9 @@
 --   * r3: one arrival entry per source (a payment's posting row, a credit's
 --     credit_issued row; unique indexes), checked at its write: under one
 --     label, of its own kind, at minus its amount, on its own account; an
---     overpayment credit posts none.
+--     overpayment credit posts none. r4: written only for a payment still
+--     pending or a credit still active, under its lock; its money counts
+--     from the entry's own date (an ACH payment settles after its date).
 --   * A reversal names an entry of its own tenant and customer (the FK, X1b):
 --     money moved between customers is a transfer.
 --   * -22's write-off rule, made general (X2): a reversal has the opposite
@@ -87,6 +89,23 @@
 --     the refund first; nothing cancels it automatically.
 --   * r3 (Kyle, K-10): positions read what stands on the ledger (received,
 --     issued): the arrival entry less what was taken back under it.
+--   * r4 (Opus B3, Fable B1; K-10): a payment holds one live overpayment
+--     credit. Its bounce waits only while the credit is applied or has a
+--     refund pending; what the credit paid out stands, and what it still
+--     held goes with the payment (the credit's issued is its amount less
+--     what was taken back under the payment's posting entry).
+--   * r4: a row taking money away under a posting or credit_issued entry
+--     waits while the source is drawn on; a row giving money back does not,
+--     but nothing is given back to a source that has ended (a bounced payment,
+--     a voided or escheated credit; a re-presented check is a new payment).
+--   * r4 (Ryan, 2026-10-21): nothing comes back to an escheated credit. It is
+--     not escheated while a refund of it is pending; a donation is not undone
+--     onto it; a refund of it that comes back after the escheat goes, in the
+--     same transaction, into a new credit (origin refund_reissue, naming the
+--     refund), checked at commit. A reissue posts no ledger row, draws on its
+--     credit, and is not voided back onto an escheated one.
+--   * r4 (Codex B1): a row under a donation of a credit is a draw (capped)
+--     when it takes money again, an undo when it gives it back.
 --   * Payments and customer credits are stamped created_at by the database
 --     (a superuser's history load keeps its own), as the ledger is.
 --
@@ -153,8 +172,12 @@
 --   The void takes its own invoice row (FOR UPDATE) before the head. A
 --   status move takes its own row (the UPDATE) and then its source's lock;
 --   r3: a refund that leaves (voided, nsf, reversed) then takes the lock of
---   the payment or credit it returns, and an overpayment credit's void that
---   of its payment, so a draw on that source sees the money freed.
+--   the payment or credit it returns, so a draw on that source sees the money
+--   freed. r4: a source is locked before what draws on it: the bounce guard
+--   and the move to nsf take the payment, then its overpayment credit; the
+--   credit's void takes its payment, then itself; a reissue's void takes the
+--   credit its refund came from, then itself. A posting or credit_issued row
+--   takes its source's lock (after the head) to read its status.
 --   An approval and a status move take no head: they move no money, and the
 --   rows that do take it. The close's rule (-22) is unchanged: head, period,
 --   the closing user's row, the tenant row.
@@ -216,9 +239,13 @@
 --       return window is each utility's policy, a tenant setting off by
 --       default, read by the app or core; nothing here. Where the setting is
 --       stored is additive later.
---   R15. r3: a credit's credit_issued entry is still not withdrawn, even in
---       part, while anything draws on the credit (r2's guard, kept); a
---       withdrawal comes first, then the draws on what is left.
+--   R15. r3: a payment's posting entry or a credit's credit_issued entry is
+--       still not taken back, even in part, while anything draws on it (r2's
+--       guard, kept; r4: for payments too, and only for a row taking money
+--       away); a withdrawal comes first, then the draws on what is left.
+--   R16. r4: an overpayment credit's standing is read from its payment's
+--       posting entry, which is why a payment holds one live credit; holding
+--       an overpayment in two credits would need an order between them.
 --
 -- ----------------------------------------------------------------------------
 -- Kyle's K-10 (2026-10-21; gas-billing-memory kyle-decisions-2026-10-21-
@@ -230,8 +257,8 @@
 --   Still Kyle's: restriction against the floor (A6), and the floor once its
 --   target is paid; the record carries either answer.
 --
--- Tests. battery-23 (216 checks), races/cash-23.sh (CR1-CR17, 26 results),
---   mutations-23.py (140 of 140 caught). assert_cash_guard_invariants() runs
+-- Tests. battery-23 (252 checks), races/cash-23.sh (CR1-CR19, 29 results),
+--   mutations-23.py (170 of 170 caught). assert_cash_guard_invariants() runs
 --   in the tail and in CI.
 --
 -- PRECONDITION. v5.4.2-22 applied (tu.sql). No payments, customer credits,
@@ -452,6 +479,9 @@ BEGIN
     -- amount, and an overpayment credit posts none (its money is its
     -- payment's). One per source: the unique indexes below.
     IF NEW.transaction_type IN ('payment', 'deposit', 'refund') AND NEW.reference_type IN ('payment', 'refund') THEN
+        -- r4 (Opus B2, Fable S1): read under the payment's lock (its moves
+        -- take it), so a payment voided or posted meanwhile is seen.
+        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', NEW.reference_id));
         SELECT * INTO v_pay FROM public.payments p WHERE p.id = NEW.reference_id;
         IF NOT FOUND OR v_pay.tenant_id <> NEW.tenant_id OR v_pay.customer_id <> NEW.customer_id THEN
             RAISE EXCEPTION USING
@@ -466,16 +496,31 @@ BEGIN
                                  NEW.id, NEW.transaction_type, NEW.reference_type, NEW.amount, v_pay.payment_number, -v_pay.amount),
                 ERRCODE = 'check_violation';
         END IF;
+        -- r4: only for a payment still pending (a voided payment's money never
+        -- arrived; a cancelled refund was never paid out).
+        IF v_pay.status <> 'pending' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('account_ledger %s posts payment %s, which is %s: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)', NEW.id, v_pay.payment_number, v_pay.status),
+                ERRCODE = 'check_violation';
+        END IF;
     ELSIF NEW.transaction_type = 'credit_issued' AND NEW.reference_type = 'customer_credit' THEN
+        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', NEW.reference_id));
         SELECT * INTO v_credit FROM public.customer_credits c WHERE c.id = NEW.reference_id;
         IF NOT FOUND OR v_credit.tenant_id <> NEW.tenant_id OR v_credit.customer_id <> NEW.customer_id THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('account_ledger %s issues credit %s: a credit_issued row is on the account of its credit, of its own customer (R-05, v5.4.2-23)', NEW.id, NEW.reference_id),
                 ERRCODE = 'foreign_key_violation';
         END IF;
-        IF v_credit.origin_type = 'overpayment' THEN
+        IF v_credit.origin_type IN ('overpayment', 'refund_reissue') THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('account_ledger %s issues overpayment credit %s: an overpayment credit posts no ledger row — its money is its payment''s, already on the ledger (R-06, v5.4.2-23)', NEW.id, NEW.reference_id),
+                MESSAGE = format('account_ledger %s issues %s credit %s: an overpayment or refund_reissue credit posts no ledger row — its money is its payment''s or its returned refund''s, already on the ledger (R-06, v5.4.2-23)', NEW.id, v_credit.origin_type, NEW.reference_id),
+                ERRCODE = 'check_violation';
+        END IF;
+        -- r4 (Fable S3): only for a credit still active (a voided credit was
+        -- never issued, or withdrawn).
+        IF v_credit.status <> 'active' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('account_ledger %s issues credit %s, which is %s: a credit_issued row is written for a credit still active (R-05, v5.4.2-23)', NEW.id, NEW.reference_id, v_credit.status),
                 ERRCODE = 'check_violation';
         END IF;
         IF NEW.amount <> -v_credit.original_amount THEN
@@ -644,30 +689,69 @@ BEGIN
     -- refund stands at the bounce (the money really went out), and a refund
     -- still waiting to go out blocks it until an operator cancels the refund
     -- (2: no automatic cancel, it may already be in a check run or ACH batch).
+    -- r4 (Fable S2): keyed on the act. A row taking money away (more than 0
+    -- under a posting or credit_issued entry, which is less than 0) waits; a
+    -- row giving it back does not, but only to a source that has not ended
+    -- (a bounced payment or a voided or escheated credit gets nothing back;
+    -- a re-presented check is a new payment).
     IF v_root.reference_type = 'payment' AND v_root.transaction_type IN ('payment', 'deposit') THEN
         SELECT p.id INTO v_src FROM public.payments p WHERE p.id = v_root.reference_id AND v_root.amount = -p.amount;
     END IF;
     IF v_src IS NOT NULL THEN
         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', v_src));
-        IF coalesce((SELECT sum(a.amount) FROM public.invoice_applications a WHERE a.payment_id = v_src), 0) <> 0
-           OR EXISTS (SELECT 1 FROM public.customer_credits c WHERE c.source_payment_id = v_src AND c.status <> 'voided')
-           OR EXISTS (SELECT 1 FROM public.payments r WHERE r.refunds_payment_id = v_src AND r.status = 'pending') THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('account_ledger %s undoes payment %s''s posting entry %s while the payment is applied to bills, held as a credit, or refunded by a refund still waiting to go out: undo its applications, void its credit and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)', NEW.id, v_src, v_root.id),
-                ERRCODE = 'restrict_violation';
+        IF NEW.amount < 0 THEN
+            IF NOT EXISTS (SELECT 1 FROM public.payments p WHERE p.id = v_src AND p.status IN ('pending', 'posted')) THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('account_ledger %s gives money back to payment %s, which has ended: post a new payment (guard the act; CI-013, v5.4.2-23)', NEW.id, v_src),
+                    ERRCODE = 'restrict_violation';
+            END IF;
+        ELSE
+            -- r4 (Opus B3, Fable B1; K-10): an overpayment credit of the
+            -- payment holds the bounce only while it is applied or has a
+            -- refund pending; what it paid out stands, and what it still holds
+            -- goes with the payment (check_cash_source). Each credit's lock,
+            -- after the payment's (payment, then credit: the credit's void
+            -- takes them in that order too).
+            PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', c.id))
+               FROM (SELECT c.id FROM public.customer_credits c WHERE c.source_payment_id = v_src AND c.status <> 'voided' ORDER BY c.id) c;
+            IF coalesce((SELECT sum(a.amount) FROM public.invoice_applications a WHERE a.payment_id = v_src), 0) <> 0
+               OR EXISTS (SELECT 1 FROM public.payments r WHERE r.refunds_payment_id = v_src AND r.status = 'pending')
+               OR EXISTS (SELECT 1 FROM public.customer_credits c
+                           WHERE c.source_payment_id = v_src AND c.status <> 'voided'
+                             AND (coalesce((SELECT sum(a.amount) FROM public.invoice_applications a WHERE a.customer_credit_id = c.id), 0) <> 0
+                                  OR EXISTS (SELECT 1 FROM public.payments r WHERE r.refunds_customer_credit_id = c.id AND r.status = 'pending'))) THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('account_ledger %s undoes payment %s''s posting entry %s while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)', NEW.id, v_src, v_root.id),
+                    ERRCODE = 'restrict_violation';
+            END IF;
         END IF;
     END IF;
     v_src := NULL;
     IF v_root.reference_type = 'customer_credit' AND v_root.transaction_type = 'credit_issued' THEN
-        SELECT c.id INTO v_src FROM public.customer_credits c WHERE c.id = v_root.reference_id AND c.origin_type <> 'overpayment';
+        SELECT c.id INTO v_src FROM public.customer_credits c WHERE c.id = v_root.reference_id AND c.origin_type NOT IN ('overpayment', 'refund_reissue');
     END IF;
     IF v_src IS NOT NULL THEN
         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', v_src));
-        IF EXISTS (SELECT 1 FROM public.cash_source_draws('credit', v_src) d HAVING coalesce(sum(d.amount), 0) <> 0) THEN
+        IF NEW.amount < 0 THEN
+            IF NOT EXISTS (SELECT 1 FROM public.customer_credits c WHERE c.id = v_src AND c.status = 'active') THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('account_ledger %s gives money back to credit %s, which has ended: issue a new credit (guard the act; CI-013, v5.4.2-23)', NEW.id, v_src),
+                    ERRCODE = 'restrict_violation';
+            END IF;
+        ELSIF EXISTS (SELECT 1 FROM public.cash_source_draws('credit', v_src) d HAVING coalesce(sum(d.amount), 0) <> 0) THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('account_ledger %s undoes credit %s''s credit_issued entry %s while the credit is drawn on (applied, refunded, donated or escheated): undo those first (guard the act; CI-013, v5.4.2-23)', NEW.id, v_src, v_root.id),
                 ERRCODE = 'restrict_violation';
         END IF;
+    END IF;
+    -- r4 (Codex B1): a row under a donation of a credit changes what the
+    -- credit gave up. One taking money from the credit again (a reversal of
+    -- the donation's undo) is a draw, capped; one giving it back is an undo:
+    -- only to a credit not yet ended, and in recorded order. The credit's
+    -- lock, after the tree's (check_cash_source takes it).
+    IF v_root.transaction_type = 'donation' AND v_root.reference_type = 'customer_credit' THEN
+        PERFORM public.check_cash_source('credit', v_root.reference_id, NEW.created_at,
+                                         CASE WHEN NEW.amount > 0 THEN 'donation' ELSE 'undo' END, NEW.transaction_date);
     END IF;
     RETURN NULL;
 END;
@@ -1197,6 +1281,28 @@ ALTER TABLE public.customer_credits
     ADD CONSTRAINT customer_credits_payment_overpayment_check
         CHECK (source_payment_id IS NULL OR origin_type = 'overpayment');
 CREATE UNIQUE INDEX customer_credits_one_per_approval ON public.customer_credits (approval_id) WHERE approval_id IS NOT NULL;
+-- r4 (Opus B3, Fable B1; K-10): a payment holds one live overpayment credit.
+-- The bank's return of the payment takes back first what the credit still
+-- holds (what it paid out stands, as a posted refund of the payment does), so
+-- the credit's standing is read from its payment's posting entry; with one
+-- live credit per payment that reading is unambiguous.
+CREATE UNIQUE INDEX customer_credits_one_live_per_payment ON public.customer_credits (source_payment_id)
+    WHERE source_payment_id IS NOT NULL AND status <> 'voided';
+-- r4 (Ryan, 2026-10-21, option 1): a refund of a credit that comes back after
+-- the credit was escheated goes into a new credit for the customer, origin
+-- refund_reissue, naming the returned refund. Its money is the returned
+-- refund's, already back on the ledger by the refund's undo, so it posts no
+-- ledger row; it draws on the credit the refund came from (section 7), so
+-- that credit stays at nothing left. One per returned refund.
+ALTER TABLE public.customer_credits
+    ADD COLUMN reissues_refund_id uuid,
+    ADD CONSTRAINT customer_credits_reissue_refund_fkey
+        FOREIGN KEY (reissues_refund_id, tenant_id, customer_id) REFERENCES public.payments (id, tenant_id, customer_id),
+    ADD CONSTRAINT customer_credits_reissue_check
+        CHECK ((origin_type = 'refund_reissue') = (reissues_refund_id IS NOT NULL));
+CREATE UNIQUE INDEX customer_credits_one_per_reissued_refund ON public.customer_credits (reissues_refund_id) WHERE reissues_refund_id IS NOT NULL;
+COMMENT ON COLUMN public.customer_credits.reissues_refund_id IS
+    'v5.4.2-23 r4 (Ryan, 2026-10-21). For a credit of origin refund_reissue, and only for one: the refund of a credit that came back (nsf or reversed) whose money it carries. Its amount is the refund''s; it draws on the credit the refund came from and posts no ledger row. Fixed from insert.';
 COMMENT ON COLUMN public.customer_credits.approval_id IS
     'v5.4.2-23 (R-06; C1). For a credit of origin overpayment, and only for one, the customer''s approval it was created under; the credit''s payment and amount are the approval''s (FK).';
 COMMENT ON COLUMN public.customer_credits.status_recorded_at IS
@@ -1265,7 +1371,13 @@ BEGIN
                          AND l.transaction_date <= p_on AND l.created_at <= p_recorded_at), 0) AS received,
             coalesce((SELECT sum(a.amount) FROM public.invoice_applications a
                        WHERE a.payment_id = p.id AND a.applied_on <= p_on AND a.created_at <= p_recorded_at), 0) AS applied,
-            coalesce((SELECT sum(c.original_amount) FROM public.customer_credits c
+            -- r4 (K-10): what was taken back comes first out of what the
+            -- overpayment credit holds (one live credit per payment).
+            coalesce((SELECT sum(c.original_amount - least(c.original_amount, coalesce((
+                                SELECT sum(l.amount) FROM public.account_ledger l
+                                 WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', p.id)))
+                                   AND l.transaction_date <= p_on AND l.created_at <= p_recorded_at), 0)))
+                        FROM public.customer_credits c
                        WHERE c.source_payment_id = p.id AND c.issued_date <= p_on AND c.created_at <= p_recorded_at
                          AND (c.status <> 'voided' OR c.status_recorded_at > p_recorded_at)), 0) AS credited,
             coalesce((SELECT -sum(r.amount) FROM public.payments r
@@ -1275,12 +1387,12 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.payment_position_as_of(uuid, date, timestamp with time zone) IS
-    'v5.4.2-23 (M1; replaces payments.applied_amount / unapplied_amount), r3. A payment at a money date and a recorded instant: its amount; received (r3: what of it stands on the ledger, its posting entry less what was taken back under it, at the coordinates; nothing while pending); applied (net of its applications, undos included); credited (its credits not voided at the instant); refunded (its refunds pending or posted at the instant, by status_recorded_at); remaining = received less the three (negative when it was refunded and then came back: the customer owes it, K-10). No row before the payment exists at the coordinates. NULL or infinite coordinates raise. Fixed once the instant is older than every open transaction (-22''s model).';
+    'v5.4.2-23 (M1; replaces payments.applied_amount / unapplied_amount), r3. A payment at a money date and a recorded instant: its amount; received (r3: what of it stands on the ledger, its posting entry less what was taken back under it, at the coordinates; nothing while pending); applied (net of its applications, undos included); credited (its credits not voided at the instant; r4: less what was taken back under its posting entry, which comes first out of the credit); refunded (its refunds pending or posted at the instant, by status_recorded_at); remaining = received less the three (negative when it was refunded and then came back: the customer owes it, K-10). No row before the payment exists at the coordinates. NULL or infinite coordinates raise. Fixed once the instant is older than every open transaction (-22''s model).';
 REVOKE ALL ON FUNCTION public.payment_position_as_of(uuid, date, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.payment_position_as_of(uuid, date, timestamp with time zone) TO tally_app, tally_core;
 
 CREATE OR REPLACE FUNCTION public.customer_credit_position_as_of(p_credit_id uuid, p_on date, p_recorded_at timestamp with time zone)
-    RETURNS TABLE (amount numeric, issued numeric, applied numeric, refunded numeric, given_up numeric, remaining numeric)
+    RETURNS TABLE (amount numeric, issued numeric, applied numeric, refunded numeric, given_up numeric, carried numeric, remaining numeric)
     LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
     AS $$
@@ -1291,10 +1403,16 @@ BEGIN
     -- is its payment's and posts no row, so it is the credit's amount. A
     -- donation is given up net of its undo (Codex B5).
     RETURN QUERY
-    SELECT c.original_amount, x.issued, x.applied, x.refunded, x.given_up, x.issued - x.applied - x.refunded - x.given_up
+    SELECT c.original_amount, x.issued, x.applied, x.refunded, x.given_up, x.carried, x.issued - x.applied - x.refunded - x.given_up - x.carried
       FROM public.customer_credits c
       CROSS JOIN LATERAL (SELECT
-            CASE WHEN c.origin_type = 'overpayment' THEN c.original_amount
+            CASE WHEN c.origin_type = 'refund_reissue' THEN c.original_amount
+                 -- r4 (K-10): what was taken back under its payment's posting
+                 -- entry comes first out of what the credit holds.
+                 WHEN c.origin_type = 'overpayment' THEN c.original_amount - least(c.original_amount, coalesce((
+                     SELECT sum(l.amount) FROM public.account_ledger l
+                      WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', c.source_payment_id)))
+                        AND l.transaction_date <= p_on AND l.created_at <= p_recorded_at), 0))
                  ELSE coalesce((SELECT -sum(l.amount) FROM public.account_ledger e
                                   CROSS JOIN LATERAL unnest(public.ledger_tree_ids(e.id) || e.id) AS t(id)
                                   JOIN public.account_ledger l ON l.id = t.id
@@ -1312,12 +1430,16 @@ BEGIN
                          AND l.transaction_date <= p_on AND l.created_at <= p_recorded_at), 0)
           + coalesce((SELECT sum(e.amount_related) FROM public.escheatment_events e
                        WHERE e.event_type = 'escheated_to_state' AND e.customer_credit_id = c.id
-                         AND (e.event_date AT TIME ZONE 'UTC')::date <= p_on AND e.created_at <= p_recorded_at), 0) AS given_up) x
+                         AND (e.event_date AT TIME ZONE 'UTC')::date <= p_on AND e.created_at <= p_recorded_at), 0) AS given_up,
+            -- r4 (Ryan, 2026-10-21): carried into refund_reissue credits.
+            coalesce((SELECT sum(k.original_amount) FROM public.customer_credits k JOIN public.payments r ON r.id = k.reissues_refund_id
+                       WHERE r.refunds_customer_credit_id = c.id AND k.issued_date <= p_on AND k.created_at <= p_recorded_at
+                         AND (k.status <> 'voided' OR k.status_recorded_at > p_recorded_at)), 0) AS carried) x
      WHERE c.id = p_credit_id AND c.issued_date <= p_on AND c.created_at <= p_recorded_at;
 END;
 $$;
 COMMENT ON FUNCTION public.customer_credit_position_as_of(uuid, date, timestamp with time zone) IS
-    'v5.4.2-23 (M1; replaces customer_credits.applied_amount / remaining_amount), r3. A credit at a money date and a recorded instant: its amount; issued (r3: what of it stands on the ledger, its credit_issued entry less what was withdrawn under it; an overpayment credit''s amount, its money being its payment''s); applied (net of its applications); refunded (its refunds pending or posted at the instant, by status_recorded_at); given_up (its donation ledger rows net of their undos, r3, and its escheated_to_state events, by their UTC day); remaining = issued less the three. No row before the credit exists at the coordinates. NULL or infinite coordinates raise. Fixed once the instant is older than every open transaction (-22''s model).';
+    'v5.4.2-23 (M1; replaces customer_credits.applied_amount / remaining_amount), r3. A credit at a money date and a recorded instant: its amount; issued (r3: what of it stands on the ledger, its credit_issued entry less what was withdrawn under it; an overpayment credit''s amount, its money being its payment''s); applied (net of its applications); refunded (its refunds pending or posted at the instant, by status_recorded_at); given_up (its donation ledger rows net of their undos, r3, and its escheated_to_state events, by their UTC day); carried (r4: its refunds that came back, carried into refund_reissue credits not voided at the instant); remaining = issued less the four. r4: an overpayment credit''s issued is its amount less what was taken back under its payment''s posting entry; a refund_reissue credit''s is its amount. No row before the credit exists at the coordinates. NULL or infinite coordinates raise. Fixed once the instant is older than every open transaction (-22''s model).';
 REVOKE ALL ON FUNCTION public.customer_credit_position_as_of(uuid, date, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.customer_credit_position_as_of(uuid, date, timestamp with time zone) TO tally_app, tally_core;
 
@@ -1577,12 +1699,19 @@ BEGIN
     END IF;
     -- Guard the act: money that bounced, was reversed or never arrived is not
     -- still paying a bill or held as a credit.
+    -- r4 (Opus B3, Fable B1; K-10): an overpayment credit holds it only while
+    -- the credit is applied or has a refund pending; what the credit paid out
+    -- stands. Each credit's lock, after the payment's.
     IF NEW.status IN ('nsf', 'reversed', 'voided') THEN
+        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', c.id))
+           FROM (SELECT c.id FROM public.customer_credits c WHERE c.source_payment_id = NEW.id AND c.status <> 'voided' ORDER BY c.id) c;
         IF coalesce((SELECT sum(a.amount) FROM public.invoice_applications a WHERE a.payment_id = NEW.id), 0) <> 0
            OR EXISTS (SELECT 1 FROM public.customer_credits c
-                       WHERE c.source_payment_id = NEW.id AND c.origin_type = 'overpayment' AND c.status <> 'voided') THEN
+                       WHERE c.source_payment_id = NEW.id AND c.status <> 'voided'
+                         AND (coalesce((SELECT sum(a.amount) FROM public.invoice_applications a WHERE a.customer_credit_id = c.id), 0) <> 0
+                              OR EXISTS (SELECT 1 FROM public.payments r WHERE r.refunds_customer_credit_id = c.id AND r.status = 'pending'))) THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('payment %s cannot move to %s while it is applied to bills or held as a credit: undo its applications and void its credit first (CI-013, v5.4.2-23)', OLD.payment_number, NEW.status),
+                MESSAGE = format('payment %s cannot move to %s while it is applied to bills (or its overpayment credit is), or a refund of the credit is waiting to go out: undo the applications and cancel the refund first (CI-013, v5.4.2-23)', OLD.payment_number, NEW.status),
                 ERRCODE = 'restrict_violation';
         END IF;
     END IF;
@@ -1603,7 +1732,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_payment_immutable() IS
-    'CI-013 guard for payments (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Identity, amount, designation, payer class, restriction and lineage are fixed from insert; the references that arrive later are write-once. Status moves forward only (pending to posted or voided; posted to nsf or reversed; r3: refunded is not a status), under the payment''s source lock, and names its row in status_cause_id: posted its posting ledger entry (with nothing under it), nsf the nsf row reversing it, reversed a ledger reversal of it, voided nothing (and no ledger row references it). nsf, reversed and voided require its applications to net to 0 and no live overpayment credit from it. A refund that leaves (voided, nsf, reversed) takes its source''s lock (r3).';
+    'CI-013 guard for payments (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Identity, amount, designation, payer class, restriction and lineage are fixed from insert; the references that arrive later are write-once. Status moves forward only (pending to posted or voided; posted to nsf or reversed; r3: refunded is not a status), under the payment''s source lock, and names its row in status_cause_id: posted its posting ledger entry (with nothing under it), nsf the nsf row reversing it, reversed a ledger reversal of it, voided nothing (and no ledger row references it). nsf, reversed and voided require its applications, and its overpayment credit''s, to net to 0 and no refund of the credit pending (r4: what the credit paid out stands). A refund that leaves (voided, nsf, reversed) takes its source''s lock (r3).';
 
 CREATE OR REPLACE FUNCTION public.enforce_customer_credit_immutable()
  RETURNS trigger
@@ -1617,10 +1746,11 @@ DECLARE
     v_new     jsonb := to_jsonb(NEW);
     v_ok      boolean;
     v_left    numeric;
+    v_from    uuid;
     v_super   boolean := (SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user);
     c_fixed CONSTANT text[] := ARRAY['id', 'tenant_id', 'customer_id', 'origin_type', 'origin_notes', 'source_payment_id',
         'source_adhoc_charge_id', 'source_invoice_id', 'source_reference', 'original_amount', 'issued_date', 'issued_by',
-        'deposit_id', 'approval_id', 'created_at'];
+        'deposit_id', 'approval_id', 'reissues_refund_id', 'created_at'];
 BEGIN
     FOREACH v_col IN ARRAY c_fixed LOOP
         IF v_new -> v_col IS DISTINCT FROM v_old -> v_col THEN v_changed := v_changed || v_col; END IF;
@@ -1658,20 +1788,35 @@ BEGIN
             MESSAGE = format('customer credit %s cannot move from %s to %s (CI-013; v5.4.2-23): an active credit ends escheated or voided, and those are terminal — issue a new credit (a refund or donation is read from the position, not a status)', OLD.id, OLD.status, NEW.status),
             ERRCODE = 'restrict_violation';
     END IF;
-    PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', OLD.id));
     -- r3 (Codex B7): an overpayment credit's void gives its money back to its
-    -- payment, so it takes the payment's lock too (the credit's, then its
-    -- source's; nothing takes them the other way), and a draw on the payment
-    -- begun before it is retried (check_cash_source's recorded order).
+    -- payment, so it takes the payment's lock too, and a draw on the payment
+    -- begun before it is retried (check_cash_source's recorded order). r4: the
+    -- source's lock first, then the credit's (as the bounce guard takes them:
+    -- payment, then credit). A refund_reissue credit's void gives its money
+    -- back to the credit its refund came from: likewise, and only to a credit
+    -- still active (Ryan, 2026-10-21: nothing comes back to an escheated one).
     IF NEW.status = 'voided' AND OLD.source_payment_id IS NOT NULL THEN
         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', OLD.source_payment_id));
     END IF;
+    IF NEW.status = 'voided' AND OLD.reissues_refund_id IS NOT NULL THEN
+        SELECT r.refunds_customer_credit_id INTO v_from FROM public.payments r WHERE r.id = OLD.reissues_refund_id;
+        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', v_from));
+        IF NOT EXISTS (SELECT 1 FROM public.customer_credits c WHERE c.id = v_from AND c.status = 'active') THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('customer credit %s cannot be voided: its money would go back to credit %s, which is escheated or voided (Ryan, 2026-10-21; v5.4.2-23)', OLD.id, v_from),
+                ERRCODE = 'restrict_violation';
+        END IF;
+    END IF;
+    PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', OLD.id));
     v_ok := CASE NEW.status
         -- r2: an overpayment credit's money is its payment's and posts no
         -- ledger row (a credit_issued row would count it twice), so its void
         -- names nothing. Any other credit's names the reversal of its
-        -- credit_issued entry, which then has nothing left.
-        WHEN 'voided' THEN CASE WHEN OLD.origin_type = 'overpayment' THEN NEW.status_cause_id IS NULL ELSE EXISTS (
+        -- credit_issued entry, which then has nothing left. r4: so does a
+        -- refund_reissue credit's, and (Fable S3) a credit never issued on
+        -- the ledger.
+        WHEN 'voided' THEN CASE WHEN OLD.origin_type IN ('overpayment', 'refund_reissue') OR public.cash_arrival_entry('credit', OLD.id) IS NULL
+                                THEN NEW.status_cause_id IS NULL ELSE EXISTS (
             SELECT 1 FROM public.account_ledger l JOIN public.account_ledger o ON o.id = l.reverses_ledger_entry_id
              WHERE l.id = NEW.status_cause_id AND l.customer_id = NEW.customer_id
                AND o.transaction_type = 'credit_issued' AND o.reference_type = 'customer_credit' AND o.reference_id = NEW.id
@@ -1685,7 +1830,7 @@ BEGIN
         RAISE EXCEPTION USING
             MESSAGE = format('customer credit %s: the move to %s names the row behind it in status_cause_id (%s) — %s (Q1 (a), v5.4.2-23)', OLD.id, NEW.status, coalesce(NEW.status_cause_id::text, 'none'),
                              CASE NEW.status
-                                 WHEN 'voided' THEN CASE WHEN OLD.origin_type = 'overpayment' THEN 'none: an overpayment credit posts no ledger row'
+                                 WHEN 'voided' THEN CASE WHEN OLD.origin_type IN ('overpayment', 'refund_reissue') OR public.cash_arrival_entry('credit', OLD.id) IS NULL THEN 'none: it has no credit_issued entry'
                                                          ELSE 'the ledger row reversing its credit_issued entry, which then has nothing left' END
                                  ELSE 'its escheated_to_state escheatment event' END),
             ERRCODE = 'foreign_key_violation';
@@ -1694,9 +1839,22 @@ BEGIN
     -- escheated credit has nothing left (r3: of what stands on the ledger,
     -- less any withdrawal); a voided one is not drawn on at all (undo its
     -- applications, refunds and donations first).
+    -- r4 (Codex B2; K-10 2 by analogy): not escheated while a refund of it
+    -- is waiting to go out; the operator posts or cancels it first.
+    IF NEW.status = 'escheated' AND EXISTS (SELECT 1 FROM public.payments r WHERE r.refunds_customer_credit_id = NEW.id AND r.status = 'pending') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('customer credit %s is not escheated while a refund of it is waiting to go out: post or cancel the refund first (v5.4.2-23)', OLD.id),
+            ERRCODE = 'restrict_violation';
+    END IF;
     SELECT coalesce(sum(d.amount), 0) INTO v_left FROM public.cash_source_draws('credit', NEW.id) d;
     IF NEW.status = 'escheated' THEN
-        SELECT CASE WHEN NEW.origin_type = 'overpayment' THEN NEW.original_amount
+        -- What stands of it: an overpayment credit's amount less what was
+        -- taken back under its payment (r4); a refund_reissue credit's amount;
+        -- any other, its credit_issued entry less what was withdrawn.
+        SELECT CASE WHEN NEW.origin_type = 'refund_reissue' THEN NEW.original_amount
+                    WHEN NEW.origin_type = 'overpayment' THEN NEW.original_amount - least(NEW.original_amount, coalesce((
+                        SELECT sum(l.amount) FROM public.account_ledger l
+                         WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', NEW.source_payment_id)))), 0))
                     ELSE -coalesce((SELECT sum(l.amount) FROM public.account_ledger l
                                      WHERE l.id = ANY (public.ledger_tree_ids(e.id) || e.id)), 0) END - v_left
           INTO v_left
@@ -1953,6 +2111,12 @@ CREATE OR REPLACE FUNCTION public.cash_source_draws(p_kind text, p_id uuid)
      WHERE r.status IN ('pending', 'posted')
        AND ((p_kind = 'payment' AND r.refunds_payment_id = p_id) OR (p_kind = 'credit' AND r.refunds_customer_credit_id = p_id))
     UNION ALL
+    -- r4 (Ryan, 2026-10-21): a refund_reissue credit carrying a refund of the
+    -- credit that came back, unless voided.
+    SELECT c.id, c.issued_date, c.original_amount, c.created_at FROM public.customer_credits c
+      JOIN public.payments r ON r.id = c.reissues_refund_id
+     WHERE p_kind = 'credit' AND r.refunds_customer_credit_id = p_id AND c.status <> 'voided'
+    UNION ALL
     -- r3 (Codex B5): a donation and every row under it (its undo gives the
     -- money back to the credit).
     SELECT l.id, l.transaction_date, l.amount, l.created_at FROM public.account_ledger d
@@ -1964,7 +2128,7 @@ CREATE OR REPLACE FUNCTION public.cash_source_draws(p_kind text, p_id uuid)
      WHERE p_kind = 'credit' AND e.event_type = 'escheated_to_state' AND e.customer_credit_id = p_id
 $$;
 COMMENT ON FUNCTION public.cash_source_draws(text, uuid) IS
-    'v5.4.2-23 (A3), r3. Every row drawing on a payment (p_kind payment) or a customer credit (p_kind credit), live: its applications (an undo negative); a payment''s credits (a credit names a payment only as an overpayment credit) unless voided; its refunds while pending or posted; a credit''s donation ledger rows and every row under them (r3: an undone donation gives the money back), and its escheated_to_state events (dated by their UTC day). Each with its money date and recorded instant. The cap reads this set with what was taken back under the source''s arrival entry (check_cash_source).';
+    'v5.4.2-23 (A3), r3. Every row drawing on a payment (p_kind payment) or a customer credit (p_kind credit), live: its applications (an undo negative); a payment''s credits (a credit names a payment only as an overpayment credit) unless voided; its refunds while pending or posted; a credit''s refund_reissue credits not voided (r4), its donation ledger rows and every row under them (r3: an undone donation gives the money back), and its escheated_to_state events (dated by their UTC day). Each with its money date and recorded instant. The cap reads this set with what was taken back under the source''s arrival entry (check_cash_source).';
 REVOKE ALL ON FUNCTION public.cash_source_draws(text, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.cash_source_draws(text, uuid) TO tally_app, tally_core;
 
@@ -2013,6 +2177,7 @@ DECLARE
     v_status   text;
     v_deposit  boolean := false;
     v_origin   text;
+    v_src_pay  uuid;
     v_src_at   timestamptz;
     v_entry    uuid;
     v_ok       boolean;
@@ -2034,8 +2199,8 @@ BEGIN
         SELECT p.amount, p.payment_date, p.status, p.is_deposit, greatest(p.created_at, p.status_recorded_at)
           INTO v_amount, v_date, v_status, v_deposit, v_src_at FROM public.payments p WHERE p.id = p_id;
     ELSE
-        SELECT c.original_amount, c.issued_date, c.status, c.origin_type, c.created_at
-          INTO v_amount, v_date, v_status, v_origin, v_src_at FROM public.customer_credits c WHERE c.id = p_id;
+        SELECT c.original_amount, c.issued_date, c.status, c.origin_type, c.source_payment_id, c.created_at
+          INTO v_amount, v_date, v_status, v_origin, v_src_pay, v_src_at FROM public.customer_credits c WHERE c.id = p_id;
     END IF;
     -- Fail closed (Fable S5): a source this session cannot see is not one it
     -- may draw on.
@@ -2054,6 +2219,9 @@ BEGIN
         WHEN 'refund' THEN v_status IN ('posted', 'active') AND v_amount > 0
         WHEN 'donation' THEN p_kind = 'credit' AND v_status = 'active'
         WHEN 'escheat' THEN p_kind = 'credit' AND v_status = 'active'
+        -- r4 (Ryan, 2026-10-21): a refund that came back is carried into a
+        -- new credit from its credit, active or escheated.
+        WHEN 'reissue' THEN p_kind = 'credit' AND v_status IN ('active', 'escheated')
         ELSE false END;
     IF NOT v_ok THEN
         RAISE EXCEPTION USING
@@ -2066,9 +2234,14 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
     -- r2 (Opus B2): a source gives money only once it is on the ledger. r3:
-    -- what stands of it is capped below, with the draws.
-    v_entry := public.cash_arrival_entry(p_kind, p_id);
-    IF p_purpose <> 'undo' AND v_entry IS NULL AND v_origin IS DISTINCT FROM 'overpayment' THEN
+    -- what stands of it is capped below, with the draws. r4 (Opus B3, Fable
+    -- B1): an overpayment credit's money is its payment's, so what is taken
+    -- back under the payment's posting entry is taken from what the credit
+    -- still holds (one live credit per payment); a refund_reissue credit's is
+    -- the returned refund's, already back on the ledger.
+    v_entry := CASE WHEN v_origin = 'overpayment' THEN public.cash_arrival_entry('payment', v_src_pay)
+                    ELSE public.cash_arrival_entry(p_kind, p_id) END;
+    IF p_purpose <> 'undo' AND v_entry IS NULL AND v_origin IS DISTINCT FROM 'refund_reissue' THEN
         RAISE EXCEPTION USING
             MESSAGE = format('a row drawing on %s %s: its money is not on the ledger (no %s) — it gives no money (guard the act; A3, R-06; v5.4.2-23)', p_kind, p_id,
                              CASE p_kind WHEN 'payment' THEN 'posting entry' ELSE 'credit_issued entry' END),
@@ -2103,16 +2276,20 @@ BEGIN
             ERRCODE = 'serialization_failure';
     END IF;
     -- r3: nor before a draw that has since left (a refund cancelled or
-    -- returned, an overpayment credit voided), whose leaving freed the money
-    -- this row may be using: at an instant between the two, both would count.
-    -- The leaving move takes this source's lock, so it is seen here.
+    -- returned, an overpayment or reissued credit voided), whose leaving freed
+    -- the money this row may be using: at an instant between the two, both
+    -- would count. The leaving move takes this source's lock, so it is seen
+    -- here.
     SELECT x.id, x.at INTO v_later_id, v_later_at
       FROM (SELECT r.id, r.status_recorded_at AS at FROM public.payments r
              WHERE r.status NOT IN ('pending', 'posted')
                AND ((p_kind = 'payment' AND r.refunds_payment_id = p_id) OR (p_kind = 'credit' AND r.refunds_customer_credit_id = p_id))
             UNION ALL
             SELECT c.id, c.status_recorded_at FROM public.customer_credits c
-             WHERE p_kind = 'payment' AND c.source_payment_id = p_id AND c.status = 'voided') x
+             WHERE p_kind = 'payment' AND c.source_payment_id = p_id AND c.status = 'voided'
+            UNION ALL
+            SELECT c.id, c.status_recorded_at FROM public.customer_credits c JOIN public.payments r ON r.id = c.reissues_refund_id
+             WHERE p_kind = 'credit' AND r.refunds_customer_credit_id = p_id AND c.status = 'voided') x
      WHERE x.at > p_row_created_at
      ORDER BY x.at DESC LIMIT 1;
     IF FOUND AND p_row_created_at <> pg_catalog.now() THEN
@@ -2125,20 +2302,51 @@ BEGIN
             MESSAGE = format('%s %s: a row drawing on it is recorded at %s, before %s left it (at %s) — a transaction that began earlier is writing later; retry it (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, v_later_id, v_later_at),
             ERRCODE = 'serialization_failure';
     END IF;
+    -- r4 (Opus S1): nor before a row under its arrival entry (money taken
+    -- back or given back): the cap reads them with the draws. Such a row
+    -- takes this source's lock (enforce_ledger_reversal), so it is seen here.
+    SELECT l.id, l.created_at INTO v_later_id, v_later_at
+      FROM public.account_ledger l
+     WHERE l.id = ANY (public.ledger_tree_ids(v_entry)) AND l.created_at > p_row_created_at
+     ORDER BY l.created_at DESC LIMIT 1;
+    IF FOUND AND p_row_created_at <> pg_catalog.now() THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s %s: a row drawing on it is recorded at %s, a time chosen for it, before %s was recorded under its arrival entry (money taken back or given back, at %s) (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, v_later_id, v_later_at),
+            ERRCODE = 'check_violation';
+    END IF;
+    IF FOUND THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s %s: a row drawing on it is recorded at %s, before %s was recorded under its arrival entry (money taken back or given back, at %s) — a transaction that began earlier is writing later; retry it (R-06, v5.4.2-23)', p_kind, p_id, p_row_created_at, v_later_id, v_later_at),
+            ERRCODE = 'serialization_failure';
+    END IF;
     -- r3 (Kyle, K-10): the cap. At every date, what the source gave (its
     -- draws) and what was taken back under its arrival entry total at most
     -- the source: a refund is capped by the payment less earlier refunds and
     -- reversals, and so is every other draw on the same money. An undo only
     -- gives money back, so it is not capped here. (A bounce is capped by
     -- R-02's tree cap alone: a posted refund does not shrink it.)
+    -- r4 (Codex B3): a source with its own arrival entry has money from that
+    -- entry's date (an ACH payment dated the 5th may settle on the 8th), so
+    -- the entry counts from its date: at a date before it, nothing is there
+    -- to draw. An overpayment or reissued credit has the amount it was
+    -- created for (its money already on the ledger).
     IF p_purpose <> 'undo' THEN
         SELECT x.on_date, x.used INTO v_on, v_drawn
           FROM (SELECT u.on_date, sum(u.amount) OVER (ORDER BY u.on_date) AS used
                   FROM (SELECT d.on_date, d.amount FROM public.cash_source_draws(p_kind, p_id) d
                         UNION ALL
                         SELECT l.transaction_date, l.amount FROM public.account_ledger l
-                         WHERE l.id = ANY (public.ledger_tree_ids(v_entry))) u) x
+                         WHERE l.id = ANY (public.ledger_tree_ids(v_entry))
+                        UNION ALL
+                        -- missing until its arrival entry's date, then there
+                        SELECT '-infinity'::date, v_amount WHERE v_entry IS NOT NULL AND v_origin IS DISTINCT FROM 'overpayment'
+                        UNION ALL
+                        SELECT l.transaction_date, l.amount FROM public.account_ledger l
+                         WHERE l.id = v_entry AND v_origin IS DISTINCT FROM 'overpayment') u) x
          WHERE x.used > v_amount
+           -- r4 (Codex S1): from this row's date on; a row changes nothing
+           -- before it, and a deficit K-10 allowed earlier is not this row's.
+           AND x.on_date >= p_on
          ORDER BY x.on_date LIMIT 1;
         IF FOUND THEN
             RAISE EXCEPTION USING
@@ -2316,9 +2524,30 @@ CREATE OR REPLACE FUNCTION public.enforce_cash_draw() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
     AS $$
+DECLARE
+    v_refund public.payments%ROWTYPE;
 BEGIN
+    -- (Nested: NEW of another table has no reissues_refund_id.)
     IF TG_TABLE_NAME = 'customer_credits' THEN
+      IF NEW.reissues_refund_id IS NOT NULL THEN
+        -- r4 (Ryan, 2026-10-21): a reissue carries a credit's refund that came
+        -- back, exactly, and draws on that credit (active or escheated).
+        SELECT * INTO v_refund FROM public.payments r WHERE r.id = NEW.reissues_refund_id;
+        IF v_refund.refunds_customer_credit_id IS NULL OR v_refund.status NOT IN ('nsf', 'reversed') THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('credit %s reissues %s: a refund_reissue credit carries a refund of a credit that came back (nsf or reversed); %s is %s', NEW.id, v_refund.payment_number, v_refund.payment_number,
+                                 CASE WHEN v_refund.refunds_customer_credit_id IS NULL THEN 'not a credit''s refund' ELSE v_refund.status END),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.original_amount <> -v_refund.amount THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('credit %s reissues %s for %s: it carries exactly what came back (%s) (Ryan, 2026-10-21; v5.4.2-23)', NEW.id, v_refund.payment_number, NEW.original_amount, -v_refund.amount),
+                ERRCODE = 'check_violation';
+        END IF;
+        PERFORM public.check_cash_source('credit', v_refund.refunds_customer_credit_id, NEW.created_at, 'reissue', NEW.issued_date);
+      ELSE
         PERFORM public.check_cash_source('payment', NEW.source_payment_id, NEW.created_at, 'overpayment_credit', NEW.issued_date);
+      END IF;
     ELSIF TG_TABLE_NAME = 'escheatment_events' THEN
         IF NOT coalesce(NEW.amount_related > 0, false) THEN
             RAISE EXCEPTION USING
@@ -2335,9 +2564,9 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_cash_draw() IS
-    'v5.4.2-23 (A3, C1; R-06), r2. AFTER INSERT on customer_credits (a credit naming a payment, which only an overpayment credit may: a draw on the payment), on payments (a refund: a draw on its payment or credit) and on escheatment_events (an escheated_to_state event, its amount more than 0: a draw on its credit). The source is read and judged under its lock, and capped, by check_cash_source.';
+    'v5.4.2-23 (A3, C1; R-06), r4. AFTER INSERT on customer_credits (a credit naming a payment, which only an overpayment credit may: a draw on the payment; r4, a refund_reissue credit: it carries exactly a credit''s refund that came back, and draws on that credit), on payments (a refund: a draw on its payment or credit) and on escheatment_events (an escheated_to_state event, its amount more than 0: a draw on its credit). The source is read and judged under its lock, and capped, by check_cash_source.';
 CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.customer_credits
-    FOR EACH ROW WHEN (NEW.source_payment_id IS NOT NULL) EXECUTE FUNCTION public.enforce_cash_draw();
+    FOR EACH ROW WHEN (NEW.source_payment_id IS NOT NULL OR NEW.reissues_refund_id IS NOT NULL) EXECUTE FUNCTION public.enforce_cash_draw();
 ALTER TABLE public.customer_credits ENABLE ALWAYS TRIGGER enforce_cash_draw;
 CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.payments
     FOR EACH ROW WHEN (NEW.refunds_payment_id IS NOT NULL OR NEW.refunds_customer_credit_id IS NOT NULL) EXECUTE FUNCTION public.enforce_cash_draw();
@@ -2345,6 +2574,42 @@ ALTER TABLE public.payments ENABLE ALWAYS TRIGGER enforce_cash_draw;
 CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.escheatment_events
     FOR EACH ROW WHEN (NEW.event_type = 'escheated_to_state') EXECUTE FUNCTION public.enforce_cash_draw();
 ALTER TABLE public.escheatment_events ENABLE ALWAYS TRIGGER enforce_cash_draw;
+
+-- r4 (Ryan, 2026-10-21, option 1): a refund of an escheated credit that comes
+-- back (its posting row undone, the refund moved to nsf or reversed) leaves
+-- the money on a credit that has ended. It goes into a new credit for the
+-- customer (origin refund_reissue, naming the refund) in the same
+-- transaction: checked at commit, so the move and the new credit can be
+-- written in either order.
+CREATE OR REPLACE FUNCTION public.enforce_escheated_credit_settled() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_status text;
+    v_left   numeric;
+BEGIN
+    SELECT c.status INTO v_status FROM public.customer_credits c WHERE c.id = NEW.refunds_customer_credit_id;
+    IF v_status IS DISTINCT FROM 'escheated' THEN
+        RETURN NULL;
+    END IF;
+    SELECT x.remaining INTO v_left
+      FROM public.customer_credit_position_as_of(NEW.refunds_customer_credit_id, DATE '9999-12-31', pg_catalog.clock_timestamp()) x;
+    IF v_left IS DISTINCT FROM 0 THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('refund %s of credit %s came back (%s): %s is back on a credit that was escheated — carry it to a new credit (origin refund_reissue, naming the refund) in the same transaction (Ryan, 2026-10-21; v5.4.2-23)', NEW.payment_number, NEW.refunds_customer_credit_id, NEW.status, v_left),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_escheated_credit_settled() IS
+    'v5.4.2-23 r4 (Ryan, 2026-10-21). Deferred to commit, after a refund of a credit moves to nsf, reversed or voided: if the credit is escheated, it must have nothing left (customer_credit_position_as_of), the returned money carried to a refund_reissue credit naming the refund.';
+CREATE CONSTRAINT TRIGGER enforce_escheated_credit_settled AFTER UPDATE OF status ON public.payments
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW WHEN (NEW.refunds_customer_credit_id IS NOT NULL AND NEW.status IN ('nsf', 'reversed', 'voided'))
+    EXECUTE FUNCTION public.enforce_escheated_credit_settled();
+ALTER TABLE public.payments ENABLE ALWAYS TRIGGER enforce_escheated_credit_settled;
 
 -- r3 (Fable S5): an escheat event names its credit's own customer, as a
 -- donation does (enforce_ledger_reversal): a remittance on another account
@@ -3264,7 +3529,9 @@ DECLARE
         'CREATE TRIGGER a_enforce_cash_birth BEFORE INSERT ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_cash_birth()',
         'CREATE TRIGGER a_enforce_cash_birth BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_cash_birth()',
         'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.escheatment_events FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
-        'CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.customer_credits FOR EACH ROW WHEN ((new.source_payment_id IS NOT NULL)) EXECUTE FUNCTION enforce_cash_draw()',
+        'CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.customer_credits FOR EACH ROW WHEN (((new.source_payment_id IS NOT NULL) OR (new.reissues_refund_id IS NOT NULL))) EXECUTE FUNCTION enforce_cash_draw()',
+        -- r4 (Ryan, 2026-10-21): a returned refund of an escheated credit is carried.
+        'CREATE CONSTRAINT TRIGGER enforce_escheated_credit_settled AFTER UPDATE OF status ON public.payments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (((new.refunds_customer_credit_id IS NOT NULL) AND (new.status = ANY (ARRAY[''nsf''::text, ''reversed''::text, ''voided''::text])))) EXECUTE FUNCTION enforce_escheated_credit_settled()',
         'CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.escheatment_events FOR EACH ROW WHEN ((new.event_type = ''escheated_to_state''::text)) EXECUTE FUNCTION enforce_cash_draw()',
         'CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.payments FOR EACH ROW WHEN (((new.refunds_payment_id IS NOT NULL) OR (new.refunds_customer_credit_id IS NOT NULL))) EXECUTE FUNCTION enforce_cash_draw()',
         'CREATE TRIGGER enforce_customer_credit_immutable BEFORE UPDATE ON public.customer_credits FOR EACH ROW EXECUTE FUNCTION enforce_customer_credit_immutable()',
@@ -3295,6 +3562,8 @@ DECLARE
         'customer_credit_approvals customer_credit_approvals_payment_fkey FOREIGN KEY (payment_id, tenant_id, customer_id) REFERENCES payments(id, tenant_id, customer_id)',
         -- r3 (Fable S6): the cap's ceiling, and the sign the draw set reads.
         'customer_credits customer_credits_original_amount_check CHECK ((original_amount > (0)::numeric))',
+        'customer_credits customer_credits_reissue_refund_fkey FOREIGN KEY (reissues_refund_id, tenant_id, customer_id) REFERENCES payments(id, tenant_id, customer_id)',
+        'customer_credits customer_credits_reissue_check CHECK (((origin_type = ''refund_reissue''::text) = (reissues_refund_id IS NOT NULL)))',
         'customer_credits customer_credits_approval_fkey FOREIGN KEY (approval_id, tenant_id, customer_id, source_payment_id, original_amount) REFERENCES customer_credit_approvals(id, tenant_id, customer_id, payment_id, amount)',
         'customer_credits customer_credits_overpayment_approved_check CHECK ((((origin_type = ''overpayment''::text) = (approval_id IS NOT NULL)) AND ((approval_id IS NULL) OR (source_payment_id IS NOT NULL))))',
         'customer_credits customer_credits_payment_overpayment_check CHECK (((source_payment_id IS NULL) OR (origin_type = ''overpayment''::text)))',
@@ -3350,6 +3619,8 @@ BEGIN
     SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
       FROM unnest(ARRAY[
         'CREATE UNIQUE INDEX customer_credits_one_per_approval ON public.customer_credits USING btree (approval_id) WHERE (approval_id IS NOT NULL)',
+        'CREATE UNIQUE INDEX customer_credits_one_live_per_payment ON public.customer_credits USING btree (source_payment_id) WHERE ((source_payment_id IS NOT NULL) AND (status <> ''voided''::text))',
+        'CREATE UNIQUE INDEX customer_credits_one_per_reissued_refund ON public.customer_credits USING btree (reissues_refund_id) WHERE (reissues_refund_id IS NOT NULL)',
         'CREATE UNIQUE INDEX account_ledger_payment_arrival_key ON public.account_ledger USING btree (reference_id) WHERE ((reference_type = ''payment''::text) AND (transaction_type = ANY (ARRAY[''payment''::text, ''deposit''::text, ''refund''::text])))',
         'CREATE UNIQUE INDEX account_ledger_credit_arrival_key ON public.account_ledger USING btree (reference_id) WHERE ((reference_type = ''customer_credit''::text) AND (transaction_type = ''credit_issued''::text))']) d
      WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes x JOIN pg_catalog.pg_class i ON i.relname = x.indexname AND i.relnamespace = 'public'::regnamespace

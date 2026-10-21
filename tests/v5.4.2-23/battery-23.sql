@@ -80,7 +80,19 @@ BEGIN
          effective_date = coalesce(effective_date, payment_date), effective_date_method = coalesce(effective_date_method, 'other')
    WHERE id = p_pay;
 END $$;
-GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text), pg_temp.post(uuid, uuid) TO tally_app, tally_core;
+-- post_on(): the same, the posting entry dated p_on (a settlement after the
+-- payment's date, r4).
+CREATE FUNCTION pg_temp.post_on(p_pay uuid, p_entry uuid, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE p public.payments%ROWTYPE;
+BEGIN
+  SELECT * INTO p FROM public.payments WHERE id = p_pay;
+  INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+  VALUES (p_entry, p.tenant_id, p.customer_id, p_on, 'payment', p.payment_number || ' settled', -p.amount, 'payment', p.id);
+  UPDATE public.payments SET status = 'posted', status_cause_id = p_entry,
+         effective_date = coalesce(effective_date, p_on), effective_date_method = coalesce(effective_date_method, 'bank_settlement')
+   WHERE id = p_pay;
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text), pg_temp.post(uuid, uuid), pg_temp.post_on(uuid, uuid, date) TO tally_app, tally_core;
 
 -- ------------------------------------------------------------------ fixtures
 -- T1 (…23a1), T2 (…23a2). Ids: b users, c customers, d locations, 01-09
@@ -554,10 +566,10 @@ SELECT pg_temp.ok('C1j P6''s position counts the credit: 5 credited, 45 left',
 -- The payment's money goes three ways and never past it.
 INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
 VALUES ('00000000-0000-4000-8000-000000002352', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002366', 46, '00000000-0000-4000-8000-0000000023b1');
-SELECT pg_temp.refuses_at('C1k an approval for more than is left makes no credit past the payment (5 + 46 of 50)',
+SELECT pg_temp.refuses_at('C1k r4: a payment holds one live overpayment credit (P6 already holds 5)',
   $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', 'overpayment', 46, DATE '2026-03-10', '00000000-0000-4000-8000-000000002366', '00000000-0000-4000-8000-000000002352')$q$,
-  '23514', 'more than its 50');
+  '23505', 'customer_credits_one_live_per_payment');
 SELECT pg_temp.refuses_at('C1l a refund draws on the same money (45 left, 46 refunded)',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-R1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-11', -46, 'refund', DATE '2026-03-11', 'other', '00000000-0000-4000-8000-000000002366')$q$,
@@ -573,6 +585,12 @@ SELECT pg_temp.ok('M3g2 the position says it: 5 credited, 45 refunded, nothing l
 -- P5 (C2, 30) paid 5 of I3 (A4d); 10 of it is refunded, 15 left.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-000000002369', '00000000-0000-4000-8000-0000000023a1', 'B23-R2', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-11', -10, 'refund', DATE '2026-03-11', 'other', '00000000-0000-4000-8000-000000002365');
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+VALUES ('00000000-0000-4000-8000-000000002354', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002365', 16, '00000000-0000-4000-8000-0000000023b1');
+SELECT pg_temp.refuses_at('C1k2 an approval for more than is left makes no credit past the payment (P5: 5 applied, 10 refunded, 16 held, of 30)',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', 'overpayment', 16, DATE '2026-03-11', '00000000-0000-4000-8000-000000002365', '00000000-0000-4000-8000-000000002354')$q$,
+  '23514', 'more than its 30');
 SELECT pg_temp.ok('M3i P5: 30 less 5 applied and 10 refunded leaves 15',
   (SELECT applied = 5 AND refunded = 10 AND remaining = 15 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002365', DATE '2026-12-31', clock_timestamp())));
 -- P9: C2 pays 20, still pending; the customer's approval to hold 5 of it.
@@ -1252,10 +1270,10 @@ SELECT pg_temp.refuses_at('S6g an overpayment credit posts no credit_issued row 
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-11', 'credit_issued', 'KO', -20, 'customer_credit', '00000000-0000-4000-8000-000000002773')$q$,
   '23514', 'posts no ledger row');
-INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id) VALUES
-  ('00000000-0000-4000-8000-00000000276a', '00000000-0000-4000-8000-0000000023a1', 'B23-S7O', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-12', -20, 'refund', '00000000-0000-4000-8000-000000002773');
-SELECT pg_temp.admits('S7c an overpayment credit''s refund is posted (Fable B2)',
-  $q$SELECT pg_temp.post('00000000-0000-4000-8000-00000000276a', '00000000-0000-4000-8000-00000000278c')$q$);
+SELECT pg_temp.admits('S7c an overpayment credit''s refund is recorded and posted (Fable B2)',
+  $q$INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id) VALUES
+       ('00000000-0000-4000-8000-00000000276a', '00000000-0000-4000-8000-0000000023a1', 'B23-S7O', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-12', -20, 'refund', '00000000-0000-4000-8000-000000002773');
+     SELECT pg_temp.post('00000000-0000-4000-8000-00000000276a', '00000000-0000-4000-8000-00000000278c')$q$);
 -- A draw is recorded after its source was posted (Fable S4): a history row.
 RESET ROLE;
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, created_at) VALUES
@@ -1455,6 +1473,18 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
 SELECT pg_temp.refuses_at('V7h a refund still standing is not reissued',
   $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', 'refund_reissue', 10, DATE '2026-03-14', '00000000-0000-4000-8000-00000000286a')$q$,
   '23514', 'came back');
+-- A reissue draws on its credit like any draw: KG (50), a refund of 20 out
+-- and back, then 40 applied: the 20 is no longer there to carry.
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES ('00000000-0000-4000-8000-00000000287e', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', 'goodwill', 50, DATE '2026-03-10');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-00000000289f', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 'credit_issued', 'KG', -50, 'customer_credit', '00000000-0000-4000-8000-00000000287e');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id) VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000023a1', 'B23-V7iR', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-12', -20, 'refund', '00000000-0000-4000-8000-00000000287e');
+SELECT pg_temp.post('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028a2');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES ('00000000-0000-4000-8000-0000000028a3', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-13', 'nsf', 'returned', -20, 'payment', '00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028a2');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-13', status_cause_id = '00000000-0000-4000-8000-0000000028a3' WHERE id = '00000000-0000-4000-8000-0000000028a1';
+INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, applied_by, reason) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', '00000000-0000-4000-8000-000000002806', '00000000-0000-4000-8000-000000002811', '00000000-0000-4000-8000-00000000287e', 40, DATE '2026-03-14', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x');
+SELECT pg_temp.refuses_at('V7i a reissue is capped by its credit like any draw',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', 'refund_reissue', 20, DATE '2026-03-14', '00000000-0000-4000-8000-0000000028a1')$q$,
+  '23514', 'R-06 cap');
 -- B3 (Codex B1): a donation's correction is capped like the donation.
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES ('00000000-0000-4000-8000-00000000287a', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', 'goodwill', 100, DATE '2026-03-10');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-000000002890', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 'credit_issued', 'issued', -100, 'customer_credit', '00000000-0000-4000-8000-00000000287a');
@@ -1477,15 +1507,20 @@ UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000
 SELECT pg_temp.refuses_at('V9b nor for a cancelled refund (the ledger would pay out what was cancelled)',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-12', 'refund', 'late', 50, 'payment', '00000000-0000-4000-8000-00000000286e')$q$,
   '23514', 'still pending');
--- B5 (Codex B3): an arrival entry is dated its source's money date.
-INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method) VALUES ('00000000-0000-4000-8000-00000000286f', '00000000-0000-4000-8000-0000000023a1', 'B23-V10', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 30, 'check');
-SELECT pg_temp.refuses_at('V10 a posting row dated after its payment',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-12', 'payment', 'S', -30, 'payment', '00000000-0000-4000-8000-00000000286f')$q$,
-  '23514', 'dated its payment');
+-- B5 (Codex B3): nothing is drawn before the source's money is on the ledger
+-- (an ACH payment dated the 10th, settled on the 12th).
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method) VALUES ('00000000-0000-4000-8000-00000000286f', '00000000-0000-4000-8000-0000000023a1', 'B23-V10', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 30, 'ach');
+SELECT pg_temp.post_on('00000000-0000-4000-8000-00000000286f', '00000000-0000-4000-8000-00000000289c', DATE '2026-03-12');
+SELECT pg_temp.refuses_at('V10 a refund dated the 11th, before the payment settled',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id) VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-V10R', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-11', -30, 'refund', '00000000-0000-4000-8000-00000000286f')$q$,
+  '23514', 'R-06 cap');
+SELECT pg_temp.admits('V10a and dated the 12th it is admitted',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id) VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-V10R', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-12', -30, 'refund', '00000000-0000-4000-8000-00000000286f')$q$);
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES ('00000000-0000-4000-8000-00000000287b', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', 'goodwill', 20, DATE '2026-03-10');
-SELECT pg_temp.refuses_at('V10b a credit_issued row dated after its credit',
-  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-12', 'credit_issued', 'K', -20, 'customer_credit', '00000000-0000-4000-8000-00000000287b')$q$,
-  '23514', 'dated its credit');
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-12', 'credit_issued', 'K', -20, 'customer_credit', '00000000-0000-4000-8000-00000000287b');
+SELECT pg_temp.refuses_at('V10b a donation of a credit dated before its credit_issued entry',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-11', 'donation', 'x', 5, 'customer_credit', '00000000-0000-4000-8000-00000000287b')$q$,
+  '23514', 'R-06 cap');
 -- S2 (Codex S1): a deficit K-10 allowed does not veto a later draw.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method) VALUES ('00000000-0000-4000-8000-000000002870', '00000000-0000-4000-8000-0000000023a1', 'B23-V11', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 50, 'check');
 SELECT pg_temp.post('00000000-0000-4000-8000-000000002870', '00000000-0000-4000-8000-000000002894');
@@ -1509,6 +1544,30 @@ SELECT pg_temp.admits('V13 voided, naming nothing',
 SELECT pg_temp.refuses_at('V13b and nothing is issued for it afterwards',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 'credit_issued', 'K', -15, 'customer_credit', '00000000-0000-4000-8000-00000000287c')$q$,
   '23514', 'still active');
+-- Nothing is given back to a source that has ended (r4).
+SELECT pg_temp.refuses_at('V15 S1''s payment bounced: the bank''s return is not undone onto it (a re-presented check is a new payment)',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-14', 'adjustment', 're-presented', -50, '00000000-0000-4000-8000-000000002783')$q$,
+  '23001', 'which has ended');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES ('00000000-0000-4000-8000-00000000287d', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', 'goodwill', 100, DATE '2026-03-10');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-00000000289d', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-10', 'credit_issued', 'K', -100, 'customer_credit', '00000000-0000-4000-8000-00000000287d');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('00000000-0000-4000-8000-00000000289e', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-11', 'adjustment', 'withdrawn in part', 10, '00000000-0000-4000-8000-00000000289d');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related) VALUES ('00000000-0000-4000-8000-0000000028e5', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-00000000287d', '00000000-0000-4000-8000-0000000023c4', 'escheated_to_state', 90);
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '00000000-0000-4000-8000-0000000028e5' WHERE id = '00000000-0000-4000-8000-00000000287d';
+SELECT pg_temp.refuses_at('V15b nor a withdrawal undone onto an escheated credit',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-14', 'adjustment', 'not withdrawn after all', -10, '00000000-0000-4000-8000-00000000289e')$q$,
+  '23001', 'which has ended');
+RESET ROLE;
+-- The move's own guard, behind the ledger's (as M3f2): V4's payment, its
+-- credit 10 applied, a bounce row planted past the ledger's guard.
+ALTER TABLE public.account_ledger DISABLE TRIGGER enforce_ledger_reversal;
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES
+  ('00000000-0000-4000-8000-0000000028a4', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', DATE '2026-03-13', 'nsf', 'V4 returned', 60, 'payment', '00000000-0000-4000-8000-000000002867', '00000000-0000-4000-8000-000000002888');
+ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_reversal;
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
+SELECT pg_temp.refuses_at('V16 nor does the move to nsf pass while the payment''s overpayment credit is applied',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-13', status_cause_id = '00000000-0000-4000-8000-0000000028a4' WHERE id = '00000000-0000-4000-8000-000000002867'$q$,
+  '23001', 'while it is applied to bills');
 RESET ROLE;
 -- S1 (Opus S1): a draw is not recorded before money given back under its
 -- source's arrival entry (a history load at chosen times).
