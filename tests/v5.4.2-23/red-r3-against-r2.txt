@@ -1,0 +1,34 @@
+FAIL M3f3 and P1 gives no more money: its posting entry is undone (O2; r3: the cap counts what was taken back): refused with 23514 [] (a row drawing on payment 00000000-0000-4000-8000-000000002361: its money is not on the ledger, 
+FAIL R3b r3 (K-10): the payment gives only what stands on the ledger: 1.00 taken back, 29.01 of 30 is refused: refused with 23514 [] (a row drawing on payment 00000000-0000-4000-8000-000000002461: its money is not on the ledger, o
+FAIL S1 a refund is posted by its own ledger row, naming no entry (K-10: a refund is its own movement of money): refused with 23514 (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_na
+FAIL S2 nothing more is refunded once the money came back (K-10: a refund is capped by the payment less refunds and reversals): refused with 23514 [] (a row drawing on payment 00000000-0000-4000-8000-000000002761: its money is not
+FAIL S1d the customer owes the 30 refunded (Kyle's example: -50 + 30 + 50)
+FAIL S1e the payment's position: none of it stands on the ledger, 30 refunded, 30 short (Fable S7)
+FAIL S3 50 paid, 5 taken back: a refund of 45.01 is refused: refused with 23514 [] (a row drawing on payment 00000000-0000-4000-8000-000000002763: its money is not on the ledger, or something under its posting entry undoes it (a b
+FAIL S3b and a refund of 45 is admitted (r2 refused any draw once anything was taken back): refused with 23514 (a row drawing on payment 00000000-0000-4000-8000-000000002763: its money is not on the ledger, or something under its 
+FAIL S3c its position: 45 stands on the ledger, 45 refunded, nothing left
+FAIL S4 the bounce waits while a refund of the payment is pending (K-10 Q2; Opus B3, Fable B3, Codex B1): accepted
+FAIL S4a so does any undo of the payment's money: refused with 23514 [] (entry 00000000-0000-4000-8000-000000002786 (payment, -40.00): on 2026-03-12 the rows netted against it would come to 41.00, outside 0 to 40.00 — reversals of
+FAIL S4c then the bounce is recorded: refused with 23514 (entry 00000000-0000-4000-8000-000000002786 (payment, -40.00): on 2026-03-12 the rows netted against it would come to 80.00, outside 0 to 40.00 — reversals of an entry total
+FAIL S4d and the payment moves to nsf: refused with 23503 (payment B23-S4: the move to nsf names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002787) — an nsf ledger row reversing its posting entry, which th
+FAIL S5 a refund row is money paid out, more than 0: refused with 23514 [account_ledger_reversal_types_name_check] (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check"), expec
+FAIL S5b and names no entry: it undoes nothing: accepted
+FAIL S6 a payment has one posting row: a second for S3 is refused: accepted
+FAIL S6b a posting row is at minus its payment's amount: accepted
+FAIL S6c a posting row names its payment under one label, payment (Opus B1): accepted
+FAIL S6d and is of the payment's own kind (a deposit row for a bill payment): accepted
+FAIL S6d2 and is on its payment's own account: accepted
+FAIL S6e a credit has one credit_issued entry: a second for KA is refused (Codex B3, Fable S2): accepted
+FAIL S6f and it is at minus the credit's amount (KB, 12): accepted
+FAIL S7 a goodwill credit's refund is posted: refused with 23514 (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check")
+FAIL S6g an overpayment credit posts no credit_issued row (its money is its payment's): accepted
+FAIL S7c an overpayment credit's refund is posted (Fable B2): refused with 23514 (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check")
+FAIL S12 an application is not recorded before its payment was posted (Fable S4): accepted
+FAIL S8 KB (12), 4 withdrawn: 8.01 applied is refused: refused with 23514 [] (a row drawing on credit 00000000-0000-4000-8000-000000002772: its money is not on the ledger, or something under its posting entry undoes it (a bounce, 
+FAIL S8b and 8 is admitted: refused with 23514 (a row drawing on credit 00000000-0000-4000-8000-000000002772: its money is not on the ledger, or something under its posting entry undoes it (a bounce, a reversal) — it gives no mone
+FAIL S9 KD's donation undone: 50 of it is applied: refused with 23514 (credit 00000000-0000-4000-8000-000000002774: on 2026-03-12 its applications, credits, refunds, donation and escheat would come to 150.00, more than its 100.00 
+FAIL S9b KD's position: nothing given up, 50 applied, 50 left
+FAIL S10 a donation on C1's account of C3's credit: refused with 23514 [] (credit 00000000-0000-4000-8000-000000002774: on 2026-03-12 its applications, credits, refunds, donation and escheat would come to 101.00, more than its 100
+FAIL S10b an escheat remittance names its credit's own customer: refused with 23514 [] (credit 00000000-0000-4000-8000-000000002774: on 2026-10-21 its applications, credits, refunds, donation and escheat would come to 101.00, more
+FAIL S11 an escheat remittance dated in a closed period: refused with 23514 [] (a row drawing on credit 00000000-0000-4000-8000-000000002374: its money is not on the ledger, or something under its posting entry undoes it (a bounce
+FAIL S13 a payment is not posted by an entry already undone: accepted
