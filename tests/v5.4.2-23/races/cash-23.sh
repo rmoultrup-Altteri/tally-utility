@@ -33,9 +33,12 @@
 #        then is refused (cap).
 #   CR12 A payment's and a credit's status move under REPEATABLE READ are
 #        refused (25000).
-#   CR13 A voids a pending refund of a whole payment and holds; B moves the
-#        payment to refunded naming it: waits on the payment's lock, then is
-#        refused (the refund it names no longer stands).
+#   CR13 r3 (refunded is not a status): A cancels a pending refund of a
+#        whole payment and holds; B applies the payment: waits on the
+#        payment's lock (the cancel takes it), then is admitted.
+#   CR13b A's transaction begins, B cancels a pending refund of a whole
+#        payment and commits, then A applies the payment: refused for retry
+#        (40001: recorded before the refund left it); the retry is admitted.
 # r3 (Fable S4; Kyle, K-10 2):
 #   CR14 A's transaction begins, B posts a pending payment and commits, then
 #        A applies it: refused for retry (40001: recorded before the payment
@@ -45,6 +48,11 @@
 #        refused (a refund is waiting to go out).
 #   CR15b A writes the nsf row and holds; B records a refund of the payment:
 #        waits, then is refused (the cap: the money came back).
+#   CR16 A posts a pending payment and holds; B applies it: waits on the
+#        payment's lock (the move takes it), then is admitted.
+#   CR17 A voids an overpayment credit holding a whole payment and holds; B
+#        applies the payment: waits on the payment's lock (the void takes it,
+#        Codex B7), then is admitted.
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -86,6 +94,15 @@ P14=00000000-0000-4000-8000-000000002503
 E12=00000000-0000-4000-8000-000000002511
 E13=00000000-0000-4000-8000-000000002512
 E14=00000000-0000-4000-8000-000000002513
+P15=00000000-0000-4000-8000-000000002504
+E15=00000000-0000-4000-8000-000000002516
+R15=00000000-0000-4000-8000-000000002522
+P16=00000000-0000-4000-8000-000000002505
+E16=00000000-0000-4000-8000-000000002517
+P17=00000000-0000-4000-8000-000000002506
+E17=00000000-0000-4000-8000-000000002518
+AP17=00000000-0000-4000-8000-000000002531
+K17=00000000-0000-4000-8000-000000002532
 K1=00000000-0000-4000-8000-000000002471
 K2=00000000-0000-4000-8000-000000002472
 EK1=00000000-0000-4000-8000-000000002491
@@ -146,7 +163,8 @@ $(bill "$I3" R23-I3 "$L31" "$L32")
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES
   $(pay "$P3" R23-P3 70), $(pay "$P4" R23-P4 100), $(pay "$P5" R23-P5 100), $(pay "$P6" R23-P6 50), $(pay "$P7" R23-P7 50), $(pay "$P8" R23-P8 100),
   $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60), $(pay "$P11" R23-P11 40),
-  $(pay "$P12" R23-P12 30), $(pay "$P13" R23-P13 40), $(pay "$P14" R23-P14 40);
+  $(pay "$P12" R23-P12 30), $(pay "$P13" R23-P13 40), $(pay "$P14" R23-P14 40), $(pay "$P15" R23-P15 20),
+  $(pay "$P16" R23-P16 25), $(pay "$P17" R23-P17 30);
 $(post "$P3" 00000000-0000-4000-8000-000000002483 70)
 $(post "$P4" 00000000-0000-4000-8000-000000002484 100)
 $(post "$P5" 00000000-0000-4000-8000-000000002485 100)
@@ -159,8 +177,14 @@ $(post "$P10" 00000000-0000-4000-8000-00000000248e 60)
 $(post "$P11" 00000000-0000-4000-8000-00000000248f 40)
 $(post "$P13" "$E13" 40)
 $(post "$P14" "$E14" 40)
+$(post "$P15" "$E15" 20)
+$(post "$P17" "$E17" 30)
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP17', '$T', '$C', '$P17', 30, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K17', '$T', '$C', 'overpayment', 30, DATE '2026-03-05', '$P17', '$AP17');
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
-VALUES ('$R11', '$T', 'R23-R11', '$C', DATE '2026-03-06', -40, 'refund', '$P11');
+VALUES ('$R11', '$T', 'R23-R11', '$C', DATE '2026-03-06', -40, 'refund', '$P11'),
+       ('$R15', '$T', 'R23-R15', '$C', DATE '2026-03-06', -20, 'refund', '$P15');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES
   ('$K1', '$T', '$C', 'goodwill', 30, DATE '2026-03-05'),
   ('$K2', '$T', '$C', 'goodwill', 20, DATE '2026-03-05');
@@ -357,8 +381,48 @@ SQL
 if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a status move is written at READ COMMITTED"; then echo "PASS CR12b a credit's status move under REPEATABLE READ is refused"; else echo "FAIL CR12b: $OUT"; fail=1; fi
 
 # CR13
-two "UPDATE public.payments SET status = 'voided' WHERE id = '$R11';" "UPDATE public.payments SET status = 'refunded', status_cause_id = '$R11' WHERE id = '$P11';"
-verdict "CR13 a payment moved to refunded while the refund it names is being voided: the move waits, then is refused" 1 "a refund payment returning it"
+two "UPDATE public.payments SET status = 'voided' WHERE id = '$R11';" "$(apply "$P11" "$L12" "$I1" 10)"
+verdict "CR13 a payment applied while its whole refund is being cancelled: the application waits, then is admitted" 0
+
+# CR13b: A's transaction begins before B cancels the refund, and applies after it.
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_a_begun13';
+BEGIN;
+$AS_OP
+SELECT now();
+DO \$\$ BEGIN
+  LOOP
+    PERFORM pg_stat_clear_snapshot();
+    EXIT WHEN EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = 'race23_b_done13');
+    PERFORM pg_sleep(0.1);
+  END LOOP;
+END \$\$;
+$(apply "$P15" "$L12" "$I1" 5)
+COMMIT;
+SQL
+APID=$!
+for _ in $(seq 1 100); do
+  [ "$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race23_a_begun13'")" = "1" ] && break; sleep 0.1
+done
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+UPDATE public.payments SET status = 'voided' WHERE id = '$R15';
+COMMIT;
+SET application_name = 'race23_b_done13';
+SELECT pg_sleep(2);
+SQL
+wait $APID; AST=$?
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "left it" "$A_OUT"; then echo "PASS CR13b an application begun before a refund of its payment was cancelled is refused for retry"
+else echo "FAIL CR13b: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$(apply "$P15" "$L12" "$I1" 5)
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS CR13c the retry is admitted"; else echo "FAIL CR13c: $OUT"; fail=1; fi
 
 # CR14: A's transaction begins before B posts the payment, and applies it after.
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
@@ -409,5 +473,14 @@ verdict "CR15 a refund pending and the payment's bounce in flight: the bounce wa
 two "$(nsf 00000000-0000-4000-8000-000000002515 "$P14" "$E14" 40)" \
     "INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id) VALUES ('$T', 'R23-REF14', '$C', DATE '2026-03-10', -10, 'refund', '$P14');"
 verdict "CR15b a bounce in flight and a refund of the same payment: the refund waits, then is refused (the money came back)" 1 "R-06 cap"
+
+# CR16
+two "INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('$E16', '$T', '$C', DATE '2026-03-05', 'payment', 'posted', -25, 'payment', '$P16'); UPDATE public.payments SET status = 'posted', status_cause_id = '$E16' WHERE id = '$P16';" \
+    "$(apply "$P16" "$L12" "$I1" 5)"
+verdict "CR16 a payment applied while it is being posted: the application waits, then is admitted" 0
+
+# CR17
+two "UPDATE public.customer_credits SET status = 'voided' WHERE id = '$K17';" "$(apply "$P17" "$L12" "$I1" 5)"
+verdict "CR17 a payment applied while the overpayment credit holding it is voided: the application waits, then is admitted (Codex B7)" 0
 
 exit $fail

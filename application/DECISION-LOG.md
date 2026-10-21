@@ -6,6 +6,24 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-10-21 (-23 r3) — Ryan: "refunded" and "donated" are not stored statuses
+
+**What:** Ryan (2026-10-21): "go with option 1". Payments keep pending, posted, nsf, reversed and voided; customer credits keep active, escheated and voided. "Refunded" (both) and "donated" (credits) are read from the positions: nothing left, because of refunds or a donation. A refund that fails (its posting row undone, the refund moved to nsf or reversed) or a donation undone frees the money again. A refund that leaves takes its source's lock, an overpayment credit's void takes its payment's, and a draw begun before either is retried, so no position counts both.
+
+*Why:* as final labels they left a real event with no record. A refund check can bounce or go uncashed and a donation can be keyed in error; once the label was set, statuses only move forward, and recording the failure would leave a "refunded" payment with money on it. Opus (B4), Fable (S3) and Codex (B5, B7) hit this from different sides. It is the same reasoning that dropped `fully_applied` (a counter in disguise). *Not "refuse the failure once labelled":* the bank's return of a refund check would be unrecordable. *Not "allow refunded → posted":* it breaks Q1 (a), statuses move forward only. *Escheated stays:* a remittance to the state is not undone on our side. Lives in `sql/v5.4.2-23-…sql` (status checks, both status guards, `check_cash_source`'s recorded order) and memory `refunded-donated-derived`. ui-concepts still lists refunded as a payment status (for Kyle).
+
+## 2026-10-21 (-23 r3) — Kyle's K-10 applied; drafting calls settled by his ruling or a standing rule
+
+**What:** Kyle answered K-10 (relayed by Ryan; gas-billing-memory `kyle-decisions-2026-10-21-refund-then-bounce.md`). r3 applies it, and settles round 2's findings, as follows.
+- **A refund names no entry** and is more than 0 (money paid out). R-02's cap counts reversals only, so the bank's full return of a refunded payment fits (Kyle's example: 30 owed).
+- **Every draw is capped by the source less what was taken back on the ledger, at every date.** Kyle stated the refund cap (payment − refunds − reversals); applications, overpayment credits, donations and remittances draw on the same money, so the same cap binds them (guard the act, not the label). *Why not r2's yes/no:* r2 refused any draw once anything was taken back, so a $5 adjustment on a $50 payment froze the other $45. An undo is not capped (it only gives money back).
+- **A pending refund blocks any row undoing the payment's posting entry** (K-10 2), not only an nsf. No separate check on the status move: its cause row passed the ledger guard, and the cap refuses a refund recorded after the bounce (a guard always beaten is not added).
+- **One arrival entry per source**, by unique index, and the row checked at its write (label, kind, amount, account; an overpayment credit posts none). *Why at the write:* a stray row was otherwise found only when a later draw or void read it (Opus S1, Codex B3, Fable S2).
+- **Positions read what stands on the ledger** (`received`, `issued`); a refunded-then-bounced payment reads negative remaining (Fable S7).
+- **A draw is not recorded before its source reached the ledger** (a payment's move to posted, a credit's `credit_issued` row) or before a draw that has since left it (Fable S4; the status decision above).
+- **Remittances are frozen by the close by their UTC day** (Codex B6), with their own trigger because `enforce_accounting_freeze` reads a date column; donations and remittances are on the credit's own account (Fable S5).
+- **K-10 3 (return-window hold) and the one-click cancel** are app or core, not schema (residuals R13, R14). The hold setting's storage is additive later.
+
 ## 2026-10-18 (wave 3, Q1) — Ryan: dispute policies are rule entries, one law table and one tariff table
 
 **What:** Ryan (2026-10-18): "go with the rule entries". -25 registers a `dispute` terms family under the rule-terms convention: a law table (Texas gas §7.45(6)(D) is one row) and a tariff table (each city's own policy, e.g. Brenham, CPS Energy). Terms hold the recognised grounds and excluded subjects, the must-pay strategy and its parameters, when the shelter starts and ends, the review stages and deadlines, and what the shelter blocks. Every dispute determination cites the row it applied. A city with no tariff row has no dispute terms, and the determination records that (K-07: no assumed defaults).

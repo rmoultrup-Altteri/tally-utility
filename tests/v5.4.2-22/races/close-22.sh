@@ -264,7 +264,7 @@ REC1=$("${PSQL[@]}" -c "SELECT id FROM public.account_ledger WHERE reverses_ledg
 # tree's lock (its root, the write-off).
 NAMES() { echo "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason) VALUES ('$T', '$C', DATE '2026-06-02', 'write_off_recovery', 'a further recovery', $1, '$WO', 'x');"; }
 two "$AS_OP" "$(NAMES 15)" "$AS_OP" "$(NAMES 10)"
-verdict "CR11 a row under a write-off, reached through its recovery, waits for another, then is refused by the cap" 1 "R-02 cap"
+verdict "CR11 two further recoveries of one write-off: the second waits on the tree, then is refused by the cap" 1 "R-02 cap"
 
 # CR12
 "${PSQL[@]}" >/dev/null -c "INSERT INTO public.accounting_periods (tenant_id, period_start, period_end) VALUES ('$T', DATE '2026-06-01', DATE '2026-06-30')" \

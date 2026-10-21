@@ -565,14 +565,16 @@ SELECT pg_temp.refuses_at('C1l a refund draws on the same money (45 left, 46 ref
 SELECT pg_temp.admits('C1m the rest refunded (45)',
   $q$INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
      VALUES ('00000000-0000-4000-8000-000000002367', '00000000-0000-4000-8000-0000000023a1', 'B23-R1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-11', -45, 'refund', DATE '2026-03-11', 'other', '00000000-0000-4000-8000-000000002366')$q$);
-SELECT pg_temp.admits('M3g refunded, naming the refund, with nothing left',
-  $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002367' WHERE id = '00000000-0000-4000-8000-000000002366'$q$);
+SELECT pg_temp.refuses_at('M3g r3 (Ryan, 2026-10-21): refunded is not a status',
+  $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002367' WHERE id = '00000000-0000-4000-8000-000000002366'$q$,
+  '23001', 'cannot move from posted to refunded');
+SELECT pg_temp.ok('M3g2 the position says it: 5 credited, 45 refunded, nothing left',
+  (SELECT credited = 5 AND refunded = 45 AND remaining = 0 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002366', DATE '2026-12-31', clock_timestamp())));
 -- P5 (C2, 30) paid 5 of I3 (A4d); 10 of it is refunded, 15 left.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-000000002369', '00000000-0000-4000-8000-0000000023a1', 'B23-R2', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-11', -10, 'refund', DATE '2026-03-11', 'other', '00000000-0000-4000-8000-000000002365');
-SELECT pg_temp.refuses_at('M3i a payment is refunded only when nothing of it is left (P5: 30 less 5 applied, 10 refunded)',
-  $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002369' WHERE id = '00000000-0000-4000-8000-000000002365'$q$,
-  '23001', 'only when nothing of it is left');
+SELECT pg_temp.ok('M3i P5: 30 less 5 applied and 10 refunded leaves 15',
+  (SELECT applied = 5 AND refunded = 10 AND remaining = 15 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002365', DATE '2026-12-31', clock_timestamp())));
 -- P9: C2 pays 20, still pending; the customer's approval to hold 5 of it.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
 VALUES ('00000000-0000-4000-8000-00000000236a', '00000000-0000-4000-8000-0000000023a1', 'B23-P9', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-10', 20, 'ach', 'pending');
@@ -753,10 +755,10 @@ SELECT pg_temp.refuses_at('R1 a payment is born pending: not posted with no post
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-PB1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 10, 'check', 'posted')$q$,
   '23514', 'is born posted');
-SELECT pg_temp.refuses_at('R1b nor refunded or nsf with no cause',
+SELECT pg_temp.refuses_at('R1b nor nsf with no cause',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, status)
-     VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-PB2', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 10, 'check', 'refunded')$q$,
-  '23514', 'is born refunded');
+     VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-PB2', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 10, 'check', 'nsf')$q$,
+  '23514', 'is born nsf');
 SELECT pg_temp.refuses_at('R1c a credit is born active',
   $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, status)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', 'goodwill', 1, DATE '2026-03-10', 'voided')$q$,
@@ -871,16 +873,16 @@ SELECT pg_temp.admits('R8 Q4 (40) pays 15 of I6''s gas line',
              '00000000-0000-4000-8000-000000002464', 15, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x')$q$);
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-000000002467', '00000000-0000-4000-8000-0000000023a1', 'B23-QR3', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', -25, 'refund', '00000000-0000-4000-8000-000000002464');
-SELECT pg_temp.admits('R8b Q4 refunded: 15 applied and 25 refunded leave nothing',
-  $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002467' WHERE id = '00000000-0000-4000-8000-000000002464'$q$);
-SELECT pg_temp.refuses_at('R8c an undo does not bring money back to a refunded payment (Opus B3 O4b)',
+SELECT pg_temp.ok('R8b Q4: 15 applied and 25 refunded leave nothing (r3: read, not a status)',
+  (SELECT remaining = 0 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002464', DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.admits('R8c an undo gives 15 back to Q4 (r3: no final label for it to contradict; Opus B3 O4b)',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, undoes_application_id, applied_by, reason)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002406', '00000000-0000-4000-8000-000000002411',
-             '00000000-0000-4000-8000-000000002464', -15, DATE '2026-03-12', 'undo', '00000000-0000-4000-8000-000000002441', '00000000-0000-4000-8000-0000000023b1', 'x')$q$,
-  '23514', 'an undo only while its source has not ended');
-SELECT pg_temp.refuses_at('R8d nor is the refund it names voided (Opus B3 O4c)',
-  $q$UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000-000000002467'$q$,
-  '23001', 'would be ended with money on it');
+             '00000000-0000-4000-8000-000000002464', -15, DATE '2026-03-12', 'undo', '00000000-0000-4000-8000-000000002441', '00000000-0000-4000-8000-0000000023b1', 'x')$q$);
+SELECT pg_temp.admits('R8d and cancelling the pending refund gives its 25 back (Opus B3 O4c)',
+  $q$UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000-000000002467'$q$);
+SELECT pg_temp.ok('R8d2 Q4: all 40 left',
+  (SELECT applied = 0 AND refunded = 0 AND remaining = 40 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002464', DATE '2026-12-31', clock_timestamp())));
 -- Q9 (C1, 10) posted; a refund of it, voided before it went out.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method) VALUES
   ('00000000-0000-4000-8000-000000002469', '00000000-0000-4000-8000-0000000023a1', 'B23-Q9', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 10, 'check');
@@ -888,9 +890,21 @@ SELECT pg_temp.post('00000000-0000-4000-8000-000000002469', '00000000-0000-4000-
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-00000000246a', '00000000-0000-4000-8000-0000000023a1', 'B23-QR9', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', -10, 'refund', '00000000-0000-4000-8000-000000002469');
 UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000-00000000246a';
-SELECT pg_temp.refuses_at('R8e a refunded move names a refund still standing, not a voided one (Fable S4)',
-  $q$UPDATE public.payments SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-00000000246a' WHERE id = '00000000-0000-4000-8000-000000002469'$q$,
-  '23503', 'pending or posted');
+-- A refund check that bounces after it went out (Fable S3): its posting row
+-- is undone, the refund moves to nsf, and Q9's money is its own again.
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
+VALUES ('00000000-0000-4000-8000-00000000246e', '00000000-0000-4000-8000-0000000023a1', 'B23-QR9b', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', -10, 'refund', '00000000-0000-4000-8000-000000002469');
+SELECT pg_temp.post('00000000-0000-4000-8000-00000000246e', '00000000-0000-4000-8000-00000000248e');
+SELECT pg_temp.ok('R8e Q9 refunded in full: nothing left',
+  (SELECT refunded = 10 AND remaining = 0 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002469', DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.admits('R8f the refund check comes back: an nsf row undoes the refund''s own posting row (Fable S3)',
+  $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+     VALUES ('00000000-0000-4000-8000-00000000248f', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-13', 'nsf', 'QR9b returned', -10, 'payment',
+             '00000000-0000-4000-8000-00000000246e', '00000000-0000-4000-8000-00000000248e')$q$);
+SELECT pg_temp.admits('R8g the refund moves to nsf, naming it',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-13', status_cause_id = '00000000-0000-4000-8000-00000000248f' WHERE id = '00000000-0000-4000-8000-00000000246e'$q$);
+SELECT pg_temp.ok('R8h Q9''s 10 is its own again',
+  (SELECT refunded = 0 AND remaining = 10 FROM public.payment_position_as_of('00000000-0000-4000-8000-000000002469', DATE '2026-12-31', clock_timestamp())));
 -- Credits: refund, donation, escheat, and the void of a goodwill credit (Codex B1, B4; Fable S6).
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES
   ('00000000-0000-4000-8000-000000002472', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', 'goodwill', 30, DATE '2026-03-10'),
@@ -915,11 +929,13 @@ SELECT pg_temp.refuses_at('R10 a credit refunds no more than it is (K2: 31 of 30
 SELECT pg_temp.admits('R10b K2 refunded in full',
   $q$INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id)
      VALUES ('00000000-0000-4000-8000-000000002468', '00000000-0000-4000-8000-0000000023a1', 'B23-KR2', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', -30, 'refund', '00000000-0000-4000-8000-000000002472')$q$);
-SELECT pg_temp.admits('R10c K2 moves to refunded, naming it',
-  $q$UPDATE public.customer_credits SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002468' WHERE id = '00000000-0000-4000-8000-000000002472'$q$);
-SELECT pg_temp.refuses_at('R10d the refund a refunded credit rests on is not voided (Opus B3)',
-  $q$UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000-000000002468'$q$,
-  '23001', 'would be ended with money on it');
+SELECT pg_temp.refuses_at('R10c r3: refunded is not a credit status either',
+  $q$UPDATE public.customer_credits SET status = 'refunded', status_cause_id = '00000000-0000-4000-8000-000000002468' WHERE id = '00000000-0000-4000-8000-000000002472'$q$,
+  '23001', 'cannot move from active to refunded');
+SELECT pg_temp.admits('R10d the credit''s pending refund is cancelled: its 30 is the credit''s again',
+  $q$UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000-000000002468'$q$);
+SELECT pg_temp.ok('R10e K2: 30 left',
+  (SELECT refunded = 0 AND remaining = 30 FROM public.customer_credit_position_as_of('00000000-0000-4000-8000-000000002472', DATE '2026-12-31', clock_timestamp())));
 SELECT pg_temp.admits('R11 K3 (100) donated in full: the donation is a draw on it',
   $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
      VALUES ('00000000-0000-4000-8000-000000002496', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', 'donation', 'K3 to the fund', 100, 'customer_credit', '00000000-0000-4000-8000-000000002473')$q$);
@@ -927,14 +943,16 @@ SELECT pg_temp.refuses_at('R11b nothing is refunded after a full donation (Codex
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-KR3', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', -1, 'refund', '00000000-0000-4000-8000-000000002473')$q$,
   '23514', 'more than its 100');
-SELECT pg_temp.admits('R11c K3 moves to donated, naming the donation, nothing left',
-  $q$UPDATE public.customer_credits SET status = 'donated', status_cause_id = '00000000-0000-4000-8000-000000002496' WHERE id = '00000000-0000-4000-8000-000000002473'$q$);
+SELECT pg_temp.refuses_at('R11c r3: donated is not a status',
+  $q$UPDATE public.customer_credits SET status = 'donated', status_cause_id = '00000000-0000-4000-8000-000000002496' WHERE id = '00000000-0000-4000-8000-000000002473'$q$,
+  '23001', 'cannot move from active to donated');
+SELECT pg_temp.ok('R11c2 K3''s position: 100 given up, nothing left',
+  (SELECT given_up = 100 AND remaining = 0 FROM public.customer_credit_position_as_of('00000000-0000-4000-8000-000000002473', DATE '2026-12-31', clock_timestamp())));
 SELECT pg_temp.admits('R11d K4 (15): a donation of 1',
   $q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
      VALUES ('00000000-0000-4000-8000-000000002497', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', 'donation', 'K4 in part', 1, 'customer_credit', '00000000-0000-4000-8000-000000002474')$q$);
-SELECT pg_temp.refuses_at('R11e a donation of 1 does not end a credit with 14 left (Codex B1)',
-  $q$UPDATE public.customer_credits SET status = 'donated', status_cause_id = '00000000-0000-4000-8000-000000002497' WHERE id = '00000000-0000-4000-8000-000000002474'$q$,
-  '23001', 'only when nothing of it is left');
+SELECT pg_temp.ok('R11e K4 (15) after a donation of 1: 14 left (Codex B1)',
+  (SELECT given_up = 1 AND remaining = 14 FROM public.customer_credit_position_as_of('00000000-0000-4000-8000-000000002474', DATE '2026-12-31', clock_timestamp())));
 SELECT pg_temp.refuses_at('R11f a donation of a credit is more than 0',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-12', 'donation', 'x', -1, 'customer_credit', '00000000-0000-4000-8000-000000002474')$q$,
@@ -960,6 +978,24 @@ SELECT pg_temp.admits('R12f K5 moves to escheated, naming its remittance',
   $q$UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '00000000-0000-4000-8000-0000000024e2' WHERE id = '00000000-0000-4000-8000-000000002475'$q$);
 SELECT pg_temp.ok('R12g K5''s position: 10 given up, nothing left',
   (SELECT given_up = 10 AND remaining = 0 FROM public.customer_credit_position_as_of('00000000-0000-4000-8000-000000002475', DATE '2026-12-31', clock_timestamp())));
+-- K4 (15, 1 donated): 4 applied, 9 remitted, 1 left.
+INSERT INTO public.invoice_applications (id, tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, applied_by, reason)
+VALUES ('00000000-0000-4000-8000-000000002442', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002406', '00000000-0000-4000-8000-000000002412',
+        '00000000-0000-4000-8000-000000002474', 4, DATE '2026-03-12', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related)
+VALUES ('00000000-0000-4000-8000-0000000024e3', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-000000002474', '00000000-0000-4000-8000-0000000023c1', 'escheated_to_state', 9);
+SELECT pg_temp.refuses_at('R12h a credit is escheated only when nothing of it is left (1 of 15)',
+  $q$UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '00000000-0000-4000-8000-0000000024e3' WHERE id = '00000000-0000-4000-8000-000000002474'$q$,
+  '23001', 'only when nothing of it is left');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related)
+VALUES ('00000000-0000-4000-8000-0000000024e4', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-000000002474', '00000000-0000-4000-8000-0000000023c1', 'escheated_to_state', 1);
+SELECT pg_temp.admits('R12i and is, once the last 1 is remitted',
+  $q$UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '00000000-0000-4000-8000-0000000024e4' WHERE id = '00000000-0000-4000-8000-000000002474'$q$);
+SELECT pg_temp.refuses_at('R12j an undo does not bring money back to an escheated credit (Opus B3 O4b)',
+  $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, undoes_application_id, applied_by, reason)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002406', '00000000-0000-4000-8000-000000002412',
+             '00000000-0000-4000-8000-000000002474', -4, DATE '2026-03-13', 'undo', '00000000-0000-4000-8000-000000002442', '00000000-0000-4000-8000-0000000023b1', 'x')$q$,
+  '23514', 'an undo only while its source has not ended');
 -- K6 (12): issued, then withdrawn in part, then in full (Opus B2; Fable S6).
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
   ('00000000-0000-4000-8000-0000000024a6', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 'credit_issued', 'K6', -12, 'customer_credit', '00000000-0000-4000-8000-000000002476');
@@ -1024,10 +1060,17 @@ SELECT pg_temp.refuses_at('R18 a history row is not recorded before its source (
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002406', '00000000-0000-4000-8000-000000002412',
              '00000000-0000-4000-8000-00000000246b', 1, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '1 day')$q$,
   '23514', 'before the payment was posted');
+-- QH2 (C1, 10): a history payment posted five hours ago, nothing drawn on it
+-- (QH's cancelled refund would answer first, r3).
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, created_at) VALUES
+  ('00000000-0000-4000-8000-00000000246f', '00000000-0000-4000-8000-0000000023a1', 'B23-QH2', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 10, 'check', now() - interval '5 hours');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, created_at) VALUES
+  ('00000000-0000-4000-8000-00000000248d', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 'payment', 'QH2 posted', -10, 'payment', '00000000-0000-4000-8000-00000000246f', now() - interval '5 hours');
+UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-00000000248d', effective_date = DATE '2026-03-10', effective_date_method = 'other', status_recorded_at = now() - interval '5 hours' WHERE id = '00000000-0000-4000-8000-00000000246f';
 SELECT pg_temp.refuses_at('R18b nor before its bill was issued',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by, reason, created_at)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002301', '00000000-0000-4000-8000-000000002311',
-             '00000000-0000-4000-8000-00000000246c', 1, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '4 hours')$q$,
+             '00000000-0000-4000-8000-00000000246f', 1, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '4 hours')$q$,
   '23514', 'before invoice B23-I1 was issued');
 -- LC3 (Fable S6): a line from a rate item is classed as the item's version
 -- in force on the bill's coordinates.
@@ -1185,6 +1228,10 @@ SELECT pg_temp.refuses_at('S6f and it is at minus the credit''s amount (KB, 12)'
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-10', 'credit_issued', 'KB', -11, 'customer_credit', '00000000-0000-4000-8000-000000002772')$q$,
   '23514', 'at minus its amount');
+SELECT pg_temp.refuses_at('S6f2 and on the credit''s own account',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-10', 'credit_issued', 'KB', -12, 'customer_credit', '00000000-0000-4000-8000-000000002772')$q$,
+  '23503', 'of its own customer');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
   ('00000000-0000-4000-8000-000000002789', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-10', 'credit_issued', 'KB', -12, 'customer_credit', '00000000-0000-4000-8000-000000002772');
 -- A credit's refund posts under its own row (Opus B5, Codex B4, Fable B2).
@@ -1222,6 +1269,16 @@ SELECT pg_temp.refuses_at('S12 an application is not recorded before its payment
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', '00000000-0000-4000-8000-000000002706', '00000000-0000-4000-8000-000000002711',
              '00000000-0000-4000-8000-00000000276b', 1, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '2 hours')$q$,
   '23514', 'before the payment was posted');
+-- KH (C3, 20): a credit recorded five hours ago, issued on the ledger an hour ago.
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, created_at) VALUES
+  ('00000000-0000-4000-8000-000000002775', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', 'goodwill', 20, DATE '2026-03-10', now() - interval '5 hours');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, created_at) VALUES
+  ('00000000-0000-4000-8000-000000002794', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', DATE '2026-03-10', 'credit_issued', 'KH', -20, 'customer_credit', '00000000-0000-4000-8000-000000002775', now() - interval '1 hour');
+SELECT pg_temp.refuses_at('S12b nor before its credit was issued on the ledger',
+  $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, created_at)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c3', '00000000-0000-4000-8000-000000002706', '00000000-0000-4000-8000-000000002711',
+             '00000000-0000-4000-8000-000000002775', 1, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '2 hours')$q$,
+  '23514', 'before the credit was issued');
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
 -- A credit withdrawn in part gives the rest (Kyle's cap; Fable N2).
