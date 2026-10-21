@@ -382,10 +382,14 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
    'payment', 'P-2', -20, 'payment', '00000000-0000-4000-8000-000000001962');
 UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-000000001966'
  WHERE id = '00000000-0000-4000-8000-000000001962';
-INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
                              source_system, provider_transaction_id, refunds_payment_id)
-VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', -20, 'refund',
+VALUES ('00000000-0000-4000-8000-000000001968', '00000000-0000-4000-8000-0000000019a1', 'P-4', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-07', -20, 'refund',
         DATE '2026-02-07', 'bank_settlement', 'paymentus_webhook', 'TXN-1', '00000000-0000-4000-8000-000000001962');
+-- v5.4.2-23 r3 (Kyle, K-10 2): a refund still waiting to go out blocks the
+-- bounce until an operator cancels it, so P-4 is cancelled before P-2 is
+-- returned. It stays a row: the duplicate checks below count it.
+UPDATE public.payments SET status = 'voided' WHERE id = '00000000-0000-4000-8000-000000001968';
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES
   ('00000000-0000-4000-8000-000000001967', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-10',
    'nsf', 'P-2 returned', 20, 'payment', '00000000-0000-4000-8000-000000001962', '00000000-0000-4000-8000-000000001966');
@@ -433,8 +437,8 @@ INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_dat
                              source_system, provider_transaction_id, refunds_payment_id)
 VALUES ('00000000-0000-4000-8000-0000000019a1', 'P-4c', '00000000-0000-4000-8000-0000000019c1', DATE '2026-02-08', -5, 'refund',
         DATE '2026-02-08', 'bank_settlement', 'paymentus_webhook', 'RFND-7', '00000000-0000-4000-8000-000000001961');
--- v5.4.2-23 (R-06): of P-1, which is posted and has room; P-2 is fully
--- refunded and then returned, so nothing more is drawn on it.
+-- v5.4.2-23 (R-06): of P-1, which is posted and has room; P-2 was returned
+-- (its refund cancelled first, r3), so nothing more is drawn on it.
 DO $$ BEGIN RAISE NOTICE 'PASS P7d: a further (partial) refund under its own processor id is recorded'; END $$;
 SELECT pg_temp.refuses_at('P7e a negative row with no lineage delivered twice',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,

@@ -26,7 +26,7 @@
 #   CR9  A writes a payment's nsf row and moves it to nsf, and holds; B
 #        applies it: waits on the source's lock, then is refused (ended).
 #   CR9b A writes only the nsf row, and holds; B applies the payment: waits,
-#        then is refused (its money is not on the ledger).
+#        then is refused (r3: nothing of its money stands; the cap).
 #   CR10 A reverses a credit's credit_issued entry and voids it, and holds;
 #        B applies the credit: waits, then is refused (ended).
 #   CR11 A applies 40 of a 60 payment and holds; B refunds 30 of it: waits,
@@ -36,6 +36,15 @@
 #   CR13 A voids a pending refund of a whole payment and holds; B moves the
 #        payment to refunded naming it: waits on the payment's lock, then is
 #        refused (the refund it names no longer stands).
+# r3 (Fable S4; Kyle, K-10 2):
+#   CR14 A's transaction begins, B posts a pending payment and commits, then
+#        A applies it: refused for retry (40001: recorded before the payment
+#        was posted); the retry is admitted.
+#   CR15 A records a pending refund of a payment and holds; B writes the nsf
+#        row returning the payment: waits on the payment's lock, then is
+#        refused (a refund is waiting to go out).
+#   CR15b A writes the nsf row and holds; B records a refund of the payment:
+#        waits, then is refused (the cap: the money came back).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -71,6 +80,12 @@ P9B=00000000-0000-4000-8000-00000000246a
 P10=00000000-0000-4000-8000-00000000246b
 P11=00000000-0000-4000-8000-00000000246c
 R11=00000000-0000-4000-8000-00000000246d
+P12=00000000-0000-4000-8000-000000002501
+P13=00000000-0000-4000-8000-000000002502
+P14=00000000-0000-4000-8000-000000002503
+E12=00000000-0000-4000-8000-000000002511
+E13=00000000-0000-4000-8000-000000002512
+E14=00000000-0000-4000-8000-000000002513
 K1=00000000-0000-4000-8000-000000002471
 K2=00000000-0000-4000-8000-000000002472
 EK1=00000000-0000-4000-8000-000000002491
@@ -130,7 +145,8 @@ $(bill "$I2" R23-I2 "$L21" "$L22")
 $(bill "$I3" R23-I3 "$L31" "$L32")
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES
   $(pay "$P3" R23-P3 70), $(pay "$P4" R23-P4 100), $(pay "$P5" R23-P5 100), $(pay "$P6" R23-P6 50), $(pay "$P7" R23-P7 50), $(pay "$P8" R23-P8 100),
-  $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60), $(pay "$P11" R23-P11 40);
+  $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60), $(pay "$P11" R23-P11 40),
+  $(pay "$P12" R23-P12 30), $(pay "$P13" R23-P13 40), $(pay "$P14" R23-P14 40);
 $(post "$P3" 00000000-0000-4000-8000-000000002483 70)
 $(post "$P4" 00000000-0000-4000-8000-000000002484 100)
 $(post "$P5" 00000000-0000-4000-8000-000000002485 100)
@@ -141,6 +157,8 @@ $(post "$P9" 00000000-0000-4000-8000-00000000248c 50)
 $(post "$P9B" 00000000-0000-4000-8000-00000000248d 50)
 $(post "$P10" 00000000-0000-4000-8000-00000000248e 60)
 $(post "$P11" 00000000-0000-4000-8000-00000000248f 40)
+$(post "$P13" "$E13" 40)
+$(post "$P14" "$E14" 40)
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
 VALUES ('$R11', '$T', 'R23-R11', '$C', DATE '2026-03-06', -40, 'refund', '$P11');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date) VALUES
@@ -308,7 +326,7 @@ verdict "CR9 a payment bounced while an application of it is in flight: the appl
 # CR9b
 E9B=00000000-0000-4000-8000-00000000248d; E9BN=00000000-0000-4000-8000-00000000249d
 two "$(nsf "$E9BN" "$P9B" "$E9B" 50)" "$(apply "$P9B" "$L12" "$I1" 5)"
-verdict "CR9b its nsf row alone, in flight: the application waits, then is refused (its money is not on the ledger)" 1 "its money is not on the ledger"
+verdict "CR9b its nsf row alone, in flight: the application waits, then is refused (r3: nothing of its money stands)" 1 "R-06 cap"
 
 # CR10
 EK1R=00000000-0000-4000-8000-00000000249e
@@ -341,5 +359,55 @@ if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "a status move is writ
 # CR13
 two "UPDATE public.payments SET status = 'voided' WHERE id = '$R11';" "UPDATE public.payments SET status = 'refunded', status_cause_id = '$R11' WHERE id = '$P11';"
 verdict "CR13 a payment moved to refunded while the refund it names is being voided: the move waits, then is refused" 1 "a refund payment returning it"
+
+# CR14: A's transaction begins before B posts the payment, and applies it after.
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_a_begun14';
+BEGIN;
+$AS_OP
+SELECT now();
+DO \$\$ BEGIN
+  LOOP
+    PERFORM pg_stat_clear_snapshot();
+    EXIT WHEN EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = 'race23_b_done14');
+    PERFORM pg_sleep(0.1);
+  END LOOP;
+END \$\$;
+$(apply "$P12" "$L12" "$I1" 5)
+COMMIT;
+SQL
+APID=$!
+for _ in $(seq 1 100); do
+  [ "$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race23_a_begun14'")" = "1" ] && break; sleep 0.1
+done
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES ('$E12', '$T', '$C', DATE '2026-03-05', 'payment', 'posted', -30, 'payment', '$P12');
+UPDATE public.payments SET status = 'posted', status_cause_id = '$E12' WHERE id = '$P12';
+COMMIT;
+SET application_name = 'race23_b_done14';
+SELECT pg_sleep(2);
+SQL
+wait $APID; AST=$?
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "before the payment was posted" "$A_OUT"; then echo "PASS CR14 an application begun before its payment was posted is refused for retry (Fable S4)"
+else echo "FAIL CR14: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$(apply "$P12" "$L12" "$I1" 5)
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS CR14b the retry is admitted"; else echo "FAIL CR14b: $OUT"; fail=1; fi
+
+# CR15, CR15b
+two "INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id) VALUES ('$T', 'R23-REF13', '$C', DATE '2026-03-08', -10, 'refund', '$P13');" \
+    "$(nsf 00000000-0000-4000-8000-000000002514 "$P13" "$E13" 40)"
+verdict "CR15 a refund pending and the payment's bounce in flight: the bounce waits, then is refused (K-10 2)" 1 "waiting to go out"
+two "$(nsf 00000000-0000-4000-8000-000000002515 "$P14" "$E14" 40)" \
+    "INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id) VALUES ('$T', 'R23-REF14', '$C', DATE '2026-03-10', -10, 'refund', '$P14');"
+verdict "CR15b a bounce in flight and a refund of the same payment: the refund waits, then is refused (the money came back)" 1 "R-06 cap"
 
 exit $fail

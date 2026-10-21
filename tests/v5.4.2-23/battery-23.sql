@@ -429,7 +429,8 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
 VALUES ('00000000-0000-4000-8000-000000002368', '00000000-0000-4000-8000-0000000023a1', 'B23-P8', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-05', 10, 'check', DATE '2026-03-05', 'postmark', now() - interval '2 hours');
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, created_at)
 VALUES ('00000000-0000-4000-8000-0000000023f8', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-05', 'payment', 'P8 posted', -10, 'payment', '00000000-0000-4000-8000-000000002368', now() - interval '2 hours');
-UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-0000000023f8' WHERE id = '00000000-0000-4000-8000-000000002368';
+-- r3 (Fable S4): a history load carries the posting's time too.
+UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4000-8000-0000000023f8', status_recorded_at = now() - interval '2 hours' WHERE id = '00000000-0000-4000-8000-000000002368';
 INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, allocation_tariff_id, created_at)
 VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-000000002317', '00000000-0000-4000-8000-000000002368', 5, DATE '2026-03-07', 'oldest_first', '00000000-0000-4000-8000-0000000023ab', now() - interval '1 hour');
 SELECT pg_temp.ok('M1j by the recorded instant: 90 minutes ago P8 was known and nothing of it applied; now 5 is',
@@ -1022,7 +1023,7 @@ SELECT pg_temp.refuses_at('R18 a history row is not recorded before its source (
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by, reason, created_at)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002406', '00000000-0000-4000-8000-000000002412',
              '00000000-0000-4000-8000-00000000246b', 1, DATE '2026-03-11', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '1 day')$q$,
-  '23514', 'before the payment itself');
+  '23514', 'before the payment was posted');
 SELECT pg_temp.refuses_at('R18b nor before its bill was issued',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by, reason, created_at)
      VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-000000002301', '00000000-0000-4000-8000-000000002311',
