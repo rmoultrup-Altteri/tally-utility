@@ -4,6 +4,69 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-21 — Kyle's K-10 answered; -23 cash rounds 3 and 4 built and reviewed; the r5 list written
+
+**What was done:**
+- **K-10:** Kyle answered (relayed by Ryan). His answer is recorded as GBM `kyle-decisions-2026-10-21-refund-then-bounce.md` plus manifest Section BS (`8003ec9`), and the brief is marked answered (`c55afe1`).
+  - A refund is its own movement of money.
+  - Two caps: a bounce ≤ payment − reversals; a refund ≤ payment − refunds − reversals.
+  - A pending refund blocks the bounce.
+  - A return-window hold is tenant policy.
+- **-23 r3:** tests first (`530ffee`; every new check failed against r2), then the patch (`494f727`, `7728e96`):
+  - a `refund` row names no entry and is > 0;
+  - every draw is capped by the source less what was taken back under its arrival entry, at every date;
+  - a pending refund blocks any row undoing the posting entry;
+  - one arrival entry per source (unique indexes plus a check at the write);
+  - positions read `received` / `issued`;
+  - a donation undo frees the credit;
+  - donations and remittances come from the credit's own account; remittances are frozen by the close (UTC day);
+  - draws are not recorded before the source was posted;
+  - Ryan's call: `refunded` and `donated` are no longer statuses.
+  - -19's P-4 is cancelled before P-2 bounces.
+  - Reviewed by Opus, Fable and Codex: "not yet". Codex's probes were run, and all reproduced (`5c3a7ab`).
+- **-23 r4:** tests first (`d2b4ca3`), then the patch (`c91a00c`):
+  - an overpayment credit's payment bounces per K-10 (one live credit per payment);
+  - nothing comes back to an escheated credit, and a `refund_reissue` credit carries a refund that returned (Ryan, option 1), with a deferred commit check;
+  - donation corrections are capped;
+  - arrival rows are written only while the source is pending or active, under its lock, and count from their own date;
+  - the cap runs from the new row's date on;
+  - give-back rows are not held up, but never land on an ended source;
+  - recorded order covers the arrival tree.
+  - Reviewed: all three "not yet" (`3517d0b`); Codex hit its usage limit after writing its review; every probe reproduced.
+- **The r5 fix list** is merged: `application/wave2-build-2026-10-15/v5.4.2-23-r5-plan.md`.
+- **Records:** DECISION-LOG (four entries dated 2026-10-21), the design doc's "Corrections made in review", and the roadmap phases summary plus dashboard dataset (dates unchanged).
+
+**Decisions made:**
+- **Ryan:** no stored `refunded` or `donated` status. *Not "refuse the failure once labelled"* (the bank's return of a refund check would be unrecordable). *Not "refunded → posted"* (breaks forward-only).
+- **Ryan:** a refund that returns after escheat goes into a new credit. *Not "remit it to the state", not "leave it flagged".*
+- **The overpayment credit and the bounce:** what the credit paid out stands, and what it held goes with the payment. *Not Fable's "wait until the credit is empty"* (it needs refunding or spending bounced money).
+- **A source's money counts from its arrival entry's date.** *Not "force the entry's date to the payment's"* (an ACH payment settles later).
+- **r5 B4 refines Ryan's option 1:** a reissue carries only the escheated credit's positive remainder. Where the payment also bounced, nothing is carried. Reported to Ryan.
+
+**Failed approaches:**
+- **Fable's empty-the-credit bounce rule,** and **the date-equality rule:** as above.
+- **The arrival counted as `amount + v_amount` at its date:** zero there, so earlier dates were unguarded.
+- **plpgsql `IF` with an inner `CASE ... THEN`:** parse error. Compute into a variable first.
+- **`NEW.<column>` in a trigger shared by tables without that column:** fails at runtime. Nest the check by `TG_TABLE_NAME`.
+- **Two history rows with chosen times in one INSERT:** refused by recorded order. Use one INSERT per row.
+
+**Accuracy / test results:**
+
+| Check | r3 | r4 |
+|---|---|---|
+| battery-23 | 216 | 252 |
+| races/cash-23.sh | CR1–CR17, 26/26 | CR1–CR19, 29/29 |
+| mutations-23.py | 140/140 | 170/170 (first run 166/170; four renamed or wrapped) |
+| tests/ci.sh | 49/49 | 49/49 |
+| reviews | 3 × not yet | 3 × not yet |
+
+**Open / next:**
+- **Ask Ryan whether to start r5.** Six blockers: refund-tree guard, the overpayment split, give-back to an escheated overpayment credit, the reissue amount, no future status times, and the READ COMMITTED pin for arrival rows.
+- **Then:** -25 and -26 go to review; the mirror order is -23, -25, -26.
+- **Tell Kyle:** ui-concepts' `refunded` status, the `do_not_disconnect` checkbox, and the four law findings.
+
+---
+
 ## 2026-10-19 — v5.4.2-26 (collections decisions, field verification) designed, tested first, drafted
 
 **What was done:**
