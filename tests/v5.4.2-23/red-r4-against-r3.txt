@@ -1,0 +1,27 @@
+FAIL V1 a payment held as a credit that was refunded in full bounces (K-10 through the credit): refused with 23001 (account_ledger 00000000-0000-4000-8000-000000002883 undoes payment 00000000-0000-400
+FAIL V1b and moves to nsf: refused with 23503 (payment B23-V1: the move to nsf names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002883) — an nsf ledger row reversing its posti
+FAIL V1c the credit paid out 60 that never arrived: the customer owes it; the payment reads nothing
+FAIL V2 refunded in part (40 of 60): the bounce is not held up by the 20 the credit still holds (the common case): refused with 23001 (account_ledger 00000000-0000-4000-8000-000000002886 undoes paymen
+FAIL V2b the 20 the credit held went with the payment: nothing more is drawn from it: accepted
+FAIL V2c the credit: 40 paid out against nothing, so 40 owed
+FAIL V4 a payment holds one live overpayment credit: refused with 23514 [] (payment 00000000-0000-4000-8000-000000002867: on 2026-03-11 what it gave (applications, credits, refunds, donations, escheat
+FAIL V5 a donation is not undone once its credit is escheated: accepted
+FAIL V6 a credit is not escheated while a refund of it is waiting to go out: accepted
+FAIL V7a: got P0099 (admitted)
+FAIL V7b the new credit carries exactly what came back: refused with 42703 [] (column "reissues_refund_id" of relation "customer_credits" does not exist), expected 23514 by what came back
+FAIL V7c the new credit, naming the returned refund: refused with 42703 (column "reissues_refund_id" of relation "customer_credits" does not exist)
+FAIL V7d the escheated credit has nothing left; the new credit holds the 30
+FAIL V7e one new credit per returned refund: refused with 42703 [] (column "reissues_refund_id" of relation "customer_credits" does not exist), expected 23505 by customer_credits_one_per_reissued_refu
+FAIL V7f nor is it voided back onto the escheated credit: accepted
+FAIL V7g it pays a bill like any credit: refused with 23503 (insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_credit_fkey")
+FAIL V7h a refund still standing is not reissued: refused with 42703 [] (column "reissues_refund_id" of relation "customer_credits" does not exist), expected 23514 by came back
+FAIL V8 the undo of a donation reversed while the money is refunded: two draws of one 100: accepted
+FAIL V9 not for a voided payment: accepted
+FAIL V9b nor for a cancelled refund (the ledger would pay out what was cancelled): accepted
+FAIL V10 a posting row dated after its payment: accepted
+FAIL V10b a credit_issued row dated after its credit: accepted
+FAIL V11 the money came back and was restored: a refund of 1 dated after is admitted: refused with 23514 (payment 00000000-0000-4000-8000-000000002870: on 2026-03-13 what it gave (applications, credit
+FAIL V12 the 5 was there after all: given back while a refund is pending: refused with 23001 (account_ledger 5419f634-0db5-45aa-b1d2-27bf0604d0bf undoes payment 00000000-0000-4000-8000-00000000285b's 
+FAIL V13 voided, naming nothing: refused with 23503 (customer credit 00000000-0000-4000-8000-00000000287c: the move to voided names the row behind it in status_cause_id (none) — the ledger row reversi
+FAIL V13b and nothing is issued for it afterwards: accepted
+FAIL V14 an application recorded before the money it uses was given back: accepted
