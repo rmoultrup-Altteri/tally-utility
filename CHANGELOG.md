@@ -6,6 +6,44 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-10-28 (afternoon) — session-start context cut (repo docs, memory, global harness); roadmap concurrency what-ifs
+
+**What was done:**
+- **Measured the startup load** from transcripts: 72–84k tokens before any tool call; orientation adds 20–50k. The CHANGELOG was never read whole at the start. The real costs were global rules, connectors and skills, plus stale status written in several places.
+- **Repo** (`867cd96`):
+  - `CLAUDE.md`: the gate, session start, a table of the big files and how to grep them, standing rules, wrap-up.
+  - `sql/PATCH-LESSONS.md`: 28 lessons moved out of session memory unchanged, plus the -22 lock-order rule and -25's build notes; 30 in all, with an index.
+  - The CHANGELOG keeps the newest 10 entries; 75 older ones are in `changelog-archive/YYYY-MM.md`, checked by script to be present word for word.
+  - `CONTEXT.md`'s stale status section replaced with one that has no counts or dates.
+- **Memory** cut from 63 to 23 files:
+  - 8 status snapshots deleted, after their durable lines moved to HANDOFF, CLAUDE.md and the lessons doc;
+  - the 3 working-preference memories moved to a new personal `~/.claude/CLAUDE.md`;
+  - new: `three-concurrent-sessions`.
+- **Global harness**, with every original backed up in `~/.claude-backups/2026-10-28/`:
+  - all of `~/.claude/rules/` (38 files) and `~/.claude/AGENTS.md` removed. They loaded into every repo because the home folder is a parent of each one, and the `common/` and `web/` sets had no `paths:` header;
+  - `"disableClaudeAiConnectors": true` in `~/.ccs/shared/settings.json`. The connectors dropped out of this session immediately; Desktop keeps them;
+  - 11 installer skills and the `/jira`, `/orchestrate`, `/claw` and `/devfleet` commands moved to the backup.
+- **Roadmap concurrency what-ifs** on a scratch copy of `schedule.py`. Likely ready-to-onboard date: June 16 under today's plan; May 16 with P2 beside P1; May 9 with P4 started too; April 11 with P6 at P5's start and P7 at P5 +4 weeks. These dates are about 1.5 weeks too early (the `as_of` artefact). Details are in HANDOFF.
+
+**Decisions made:**
+- **Ryan: keep all 34 agents and the Laravel skills.** Agents get chosen when the core workflow is designed; never-used means nothing yet, because no code has been written.
+- **Ryan: no mid-session reading rules.** The 1M context and frequent handoffs make long sessions fine.
+- **Ryan: about three concurrent sessions that need his input.** The concurrency plan is built around that.
+- **Global rules dropped rather than trimmed.** They restated practice a capable model follows anyway, and several contradicted this project: 80% coverage, files under 800 lines, agents spawned unasked, and "attribution disabled", which was false.
+- **The connectors are off for Claude Code only.** The per-project `/mcp` disable list would have to be set in each of 17 projects.
+
+**Failed approaches:**
+- **Assuming path rules load on any file access.** The typescript rules loaded on a Read of a `.tsx` file, but the web rules did not: they were already loaded at startup and aren't loaded twice. Whether Bash `cat` triggers path rules is untested.
+- **Running `schedule.py` in place for a what-if:** it overwrites the dashboard's generated files. Run it on a scratch copy.
+
+**Accuracy / test results:** no schema changes. The CHANGELOG split was verified by script: 85 entries present verbatim, each archive holding only its own month.
+
+**Next steps:**
+- The concurrency plan: the gate decision for P2, then up to three workstreams; update `phases.json` and the dashboard.
+- -23 r6 on Ryan's go; then the -25 and -26 reviews.
+
+---
+
 ## 2026-10-28 — -23 cash round 5 built, frozen and reviewed; the r6 list written; Docker container leak fixed
 
 **What was done:**
@@ -564,69 +602,3 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
   - -21 R9;
   - the R-03 scoping question;
   - `deferred_balance_after`.
-
----
-
-## 2026-10-14 (evening) — R1 decided (trust Cognito); v5.4.2-21 (wave 1 built) drafted, reviewed over four rounds, mirrored
-
-**What was done:**
-- **R1** (Ryan): the database trusts the app's Cognito-verified identity. AC-43 is new: `SET LOCAL app.user_id` from the token's `sub`, in one path, never by email (`c8efb1c`).
-- **The void's reversal** (Ryan, default): a posted bill's void names its charge or is refused; a never-posted bill writes nothing to the ledger.
-- **`sql/v5.4.2-21-wave1-lineage-arithmetic-retention.sql`:**
-  - **r1** (`3f9f994`):
-    - 16 tables never hard-deleted;
-    - the in-use guard on the labels;
-    - dependency retirement;
-    - the CI-016 deferred arithmetic check;
-    - CI-017 lineage (correction link, void-reversal link and reason, a tenant-bound reversal FK, `payments.refunds_customer_credit_id`, a charge born unvoided, lineage indexes);
-    - the void's charge lookup;
-    - `users.cognito_sub`, active-user RLS helpers;
-    - the -20 notes.
-  - **r2** (`5b70521`):
-    - unclassifiable surcharges fail safe;
-    - the snapshot date;
-    - label keys write-once;
-    - a supervisor binds identities;
-    - the void's charge is the bill's customer's;
-    - one void reversal per entry;
-    - a 5 s label lock;
-    - `assert_wave1_guard_invariants()`.
-  - **r3** (`f9400ae`): knowledge from `now()`; a platform admin binds or switches platform admins.
-  - **r4** (`30f8952`): role demotion is guarded.
-- **Review:**
-  - **r1:** all three "not yet".
-  - **r2:** Codex ready; Opus and Fable each had one blocker.
-  - **r3:** Codex ready; Opus and Fable on the same blocker.
-  - **r4:** all ready (`d5d486c`).
-  - Codex reviewed source only; the author ran its 17 probes and appended the outputs.
-- **Tests:**
-  - battery-21: 143;
-  - `races/labels-21.sh`: 9;
-  - `mutations-21.py`: 68/68;
-  - six older test files adjusted;
-  - CI gains the -21 battery and races, the retention and wave-1 invariants, and column markers.
-- **Mirror** (`d584e61`):
-  - **`sql/tu.sql`:** 39,349 → **40,652** lines (md5 `3b1433a3…`), byte-identical body.
-  - **Build check:** fresh build with zero init errors; `pg_dump` schema (with ACLs) identical to the patched clone; `tests/ci.sh --build` 30/30.
-- **Docs:** DECISION-LOG (R1, the void, the -21 drafting calls), AC-43, the inventory, DEPLOY-VERIFICATION, memory `date-from-snapshot-knowledge-from-now`.
-
-**Failed approaches / mechanisms:**
-- **`coalesce(class IN …, false)`** read "no version visible" as fixed.
-- **Classifying at `(period_end, now())`** misread a correction's elected date.
-- **Classifying at the snapshot's `recorded_at`:** it is caller-chosen and hides a retraction. Use `(valid_at, now())`.
-- **A DELETE-only label guard:** bypassed by renaming.
-- **A write-once binding with no rule on who binds it:** an operator promoted itself. So did a tenant admin reviving a platform admin, and a role-only demotion switched supervisors off.
-- **A single plpgsql OR across two tables' columns:** `record "new" has no field`.
-- **A first-FAIL mutation runner** caught two mutations at a weaker check. Reorder the checks.
-- **Grepping the Codex log for "error"** ended the wait early.
-
-**Decisions made without Ryan (by standing rules, reported):**
-- A supervisor binds, switches and demotes users; a platform admin does so for platform admins. Onboarding binds at provisioning.
-- A gas rider needs no commodity rate.
-- Dependencies are retired, not deleted.
-- The -20 DBNAME line is left in tu.sql.
-
-**Next:**
-- **GBM update** for -20 and -21.
-- **Reply to Kyle** on D-2.
-- **Then Ryan's pick:** wave 2, the -05 defect patch, or -21 R9 (`line_item_carries_base` at the elected date).
