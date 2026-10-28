@@ -512,7 +512,7 @@ MUTATIONS = [
          ")")),
     ("N190", "a refund_reissue credit posts a credit_issued row", "W9",
      rep("        IF v_credit.origin_type IN ('overpayment', 'refund_reissue') THEN", "        IF v_credit.origin_type = 'overpayment' THEN")),
-    ("N191", "a draw on an overpayment credit takes no lock on its payment", "CR22",
+    ("N191", "a draw on an overpayment credit takes no lock on its payment (the bounce in CR18 then does not wait; CR22 too)", "CR18",
      rep("        IF v_pool_pay IS NOT NULL THEN\n            PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', v_pool_pay));\n        END IF;\n", "")),
 ]
 
