@@ -4,6 +4,57 @@ A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utili
 
 ---
 
+## 2026-10-28 — -23 cash round 5 built, frozen and reviewed; the r6 list written; Docker container leak fixed
+
+**What was done:**
+- **-23 r5, tests first** (`e73626c`): the W section of battery-23. The failing ones fail against r4 (`red-r5-against-r4.txt`).
+- **-23 r5, built** (`4f62ae1`, `67b51e9`):
+  - `cash_drawn_at` and `overpayment_split`: one split of a take-back between a payment and its overpayment credit, read by both positions, both caps and the escheat check;
+  - a cap on the payment and its credit together (Kyle's K-10 refund cap), with a credit draw taking the payment's lock first;
+  - nothing under a refund's posting row once it came back;
+  - no give-back onto an escheated overpayment credit;
+  - a reissue carries what is left (at most the refund), dated on or after the return, and the commit check requires nothing positive left;
+  - no future or infinite status time for any role;
+  - arrival rows and donations at READ COMMITTED;
+  - the bounce's redundant credit lock removed (N145 retired).
+- **Tests added with the build:** W2e/W2f, W10e, W11, W12, CR20/CR20b, CR21 and CR22. The mutations' anchors were updated for the rewritten code, and N171–N191 are new.
+- **Frozen** (`83317c0`) and reviewed: Codex (`dd565e3`, with the author's probe run appended), Opus (`4dd597a`) and Fable (`0dbf502`). All three said "not yet".
+- **The r6 list:** `application/wave2-build-2026-10-15/v5.4.2-23-r6-plan.md`.
+- **Records:** DECISION-LOG 2026-10-28; the design doc's corrections for r4 and r5; the r5 plan's "As built"; the roadmap summary and the dashboard `phases` dataset (dates unchanged).
+- **Docker:** Claude Desktop's postgres MCP had leaked 69 containers (about 6.4 GB). CI was OOM-killed twice (signal 9).
+  - I killed 62 orphans, with Ryan's approval.
+  - The new wrapper `~/.local/bin/postgres-mcp-docker` labels and reaps containers, and stops its own on a signal or end of input. The Desktop config points at it (backup `.bak-2026-10-28`).
+
+**Decisions made:**
+- **B2 as built (K-10 decides; reported to Ryan, not asked):** the credit absorbs a take-back from what it still held at that instant, then the payment's own part, then any shortfall (the credit up to its amount, then the payment). *Not the plan's "up to the credit's amount":* Opus's P2 would let 60 out of 50. *Not dynamic:* later draws would shift earlier take-backs.
+- **The cap on the payment and its credit together, on every draw on either:** rows of one transaction share an instant, so the split alone cannot keep K-10.
+- **A reissue carries `least(refund, what is left)`:** where the payment also bounced, nothing is carried and the customer owes the rest (K-10). This refines Ryan's option 1.
+- **r6 settles by rule:** a deficit cancelled on an escheated credit is debt removed, not money given back.
+
+**Failed approaches:**
+- **The r5 plan's B2 and a dynamic split:** as above.
+- **The shortfall placed at the take-back** (r5 as built): the positions read 40 / −10 when only 30 can be drawn (r6 B2).
+- **`(created_at, id)` order within one instant:** a give-back can come before its parent (r6 B3).
+- **W4 in one transaction:** no recorded order exists within one transaction; use chosen times.
+- **`for i in $ids` in zsh:** the variable isn't split into words. Use `while read`.
+- **`docker stop` on these containers:** "404 page not found". Use `docker kill`.
+
+**Accuracy / test results:**
+
+| Check | r4 | r5 |
+|---|---|---|
+| battery-23 | 252 | 293 |
+| races/cash-23.sh | CR1–CR19, 29 | CR1–CR22, 33 |
+| mutations-23.py | 170/170 | 190/190 (focused run 29/31, then the full run 189/190; owners moved to W3a and CR18, N145 retired) |
+| tests/ci.sh | 49/49 | 49/49 (after the Docker fix) |
+
+**Next steps:**
+- Ask Ryan whether to start -23 r6 (the r6 plan). Then freeze and review it with the three reviewers.
+- -25 and -26 review after -23 settles.
+- Ryan to restart Claude Desktop, so the wrapper takes over and the last 7 untagged containers can be removed.
+
+---
+
 ## 2026-10-21 — Kyle's K-10 answered; -23 cash rounds 3 and 4 built and reviewed; the r5 list written
 
 **What was done:**
