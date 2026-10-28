@@ -1,0 +1,29 @@
+# battery-23 (r5 tests) against the r4 patch, 2026-10-28: every check reporting, each statement in a savepoint.
+# Controls that pass on r4 too (not listed): W1a, W1b, W2, W2b, W2d, W3a, W3b, W5, W6, W7a, W10d.
+# Follow-on lines: a refuses_at that is accepted on r4 prints twice; W6c-W8b also report W6's still-queued commit check, and W8a/W9 the rows W6b/W8a did not write.
+FAIL W1 a refund check that bounced is not paid out again under its own row (80 out of a 50 payment): accepted
+FAIL W1c nor while its reissue holds the 30 (the same money out twice): accepted
+FAIL W2a the payment gives the 40 it reads: refused with 23514 (payment 00000000-0000-4000-8000-000000002966: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what w
+FAIL W2c then nothing more from the payment: accepted
+FAIL W3 10 taken back after the credit paid out its 20: the payment reads 30, the credit 0
+FAIL W3c and nothing is left on either
+FAIL W4 a credit of the 70 left after 30 was taken back holds 70
+FAIL W4a and refunds it: refused with 23514 (credit 00000000-0000-4000-8000-000000002975: on 2026-03-13 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the
+FAIL W5a the 20 is not given back under the payment onto the escheated credit: accepted
+FAIL W6a the reissue is not the 30 that came back: refused with 23514 [] (credit 00000000-0000-4000-8000-000000002977: on 2026-10-28 what it gave (applications, credits, refunds, donations, escheat) a
+FAIL W6a the reissue is not the 30 that came back: accepted
+FAIL W6b it is the 20 left: refused with 23514 (credit 00000000-0000-4000-8000-000000002978 reissues B23-W6eR for 20.00: it carries exactly what came back (30.00) (Ryan, 2026-10-21; v5.4.2-23))
+FAIL W6c and the escheated credit is settled: got 23514 (refund B23-W6eR of credit 00000000-0000-4000-8000-000000002977 came back (nsf): 20.00 is back on a credit that was escheated — carry it to a ne
+FAIL W6d nothing on the escheated credit; 20 on the reissue
+FAIL W7 the payment bounced in full, then the refund came back: settled with nothing to carry: got 23514 (refund B23-W6eR of credit 00000000-0000-4000-8000-000000002977 came back (nsf): 20.00 is back 
+FAIL W7b and no reissue carries money that is not there: refused with 23514 [] (credit 00000000-0000-4000-8000-000000002979: on 2026-03-14 what it gave (applications, credits, refunds, donations, esch
+FAIL W7b and no reissue carries money that is not there: accepted
+FAIL W8 a reissue dated before the refund came back: accepted
+FAIL W8a dated the day it came back: refused with 23505 (duplicate key value violates unique constraint "customer_credits_one_per_reissued_refund")
+FAIL W8b settled: got 23514 (refund B23-W6eR of credit 00000000-0000-4000-8000-000000002977 came back (nsf): 20.00 is back on a credit that was escheated — carry it to a new credit (origin refund_reis
+FAIL W9 control: no credit_issued row for a reissue: refused with 23503 [] (account_ledger 485e4656-58c4-486d-8765-2a202a3816a5 issues credit 00000000-0000-4000-8000-00000000297b: a credit_issued row 
+FAIL W9 control: no credit_issued row for a reissue: accepted
+FAIL W10 a superuser's move stamped in the future: accepted
+FAIL W10a or at infinity: accepted
+FAIL W10b nor moved there later, with the status unchanged: accepted
+FAIL W10c nor born there: accepted

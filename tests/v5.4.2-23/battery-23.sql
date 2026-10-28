@@ -10,7 +10,7 @@
 --   X  reversals (X1-X4)          M  positions, write-once, status (M1-M4)
 --   A  application (A1-A6)        C  overpayment credits (C1, C2)
 --   T  the within-bill order (A5) F  the freeze on applications
---   I  invariants
+--   I  invariants                 V, W  rounds 3 and 4's findings
 -- What one transaction cannot show (READ COMMITTED pins, recorded order
 -- across transactions, two writers on one source or line) is in
 -- races/cash-23.sh.
@@ -1585,6 +1585,258 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
 SELECT pg_temp.refuses_at('V14 an application recorded before the money it uses was given back',
   $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, amount, applied_on, basis, applied_by, reason, created_at) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c4', '00000000-0000-4000-8000-000000002807', '00000000-0000-4000-8000-000000002814', '00000000-0000-4000-8000-00000000285d', 20, DATE '2026-03-12', 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'x', now() - interval '2 hours')$q$,
   '23514', 'given back');
+
+-- ============================================================== W r5: round 4's findings
+-- Ids 29xx, written w('xx'). C5 (…23c5), I11 (w 06): an issued bill of C5,
+-- lines w 11 gas 60, w 12 add-on 40, w 13 credit -10.
+CREATE FUNCTION pg_temp.w(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SELECT ('00000000-0000-4000-8000-0000000029' || p)::uuid $$;
+-- wpay(): a check of C5 for p_amount dated p_on, posted by entry p_entry.
+CREATE FUNCTION pg_temp.wpay(p_id uuid, p_entry uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', 'B23-W' || right(p_id::text, 2), '00000000-0000-4000-8000-0000000023c5', p_on, p_amount, 'check');
+  PERFORM pg_temp.post(p_id, p_entry);
+END $$;
+-- wcredit(): C5's approval to hold p_amount of payment p_pay, and the overpayment credit.
+CREATE FUNCTION pg_temp.wcredit(p_id uuid, p_appr uuid, p_pay uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+  VALUES (p_appr, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', p_pay, p_amount, '00000000-0000-4000-8000-0000000023b1');
+  INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'overpayment', p_amount, p_on, p_pay, p_appr);
+END $$;
+-- wgood(): a goodwill credit of C5, issued on the ledger by p_entry.
+CREATE FUNCTION pg_temp.wgood(p_id uuid, p_entry uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'goodwill', p_amount, p_on);
+  INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+  VALUES (p_entry, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', p_on, 'credit_issued', 'issued', -p_amount, 'customer_credit', p_id);
+END $$;
+-- wrefund(): a refund of p_amount from payment p_pay or credit p_credit, dated p_on, pending.
+CREATE FUNCTION pg_temp.wrefund(p_id uuid, p_pay uuid, p_credit uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id, refunds_customer_credit_id)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', 'B23-W' || right(p_id::text, 2) || 'R', '00000000-0000-4000-8000-0000000023c5', p_on, -p_amount, 'refund', p_pay, p_credit);
+END $$;
+-- wrow(): a ledger row of C5 under p_parent (an adjustment, or nsf).
+CREATE FUNCTION pg_temp.wrow(p_id uuid, p_parent uuid, p_amount numeric, p_on date, p_type text DEFAULT 'adjustment') RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', p_on, p_type, 'w', p_amount, p_parent);
+END $$;
+-- wescheat(): p_amount of credit p_credit remitted to the state, and the move to escheated.
+CREATE FUNCTION pg_temp.wescheat(p_credit uuid, p_event uuid, p_amount numeric) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related)
+  VALUES (p_event, '00000000-0000-4000-8000-0000000023a1', p_credit, '00000000-0000-4000-8000-0000000023c5', 'escheated_to_state', p_amount);
+  UPDATE public.customer_credits SET status = 'escheated', status_cause_id = p_event WHERE id = p_credit;
+END $$;
+-- wapply(): p_amount of payment p_pay or credit p_credit to bill line p_line on p_on.
+CREATE FUNCTION pg_temp.wapply(p_pay uuid, p_credit uuid, p_line uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason)
+  VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', pg_temp.w('06'), p_line, p_pay, p_credit, p_amount, p_on, 'operator_override', '00000000-0000-4000-8000-0000000023b1', 'w');
+END $$;
+-- settles(): the commit-time check on returned refunds, run now in a
+-- subtransaction: PASS when it admits (p_admits) or refuses as expected.
+CREATE FUNCTION pg_temp.settles(p_label text, p_admits boolean, p_guard text DEFAULT NULL) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE v_state text; v_msg text;
+BEGIN
+  BEGIN
+    SET CONSTRAINTS enforce_escheated_credit_settled IMMEDIATE;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'admitted';
+  EXCEPTION WHEN OTHERS THEN
+    v_state := SQLSTATE; v_msg := SQLERRM;
+  END;
+  SET CONSTRAINTS enforce_escheated_credit_settled DEFERRED;
+  IF (p_admits AND v_state = 'P0099') OR (NOT p_admits AND v_state = '23514' AND strpos(v_msg, p_guard) > 0) THEN
+    RAISE NOTICE 'PASS %', p_label;
+  ELSE
+    RAISE EXCEPTION 'FAIL %: got % (%)', p_label, v_state, v_msg;
+  END IF;
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.w(text), pg_temp.wpay(uuid, uuid, numeric, date), pg_temp.wcredit(uuid, uuid, uuid, numeric, date),
+  pg_temp.wgood(uuid, uuid, numeric, date), pg_temp.wrefund(uuid, uuid, uuid, numeric, date), pg_temp.wrow(uuid, uuid, numeric, date, text),
+  pg_temp.wescheat(uuid, uuid, numeric), pg_temp.wapply(uuid, uuid, uuid, numeric, date), pg_temp.settles(text, boolean, text) TO tally_app, tally_core;
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000023c5', '00000000-0000-4000-8000-0000000023a1', 'B23-C5', 'residential');
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  ('00000000-0000-4000-8000-0000000023d5', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'L5', '5 Main', 'Austin', 'TX', '78701');
+SELECT pg_temp.bill(pg_temp.w('06'), 'B23-I11', '00000000-0000-4000-8000-0000000023c5', '00000000-0000-4000-8000-0000000023d5',
+                    pg_temp.w('11'), pg_temp.w('12'), pg_temp.w('13'));
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
+
+-- B1 (Opus B2, Fable S1, Codex B1): a refund that came back is not paid out
+-- again under its own posting row; a re-sent refund is a new refund.
+SELECT pg_temp.wpay(pg_temp.w('61'), pg_temp.w('81'), 50, DATE '2026-03-10');
+SELECT pg_temp.wrefund(pg_temp.w('62'), pg_temp.w('61'), NULL, 30, DATE '2026-03-12');
+SELECT pg_temp.post(pg_temp.w('62'), pg_temp.w('82'));
+SELECT pg_temp.wrow(pg_temp.w('83'), pg_temp.w('82'), -30, DATE '2026-03-13', 'nsf');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-13', status_cause_id = pg_temp.w('83') WHERE id = pg_temp.w('62');
+SELECT pg_temp.refuses_at('W1 a refund check that bounced is not paid out again under its own row (80 out of a 50 payment)',
+  $q$SELECT pg_temp.wrow(pg_temp.w('84'), pg_temp.w('83'), 30, DATE '2026-03-14')$q$,
+  '23001', 'a re-sent refund is a new refund');
+SELECT pg_temp.ok('W1a the payment still reads its 50: the 30 came back',
+  (SELECT received = 50 AND refunded = 0 AND remaining = 50 FROM public.payment_position_as_of(pg_temp.w('61'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.wpay(pg_temp.w('63'), pg_temp.w('85'), 50, DATE '2026-03-10');
+SELECT pg_temp.wrefund(pg_temp.w('64'), pg_temp.w('63'), NULL, 30, DATE '2026-03-12');
+SELECT pg_temp.post(pg_temp.w('64'), pg_temp.w('86'));
+SELECT pg_temp.admits('W1b control: under a refund still posted, a partial return and its correction are admitted',
+  $q$SELECT pg_temp.wrow(pg_temp.w('87'), pg_temp.w('86'), -10, DATE '2026-03-13'); SELECT pg_temp.wrow(pg_temp.w('88'), pg_temp.w('87'), 10, DATE '2026-03-14')$q$);
+-- The same through an escheated credit, after its reissue (Opus P3e).
+SELECT pg_temp.wgood(pg_temp.w('71'), pg_temp.w('89'), 100, DATE '2026-03-10');
+SELECT pg_temp.wrefund(pg_temp.w('65'), NULL, pg_temp.w('71'), 30, DATE '2026-03-12');
+SELECT pg_temp.post(pg_temp.w('65'), pg_temp.w('8a'));
+SELECT pg_temp.wescheat(pg_temp.w('71'), pg_temp.w('e1'), 70);
+SELECT pg_temp.wrow(pg_temp.w('8b'), pg_temp.w('8a'), -30, DATE '2026-03-14', 'nsf');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = pg_temp.w('8b') WHERE id = pg_temp.w('65');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES
+  (pg_temp.w('72'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 30, DATE '2026-03-14', pg_temp.w('65'));
+SELECT pg_temp.refuses_at('W1c nor while its reissue holds the 30 (the same money out twice)',
+  $q$SELECT pg_temp.wrow(pg_temp.w('8c'), pg_temp.w('8b'), 30, DATE '2026-03-15')$q$,
+  '23001', 'a re-sent refund is a new refund');
+
+-- B2 (Opus B1, Fable B1, Codex S1): one split of a take-back between a
+-- payment and its overpayment credit, read by both positions and both caps.
+-- P1: the credit unspent; the take-back comes out of it.
+SELECT pg_temp.wpay(pg_temp.w('66'), pg_temp.w('8d'), 60, DATE '2026-03-10');
+SELECT pg_temp.wcredit(pg_temp.w('73'), pg_temp.w('51'), pg_temp.w('66'), 20, DATE '2026-03-11');
+SELECT pg_temp.wrow(pg_temp.w('8e'), pg_temp.w('8d'), 10, DATE '2026-03-12');
+SELECT pg_temp.ok('W2 10 taken back from a credit holding 20 of a 60 payment: the credit holds 10, the payment 40',
+  (SELECT issued = 10 AND remaining = 10 FROM public.customer_credit_position_as_of(pg_temp.w('73'), DATE '2026-12-31', clock_timestamp()))
+  AND (SELECT received = 50 AND credited = 10 AND remaining = 40 FROM public.payment_position_as_of(pg_temp.w('66'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.admits('W2a the payment gives the 40 it reads',
+  $q$SELECT pg_temp.wapply(pg_temp.w('66'), NULL, pg_temp.w('11'), 40, DATE '2026-03-12')$q$);
+SELECT pg_temp.admits('W2b and the credit its 10',
+  $q$SELECT pg_temp.wapply(NULL, pg_temp.w('73'), pg_temp.w('12'), 10, DATE '2026-03-12')$q$);
+SELECT pg_temp.refuses_at('W2c then nothing more from the payment',
+  $q$SELECT pg_temp.wapply(pg_temp.w('66'), NULL, pg_temp.w('12'), 1, DATE '2026-03-12')$q$,
+  '23514', 'R-06 cap');
+SELECT pg_temp.refuses_at('W2d nor from the credit',
+  $q$SELECT pg_temp.wrefund(pg_temp.w('6f'), NULL, pg_temp.w('73'), 1, DATE '2026-03-13')$q$,
+  '23514', 'R-06 cap');
+-- P2: the credit already refunded in full; the take-back falls on the payment
+-- (Kyle's K-10 refund cap: 60 paid, 20 refunded, 10 taken back: 30 left).
+SELECT pg_temp.wpay(pg_temp.w('67'), pg_temp.w('8f'), 60, DATE '2026-03-10');
+SELECT pg_temp.wcredit(pg_temp.w('74'), pg_temp.w('52'), pg_temp.w('67'), 20, DATE '2026-03-11');
+SELECT pg_temp.wrefund(pg_temp.w('68'), NULL, pg_temp.w('74'), 20, DATE '2026-03-12');
+SELECT pg_temp.post(pg_temp.w('68'), pg_temp.w('90'));
+SELECT pg_temp.wrow(pg_temp.w('91'), pg_temp.w('8f'), 10, DATE '2026-03-13');
+SELECT pg_temp.ok('W3 10 taken back after the credit paid out its 20: the payment reads 30, the credit 0',
+  (SELECT issued = 20 AND refunded = 20 AND remaining = 0 FROM public.customer_credit_position_as_of(pg_temp.w('74'), DATE '2026-12-31', clock_timestamp()))
+  AND (SELECT received = 50 AND credited = 20 AND remaining = 30 FROM public.payment_position_as_of(pg_temp.w('67'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.refuses_at('W3a a refund of 31 from the payment is more than it holds',
+  $q$SELECT pg_temp.wrefund(pg_temp.w('69'), pg_temp.w('67'), NULL, 31, DATE '2026-03-14')$q$,
+  '23514', 'R-06 cap');
+SELECT pg_temp.admits('W3b a refund of 30 is not',
+  $q$SELECT pg_temp.wrefund(pg_temp.w('69'), pg_temp.w('67'), NULL, 30, DATE '2026-03-14')$q$);
+SELECT pg_temp.ok('W3c and nothing is left on either',
+  (SELECT remaining = 0 FROM public.customer_credit_position_as_of(pg_temp.w('74'), DATE '2026-12-31', clock_timestamp()))
+  AND (SELECT remaining = 0 FROM public.payment_position_as_of(pg_temp.w('67'), DATE '2026-12-31', clock_timestamp())));
+-- A take-back recorded before the credit is the payment's: the credit was
+-- sized after it (Fable B1).
+SELECT pg_temp.wpay(pg_temp.w('6a'), pg_temp.w('92'), 100, DATE '2026-03-10');
+SELECT pg_temp.wrow(pg_temp.w('93'), pg_temp.w('92'), 30, DATE '2026-03-11');
+SELECT pg_temp.wcredit(pg_temp.w('75'), pg_temp.w('53'), pg_temp.w('6a'), 70, DATE '2026-03-12');
+SELECT pg_temp.ok('W4 a credit of the 70 left after 30 was taken back holds 70',
+  (SELECT issued = 70 AND remaining = 70 FROM public.customer_credit_position_as_of(pg_temp.w('75'), DATE '2026-12-31', clock_timestamp()))
+  AND (SELECT received = 70 AND credited = 70 AND remaining = 0 FROM public.payment_position_as_of(pg_temp.w('6a'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.admits('W4a and refunds it',
+  $q$SELECT pg_temp.wrefund(pg_temp.w('6b'), NULL, pg_temp.w('75'), 70, DATE '2026-03-13')$q$);
+
+-- B3 (Fable B2, Codex B2): a give-back under a payment is refused while its
+-- overpayment credit is escheated.
+SELECT pg_temp.wpay(pg_temp.w('6c'), pg_temp.w('94'), 60, DATE '2026-03-10');
+SELECT pg_temp.wcredit(pg_temp.w('76'), pg_temp.w('54'), pg_temp.w('6c'), 60, DATE '2026-03-11');
+SELECT pg_temp.wrow(pg_temp.w('95'), pg_temp.w('94'), 20, DATE '2026-03-12');
+SELECT pg_temp.admits('W5 control: the credit, 40 after 20 taken back, remits its 40 and is escheated',
+  $q$SELECT pg_temp.wescheat(pg_temp.w('76'), pg_temp.w('e2'), 40)$q$);
+SELECT pg_temp.refuses_at('W5a the 20 is not given back under the payment onto the escheated credit',
+  $q$SELECT pg_temp.wrow(pg_temp.w('96'), pg_temp.w('95'), -20, DATE '2026-03-13')$q$,
+  '23001', 'escheated');
+
+-- B4 (Codex B3): a refund of an escheated credit comes back after its
+-- payment was taken back. The reissue carries what is left on the credit,
+-- at most the refund; nothing positive stays on it.
+SELECT pg_temp.wpay(pg_temp.w('6d'), pg_temp.w('97'), 100, DATE '2026-03-10');
+SELECT pg_temp.wcredit(pg_temp.w('77'), pg_temp.w('55'), pg_temp.w('6d'), 100, DATE '2026-03-11');
+SELECT pg_temp.wrefund(pg_temp.w('6e'), NULL, pg_temp.w('77'), 30, DATE '2026-03-12');
+SELECT pg_temp.post(pg_temp.w('6e'), pg_temp.w('98'));
+SELECT pg_temp.wescheat(pg_temp.w('77'), pg_temp.w('e3'), 70);
+SELECT pg_temp.wrow(pg_temp.w('99'), pg_temp.w('97'), 10, DATE '2026-03-13');
+SELECT pg_temp.wrow(pg_temp.w('9a'), pg_temp.w('98'), -30, DATE '2026-03-14', 'nsf');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = pg_temp.w('9a') WHERE id = pg_temp.w('6e');
+SELECT pg_temp.ok('W6 10 of the payment bounced, then the 30 came back: 20 is back on the escheated credit',
+  (SELECT remaining = 20 FROM public.customer_credit_position_as_of(pg_temp.w('77'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.refuses_at('W6a the reissue is not the 30 that came back',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 30, DATE '2026-03-14', pg_temp.w('6e'))$q$,
+  '23514', 'what is left');
+SELECT pg_temp.admits('W6b it is the 20 left',
+  $q$INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES (pg_temp.w('78'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 20, DATE '2026-03-14', pg_temp.w('6e'))$q$);
+SELECT pg_temp.settles('W6c and the escheated credit is settled', true);
+SELECT pg_temp.ok('W6d nothing on the escheated credit; 20 on the reissue',
+  (SELECT remaining = 0 FROM public.customer_credit_position_as_of(pg_temp.w('77'), DATE '2026-12-31', clock_timestamp()))
+  AND (SELECT issued = 20 AND remaining = 20 FROM public.customer_credit_position_as_of(pg_temp.w('78'), DATE '2026-12-31', clock_timestamp())));
+-- The payment bounced in full: the returned refund offsets money that never
+-- arrived. Nothing is carried, and the customer owes the 70 remitted (K-10).
+SELECT pg_temp.wpay(pg_temp.w('70'), pg_temp.w('9b'), 100, DATE '2026-03-10');
+SELECT pg_temp.wcredit(pg_temp.w('79'), pg_temp.w('56'), pg_temp.w('70'), 100, DATE '2026-03-11');
+SELECT pg_temp.wrefund(pg_temp.w('5a'), NULL, pg_temp.w('79'), 30, DATE '2026-03-12');
+SELECT pg_temp.post(pg_temp.w('5a'), pg_temp.w('9c'));
+SELECT pg_temp.wescheat(pg_temp.w('79'), pg_temp.w('e4'), 70);
+SELECT pg_temp.wrow(pg_temp.w('9d'), pg_temp.w('9b'), 100, DATE '2026-03-13', 'nsf');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-13', status_cause_id = pg_temp.w('9d') WHERE id = pg_temp.w('70');
+SELECT pg_temp.wrow(pg_temp.w('9e'), pg_temp.w('9c'), -30, DATE '2026-03-14', 'nsf');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = pg_temp.w('9e') WHERE id = pg_temp.w('5a');
+SELECT pg_temp.settles('W7 the payment bounced in full, then the refund came back: settled with nothing to carry', true);
+SELECT pg_temp.ok('W7a the customer owes the 70 remitted from money that never arrived',
+  (SELECT issued = 0 AND refunded = 0 AND given_up = 70 AND remaining = -70 FROM public.customer_credit_position_as_of(pg_temp.w('79'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.refuses_at('W7b and no reissue carries money that is not there',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 30, DATE '2026-03-14', pg_temp.w('5a'))$q$,
+  '23514', 'what is left');
+
+-- S1 (Opus S1): a reissue is dated on or after the row by which its refund came back.
+SELECT pg_temp.wgood(pg_temp.w('7a'), pg_temp.w('a1'), 100, DATE '2026-03-10');
+SELECT pg_temp.wrefund(pg_temp.w('5b'), NULL, pg_temp.w('7a'), 30, DATE '2026-03-20');
+SELECT pg_temp.post(pg_temp.w('5b'), pg_temp.w('a2'));
+SELECT pg_temp.wescheat(pg_temp.w('7a'), pg_temp.w('e5'), 70);
+SELECT pg_temp.wrow(pg_temp.w('a3'), pg_temp.w('a2'), -30, DATE '2026-03-25', 'nsf');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-25', status_cause_id = pg_temp.w('a3') WHERE id = pg_temp.w('5b');
+SELECT pg_temp.refuses_at('W8 a reissue dated before the refund came back',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 30, DATE '2026-03-21', pg_temp.w('5b'))$q$,
+  '23514', 'on or after');
+SELECT pg_temp.admits('W8a dated the day it came back',
+  $q$INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES (pg_temp.w('7b'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 30, DATE '2026-03-25', pg_temp.w('5b'))$q$);
+SELECT pg_temp.settles('W8b settled', true);
+-- Codex S2: a refund_reissue credit posts no credit_issued row (its own case).
+SELECT pg_temp.refuses_at('W9 control: no credit_issued row for a reissue',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-25', 'credit_issued', 'x', -30, 'customer_credit', pg_temp.w('7b'))$q$,
+  '23514', 'posts no ledger row');
+RESET ROLE;
+
+-- B5 (Codex B4): a status time is never in the future or infinite, for any
+-- role (a history load chooses only times already reached).
+SELECT pg_temp.wpay(pg_temp.w('5c'), pg_temp.w('a4'), 10, DATE '2026-03-10');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method) VALUES
+  (pg_temp.w('5d'), '00000000-0000-4000-8000-0000000023a1', 'B23-W5d', '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-10', 10, 'check');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  (pg_temp.w('a5'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-10', 'payment', 'W5d', -10, 'payment', pg_temp.w('5d'));
+SELECT pg_temp.refuses_at('W10 a superuser''s move stamped in the future',
+  $q$UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.w('a5'), effective_date = DATE '2026-03-10', effective_date_method = 'other', status_recorded_at = clock_timestamp() + interval '1 day' WHERE id = pg_temp.w('5d')$q$,
+  '23514', 'a time already reached');
+SELECT pg_temp.refuses_at('W10a or at infinity',
+  $q$UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.w('a5'), effective_date = DATE '2026-03-10', effective_date_method = 'other', status_recorded_at = 'infinity' WHERE id = pg_temp.w('5d')$q$,
+  '23514', 'a time already reached');
+SELECT pg_temp.refuses_at('W10b nor moved there later, with the status unchanged',
+  $q$UPDATE public.payments SET status_recorded_at = clock_timestamp() + interval '1 day' WHERE id = pg_temp.w('5c')$q$,
+  '23514', 'a time already reached');
+SELECT pg_temp.refuses_at('W10c nor born there',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, status, status_recorded_at) VALUES ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'goodwill', 5, DATE '2026-03-10', 'active', clock_timestamp() + interval '1 day')$q$,
+  '23514', 'a time already reached');
+SELECT pg_temp.admits('W10d control: a time already reached is kept',
+  $q$UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.w('a5'), effective_date = DATE '2026-03-10', effective_date_method = 'other', status_recorded_at = now() - interval '1 hour' WHERE id = pg_temp.w('5d')$q$);
 
 -- ============================================================== I invariants
 -- r2 (Codex S2): each invariant is called, not folded into a constant.
