@@ -47,7 +47,7 @@ Reach the C# core build. Ryan's gate, in order:
   - **S4:** tests and mutations. **S5:** comments (R17's last sentence).
   - Time `overpayment_split` on a realistic tree.
 - [ ] **Then:** freeze r6 and launch the three reviewers as in r5 (commands below), then merge.
-- [ ] **Review -25 and -26** after -23 settles.
+- [ ] **Review -25 and -26** after -23 settles. Both are drafted and tested, not frozen; they mirror after -23, -25 first. At -26's mirror, update APPLICATION-CONTRACTS: AC-10 still lists `dunning_stage` and `late_fee_*` as writable.
 - [ ] **Tell Kyle (not blocking):** ui-concepts still lists `refunded`; `do_not_disconnect` must become a protective enrollment; the four wave-3 law findings.
 - [ ] **Carried over:**
   - the reply to Kyle on D-2's location;

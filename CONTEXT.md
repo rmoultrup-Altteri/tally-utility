@@ -18,29 +18,29 @@ The target buyers are Utility Directors, CFOs, IT Directors, Billing Analysts, a
 
 ---
 
-## Current State (updated 2026-09-23)
+## How the Work Is Organised
 
-Domain research, feature extraction and application planning are done. The project is **hardening the database schema before any application code is written.** The schema is the only enforcement artifact; there is no billing engine, API or production UI yet.
+The project is **hardening the database schema before any application code is written.** The schema is the only enforcement artifact; there is no billing engine, API or production UI yet. For where the work stands (the current patch, the open questions, the parity count) read `HANDOFF.md`. This file deliberately holds no status, so it doesn't go stale.
 
-**The schema.** `sql/tu.sql` is the single canonical schema: the v5.2.1 baseline plus **22 landed patches** (v5.4.0-00 → v5.4.2-12), 23,452 lines, 86 tables, plain PostgreSQL 16 (Supabase removed 2026-08-18). It is **append-only**: every change is a `sql/v5.4.x-NN-*.sql` patch, reviewed, then its body mirrored onto the end of tu.sql. What the patches delivered, in outline:
+**The schema.** `sql/tu.sql` is the single canonical schema: the v5.2.1 baseline plus the landed patches, plain PostgreSQL 16 (Supabase removed 2026-08-18). It is **append-only**: every change is a `sql/v5.4.x-NN-*.sql` patch, tested, reviewed, then its body mirrored onto the end of tu.sql. The current patch list and object counts are at the top of `sql/DEPLOY-VERIFICATION.md`. What the patches deliver, in outline:
 - a restricted app role (`tally_app`) with forced row-level security per tenant;
 - bills that cannot be edited once issued, an append-only ledger, no hard deletes;
 - two dates on every rate and rule (when it applies, when it was recorded) and a per-invoice record of the exact inputs it was calculated from, so a rebill reproduces the original;
-- read and bill exception queues, account lifecycle and deposits, the Texas Pipeline Safety Fee, tax-exemption certificates;
-- `public.assert_tenant_isolation_invariants()`, which every patch must now call at its end (contract AC-32);
-- an append-only meter test history with database-derived results, the "last test" function backbilling will use, and a platform-set go-live `cutover_date` per tenant (v5.4.2-12, contract AC-33).
-
-**In flight:** A-2 — the 16 TAC §7.45 limits on backbilling — is re-drafted next as `sql/v5.4.2-13-backbilling-caps.sql` to Kyle's rulings R-32…R-39 (its first draft was reviewed once as -12). See `HANDOFF.md` for the live queue.
+- law and tariff rows under the rule-terms convention, keyed by jurisdiction, so a second state is new rows and not a redesign;
+- `public.assert_tenant_isolation_invariants()` and the other `assert_*_invariants()` functions, which CI runs.
 
 **What exists in this repo:**
-- `sql/tu.sql` + the patch files — the schema; `sql/DEPLOY-VERIFICATION.md` — per-patch verification record and object counts
+- `sql/tu.sql` + the patch files — the schema; `sql/DEPLOY-VERIFICATION.md` — per-patch verification record and object counts; `sql/PATCH-LESSONS.md` — what patch work has learned the hard way
 - `postgres/` — Docker build of tu.sql (container `tally-pg`, no host port; connect with `docker exec tally-pg psql -U tally -d tally`)
-- `tests/` — per-patch test batteries and review artefacts (from -09 on; earlier batteries were lost), and the verification loop
-- `application/APPLICATION-CONTRACTS.md` — 33 obligations the schema places on future application code (AC-1 … AC-33)
+- `tests/` — per-patch batteries, races, mutations and review artefacts (from -09 on; earlier batteries were lost), and `tests/ci.sh`
+- `application/APPLICATION-CONTRACTS.md` — the obligations the schema places on future application code (AC-n)
 - `application/DECISION-LOG.md` — permanent ledger of schema decisions with rationale and failed approaches
+- `application/invariant-parity-measurement-2026-10-13.md` — the live per-invariant parity record
+- `application/wave*-build-*/` — per-wave source inventories, designs and round plans; `application/roadmap/` — the go-live roadmap data
 - `application/database/schema.sql` — a **Claude-authored** reconstruction of the May 2026 tables (60 of them), not a real dump; column reference only, and stale
-- `ui-concepts/` — a Next.js UI prototype, 15 screens on invented fixture data, nothing writes; parked pending Ryan's direction call
-- `HANDOFF.md` (rewritten each session) and `CHANGELOG.md` (appended each session)
+- `ui-concepts/` — a Next.js UI prototype on invented fixture data; nothing writes
+- `HANDOFF.md` (rewritten each session), `CHANGELOG.md` (the newest 10 sessions) and `changelog-archive/` (older sessions by month)
+- `CLAUDE.md` — how Claude sessions start, read the big files and wrap up
 - `INVESTIGATION-BRIEF.md` — historical (2026-08-13), superseded
 
 **What does not exist yet:** application code, test scenarios, a permission/role model, an identity provider, a hosting design.
