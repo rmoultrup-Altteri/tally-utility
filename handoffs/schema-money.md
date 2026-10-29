@@ -16,7 +16,7 @@ Close this stream's half of the open invariants, in order: -23 → -24 → -25 �
 2. Check the frozen md5s match `tests/v5.4.2-23/review/review-brief-23-r6.md` (the brief's own md5 is in `review-brief-23-r6.md5`).
 3. Launch the three reviewers, independently, in the background:
    - **Opus and Fable:** Agent tool, `model: opus` / `model: fable`, told to read and follow `tests/v5.4.2-23/review/review-brief-23-r6.md` and write `opus-r6.md` / `fable-r6.md`. Their final reports cut off around 4 KB, so ask for several SendMessages under 3 KB each (memory).
-   - **Codex:** `codex exec -s read-only -o tests/v5.4.2-23/review/codex-r6-final.txt "$(cat tests/v5.4.2-23/review/codex-prompt-r6.md)" < /dev/null`. It works only under nvm v24.15.0 (prefix PATH; memory "codex reviewer node path"). If it is rate-limited, give Ryan the reset time and let him wait or waive.
+   - **Codex:** `codex exec -s workspace-write -o tests/v5.4.2-23/review/codex-r6-final.txt "$(cat tests/v5.4.2-23/review/codex-prompt-r6.md)" < /dev/null`. It works only under nvm v24.15.0 (prefix PATH; memory "codex reviewer node path"). If it is rate-limited, give Ryan the reset time and let him wait or waive. Not `-s read-only`: it cannot write its review or probes (10-29).
    - Then run Codex's probes yourself on a fresh clone with the frozen r6 applied.
 4. Merge the three into `application/wave2-build-2026-10-15/v5.4.2-23-r7-plan.md`, or, if all three say ready, ask Ryan about the mirror. Before mirroring, follow the board's pre-mirror check.
 

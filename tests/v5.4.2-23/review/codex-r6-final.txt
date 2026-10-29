@@ -1,0 +1,8 @@
+Verdict: **not yet**.
+
+- **B1 — predicted:** A give-back leaves a reissue showing money that the family pool cap refuses.
+- **B2 — predicted:** The 1,000th reissue loses its payment lineage and can refund after the payment fully returns.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-23/review/codex-r6.md)
+
+All six MD5s match. Nine rollback-only probes supplied; no database execution performed.
