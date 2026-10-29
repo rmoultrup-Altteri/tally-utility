@@ -4,7 +4,7 @@ The TallyUtility database schema (PostgreSQL 16): `sql/tu.sql` plus numbered pat
 
 ## The goal
 
-The C# core build starts when four steps are done, in order (Ryan, 2026-10-13; no date):
+The C# core build starts when four steps are done, in order (Ryan, 2026-10-13; no date). Since 2026-10-29, step 2 runs beside step 1; step 3 waits for both:
 1. schema parity with the invariants CI-001…CI-135 (the live grades: `application/invariant-parity-measurement-2026-10-13.md`, re-graded only after a mirror);
 2. scenarios and a test strategy;
 3. a phase plan;

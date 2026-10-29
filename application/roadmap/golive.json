@@ -1,26 +1,26 @@
 [
  {
   "scenario": "low",
-  "ready_to_onboard": "2027-04-28",
-  "weeks_to_ready": 27,
-  "go_live": "2027-09-01",
+  "ready_to_onboard": "2027-04-24",
+  "weeks_to_ready": 25,
+  "go_live": "2027-08-28",
   "onboarding_weeks": 18,
-  "critical_path": "P1 > P2 > P3 > P4 > P5 > P7 > P8"
+  "critical_path": "P1 > P4 > P5 > P7 > P8"
  },
  {
   "scenario": "likely",
-  "ready_to_onboard": "2027-06-16",
-  "weeks_to_ready": 34,
-  "go_live": "2027-12-15",
+  "ready_to_onboard": "2027-06-09",
+  "weeks_to_ready": 32,
+  "go_live": "2027-12-08",
   "onboarding_weeks": 26,
-  "critical_path": "P1 > P2 > P3 > P4 > P5 > P6 > P8"
+  "critical_path": "P1 > P4 > P5 > P6 > P8"
  },
  {
   "scenario": "high",
-  "ready_to_onboard": "2027-09-15",
-  "weeks_to_ready": 47,
-  "go_live": "2028-06-07",
+  "ready_to_onboard": "2027-09-08",
+  "weeks_to_ready": 45,
+  "go_live": "2028-05-31",
   "onboarding_weeks": 38,
-  "critical_path": "P1 > P2 > P3 > P5 > P6 > P8"
+  "critical_path": "P1 > P3 > P5 > P6 > P8"
  }
 ]

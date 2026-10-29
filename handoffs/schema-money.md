@@ -4,7 +4,7 @@ Folder: `~/code/tally-utility`. If your working directory is not this folder, st
 
 **Generated**: 2026-10-29
 **Branch**: `main`, pushed.
-**Status**: -23 round 6 waits on Ryan's go. The concurrency plan is half-agreed (see "Plan decisions so far"); the workstream decision is next and is asked from this folder.
+**Status**: -23 round 6 waits on Ryan's go. The concurrency plan is agreed and set up (see "Plan decisions so far").
 
 ## Goal
 
@@ -12,14 +12,14 @@ Close this stream's half of the open invariants, in order: -23 → -24 → -25 �
 
 ## Plan decisions so far (2026-10-29, Ryan)
 
-- The schema estimate is 7 / 12 / 20½ weeks from 10-14 (was 3 / 5 / 8). The count of what's left: about 15 patches after -23, 24 / 47 / 91 working days in one stream. `phases.json` is not yet updated; that waits for the workstream decision.
+- The schema estimate is 7 / 12 / 20½ weeks from 10-14 (was 3 / 5 / 8). The count of what's left: about 15 patches after -23, 24 / 47 / 91 working days in one stream. `phases.json` carries the two-stream figure, 5.5 / 9 / 15 weeks from 10-14.
 - The schema runs as two streams (this one and rates), about 24 and 23 likely days, then the two all-table patches at the end. Parity about mid-December instead of late January.
 - Per-stream handoffs, a shared board (`HANDOFF.md`), one clone per stream identified by its folder name, memory linked, a CI lock. Clones, not worktrees (Ryan: "clones seem easier").
+- The third session slot goes to scenarios (P2) now; Ryan relaxed the gate's order between steps 1 and 2. Kyle has room to check worked bills. The platform (P4) starts at schema parity. Ready to onboard, likely 2027-06-09 (04-24 to 09-08).
 - The what-if runs are in this session's scratchpad. To repeat one, copy `tools/roadmap/schedule.py` and `application/roadmap/phases.json` into a scratch tree (`<scratch>/tools/roadmap/`, `<scratch>/application/roadmap/`) and edit the copy. When P2 stops waiting on P1, P3 must depend on **both** P1 and P2 finishing (the first what-ifs forgot this).
 
 ## Not Yet Done
 
-- [ ] **The workstream decision** (next, one decision per message): with two schema streams, Ryan's third session slot goes to scenarios (P2) or the platform (P4). That needs the gate question too: may scenarios start before the schema is at parity? Steps 3 and 4 stay in order. Then update `phases.json` (P1's weeks [7, 12, 20.5] and basis; `depends`; `as_of` to the day), run the scheduler, refresh the dashboard, record in DECISION-LOG, and write `handoffs/<third>.md` for `~/code/tally-utility-scenarios`.
 - [ ] **-23 r6** (on Ryan's go): follow `application/wave2-build-2026-10-15/v5.4.2-23-r6-plan.md`.
   - **B1:** recorded-order legs under a payment's posting entry. **B2:** the shortfall's side decided at read time. **B3:** lineage order within one instant.
   - **B4:** `status_recorded_at` write-once. **B5:** a reissue stays in its payment's lineage.
@@ -50,7 +50,7 @@ Close this stream's half of the open invariants, in order: -23 → -24 → -25 �
 | Decision | Rationale |
 |---|---|
 | -23: K-10 decides B2 as built; a cap on the payment and its credit together; reissue = `least(refund, what is left)` | See DECISION-LOG 2026-10-28 |
-| Two schema streams, per-stream handoffs, clones | See DECISION-LOG 2026-10-29 |
+| Two schema streams, per-stream handoffs, clones; scenarios beside the schema | See DECISION-LOG 2026-10-29 |
 
 ## Current State
 

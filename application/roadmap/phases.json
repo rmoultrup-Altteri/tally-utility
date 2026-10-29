@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-18",
+  "as_of": "2026-10-29",
   "weeks_note": "Durations are working weeks from the phase's start: low / likely / high. Dependencies: 'finish' = starts when that phase finishes; 'start' = starts lag_weeks after that phase starts.",
   "phases": [
     {
@@ -41,9 +41,9 @@
       "actual_start": "2026-08-18",
       "remaining_from": "2026-10-14",
       "weeks": [
-        3,
-        5,
-        8
+        5.5,
+        9,
+        15
       ],
       "depends": [],
       "progress": {
@@ -52,7 +52,7 @@
         "unit": "invariants",
         "basis": "parity measurement, update 2026-10-16 (REP+PROT 54, REP 24; CI-036 N/A)"
       },
-      "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 and 2026-10-15 answers unblock tax, franchise fees, the PGA billing side and waves 4, 6 and 7. Wave 2: v5.4.2-22 (periods, close snapshot, GL mapping, aging) landed 2026-10-16. v5.4.2-23 (cash: reversals, positions, per-line application, overpayment credits) is through five review rounds; Kyle answered K-10 on 2026-10-21 (a refund is its own movement) and Ryan dropped the refunded/donated statuses and chose a new credit for a refund that comes back after escheat. Round 5 (2026-10-28) holds K-10's money exactly (all three reviewers agree); its five blockers are about how a payment and its overpayment credit show the money between them and about writers the split does not yet order; r6 is next. v5.4.2-24 (unmatched cash, agency pledges) follows. Wave 3 started while waiting: v5.4.2-25 (disputes: the dispute law and tariff rule family, the dispute record, the readers) and v5.4.2-26 (collections decisions: every notice, late fee, disconnect and referral cites a recorded decision; field verification with supervisor overrides) are drafted and tested; both go to review after -23 r3.",
+      "summary": "Close the 80 open invariants in seven waves. Wave 1 landed as v5.4.2-19. Kyle's 2026-10-14 and 2026-10-15 answers unblock tax, franchise fees, the PGA billing side and waves 4, 6 and 7. Wave 2: v5.4.2-22 (periods, close snapshot, GL mapping, aging) landed 2026-10-16. v5.4.2-23 (cash: reversals, positions, per-line application, overpayment credits) is through five review rounds; Kyle answered K-10 on 2026-10-21 (a refund is its own movement) and Ryan dropped the refunded/donated statuses and chose a new credit for a refund that comes back after escheat. Round 5 (2026-10-28) holds K-10's money exactly (all three reviewers agree); its five blockers are about how a payment and its overpayment credit show the money between them and about writers the split does not yet order; r6 is next. v5.4.2-24 (unmatched cash, agency pledges) follows. Wave 3 started while waiting: v5.4.2-25 (disputes: the dispute law and tariff rule family, the dispute record, the readers) and v5.4.2-26 (collections decisions: every notice, late fee, disconnect and referral cites a recorded decision; field verification with supervisor overrides) are drafted and tested; both go to review after -23 r3. From 2026-10-29 the schema runs as two parallel streams, each in its own clone: money and collections (-23 to -26, enrollments, notices, new rule types) and rates, meters and places (small fixes, tax and franchise, the gas-cost billing side, zones and factors, read ownership, dated history). The cross-tenant link fix and the version check on every record run last.",
       "parts": [
         {
           "name": "Wave 1: close holes in what is built",
@@ -95,7 +95,7 @@
           "status": "todo"
         }
       ],
-      "basis": "Measured: about one medium schema patch per working day including review; about 8 patches left plus decision waits."
+      "basis": "Counted 2026-10-29: the 56 open invariants grouped into about 15 patches after v5.4.2-23, 24 / 47 / 91 working days in one stream (per-patch days judged from -19 to -23: one a day for the early patches, 12 days and counting for -23). Run as two streams on separate tables (money; rates, meters, places), about half each, plus the two all-table patches last and a week of coordination: 5.5 / 9 / 15 weeks from 2026-10-14. In one stream it would be 7 / 12 / 20.5."
     },
     {
       "id": "P2",
@@ -109,12 +109,7 @@
         5,
         8
       ],
-      "depends": [
-        {
-          "phase": "P1",
-          "type": "finish"
-        }
-      ],
+      "depends": [],
       "summary": "Write the 200-390 scenarios the core must pass, have Kyle check the numbers, and choose how they become tests.",
       "parts": [
         {
@@ -154,7 +149,7 @@
           "status": "todo"
         }
       ],
-      "basis": "Claude drafts at schema pace; the limit is Kyle checking the dollar figures and the 200-390 scenario count."
+      "basis": "Claude drafts at schema pace; the limit is Kyle checking the dollar figures and the 200-390 scenario count. Runs beside P1 from 2026-10-29 (Ryan relaxed the gate's order between steps 1 and 2): families already at parity first; cash, disputes and collections after -23, -25 and -26 mirror; the coverage audit last, once P1 is done."
     },
     {
       "id": "P3",
@@ -169,6 +164,10 @@
         2
       ],
       "depends": [
+        {
+          "phase": "P1",
+          "type": "finish"
+        },
         {
           "phase": "P2",
           "type": "finish"
@@ -201,16 +200,15 @@
       ],
       "depends": [
         {
-          "phase": "P3",
-          "type": "start",
-          "lag_weeks": 0
+          "phase": "P1",
+          "type": "finish"
         }
       ],
       "summary": "AWS environments, infrastructure as code, CI/CD, staff login, the .NET solution, and database access that sets the tenant on every connection.",
       "parts": [
         {
           "name": "Login provider chosen",
-          "status": "todo"
+          "status": "done"
         },
         {
           "name": "Hosting and environments (dev, test, prod)",
@@ -229,7 +227,7 @@
           "status": "todo"
         }
       ],
-      "basis": "Judgment at AI pace; depends on the login and hosting decisions."
+      "basis": "Judgment at AI pace; depends on the login and hosting decisions. Starts when the schema reaches parity and frees two session slots (Ryan supervises about three at once)."
     },
     {
       "id": "P5",

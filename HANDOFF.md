@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `~/code/tally-utility` | schema: money and collections | `handoffs/schema-money.md` | payments, credits, the ledger, invoices and their applications, deposits, disputes, collections and dunning, `service_orders`, program enrollments, notices and the communication log |
 | `~/code/tally-utility-rates` | schema: rates, meters, places | `handoffs/schema-rates.md` | rate schedules, items and versions, riders, tax and franchise rules, gas cost and PGA, places and jurisdictions, zones and factor tables, meters, `meter_readings`, `meter_deployments`, `service_locations`, backbilling rules |
-| `~/code/tally-utility-scenarios` | not started: scenarios (P2) or platform (P4), per the workstream decision | (none yet) | no schema files |
+| `~/code/tally-utility-scenarios` | scenarios and test strategy (P2), beside the schema (gate relaxed 2026-10-29) | `handoffs/scenarios.md` | no schema files; scenario docs (where they live is its first question) |
 
 A table not listed belongs to whichever stream touches it first; add it here when you do. A patch that needs another stream's table leaves a note below rather than editing it.
 
@@ -46,6 +46,10 @@ A patch joins the queue when it is frozen for review. Before mirroring, re-run i
 ## After both schema streams finish
 
 Two patches touch nearly every table and run last, alone: the cross-tenant link fix (CI-116, 267 single-column foreign keys) and Kyle's version check on every edited record (K-01). Then the final parity re-grade.
+
+## When the schema reaches parity
+
+Two session slots free up. The platform work (P4: AWS environments, CI/CD, the .NET solution, tenant-scoped data access; login is Cognito, ruled 2026-10-14) starts then, in a stream of its own (DECISION-LOG 2026-10-29).
 
 ## Unassigned
 
