@@ -2,7 +2,43 @@
 
 A permanent, cumulative ledger of work sessions on the TallyUtility (tally-utility) repo. Newest entries on top. Never overwrite existing entries.
 
-This file keeps the newest 10 sessions. Older entries are in `changelog-archive/YYYY-MM.md` by the month of their date, unchanged; grep there for history. At wrap-up, add the new entry below this header and move the oldest entry here into its month's archive file (newest on top there too).
+This file keeps the newest 10 sessions. Older entries are in `changelog-archive/YYYY-MM.md` by the month of their date, unchanged; grep there for history. At wrap-up, add the new entry below this header. Several streams now write here (HANDOFF.md, the board): only the session that mirrors a patch moves the oldest entries into their month's archive file (newest on top there too), so 10 stay live after it.
+
+---
+
+## 2026-10-29 — parallel streams set up (board, per-stream handoffs, clones, CI lock); scenarios run beside the schema; -23 r6 built and frozen
+
+**What was done:**
+- **The schema estimate, re-counted.** The 56 open invariants map to about 15 patches after -23: 24 / 47 / 91 working days in one stream. Ryan accepted it: 7 / 12 / 20½ weeks from 10-14, where the old estimate was 3 / 5 / 8.
+- **Three decisions on concurrency** (DECISION-LOG 2026-10-29):
+  - two schema streams on separate tables (money; rates, meters, places);
+  - one clone per stream, each with its own handoff file, and `HANDOFF.md` becomes a board of what crosses streams;
+  - scenarios run beside the schema (the gate relaxed between steps 1 and 2; Kyle has room), and the platform starts at schema parity.
+- **The roadmap:** ready to onboard likely 2027-06-09 (04-24 to 09-08). `phases.json`, `decisions.json` and the dashboard are updated.
+- **Setup** (`7c18a57`, `bb4b83b`):
+  - clones `~/code/tally-utility-rates` and `-scenarios`, with memory linked through the shared ccs projects folder;
+  - handoffs `schema-money`, `schema-rates`, `scenarios`;
+  - the board;
+  - `CLAUDE.md` (session start by folder, standing rules, wrap-up) and `CONTEXT.md`;
+  - `tests/ci.sh` takes a lock across clones, `/tmp/tally-ci.lock`, and falls back to the main checkout's law venv.
+- **-23 r6** (`00b39b1`), every item of the r6 plan:
+  - take-backs ordered against the draws (`check_cash_order`);
+  - the shortfall placed at the reading (`overpayment_shares`, `overpayment_absorbed_as_of`);
+  - the tree's order within one instant;
+  - status times change only with their status, and history moves come after their lineage (`cash_lineage_recorded`);
+  - reissues stay in their payment's lineage (`overpayment_root`, `overpayment_family`);
+  - S1 to S3 and S5 (R17 corrected; R18 to R21).
+  - Battery 344, races 38, mutations 210/210, `ci.sh` 49/49 with -25 and -26. The new checks fail against r5 (`red-r6-against-r5.txt`). Frozen, with the brief, in `tests/v5.4.2-23/review/`.
+
+**Decisions made:** DECISION-LOG 2026-10-29 (three entries: the estimate and the streams; the gate; -23 r6's drafting calls).
+
+**Failed approaches:**
+- **Placing a reissue's share of a take-back when a position is read.** Its own draw shrank its share, so the cap never applied (Y7j). The fix records the shares when the take-back is.
+- **Caps that read the covered positions.** The cover works both ways, so one side could draw the other's money.
+- **One-instant fixtures for shapes that need distinct instants.** Within one transaction the shares read that transaction's draws as already made (R17); those shapes are now history loads.
+- **A payment lock on a reissue's void.** Nothing observable needed it, so it was removed.
+
+**Next:** launch the three reviewers on the frozen r6 (`review-brief-23-r6.md`, `codex-prompt-r6.md`). Ryan's call this session: in the next one.
 
 ---
 
