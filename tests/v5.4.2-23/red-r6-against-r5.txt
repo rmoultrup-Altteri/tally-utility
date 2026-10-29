@@ -1,0 +1,31 @@
+# battery-23 (r6 tests) against the frozen r5 patch, 2026-10-29: every check reporting (psql ON_ERROR_ROLLBACK, each statement in a savepoint).
+# Controls that pass on r5 too (not listed): Y1 Y1b Y4b Y4c Y5b Y5c Y6b Y6d Y7a Y7d Y8b 
+# Follow-on lines: a check after a refused setup statement may report the row that statement did not write.
+# The agree() checks (Y0-Y0e, Y1c, Y2a, Y3a, Y4a, Y4d, Y7g, Y7h, Y7j) read r6's overpayment_family and payment_draws_as_of: on r5 each stops at "function does not exist" after its payment side (Y1c and Y2a's payment sides fail on r5 before that, as listed).
+FAIL Y1a after it the payment reads 30 and the credit 0, not 40 and -10
+FAIL Y1c Opus P1 (payment): it reads 40.00, and a refund of 40.00 got 23514
+FAIL Y2 Opus P2: the payment reads 10 and the credit 0, not 30 and -20
+FAIL Y2a Opus P2 (payment): it reads 30.00, and a refund of 30.00 got 23514
+FAIL Y3 Codex B2: the credit reads 10 and the payment 0, not 20 and -10
+FAIL Y4 the give-back's id sorts first: the credit still holds 100, the payment 0
+FAIL Y5 a take-back recorded before the credit's refund, already counted (Fable P7b): accepted
+FAIL Y5a nor before the credit itself (Fable RR-B): accepted
+FAIL Y6 the owner moves a returned refund's status time, its status unchanged (Codex B4): accepted
+FAIL Y6a a history move to nsf chosen before its own nsf row: accepted
+FAIL Y6c a history move to escheated chosen before its remittance: accepted
+FAIL Y7 the bounce waits while the reissue has a refund waiting to go out: accepted
+FAIL Y7b the reissue's money went with the payment: the reissue, the credit and the payment read 0
+FAIL Y7c and the reissue pays out nothing of money that never arrived: accepted
+FAIL Y7e the reissue reads 0; the escheated credit owes the 70 remitted
+FAIL Y7f and the reissue pays out nothing: accepted
+FAIL Y7m nor does the move to nsf pass while the reissue has a refund waiting: accepted
+FAIL Y7i 50 taken back comes out of the credit and its reissue (credit first): credit 0, reissue 10, payment 40
+FAIL Y8 Opus P5: the 10 the payment carried is given back: refused with 23001 (account_ledger 00000000-0000-4000-8000-0000000030ab gives money back under payment 00000000-0000-4000-8000-00000000304a, whose overpayment credit 00000000-0000-4000-8000-00000000307
+FAIL Y8a the escheated credit reads 0, the payment its 50
+FAIL Y8c its correction only cancels the deficit, so it is admitted: refused with 23001 (account_ledger 00000000-0000-4000-8000-0000000030ae gives money back under payment 00000000-0000-4000-8000-00000000304b, whose overpayment credit 00000000-0000-4000-8000-0
+FAIL Y8d the credit reads 0
+FAIL Y9 a superuser's payment recorded tomorrow: accepted
+FAIL Y9a a refund of a credit recorded tomorrow (Opus P4): accepted
+FAIL Y9b a credit recorded at infinity: accepted
+FAIL Y9c an application recorded tomorrow: accepted
+FAIL Y9d a remittance recorded tomorrow: accepted

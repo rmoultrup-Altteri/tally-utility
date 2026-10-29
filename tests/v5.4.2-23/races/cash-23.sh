@@ -74,6 +74,19 @@
 #   CR22 A applies 40 of a 60 payment that holds a 20 overpayment credit and
 #        holds; B applies the credit's 20: waits on the payment's lock (a
 #        draw on the credit takes its payment's first), then is admitted.
+# r6 (Opus B2, Fable B1; Fable S1):
+#   CR23 A's transaction begins, B refunds the overpayment credit of A's
+#        payment and commits, then A takes 10 back under the payment's
+#        posting entry: refused for retry (40001: recorded before a draw on
+#        the credit already counted); the retry is admitted, and the split
+#        reads it after the refund (the take-back is the payment's).
+#   CR23b The same with B creating the overpayment credit (a draw on the
+#        payment).
+#   CR24 A returns a refund of an escheated overpayment credit, moves it to
+#        nsf, waits, then carries the money into a reissue; B gives money
+#        back under the credit's payment: B waits on the payment's lock (the
+#        move takes it first), no deadlock, A commits, and B is refused (it
+#        would put money back on the escheated credit).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -144,6 +157,26 @@ P22=00000000-0000-4000-8000-000000002547
 E22=00000000-0000-4000-8000-000000002548
 AP22=00000000-0000-4000-8000-000000002549
 K22=00000000-0000-4000-8000-00000000254a
+P23=00000000-0000-4000-8000-000000002550
+E23=00000000-0000-4000-8000-000000002551
+AP23=00000000-0000-4000-8000-000000002552
+K23=00000000-0000-4000-8000-000000002553
+R23=00000000-0000-4000-8000-000000002554
+E23R=00000000-0000-4000-8000-000000002555
+E23T=00000000-0000-4000-8000-000000002556
+P23B=00000000-0000-4000-8000-000000002557
+E23B=00000000-0000-4000-8000-000000002558
+AP23B=00000000-0000-4000-8000-000000002559
+K23B=00000000-0000-4000-8000-00000000255a
+P24=00000000-0000-4000-8000-000000002560
+E24=00000000-0000-4000-8000-000000002561
+AP24=00000000-0000-4000-8000-000000002562
+K24=00000000-0000-4000-8000-000000002563
+R24=00000000-0000-4000-8000-000000002564
+E24R=00000000-0000-4000-8000-000000002565
+EV24=00000000-0000-4000-8000-000000002566
+E24T=00000000-0000-4000-8000-000000002567
+E24N=00000000-0000-4000-8000-000000002568
 I4=00000000-0000-4000-8000-000000002404
 L41=00000000-0000-4000-8000-000000002441
 L42=00000000-0000-4000-8000-000000002442
@@ -210,7 +243,7 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
   $(pay "$P9" R23-P9 50), $(pay "$P9B" R23-P9B 50), $(pay "$P10" R23-P10 60), $(pay "$P11" R23-P11 40),
   $(pay "$P12" R23-P12 30), $(pay "$P13" R23-P13 40), $(pay "$P14" R23-P14 40), $(pay "$P15" R23-P15 20),
   $(pay "$P16" R23-P16 25), $(pay "$P17" R23-P17 30), $(pay "$P18" R23-P18 30), $(pay "$P18B" R23-P18B 30), $(pay "$P19" R23-P19 15), $(pay "$P20" R23-P20 40),
-  $(pay "$P21" R23-P21 50), $(pay "$P22" R23-P22 60);
+  $(pay "$P21" R23-P21 50), $(pay "$P22" R23-P22 60), $(pay "$P23" R23-P23 60), $(pay "$P23B" R23-P23B 60), $(pay "$P24" R23-P24 100);
 $(post "$P3" 00000000-0000-4000-8000-000000002483 70)
 $(post "$P4" 00000000-0000-4000-8000-000000002484 100)
 $(post "$P5" 00000000-0000-4000-8000-000000002485 100)
@@ -246,6 +279,24 @@ $(post "$P22" "$E22" 60)
 INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP22', '$T', '$C', '$P22', 20, '$OP');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
 VALUES ('$K22', '$T', '$C', 'overpayment', 20, DATE '2026-03-05', '$P22', '$AP22');
+$(post "$P23" "$E23" 60)
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP23', '$T', '$C', '$P23', 20, '$OP'), ('$AP23B', '$T', '$C', '$P23B', 60, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K23', '$T', '$C', 'overpayment', 20, DATE '2026-03-05', '$P23', '$AP23');
+$(post "$P23B" "$E23B" 60)
+$(post "$P24" "$E24" 100)
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP24', '$T', '$C', '$P24', 100, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K24', '$T', '$C', 'overpayment', 100, DATE '2026-03-05', '$P24', '$AP24');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id)
+VALUES ('$R24', '$T', 'R23-R24', '$C', DATE '2026-03-06', -30, 'refund', '$K24');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES ('$E24R', '$T', '$C', DATE '2026-03-06', 'refund', 'refund out', 30, 'payment', '$R24');
+UPDATE public.payments SET status = 'posted', status_cause_id = '$E24R', effective_date = DATE '2026-03-06', effective_date_method = 'other' WHERE id = '$R24';
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related) VALUES ('$EV24', '$T', '$K24', '$C', 'escheated_to_state', 70);
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '$EV24' WHERE id = '$K24';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES ('$E24T', '$T', '$C', DATE '2026-03-07', 'adjustment', 'taken back', 10, '$E24');
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
 VALUES ('$R11', '$T', 'R23-R11', '$C', DATE '2026-03-06', -40, 'refund', '$P11'),
        ('$R15', '$T', 'R23-R15', '$C', DATE '2026-03-06', -20, 'refund', '$P15');
@@ -597,5 +648,90 @@ two "UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-07', st
 verdict "CR21 a refund paid out again under its return while it moves to nsf: the row waits on the refund, then is refused (Opus B2)" 1 "a re-sent refund is a new refund"
 two "$(apply "$P22" "$L41" "$I4" 40)" "$(applyc "$K22" "$L42" "$I4" 20)"
 verdict "CR22 an overpayment credit applied while its payment is: the credit's draw waits on the payment, then is admitted (r5)" 0
+
+
+# CR23, CR23b: A's transaction begins before B's draw on the payment or its
+# credit, and A writes a row under the payment's posting entry after it.
+begun() {  # $1 tag, $2 A's statement (after its transaction began), $3 B's statements
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_a_begun$1';
+BEGIN;
+$AS_OP
+SELECT now();
+DO \$\$ BEGIN
+  LOOP
+    PERFORM pg_stat_clear_snapshot();
+    EXIT WHEN EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = 'race23_b_done$1');
+    PERFORM pg_sleep(0.1);
+  END LOOP;
+END \$\$;
+$2
+COMMIT;
+SQL
+APID=$!
+for _ in $(seq 1 100); do
+  [ "$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race23_a_begun$1'")" = "1" ] && break; sleep 0.1
+done
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$3
+COMMIT;
+SET application_name = 'race23_b_done$1';
+SELECT pg_sleep(2);
+SQL
+wait $APID; AST=$?
+}
+TAKE23="INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$E23T', '$T', '$C', DATE '2026-03-07', 'adjustment', 'taken back', 10, '$E23');"
+begun 23 "$TAKE23" "INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id) VALUES ('$R23', '$T', 'R23-R23', '$C', DATE '2026-03-06', -20, 'refund', '$K23');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('$E23R', '$T', '$C', DATE '2026-03-06', 'refund', 'refund out', 20, 'payment', '$R23');
+UPDATE public.payments SET status = 'posted', status_cause_id = '$E23R', effective_date = DATE '2026-03-06', effective_date_method = 'other' WHERE id = '$R23';"
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "a row under its payment's posting entry" "$A_OUT"; then echo "PASS CR23 a take-back begun before a refund of the payment's credit is refused for retry (Opus B2, Fable B1)"
+else echo "FAIL CR23: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$TAKE23
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS CR23a the retry is admitted"; else echo "FAIL CR23a: $OUT"; fail=1; fi
+expect "CR23b the split reads the retry after the refund: the payment 30, the credit 0 (not 40 and -10)" \
+  "$("${PSQL[@]}" -c "SELECT (SELECT remaining FROM public.payment_position_as_of('$P23', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$K23', DATE '2026-12-31', clock_timestamp()))")" "30.00 0.00"
+begun 23c "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-07', 'adjustment', 'taken back', 10, '$E23B');" \
+  "INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id) VALUES ('$K23B', '$T', '$C', 'overpayment', 60, DATE '2026-03-05', '$P23B', '$AP23B');"
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "a row under its posting entry" "$A_OUT"; then echo "PASS CR23c a take-back begun before the payment's overpayment credit was created is refused for retry (Fable RR-B)"
+else echo "FAIL CR23c: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
+
+# CR24 (Fable RR-D): the return, the move and the reissue in one transaction,
+# against a give-back under the credit's payment.
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_a';
+BEGIN;
+$AS_OP
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$E24N', '$T', '$C', DATE '2026-03-08', 'nsf', 'refund check returned', -30, '$E24R');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-08', status_cause_id = '$E24N' WHERE id = '$R24';
+SELECT pg_sleep(3);
+INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('$T', '$C', 'refund_reissue', 20, DATE '2026-03-08', '$R24');
+COMMIT;
+SQL
+APID=$!
+sleep 1
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_b';
+BEGIN;
+$AS_OP
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-08', 'adjustment', 'cleared after all', -10, '$E24T');
+COMMIT;
+SQL
+BPID=$!
+sleep 1
+WAITED=$(waiting)
+wait $APID; AST=$?
+wait $BPID; BST=$?
+OUT=$(cat "$B_OUT")
+if grep -q "40P01" "$A_OUT" "$B_OUT"; then echo "FAIL CR24: a deadlock: A: $(cat "$A_OUT") / B: $OUT"; fail=1
+else verdict "CR24 a give-back while a returned refund of the escheated credit is moved and reissued: it waits on the payment, no deadlock, then is refused (Fable S1)" 1 "nothing comes back to an escheated credit"
+fi
 
 exit $fail
