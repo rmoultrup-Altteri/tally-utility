@@ -20,7 +20,7 @@ The target buyers are Utility Directors, CFOs, IT Directors, Billing Analysts, a
 
 ## How the Work Is Organised
 
-The project is **hardening the database schema before any application code is written.** The schema is the only enforcement artifact; there is no billing engine, API or production UI yet. For where the work stands (the current patch, the open questions, the parity count) read `HANDOFF.md`. This file deliberately holds no status, so it doesn't go stale.
+The project is **hardening the database schema before any application code is written.** The schema is the only enforcement artifact; there is no billing engine, API or production UI yet. For where the work stands (the current patch, the open questions, the parity count) read the board (`HANDOFF.md`) and your stream's file in `handoffs/`. This file deliberately holds no status, so it doesn't go stale.
 
 **The schema.** `sql/tu.sql` is the single canonical schema: the v5.2.1 baseline plus the landed patches, plain PostgreSQL 16 (Supabase removed 2026-08-18). It is **append-only**: every change is a `sql/v5.4.x-NN-*.sql` patch, tested, reviewed, then its body mirrored onto the end of tu.sql. The current patch list and object counts are at the top of `sql/DEPLOY-VERIFICATION.md`. What the patches deliver, in outline:
 - a restricted app role (`tally_app`) with forced row-level security per tenant;
@@ -39,7 +39,7 @@ The project is **hardening the database schema before any application code is wr
 - `application/wave*-build-*/` — per-wave source inventories, designs and round plans; `application/roadmap/` — the go-live roadmap data
 - `application/database/schema.sql` — a **Claude-authored** reconstruction of the May 2026 tables (60 of them), not a real dump; column reference only, and stale
 - `ui-concepts/` — a Next.js UI prototype on invented fixture data; nothing writes
-- `HANDOFF.md` (rewritten each session), `CHANGELOG.md` (the newest 10 sessions) and `changelog-archive/` (older sessions by month)
+- `HANDOFF.md` (the board: streams, shared resources, patch numbers, the mirror queue), `handoffs/` (one handoff per stream, rewritten each session), `CHANGELOG.md` (the newest 10 sessions) and `changelog-archive/` (older sessions by month)
 - `CLAUDE.md` — how Claude sessions start, read the big files and wrap up
 - `INVESTIGATION-BRIEF.md` — historical (2026-08-13), superseded
 

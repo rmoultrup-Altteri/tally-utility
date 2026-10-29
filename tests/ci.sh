@@ -14,6 +14,24 @@ set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 export LAWC_PYTHON="${LAWC_PYTHON:-$ROOT/tools/law/.venv/bin/python}"
+if [ ! -x "$LAWC_PYTHON" ] && [ -x "$ROOT/../tally-utility/tools/law/.venv/bin/python" ]; then
+  # A stream's clone has no venv of its own: use the main checkout's.
+  LAWC_PYTHON="$ROOT/../tally-utility/tools/law/.venv/bin/python"
+fi
+
+# One run at a time across every clone (HANDOFF.md, the board): the runs share
+# tally-pg and the ci_* database names, and --build replaces the container.
+# A lock whose holder has died is taken over.
+LOCK="${TALLY_CI_LOCK:-/tmp/tally-ci.lock}"
+until mkdir "$LOCK" 2>/dev/null; do
+  holder=$(cat "$LOCK/pid" 2>/dev/null)
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then rm -rf "$LOCK"; continue; fi
+  [ -n "${said:-}" ] || { echo "waiting: ci.sh is running from $(cat "$LOCK/owner" 2>/dev/null)"; said=1; }
+  sleep 5
+done
+echo $$ > "$LOCK/pid"; echo "$ROOT" > "$LOCK/owner"
+trap 'rm -rf "$LOCK"' EXIT
+trap 'exit 130' INT TERM HUP
 
 # patch file : a table it creates (its marker); a '!' before the marker means a table the
 # patch DROPS (the patch is pending while that table still exists); a marker

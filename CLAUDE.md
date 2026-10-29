@@ -1,6 +1,6 @@
 # tally-utility — working notes for Claude sessions
 
-The TallyUtility database schema (PostgreSQL 16): `sql/tu.sql` plus numbered patches. What the product is: `CONTEXT.md`. Where the work stands right now: `HANDOFF.md`, and nowhere else.
+The TallyUtility database schema (PostgreSQL 16): `sql/tu.sql` plus numbered patches. What the product is: `CONTEXT.md`. Where the work stands right now: your stream's file in `handoffs/`, found through the board (`HANDOFF.md`), and nowhere else.
 
 ## The goal
 
@@ -12,9 +12,12 @@ The C# core build starts when four steps are done, in order (Ryan, 2026-10-13; n
 
 ## Session start
 
+Several sessions run at once, one per stream, each in its own clone (`~/code/tally-utility`, `~/code/tally-utility-rates`, `~/code/tally-utility-scenarios`). `HANDOFF.md` is the board, not a handoff.
+
 1. `git pull --ff-only`, then `git -C ../gas-billing-memory fetch` and check `HEAD..origin/main` there. Kyle pushes rulings to GBM `main` directly; read them before saying anything waits on him.
-2. Read `HANDOFF.md`. It is the only status document. Its Resume Instructions say what to open next.
-3. If the work needs Docker, check `docker ps -q --filter ancestor=crystaldba/postgres-mcp | wc -l` first. Leaked containers run tally-pg out of memory.
+2. Read `HANDOFF.md` (the board). Find your working directory in its Streams table, then read that stream's file in `handoffs/`. Its first line names its folder; if that isn't your working directory, stop and ask Ryan. Read the board's notes for your stream.
+3. Commits by other streams are expected. When checking for drift since your handoff, count only commits that touch your stream's handoff or files.
+4. If the work needs Docker, check `docker ps -q --filter ancestor=crystaldba/postgres-mcp | wc -l` first. Leaked containers run tally-pg out of memory.
 
 Don't open the CHANGELOG, DECISION-LOG or the review files at the start. Open them when a task needs them.
 
@@ -40,12 +43,13 @@ Before writing or reviewing patch code, read the index at the top of `sql/PATCH-
 
 - `tu.sql` is append-only. A change is a new `sql/v5.4.x-NN-*.sql` patch: tests first, then built, frozen, reviewed (Opus, Fable, Codex), and then mirrored onto the end of `tu.sql` on Ryan's approval.
 - Never edit the frozen review copies, or the bodies already mirrored into `tu.sql`.
-- Commit to `main`; there are no feature branches.
+- Commit to `main`; there are no feature branches. `git pull --rebase` before every push: other streams push too.
+- Touch only your stream's tables (the board lists them); claim a patch number on the board before creating the file; follow the board's shared-resource rules (one `ci.sh` run at a time, the pre-mirror check).
 - A change to GBM's `main` is logged in GBM `application/wiki-ingestion-pending.md` in the same edit. Kyle's answers sometimes arrive as a chat paste rather than a push; record them in GBM yourself.
 - The parity record lives here, not in GBM's register (frozen at -12).
 
 ## Wrap-up
 
-- Overwrite `HANDOFF.md`. State lives only there: not in memory, not in CONTEXT.md.
-- Add the CHANGELOG entry directly under the header. Read only the header and the newest entry; never the whole file. Then move the oldest live entry into `changelog-archive/YYYY-MM.md`, so 10 stay live.
+- Overwrite your stream's file in `handoffs/` (this is what `/claude-handoff:wrap-up` writes here, in place of `HANDOFF.md`). State lives only there: not in memory, not in CONTEXT.md. Never rewrite the board whole; edit only the lines your stream changed.
+- Add the CHANGELOG entry directly under the header. Read only the header and the newest entry; never the whole file. The session that mirrors also moves the oldest live entries into `changelog-archive/YYYY-MM.md`, so 10 stay live.
 - Refresh the roadmap data as `application/roadmap/README.md` describes.
