@@ -194,3 +194,55 @@ Source pins reject stronger snapshot isolation for draws, arrivals, reversals an
 ### N4 — executed delivery; predicted results
 
 Nine SQL files are delivered. `00` is the frozen battery plus diagnostic notices; 01/02 are full behavioral reproductions; 03-A/B are explicitly limited lock-topology probes; four retained regressions cover catalog, COPY, statement shapes and isolation. Run each standalone probe on a fresh r6 clone; run the 03 pair concurrently on the same fresh clone. Isolation regression has two separately rolled-back transactions. No probe commits fixtures or alters cluster roles. No probe result should be recorded as executed until the author actually runs it.
+
+## Probe outputs (run by the author, 2026-10-29, a fresh clone of tally with frozen r6 strict-applied for each probe)
+
+- **00-frozen-battery:** 344 PASS, no FAIL.
+- **01-family-deficit:** B1 reproduces (output below).
+- **02-reissue-depth:** cancelled after 51 minutes, still building the chain (each act reads the whole family, so the build grows with the square of its length). The predicted payout was not reached. What the probe aimed at shows directly in the r7 battery's red run against r6: `overpayment_root` of a planted 1000th reissue returns NULL instead of raising (Z6c "accepted" on r6).
+- **03-lock-topology A/B**, run concurrently (B 1.5 s after A): A got 40P01, B completed. S1 reproduces as a lock-key sequence; Fable and Opus ran it end to end.
+- **regression-07:** the catalog and grant listing, 1027 lines (kept with the author's run, not appended).
+- **regression-08, 09, 10:** as predicted (below).
+
+```
+### 01-family-deficit
+NOTICE:  after take-back 80 payment={"amount":100.00,"received":20.00,"applied":0,"credited":20.00,"refunded":0,"remaining":0.00}
+NOTICE:  after take-back 80 credit={"amount":100.00,"issued":50.00,"applied":0,"refunded":0,"given_up":70.00,"carried":30.00,"remaining":-50.00}
+NOTICE:  after take-back 80 split=[{"id": "a7d95f9f-5aca-4c4f-b29f-a7f04b6c20eb", "amount": 80.00, "on_date": "2026-03-19", "absorbed": 80.00, "created_at": "2026-10-28T23:46:55.593686+00:00"}]
+NOTICE:  after take-back successor={"amount":30.00,"issued":0.00,"applied":0,"refunded":0,"given_up":0,"carried":0,"remaining":0.00}
+NOTICE:  after give-back 20 payment={"amount":100.00,"received":40.00,"applied":0,"credited":40.00,"refunded":0,"remaining":0.00}
+NOTICE:  after give-back 20 credit={"amount":100.00,"issued":50.00,"applied":0,"refunded":0,"given_up":70.00,"carried":30.00,"remaining":-50.00}
+NOTICE:  after give-back 20 split=[{"id": "a7d95f9f-5aca-4c4f-b29f-a7f04b6c20eb", "amount": 80.00, "on_date": "2026-03-19", "absorbed": 80.00, "created_at": "2026-10-28T23:46:55.593686+00:00"}, {"id": "91d9a036-fe2b-47c0-aaeb-6cf086bd7058", "amount": -20.00, "on_date": "2026-03-20", "absorbed": -20.00, "created_at": "2026-10-28T23:47:55.593686+00:00"}]
+NOTICE:  B1 successor (predicted remaining 20)={"amount":30.00,"issued":20.00,"applied":0,"refunded":0,"given_up":0,"carried":0,"remaining":20.00}
+NOTICE:  B1 shares=[{"id": "a7d95f9f-5aca-4c4f-b29f-a7f04b6c20eb", "on_date": "2026-03-19", "absorbed": 50.00, "credit_id": "804695bf-df37-484b-9a14-ba6547e792da", "created_at": "2026-10-28T23:46:55.593686+00:00"}, {"id": "a7d95f9f-5aca-4c4f-b29f-a7f04b6c20eb", "on_date": "2026-03-19", "absorbed": 30.00, "credit_id": "6688b122-676d-43ff-9001-77598bd2912e", "created_at": "2026-10-28T23:46:55.593686+00:00"}, {"id": "91d9a036-fe2b-47c0-aaeb-6cf086bd7058", "on_date": "2026-03-20", "absorbed": -20.00, "credit_id": "6688b122-676d-43ff-9001-77598bd2912e", "created_at": "2026-10-28T23:47:55.593686+00:00"}]
+NOTICE:  B1 refund 20 CAUGHT SQLSTATE=23514 MESSAGE=payment 1440372b-c161-4e7d-a364-17e43d4b9e02 and its overpayment credit: on 2026-03-21 what they gave and what was taken back on the ledger would come to 150.00, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+NOTICE:  B1 refund 0.01 CAUGHT SQLSTATE=23514 MESSAGE=payment 1440372b-c161-4e7d-a364-17e43d4b9e02 and its overpayment credit: on 2026-03-21 what they gave and what was taken back on the ledger would come to 130.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+### regression-08-copy-arrival
+COPY probe: expected native ERROR 23514 (still pending); the following error is the probe result, not LAST_ERROR_SQLSTATE.
+ERROR:  23514: account_ledger ac7154a6-135b-416e-aa85-856836a40dd6 posts payment copy-voided, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+CONTEXT:  PL/pgSQL function enforce_ledger_reversal() line 68 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ERROR:  23514: account_ledger ac7154a6-135b-416e-aa85-856836a40dd6 posts payment copy-voided, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+CONTEXT:  PL/pgSQL function enforce_ledger_reversal() line 68 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+### regression-09-donation-statement-shapes
+NOTICE:  donation multi-row CAUGHT SQLSTATE=23514 MESSAGE=credit 1d83346b-e64f-474f-be73-26745e278830: on 2026-03-15 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+NOTICE:  donation CTE CAUGHT SQLSTATE=23514 MESSAGE=credit 1d83346b-e64f-474f-be73-26745e278830: on 2026-03-15 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+### regression-10-isolation-pins
+NOTICE:  payment arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 825a923e-8785-4c10-8d8b-5691b5ef2c7c is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is repeatable read): it must see every row committed while it waited (R-02, v5.4.2-23)
+NOTICE:  credit arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 670f8f25-9ed0-4866-b6ea-de4e502c6e5e is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is repeatable read): it must see every row committed while it waited (R-02, v5.4.2-23)
+NOTICE:  payment move CAUGHT SQLSTATE=25000 MESSAGE=payment 2fdb7b39-c6f3-47cf-9310-be70fa88afdc: a status move is written at READ COMMITTED (this transaction is repeatable read): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+NOTICE:  credit move CAUGHT SQLSTATE=25000 MESSAGE=customer credit 5fe8a356-1583-432a-91a3-0a232d424966: a status move is written at READ COMMITTED (this transaction is repeatable read): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+NOTICE:  draw pin CAUGHT SQLSTATE=25000 MESSAGE=a row drawing on credit 5fe8a356-1583-432a-91a3-0a232d424966 is written at READ COMMITTED (this transaction is repeatable read): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+NOTICE:  payment arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 1bc66340-b454-4435-9e33-029f89ff3740 is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited (R-02, v5.4.2-23)
+NOTICE:  credit arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 4f76ad94-e736-4cb4-be24-f88807b2225a is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited (R-02, v5.4.2-23)
+NOTICE:  payment move CAUGHT SQLSTATE=25000 MESSAGE=payment 0e776f26-e4f3-4602-853a-261b7ff887dc: a status move is written at READ COMMITTED (this transaction is serializable): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+NOTICE:  credit move CAUGHT SQLSTATE=25000 MESSAGE=customer credit 5fcd99e9-c211-4da7-b507-a64e15f8f1c3: a status move is written at READ COMMITTED (this transaction is serializable): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+NOTICE:  draw pin CAUGHT SQLSTATE=25000 MESSAGE=a row drawing on credit 5fcd99e9-c211-4da7-b507-a64e15f8f1c3 is written at READ COMMITTED (this transaction is serializable): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+### 03-lock-topology-A
+NOTICE:  S1 A holds K; start B now
+NOTICE:  S1 A CAUGHT SQLSTATE=40P01 MESSAGE=deadlock detected
+### 03-lock-topology-B
+NOTICE:  S1 B holds payment and K2; now requests K
+NOTICE:  S1 B completed SQLSTATE=00000
+```

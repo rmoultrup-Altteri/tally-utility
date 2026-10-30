@@ -87,6 +87,11 @@
 #        back under the credit's payment: B waits on the payment's lock (the
 #        move takes it first), no deadlock, A commits, and B is refused (it
 #        would put money back on the escheated credit).
+# r7 (Fable S1, Opus S1, Codex S1):
+#   CR25 C holds an overpayment credit's lock (as its escheat move does); A
+#        voids a reissue of it (whose id sorts first), B gives money back
+#        under its payment. A takes the payment's lock first, so B waits on
+#        A; C commits, A commits, B is admitted: no deadlock.
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -177,6 +182,15 @@ E24R=00000000-0000-4000-8000-000000002565
 EV24=00000000-0000-4000-8000-000000002566
 E24T=00000000-0000-4000-8000-000000002567
 E24N=00000000-0000-4000-8000-000000002568
+P25=00000000-0000-4000-8000-000000002570
+K25B=00000000-0000-4000-8000-000000002571
+AP25=00000000-0000-4000-8000-000000002572
+K25=00000000-0000-4000-8000-000000002573
+E25=00000000-0000-4000-8000-000000002574
+R25=00000000-0000-4000-8000-000000002575
+E25R=00000000-0000-4000-8000-000000002576
+E25N=00000000-0000-4000-8000-000000002577
+E25T=00000000-0000-4000-8000-000000002578
 I4=00000000-0000-4000-8000-000000002404
 L41=00000000-0000-4000-8000-000000002441
 L42=00000000-0000-4000-8000-000000002442
@@ -732,6 +746,66 @@ wait $BPID; BST=$?
 OUT=$(cat "$B_OUT")
 if grep -q "40P01" "$A_OUT" "$B_OUT"; then echo "FAIL CR24: a deadlock: A: $(cat "$A_OUT") / B: $OUT"; fail=1
 else verdict "CR24 a give-back while a returned refund of the escheated credit is moved and reissued: it waits on the payment, no deadlock, then is refused (Fable S1)" 1 "nothing comes back to an escheated credit"
+fi
+
+# CR25 (Fable RR-E, Opus D): a reissue's void against a give-back under its
+# payment. Setup, committed: payment 100, credit K 100, K's refund of 30 out,
+# back and reissued as K2 (its id below K's), 10 taken back (K's share).
+"${PSQL[@]}" >/dev/null <<SQL || { echo "CR25 setup failed"; exit 2; }
+BEGIN;
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES $(pay "$P25" R23-P25 100);
+$(post "$P25" "$E25" 100)
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP25', '$T', '$C', '$P25', 100, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K25', '$T', '$C', 'overpayment', 100, DATE '2026-03-05', '$P25', '$AP25');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id)
+VALUES ('$R25', '$T', 'R23-R25', '$C', DATE '2026-03-06', -30, 'refund', '$K25');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES ('$E25R', '$T', '$C', DATE '2026-03-06', 'refund', 'refund out', 30, 'payment', '$R25');
+UPDATE public.payments SET status = 'posted', status_cause_id = '$E25R', effective_date = DATE '2026-03-06', effective_date_method = 'other' WHERE id = '$R25';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$E25N', '$T', '$C', DATE '2026-03-07', 'nsf', 'refund check returned', -30, '$E25R');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-07', status_cause_id = '$E25N' WHERE id = '$R25';
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES ('$K25B', '$T', '$C', 'refund_reissue', 30, DATE '2026-03-07', '$R25');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES ('$E25T', '$T', '$C', DATE '2026-03-08', 'adjustment', 'taken back', 10, '$E25');
+COMMIT;
+SQL
+C_OUT=$(mktemp)
+"${PSQL[@]}" >"$C_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_c';
+BEGIN;
+SELECT pg_advisory_xact_lock(public.cash_source_lock_key('credit', '$K25'));
+SELECT pg_sleep(3);
+COMMIT;
+SQL
+CPID=$!
+sleep 0.5
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_a';
+BEGIN;
+$AS_OP
+UPDATE public.customer_credits SET status = 'voided' WHERE id = '$K25B';
+COMMIT;
+SQL
+APID=$!
+sleep 0.5
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_b';
+BEGIN;
+$AS_OP
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-09', 'adjustment', 'cleared after all', -10, '$E25T');
+COMMIT;
+SQL
+BPID=$!
+sleep 1
+WAITED=$(waiting)
+wait $CPID
+wait $APID; AST=$?
+wait $BPID; BST=$?
+OUT=$(cat "$B_OUT")
+rm -f "$C_OUT"
+if grep -q "40P01" "$A_OUT" "$B_OUT"; then echo "FAIL CR25: a deadlock: A: $(cat "$A_OUT") / B: $OUT"; fail=1
+else verdict "CR25 a reissue's void and a give-back under its payment take their locks in one order: B waits on A, no deadlock, both admitted (Fable S1, Opus S1)" 0
 fi
 
 exit $fail

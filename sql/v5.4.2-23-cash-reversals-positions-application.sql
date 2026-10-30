@@ -150,6 +150,20 @@
 --     its own cap counts that share.
 --   * r6 (Opus S2, Fable S2): a give-back under a payment whose credit is
 --     escheated is refused only as far as the credit would then hold money.
+--   * r7 (Fable B1, Opus B2, Codex B1): the cover at the reading nets the
+--     family's credits against one another first: a credit in deficit is
+--     covered by the others holding money (the latest first), then by the
+--     payment. No credit reads money beside another's deficit.
+--   * r7 (Opus B1): a credit is escheated only when its own side, without
+--     the cover, holds nothing positive either; a credit whose money covers
+--     a deficit beside it stays active, reading nothing, until the deficit
+--     goes.
+--   * r7 (Opus B3): a reissue holding a payment's money is not voided while
+--     it carries a share of what was taken back under the payment.
+--   * r7 (Codex B2): a reissue line is at most reissue_line_bound() (999)
+--     reissues deep; a deeper reissue is refused when it is made, and every
+--     walk of a line that meets a deeper one raises (22000), never reading
+--     it as a line that starts elsewhere.
 --   * Payments and customer credits are stamped created_at by the database
 --     (a superuser's history load keeps its own), as the ledger is. r6
 --     (Opus S1): a superuser's own created_at on a payment, credit,
@@ -247,7 +261,10 @@
 --   leaves takes the payment's lock, then the credit's (the return, the
 --   move and the reissue in one transaction: payment, then credit); a draw
 --   on a reissue holding a payment's money takes the payment's lock first,
---   as a draw on the overpayment credit does.
+--   as a draw on the overpayment credit does. r7 (Fable S1, Opus S1, Codex
+--   S1): so does such a reissue's void, then the credit its refund came
+--   from, then itself: the payment, then its credits, for every writer on
+--   the family.
 --
 -- ----------------------------------------------------------------------------
 -- Residuals (left on purpose)
@@ -298,7 +315,8 @@
 --       not taken back, even in part, while it is applied or a refund of it
 --       is pending; for a payment, also while its overpayment credit is
 --       applied or has a refund pending (r4, K-10: what the credit holds or
---       paid out does not hold the bounce up; r5, Fable S2). A credit's
+--       paid out does not hold the bounce up; r5, Fable S2), or (r6) a
+--       reissue descended from it is (r7, Codex S3). A credit's
 --       entry also waits on its refunds, donations and remittances. Only a
 --       row taking money away waits; a withdrawal comes first, then the draws
 --       on what is left.
@@ -316,7 +334,10 @@
 --       already made, so a draw in the same transaction can move a share,
 --       and the per-side caps are then the cap on the two together. K-10's
 --       refund cap holds for any reading. Post each act in a transaction of
---       its own.
+--       its own. r7 (Fable N1): a draw's return whose transaction began
+--       before a take-back and commits after it is stamped at its start, so
+--       the split re-reads the take-back with the money already back; both
+--       readings are consistent and each side equals its cap (-22's model).
 --   R18. r6 (Fable N3): a refund's return keyed in error (the check had
 --       cleared) has no correction once the refund is nsf: the status is
 --       terminal and nothing more goes under its posting row. A new refund
@@ -328,7 +349,11 @@
 --       credit and its reissues (the overpayment credit first, then each
 --       reissue in recorded order; a give-back the latest share first) is an
 --       attribution, not a ruling: the money is held whole by the cap on the
---       payment and its credits together.
+--       payment and its credits together. r7 (Fable B1, Opus B2, Codex B1):
+--       so is the cover at the reading, a credit in deficit covered first by
+--       the family's other credits holding money (the latest first), then by
+--       the payment. Which side covers first is put to Kyle (2026-10-29); the
+--       money is the same either way.
 --   R21. r6 (Opus N6): overpayment_shares walks the payment's tree once per
 --       read, and each take-back reads what each credit had given at its
 --       instant. Measured 2026-10-29 (one at a time, history loads): a
@@ -347,8 +372,8 @@
 --   Still Kyle's: restriction against the floor (A6), and the floor once its
 --   target is paid; the record carries either answer.
 --
--- Tests. battery-23 (344 checks), races/cash-23.sh (CR1-CR24, 38 results),
---   mutations-23.py (210 mutations; r5 retired N145, a lock made
+-- Tests. battery-23 (372 checks), races/cash-23.sh (CR1-CR25, 39 results),
+--   mutations-23.py (218 mutations; r5 retired N145, a lock made
 --   redundant). assert_cash_guard_invariants() runs
 --   in the tail and in CI.
 --
@@ -916,7 +941,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_ledger_reversal() IS
-    'v5.4.2-23 (X; R-02), replacing -22''s enforce_write_off_recovery. AFTER INSERT on account_ledger, every row, after the lineage walk (trigger name order). Every row is recorded at a finite time already reached (23514). r3: a posting row referencing a payment names it under reference_type payment, on its account, of its kind, at minus its amount; a credit_issued row referencing a credit is on its account at minus its amount, and an overpayment credit posts none; a donation of a credit is more than 0, on its account, and a draw on it (check_cash_source). A row undoing a payment''s posting entry waits while the payment is applied, held as a credit or has a refund pending (K-10; r6: or a reissue of its credit is applied or has a refund pending); one undoing a credit''s credit_issued entry while the credit is drawn on. r6: a row under a payment''s posting entry is not recorded before a draw already counted on the payment or its credits (check_cash_order); a give-back under it is refused as far as it would leave an escheated credit holding money. A row naming an entry: the entry is of its tenant and customer; a write_off_recovery names a write_off, and only a recovery names a write_off; the opposite sign, neither zero; dated on or after the entry. Then, at READ COMMITTED behind the advisory lock of the tree''s root: not recorded before a row already in the tree (40001; 23514 for a chosen time); and for every entry on the path up to the root, the net of that entry''s tree stays between 0 and minus its amount at every date. The walks run with sequential scans, hash and merge joins off.';
+    'v5.4.2-23 (X; R-02), replacing -22''s enforce_write_off_recovery. AFTER INSERT on account_ledger, every row, after the lineage walk (trigger name order). Every row is recorded at a finite time already reached (23514). r3: a posting row referencing a payment names it under reference_type payment, on its account, of its kind, at minus its amount; a credit_issued row referencing a credit is on its account at minus its amount, and an overpayment credit posts none; a donation of a credit is more than 0, on its account, and a draw on it (check_cash_source). A row undoing a payment''s posting entry waits while the payment is applied or has a refund pending, or its overpayment credit is applied or has a refund pending (K-10: a credit merely held does not hold it up; r6: nor while a reissue of that credit is applied or has a refund pending); one undoing a credit''s credit_issued entry while the credit is drawn on. r6: a row under a payment''s posting entry is not recorded before a draw already counted on the payment or its credits (check_cash_order); a give-back under it is refused as far as it would leave an escheated credit holding money. A row naming an entry: the entry is of its tenant and customer; a write_off_recovery names a write_off, and only a recovery names a write_off; the opposite sign, neither zero; dated on or after the entry. Then, at READ COMMITTED behind the advisory lock of the tree''s root: not recorded before a row already in the tree (40001; 23514 for a chosen time); and for every entry on the path up to the root, the net of that entry''s tree stays between 0 and minus its amount at every date. The walks run with sequential scans, hash and merge joins off.';
 CREATE TRIGGER enforce_ledger_reversal AFTER INSERT ON public.account_ledger
     FOR EACH ROW EXECUTE FUNCTION public.enforce_ledger_reversal();
 ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_reversal;
@@ -1461,7 +1486,7 @@ ALTER TABLE public.customer_credits
         CHECK ((origin_type = 'refund_reissue') = (reissues_refund_id IS NOT NULL));
 CREATE UNIQUE INDEX customer_credits_one_per_reissued_refund ON public.customer_credits (reissues_refund_id) WHERE reissues_refund_id IS NOT NULL;
 COMMENT ON COLUMN public.customer_credits.reissues_refund_id IS
-    'v5.4.2-23 r4 (Ryan, 2026-10-21). For a credit of origin refund_reissue, and only for one: the refund of a credit that came back (nsf or reversed) whose money it carries. Its amount is the refund''s; it draws on the credit the refund came from and posts no ledger row. Fixed from insert.';
+    'v5.4.2-23 r4 (Ryan, 2026-10-21). For a credit of origin refund_reissue, and only for one: the refund of a credit that came back (nsf or reversed) whose money it carries. Its amount is what came back, as far as it is left on that credit before it (r5, Codex B3); it draws on the credit the refund came from and posts no ledger row. Fixed from insert.';
 COMMENT ON COLUMN public.customer_credits.approval_id IS
     'v5.4.2-23 (R-06; C1). For a credit of origin overpayment, and only for one, the customer''s approval it was created under; the credit''s payment and amount are the approval''s (FK).';
 COMMENT ON COLUMN public.customer_credits.status_recorded_at IS
@@ -1541,22 +1566,81 @@ GRANT EXECUTE ON FUNCTION public.cash_drawn_at(text, uuid, timestamp with time z
 -- an overpayment credit carries its payment's money. The overpayment credit
 -- at the root of that line: the credit itself for an overpayment credit,
 -- NULL for a credit whose line starts anywhere else.
-CREATE OR REPLACE FUNCTION public.overpayment_root(p_credit_id uuid) RETURNS uuid
-    LANGUAGE sql STABLE
+-- r7 (Codex B2): how deep a reissue line goes, one bound for every walk of
+-- it (up to its root, down through its family) and for the reissue that
+-- would go deeper, which is refused when it is made (enforce_cash_draw). A
+-- walk that meets a deeper line raises: it never reads "not descended from
+-- an overpayment" for "not walked far enough".
+CREATE OR REPLACE FUNCTION public.reissue_line_bound() RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    AS $$ SELECT 999 $$;
+COMMENT ON FUNCTION public.reissue_line_bound() IS
+    'v5.4.2-23 r7 (Codex B2). The most reissues one credit''s reissue line holds: read by overpayment_root, overpayment_family and reissue_generation, and by enforce_cash_draw, which refuses a reissue that would go deeper.';
+REVOKE ALL ON FUNCTION public.reissue_line_bound() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reissue_line_bound() TO tally_app, tally_core;
+
+-- r7: a credit's place in its reissue line: 0 for a credit that reissues no
+-- refund, n for the nth reissue down from the line's first credit.
+CREATE OR REPLACE FUNCTION public.reissue_generation(p_credit_id uuid) RETURNS integer
+    LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
     AS $$
-    WITH RECURSIVE up(id, origin_type, reissues_refund_id, depth) AS (
-        SELECT c.id, c.origin_type, c.reissues_refund_id, 1 FROM public.customer_credits c WHERE c.id = p_credit_id
+DECLARE
+    v_gen  integer;
+    v_more boolean;
+BEGIN
+    WITH RECURSIVE up(id, origin_type, reissues_refund_id, gen) AS (
+        SELECT c.id, c.origin_type, c.reissues_refund_id, 0 FROM public.customer_credits c WHERE c.id = p_credit_id
         UNION ALL
-        SELECT c.id, c.origin_type, c.reissues_refund_id, u.depth + 1
+        SELECT c.id, c.origin_type, c.reissues_refund_id, u.gen + 1
           FROM up u JOIN public.payments r ON r.id = u.reissues_refund_id
           JOIN public.customer_credits c ON c.id = r.refunds_customer_credit_id
-         WHERE u.origin_type = 'refund_reissue' AND u.depth < 1000
+         WHERE u.origin_type = 'refund_reissue' AND u.gen <= public.reissue_line_bound()
     )
-    SELECT u.id FROM up u WHERE u.origin_type = 'overpayment'
+    SELECT max(u.gen), bool_or(u.gen > public.reissue_line_bound()) INTO v_gen, v_more FROM up u;
+    IF v_more THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('credit %s: its reissue line is more than %s reissues deep, past what any walk of it reads (Codex B2; v5.4.2-23)', p_credit_id, public.reissue_line_bound()),
+            ERRCODE = 'data_exception';
+    END IF;
+    RETURN v_gen;
+END;
+$$;
+COMMENT ON FUNCTION public.reissue_generation(uuid) IS
+    'v5.4.2-23 r7 (Codex B2). A credit''s place in its reissue line: 0 for a credit that reissues no refund, n for the nth reissue. Raises (22000) for a line deeper than reissue_line_bound().';
+REVOKE ALL ON FUNCTION public.reissue_generation(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reissue_generation(uuid) TO tally_app, tally_core;
+
+CREATE OR REPLACE FUNCTION public.overpayment_root(p_credit_id uuid) RETURNS uuid
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_root uuid;
+    v_more boolean;
+BEGIN
+    WITH RECURSIVE up(id, origin_type, reissues_refund_id, gen) AS (
+        SELECT c.id, c.origin_type, c.reissues_refund_id, 0 FROM public.customer_credits c WHERE c.id = p_credit_id
+        UNION ALL
+        SELECT c.id, c.origin_type, c.reissues_refund_id, u.gen + 1
+          FROM up u JOIN public.payments r ON r.id = u.reissues_refund_id
+          JOIN public.customer_credits c ON c.id = r.refunds_customer_credit_id
+         WHERE u.origin_type = 'refund_reissue' AND u.gen <= public.reissue_line_bound()
+    )
+    SELECT (SELECT u.id FROM up u WHERE u.origin_type = 'overpayment'), bool_or(u.gen > public.reissue_line_bound())
+      INTO v_root, v_more FROM up u;
+    -- r7 (Codex B2): a line deeper than the bound is not read as one that
+    -- starts somewhere else.
+    IF v_more THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('credit %s: its reissue line is more than %s reissues deep, past what any walk of it reads (Codex B2; v5.4.2-23)', p_credit_id, public.reissue_line_bound()),
+            ERRCODE = 'data_exception';
+    END IF;
+    RETURN v_root;
+END;
 $$;
 COMMENT ON FUNCTION public.overpayment_root(uuid) IS
-    'v5.4.2-23 r6 (Codex B1). The overpayment credit at the root of a credit''s reissue line: the credit itself if it is an overpayment credit; for a refund_reissue credit, the root of the credit its refund came from; NULL otherwise. Walks at most 1000 reissues.';
+    'v5.4.2-23 r6 (Codex B1), r7. The overpayment credit at the root of a credit''s reissue line: the credit itself if it is an overpayment credit; for a refund_reissue credit, the root of the credit its refund came from; NULL otherwise. r7 (Codex B2): raises (22000) for a line deeper than reissue_line_bound(), never NULL for it.';
 REVOKE ALL ON FUNCTION public.overpayment_root(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.overpayment_root(uuid) TO tally_app, tally_core;
 
@@ -1565,21 +1649,34 @@ GRANT EXECUTE ON FUNCTION public.overpayment_root(uuid) TO tally_app, tally_core
 -- payment's money. Empty for a credit that is not an overpayment credit.
 CREATE OR REPLACE FUNCTION public.overpayment_family(p_credit_id uuid)
     RETURNS TABLE (id uuid, created_at timestamp with time zone)
-    LANGUAGE sql STABLE
+    LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
     AS $$
-    WITH RECURSIVE down(id, depth) AS (
+DECLARE
+    v_ids  uuid[];
+    v_more boolean;
+BEGIN
+    WITH RECURSIVE down(id, gen) AS (
         SELECT c.id, 0 FROM public.customer_credits c WHERE c.id = p_credit_id AND c.origin_type = 'overpayment'
         UNION ALL
-        SELECT k.id, d.depth + 1
+        SELECT k.id, d.gen + 1
           FROM down d JOIN public.payments r ON r.refunds_customer_credit_id = d.id
           JOIN public.customer_credits k ON k.reissues_refund_id = r.id
-         WHERE d.depth < 1000
+         WHERE d.gen <= public.reissue_line_bound()
     )
-    SELECT c.id, c.created_at FROM down d JOIN public.customer_credits c ON c.id = d.id
+    SELECT array_agg(d.id) FILTER (WHERE d.gen <= public.reissue_line_bound()), bool_or(d.gen > public.reissue_line_bound())
+      INTO v_ids, v_more FROM down d;
+    -- r7 (Codex B2): as overpayment_root.
+    IF v_more THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('credit %s: its reissue line is more than %s reissues deep, past what any walk of it reads (Codex B2; v5.4.2-23)', p_credit_id, public.reissue_line_bound()),
+            ERRCODE = 'data_exception';
+    END IF;
+    RETURN QUERY SELECT c.id, c.created_at FROM public.customer_credits c WHERE c.id = ANY (v_ids);
+END;
 $$;
 COMMENT ON FUNCTION public.overpayment_family(uuid) IS
-    'v5.4.2-23 r6 (Codex B1). An overpayment credit and every refund_reissue credit descended from it (any status), with their recorded instants: the credits that hold its payment''s money. Empty for any other credit.';
+    'v5.4.2-23 r6 (Codex B1), r7. An overpayment credit and every refund_reissue credit descended from it (any status), with their recorded instants: the credits that hold its payment''s money. Empty for any other credit. r7 (Codex B2): raises (22000) for a line deeper than reissue_line_bound().';
 REVOKE ALL ON FUNCTION public.overpayment_family(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.overpayment_family(uuid) TO tally_app, tally_core;
 
@@ -1806,9 +1903,12 @@ GRANT EXECUTE ON FUNCTION public.overpayment_split(uuid) TO tally_app, tally_cor
 -- credit first; a payment in deficit is covered from the credits, the
 -- overpayment credit first. A position then equals what its cap admits (its
 -- own side, with the cap on the two together), and the two add up to the
--- ledger. Only what neither holds stays as K-10's debt. Without the cover
--- (p_cover false), the shares as recorded. One row per credit of the family
--- that exists at the coordinates.
+-- ledger. Only what neither holds stays as K-10's debt. r7 (Fable B1, Opus
+-- B2, Codex B1): a credit in deficit is covered first by the family's other
+-- credits holding money (the latest first), then by the payment, so no
+-- credit reads money beside another's deficit. Without the cover (p_cover
+-- false), the shares as recorded. One row per credit of the family that
+-- exists at the coordinates.
 CREATE OR REPLACE FUNCTION public.overpayment_absorbed_as_of(p_credit_id uuid, p_on date, p_recorded_at timestamp with time zone, p_cover boolean DEFAULT true)
     RETURNS TABLE (credit_id uuid, absorbed numeric)
     LANGUAGE plpgsql STABLE
@@ -1824,6 +1924,7 @@ DECLARE
     v_abs   numeric[];
     v_own   numeric[];
     i       integer;
+    j       integer;
 BEGIN
     SELECT * INTO k FROM public.customer_credits c
      WHERE c.id = p_credit_id AND c.origin_type = 'overpayment'
@@ -1833,7 +1934,11 @@ BEGIN
         RETURN;
     END IF;
     -- The family at the coordinates, the overpayment credit first: each with
-    -- its share as recorded, and what it holds after it.
+    -- its share as recorded, and what it holds after it. r7: the shares read
+    -- once, not once per credit.
+    WITH s AS MATERIALIZED (
+        SELECT x.credit_id, sum(x.absorbed) AS absorbed FROM public.overpayment_shares(k.id) x
+         WHERE x.on_date <= p_on AND x.created_at <= p_recorded_at GROUP BY x.credit_id)
     SELECT array_agg(c.id ORDER BY c.id <> k.id, c.created_at, c.id),
            array_agg(coalesce(s.absorbed, 0) ORDER BY c.id <> k.id, c.created_at, c.id),
            array_agg(c.original_amount - coalesce(s.absorbed, 0) - d.applied - d.refunded - d.given_up - d.carried ORDER BY c.id <> k.id, c.created_at, c.id)
@@ -1841,11 +1946,28 @@ BEGIN
       FROM public.overpayment_family(k.id) f
       JOIN public.customer_credits c ON c.id = f.id
       CROSS JOIN LATERAL public.customer_credit_draws_as_of(c.id, p_on, p_recorded_at) d
-      LEFT JOIN LATERAL (SELECT sum(x.absorbed) AS absorbed FROM public.overpayment_shares(k.id) x
-                          WHERE x.credit_id = c.id AND x.on_date <= p_on AND x.created_at <= p_recorded_at) s ON true
+      LEFT JOIN s ON s.credit_id = c.id
      WHERE c.issued_date <= p_on AND c.created_at <= p_recorded_at
        AND (c.status <> 'voided' OR c.status_recorded_at > p_recorded_at);
     IF p_cover THEN
+        -- r7 (Fable B1, Opus B2, Codex B1): first within the family. A credit
+        -- in deficit (the overpayment credit first, then each reissue in
+        -- recorded order) is covered by the others holding money, the latest
+        -- first, as a give-back restores the latest share first. After it,
+        -- the family's credits all read money or all a deficit, and the
+        -- cover with the payment below settles the rest.
+        FOR i IN 1 .. cardinality(v_ids) LOOP
+            CONTINUE WHEN v_own[i] >= 0;
+            FOR j IN REVERSE cardinality(v_ids) .. 1 LOOP
+                EXIT WHEN v_own[i] >= 0;
+                CONTINUE WHEN j = i OR v_own[j] <= 0;
+                v_d := least(-v_own[i], v_own[j]);
+                v_abs[i] := v_abs[i] - v_d;
+                v_own[i] := v_own[i] + v_d;
+                v_abs[j] := v_abs[j] + v_d;
+                v_own[j] := v_own[j] - v_d;
+            END LOOP;
+        END LOOP;
         -- The payment's own part, with the shares as recorded.
         SELECT d.received - d.applied - d.refunded - (k.original_amount - (SELECT sum(x) FROM unnest(v_abs) x)) INTO v_p
           FROM public.payment_draws_as_of(k.source_payment_id, p_on, p_recorded_at) d;
@@ -1870,7 +1992,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.overpayment_absorbed_as_of(uuid, date, timestamp with time zone, boolean) IS
-    'v5.4.2-23 r6 (Opus B1, Codex B1, B2; K-10). For an overpayment credit at a money date and a recorded instant: what each credit of its family (the credit and its refund_reissue descendants, overpayment_family) absorbed of what was taken back under its payment''s posting entry. Starts from the shares as recorded (overpayment_shares); if the payment''s own part then reads a deficit while the credits hold money, or the credits a deficit while the payment holds money, the side holding money covers the other as far as it can (a credit in deficit, or the credit drawn on to cover the payment, the overpayment credit first). Read by both positions; with p_cover false, the shares as recorded. Empty for any other credit, or before the credit exists at the coordinates.';
+    'v5.4.2-23 r6 (Opus B1, Codex B1, B2; K-10). For an overpayment credit at a money date and a recorded instant: what each credit of its family (the credit and its refund_reissue descendants, overpayment_family) absorbed of what was taken back under its payment''s posting entry. Starts from the shares as recorded (overpayment_shares); if the payment''s own part then reads a deficit while the credits hold money, or the credits a deficit while the payment holds money, the side holding money covers the other as far as it can (a credit in deficit, or the credit drawn on to cover the payment, the overpayment credit first). r7: a credit in deficit is covered first by the family''s other credits holding money, the latest first, then by the payment. Read by both positions; with p_cover false, the shares as recorded. Empty for any other credit, or before the credit exists at the coordinates.';
 REVOKE ALL ON FUNCTION public.overpayment_absorbed_as_of(uuid, date, timestamp with time zone, boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.overpayment_absorbed_as_of(uuid, date, timestamp with time zone, boolean) TO tally_app, tally_core;
 
@@ -2352,6 +2474,12 @@ BEGIN
         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', OLD.source_payment_id));
     END IF;
     IF NEW.status = 'voided' AND OLD.reissues_refund_id IS NOT NULL THEN
+        -- r7 (Fable S1, Opus S1, Codex S1): a reissue holding a payment's
+        -- money takes the payment's lock first, as every writer on the family
+        -- does (the payment, then its credits), so its void and a give-back
+        -- under the payment take their locks in one order.
+        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))
+           FROM public.customer_credits c WHERE c.id = public.overpayment_root(OLD.id);
         SELECT r.refunds_customer_credit_id INTO v_from FROM public.payments r WHERE r.id = OLD.reissues_refund_id;
         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', v_from));
         IF NOT EXISTS (SELECT 1 FROM public.customer_credits c WHERE c.id = v_from AND c.status = 'active') THEN
@@ -2412,11 +2540,43 @@ BEGIN
                 MESSAGE = format('customer credit %s moves to escheated only when nothing of it is left: %s remains (CI-013, v5.4.2-23)', OLD.id, v_left),
                 ERRCODE = 'restrict_violation';
         END IF;
+        -- r7 (Opus B1): nor while its own side, the shares as recorded and no
+        -- cover, holds money: then it reads nothing only because that money
+        -- covers a deficit beside it, which lifts when the deficit goes, and
+        -- the money would come back to a credit already remitted (Ryan,
+        -- 2026-10-21). It stays active, reading nothing, until then.
+        SELECT c.original_amount - coalesce((SELECT s.absorbed FROM public.overpayment_absorbed_as_of(o.root, DATE '9999-12-31', pg_catalog.clock_timestamp(), false) s
+                                              WHERE s.credit_id = c.id), 0)
+                 - d.applied - d.refunded - d.given_up - d.carried INTO v_left
+          FROM public.customer_credits c
+          CROSS JOIN LATERAL (SELECT public.overpayment_root(c.id) AS root) o
+          CROSS JOIN LATERAL public.customer_credit_draws_as_of(c.id, DATE '9999-12-31', pg_catalog.clock_timestamp()) d
+         WHERE c.id = OLD.id AND o.root IS NOT NULL;
+        IF v_left > 0 THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('customer credit %s is not escheated while it holds money of its own (%s) that covers a shortfall beside it: it would come back to it when the shortfall goes (Opus B1; Ryan, 2026-10-21; v5.4.2-23)', OLD.id, v_left),
+                ERRCODE = 'restrict_violation';
+        END IF;
     END IF;
     IF NEW.status = 'voided' AND v_left <> 0 THEN
         RAISE EXCEPTION USING
             MESSAGE = format('customer credit %s cannot be voided while %s of it is drawn on (applied, refunded, donated or escheated): undo those first (CI-013, v5.4.2-23)', OLD.id, v_left),
             ERRCODE = 'restrict_violation';
+    END IF;
+    -- r7 (Opus B3): a reissue holding a payment's money is not voided while
+    -- it carries a share of what was taken back under the payment: its void
+    -- would give its whole amount back to the credit it came from, and the
+    -- share would stay in the payment's cap with no credit to read it. What
+    -- it holds stays drawable on it; once the share is given back, the void
+    -- is admitted.
+    IF NEW.status = 'voided' AND OLD.origin_type = 'refund_reissue' THEN
+        SELECT coalesce(sum(s.absorbed), 0) INTO v_left
+          FROM public.overpayment_shares(public.overpayment_root(OLD.id)) s WHERE s.credit_id = OLD.id;
+        IF v_left <> 0 THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('customer credit %s cannot be voided while it carries %s of what was taken back under its payment: refund or apply what it holds, or give the take-back back first (Opus B3; K-10; v5.4.2-23)', OLD.id, v_left),
+                ERRCODE = 'restrict_violation';
+        END IF;
     END IF;
     -- r6 (Codex B4): a history load's chosen status time is not before a row
     -- already recorded on the credit's lineage.
@@ -2432,7 +2592,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_customer_credit_immutable() IS
-    'CI-013 guard for customer credits (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Origin, amount, dates, lineage and approval are fixed from insert; escheated_at is write-once. Status moves from active to escheated or voided (r3: refunded and donated are not statuses), and no further, under the credit''s source lock (an overpayment credit''s void also under its payment''s, r3), naming its row in status_cause_id: voided a ledger reversal of its issuing entry (an overpayment credit: none) and nothing drawn on it, escheated its escheatment event and nothing left of what stands on the ledger (r6: its position at the last date and now, with a shortfall placed at that reading). r6 (Codex B4): status_cause_id and status_recorded_at change only with the status, for every role; a superuser''s chosen status time is not before a row already recorded on the lineage (cash_lineage_recorded).';
+    'CI-013 guard for customer credits (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Origin, amount, dates, lineage and approval are fixed from insert; escheated_at is write-once. Status moves from active to escheated or voided (r3: refunded and donated are not statuses), and no further, under the credit''s source lock (an overpayment credit''s void also under its payment''s, r3), naming its row in status_cause_id: voided a ledger reversal of its issuing entry (an overpayment credit: none) and nothing drawn on it, escheated its escheatment event and nothing left of what stands on the ledger (r6: its position at the last date and now, with a shortfall placed at that reading). r6 (Codex B4): status_cause_id and status_recorded_at change only with the status, for every role; a superuser''s chosen status time is not before a row already recorded on the lineage (cash_lineage_recorded). r7: a reissue holding a payment''s money takes the payment''s lock first on its void (Fable S1), and is not voided while it carries a share of what was taken back under the payment (Opus B3); a credit holding a payment''s money is not escheated while its own side, without the cover, holds money (Opus B1).';
 
 
 -- r2 (Fable S3; Opus B2 O1): births. A payment is born pending and a credit
@@ -3274,13 +3434,20 @@ BEGIN
     -- (Nested: NEW of another table has no reissues_refund_id.)
     IF TG_TABLE_NAME = 'customer_credits' THEN
       IF NEW.reissues_refund_id IS NOT NULL THEN
-        -- r4 (Ryan, 2026-10-21): a reissue carries a credit's refund that came
-        -- back, exactly, and draws on that credit (active or escheated).
+        -- r4 (Ryan, 2026-10-21): a reissue carries what came back of a
+        -- credit's refund (sized below, r5) and draws on that credit (active
+        -- or escheated).
         SELECT * INTO v_refund FROM public.payments r WHERE r.id = NEW.reissues_refund_id;
         IF v_refund.refunds_customer_credit_id IS NULL OR v_refund.status NOT IN ('nsf', 'reversed') THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('credit %s reissues %s: a refund_reissue credit carries a refund of a credit that came back (nsf or reversed); %s is %s', NEW.id, v_refund.payment_number, v_refund.payment_number,
                                  CASE WHEN v_refund.refunds_customer_credit_id IS NULL THEN 'not a credit''s refund' ELSE v_refund.status END),
+                ERRCODE = 'check_violation';
+        END IF;
+        -- r7 (Codex B2): not deeper than every walk of its line reads.
+        IF public.reissue_generation(v_refund.refunds_customer_credit_id) + 1 > public.reissue_line_bound() THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('credit %s reissues %s: its line would be more than %s reissues deep, past what any walk of it reads — post a new payment or credit instead (Codex B2; v5.4.2-23)', NEW.id, v_refund.payment_number, public.reissue_line_bound()),
                 ERRCODE = 'check_violation';
         END IF;
         -- r5 (Opus S1): dated on or after the row by which the refund came
@@ -3342,7 +3509,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_cash_draw() IS
-    'v5.4.2-23 (A3, C1; R-06), r4. AFTER INSERT on customer_credits (a credit naming a payment, which only an overpayment credit may: a draw on the payment; r4, a refund_reissue credit: it carries exactly a credit''s refund that came back, and draws on that credit), on payments (a refund: a draw on its payment or credit) and on escheatment_events (an escheated_to_state event, its amount more than 0: a draw on its credit). The source is read and judged under its lock, and capped, by check_cash_source.';
+    'v5.4.2-23 (A3, C1; R-06), r4. AFTER INSERT on customer_credits (a credit naming a payment, which only an overpayment credit may: a draw on the payment; r4, a refund_reissue credit: it carries what came back of a credit''s refund, as far as it is left on that credit (r5), and draws on that credit; r7, not deeper than reissue_line_bound()), on payments (a refund: a draw on its payment or credit) and on escheatment_events (an escheated_to_state event, its amount more than 0: a draw on its credit). The source is read and judged under its lock, and capped, by check_cash_source.';
 CREATE TRIGGER enforce_cash_draw AFTER INSERT ON public.customer_credits
     FOR EACH ROW WHEN (NEW.source_payment_id IS NOT NULL OR NEW.reissues_refund_id IS NOT NULL) EXECUTE FUNCTION public.enforce_cash_draw();
 ALTER TABLE public.customer_credits ENABLE ALWAYS TRIGGER enforce_cash_draw;
@@ -4427,7 +4594,8 @@ BEGIN
     -- The walks' plan settings, and the application role's reach: no UPDATE
     -- or DELETE on applications or approvals.
     SELECT string_agg(f, ', ' ORDER BY f) INTO v_bad
-      FROM unnest(ARRAY['public.ledger_tree_ids(uuid)', 'public.ledger_tree_root(uuid)', 'public.ledger_entry_remaining(uuid)', 'public.enforce_ledger_reversal()']) f
+      FROM unnest(ARRAY['public.ledger_tree_ids(uuid)', 'public.ledger_tree_root(uuid)', 'public.ledger_entry_remaining(uuid)', 'public.enforce_ledger_reversal()',
+                        'public.overpayment_shares(uuid)']) f  -- r7 (Codex S2): the split's walk too
      WHERE (SELECT p.proconfig FROM pg_catalog.pg_proc p WHERE p.oid = f::regprocedure)
            IS DISTINCT FROM ARRAY['search_path=public, pg_temp', 'enable_seqscan=off', 'enable_hashjoin=off', 'enable_mergejoin=off'];
     IF v_bad IS NOT NULL THEN

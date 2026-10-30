@@ -7,7 +7,7 @@ and runs the script that owns the named check:
 
   battery check (T A M C X LC F I)  battery-23.sql
   b22:<check>                       battery-22.sql (the -22 rows -23 re-reads)
-  CR1-CR19                          races/cash-23.sh
+  CR1-CR25                          races/cash-23.sh
   APPLY:<phrase>                    the patch itself must refuse (its tail runs
                                     the invariants), with that phrase
 
@@ -521,7 +521,7 @@ MUTATIONS = [
     ("N193", "a take-back is not ordered against the draws on its payment's credits (Opus P3, Fable RR-A; CR23 too)", "Y5",
      rep("        PERFORM public.check_cash_order('credit', f.id, NEW.created_at, NULL, 'a row under its payment''s posting entry')\n           FROM public.customer_credits k CROSS JOIN LATERAL public.overpayment_family(k.id) f\n          WHERE k.source_payment_id = v_src AND k.status <> 'voided';\n", "")),
     ("N194", "a shortfall stays where the split put it (no cover at the reading; Opus B1)", "Y1a",
-     rep("    IF p_cover THEN\n        -- The payment's own part", "    IF false THEN\n        -- The payment's own part")),
+     rep("    IF p_cover THEN\n        -- r7 (Fable B1", "    IF false THEN\n        -- r7 (Fable B1")),
     ("N195", "a payment's deficit is not covered by its credit (Codex B2)", "Y3",
      rep("        ELSIF v_p < 0 AND v_f > 0 THEN\n            v_x := least(-v_p, v_f);", "        ELSIF false THEN\n            v_x := least(-v_p, v_f);")),
     ("N196", "rows of one instant are split by id, not the tree's order (Codex B3)", "Y4",
@@ -541,7 +541,9 @@ MUTATIONS = [
     ("N202", "a reissue does not hold up its payment's move to nsf (the planted bounce)", "Y7m",
      rep("           OR EXISTS (SELECT 1 FROM public.customer_credits k CROSS JOIN LATERAL public.overpayment_family(k.id) f\n                       JOIN public.customer_credits c ON c.id = f.id\n                       WHERE k.source_payment_id = NEW.id",
          "           OR EXISTS (SELECT 1 FROM public.customer_credits k CROSS JOIN LATERAL public.overpayment_family(k.id) f\n                       JOIN public.customer_credits c ON c.id = k.id\n                       WHERE k.source_payment_id = NEW.id")),
-    ("N203", "the reissues' holdings take no share of a take-back", "Y7b",
+    # r7: at Y7b the credit's deficit is now covered by its reissue (Fable B1), so
+    # Y7b reads 0 either way; Y7i is the first to show the reissue's missing share.
+    ("N203", "the reissues' holdings take no share of a take-back", "Y7i",
      rep("                v_hold[i] := CASE WHEN v_at[i] <= r.created_at", "                v_hold[i] := CASE WHEN i = 1 AND v_at[i] <= r.created_at")),
     ("N204", "a take-back is shared out to the reissues before the credit (the W6 reissue leaves money on the escheated credit)", "W6c",
      rep("    SELECT array_agg(k.id ORDER BY k.id <> c.id, k.created_at, k.id),\n           array_agg(k.original_amount ORDER BY k.id <> c.id, k.created_at, k.id),\n           array_agg(k.created_at ORDER BY k.id <> c.id, k.created_at, k.id),\n           array_agg(CASE WHEN k.status = 'voided' THEN k.status_recorded_at END ORDER BY k.id <> c.id, k.created_at, k.id)",
@@ -562,6 +564,27 @@ MUTATIONS = [
          "        IF false THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('escheatment event %s is recorded at")),
     ("N211", "a credit's refund that leaves takes its credit's lock before its payment's (the RR-D deadlock)", "CR24",
      rep("            PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', k.source_payment_id))\n               FROM public.customer_credits k WHERE k.id = public.overpayment_root(OLD.refunds_customer_credit_id);\n", "")),
+    # ---- r7 (round 6's findings)
+    ("N212", "a credit in deficit is not covered by the family's other credits (Fable B1, Opus B2, Codex B1)", "Z1",
+     rep("            CONTINUE WHEN v_own[i] >= 0;\n", "            CONTINUE;\n")),
+    ("N213", "a credit is escheated while its own side holds money covering a deficit beside it (Opus B1)", "Z4a",
+     rep("        IF v_left > 0 THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('customer credit %s is not escheated while it holds money of its own",
+         "        IF false THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('customer credit %s is not escheated while it holds money of its own")),
+    ("N214", "a reissue carrying a share of a take-back is voided (Opus B3)", "Z5a",
+     rep("    IF NEW.status = 'voided' AND OLD.origin_type = 'refund_reissue' THEN\n        SELECT coalesce(sum(s.absorbed), 0) INTO v_left",
+         "    IF false THEN\n        SELECT coalesce(sum(s.absorbed), 0) INTO v_left")),
+    ("N215", "a reissue's void takes no lock on its payment (the RR-E deadlock)", "CR25",
+     rep("        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))\n           FROM public.customer_credits c WHERE c.id = public.overpayment_root(OLD.id);\n", "")),
+    ("N216", "a reissue deeper than the bound is made (Codex B2)", "Z6b",
+     rep("        IF public.reissue_generation(v_refund.refunds_customer_credit_id) + 1 > public.reissue_line_bound() THEN", "        IF false THEN")),
+    ("N217", "the root walk reads a line deeper than the bound as one that starts elsewhere (Codex B2)", "Z6c",
+     rep("    -- r7 (Codex B2): a line deeper than the bound is not read as one that\n    -- starts somewhere else.\n    IF v_more THEN",
+         "    -- r7 (Codex B2): a line deeper than the bound is not read as one that\n    -- starts somewhere else.\n    IF false THEN")),
+    ("N218", "the family walk stops at the bound without raising (Codex B2)", "Z6d",
+     rep("    -- r7 (Codex B2): as overpayment_root.\n    IF v_more THEN", "    -- r7 (Codex B2): as overpayment_root.\n    IF false THEN")),
+    ("N219", "the split's walk loses its plan settings (Codex S2)", "APPLY:lost its plan settings",
+     rep("    RETURNS TABLE (id uuid, credit_id uuid, on_date date, created_at timestamp with time zone, absorbed numeric)\n    LANGUAGE plpgsql STABLE\n    SET search_path = public, pg_temp\n    SET enable_seqscan = off\n",
+         "    RETURNS TABLE (id uuid, credit_id uuid, on_date date, created_at timestamp with time zone, absorbed numeric)\n    LANGUAGE plpgsql STABLE\n    SET search_path = public, pg_temp\n")),
 ]
 
 
@@ -611,7 +634,10 @@ def main() -> int:
         if a.returncode:
             last = a.stderr.strip().splitlines()[-1] if a.stderr.strip() else "?"
             phrase = check.split(":", 1)[1] if check.startswith("APPLY:") else None
-            if phrase is not None and phrase in a.stderr:
+            # r7 (Codex S2): the first error the apply printed, as the
+            # behavioral branch takes the first failure.
+            first_err = next((l for l in a.stderr.splitlines() if "ERROR" in l), "")
+            if phrase is not None and phrase in first_err:
                 print(f"{mid} caught at apply: {what} ({phrase})")
             elif phrase is not None:
                 print(f"{mid} MISSED (apply failed, but not on \"{phrase}\"): {what}: {last[:140]}")

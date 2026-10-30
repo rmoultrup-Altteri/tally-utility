@@ -1984,7 +1984,12 @@ BEGIN
              CROSS JOIN LATERAL public.customer_credit_position_as_of(c.id, DATE '2026-12-31', clock_timestamp()) x LOOP
     IF (SELECT status FROM public.customer_credits WHERE id = f.id) = 'active' THEN
       PERFORM pg_temp.agree_side(p_label || ' (credit ' || right(f.id::text, 4) || ')', NULL, f.id, f.remaining);
+    -- r7 (Opus B1): an escheated credit holds nothing (a deficit at most).
+    ELSIF (SELECT status FROM public.customer_credits WHERE id = f.id) = 'escheated' AND f.remaining > 0 THEN
+      RAISE EXCEPTION 'FAIL %: escheated credit % reads %', p_label, right(f.id::text, 4), f.remaining;
     END IF;
+    -- A voided credit's money is counted on the credit it went back to.
+    CONTINUE WHEN (SELECT status FROM public.customer_credits WHERE id = f.id) = 'voided';
     v_f := v_f + f.remaining;
   END LOOP;
   SELECT d.received - d.applied - d.refunded INTO v_net FROM public.payment_draws_as_of(p_pay, DATE '2026-12-31', clock_timestamp()) d;
@@ -2271,6 +2276,262 @@ SELECT pg_temp.refuses_at('Y9c an application recorded tomorrow',
 SELECT pg_temp.refuses_at('Y9d a remittance recorded tomorrow',
   $q$INSERT INTO public.escheatment_events (tenant_id, customer_credit_id, customer_id, event_type, amount_related, created_at) VALUES ('00000000-0000-4000-8000-0000000023a1', pg_temp.x('74'), '00000000-0000-4000-8000-0000000023c5', 'escheated_to_state', 1, clock_timestamp() + interval '1 day')$q$,
   '23514', 'a time already reached');
+
+-- ============================================================== r7: round 6's findings
+-- Ids 32xx, written z('xx'), all of C5; history loads as in r6 (h*()).
+CREATE FUNCTION pg_temp.z(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SELECT ('00000000-0000-4000-8000-0000000032' || p)::uuid $$;
+-- hrefund_on(): hrefund() dated p_on (a reissue's refund, after the reissue).
+CREATE FUNCTION pg_temp.hrefund_on(p_id uuid, p_entry uuid, p_pay uuid, p_credit uuid, p_amount numeric, p_ago interval, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id, refunds_customer_credit_id, created_at)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', 'B23-Z' || right(p_id::text, 2) || 'R', '00000000-0000-4000-8000-0000000023c5', p_on, -p_amount, 'refund', p_pay, p_credit, now() - p_ago);
+  PERFORM pg_temp.hpost(p_id, p_entry, p_ago);
+END $$;
+-- hreissue(): a refund_reissue credit of p_amount carrying refund p_refund.
+CREATE FUNCTION pg_temp.hreissue(p_id uuid, p_refund uuid, p_amount numeric, p_ago interval) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id, created_at)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', p_amount, DATE '2026-03-14', p_refund, now() - p_ago);
+END $$;
+-- hremit(): p_amount of credit p_credit remitted to the state; hescheat():
+-- then its move to escheated.
+CREATE FUNCTION pg_temp.hremit(p_credit uuid, p_event uuid, p_amount numeric, p_ago interval) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date, created_at)
+  VALUES (p_event, '00000000-0000-4000-8000-0000000023a1', p_credit, '00000000-0000-4000-8000-0000000023c5', 'escheated_to_state', p_amount, now() - p_ago, now() - p_ago);
+END $$;
+CREATE FUNCTION pg_temp.hescheat(p_credit uuid, p_event uuid, p_ago interval) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE public.customer_credits SET status = 'escheated', status_cause_id = p_event, status_recorded_at = now() - p_ago WHERE id = p_credit;
+END $$;
+-- hbounce(): payment p_pay's posting entry p_entry taken back in full by an
+-- nsf row p_row, and the move to nsf.
+CREATE FUNCTION pg_temp.hbounce(p_pay uuid, p_entry uuid, p_row uuid, p_ago interval) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, created_at)
+  SELECT p_row, l.tenant_id, l.customer_id, DATE '2026-03-15', 'nsf', 'the payment bounced', -l.amount, l.id, now() - p_ago FROM public.account_ledger l WHERE l.id = p_entry;
+  UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = p_row, status_recorded_at = now() - p_ago WHERE id = p_pay;
+END $$;
+-- reads(): the payment's and two credits' remainders, as text.
+CREATE FUNCTION pg_temp.reads(p_pay uuid, p_k uuid, p_r uuid) RETURNS text LANGUAGE sql AS $$
+  SELECT format('%s/%s/%s',
+    (SELECT remaining FROM public.payment_position_as_of(p_pay, DATE '2026-12-31', clock_timestamp())),
+    (SELECT remaining FROM public.customer_credit_position_as_of(p_k, DATE '2026-12-31', clock_timestamp())),
+    (SELECT remaining FROM public.customer_credit_position_as_of(p_r, DATE '2026-12-31', clock_timestamp())))
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.z(text), pg_temp.reads(uuid, uuid, uuid) TO tally_app, tally_core;
+
+-- B1 (Fable B1, Opus B2, Codex B1): the cover nets one credit of the family
+-- against another, a credit in deficit covered first from the others holding
+-- money (the latest first), then from the payment.
+-- Fable P1: payment 100, credit K 100; K's refund of 20 comes back and is
+-- reissued as R; K refunds 30 and R its 20; the payment bounces in full; R's
+-- refund comes back. K's −50 beside R's 20 reads K −30, R 0.
+SELECT pg_temp.hpay(pg_temp.z('01'), pg_temp.z('11'), 100, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('21'), pg_temp.z('31'), pg_temp.z('01'), 100, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('02'), pg_temp.z('12'), NULL, pg_temp.z('21'), 20, interval '8 hours');
+SELECT pg_temp.hback(pg_temp.z('02'), pg_temp.z('12'), pg_temp.z('13'), interval '7 hours');
+SELECT pg_temp.hreissue(pg_temp.z('22'), pg_temp.z('02'), 20, interval '6 hours');
+SELECT pg_temp.hrefund(pg_temp.z('03'), pg_temp.z('14'), NULL, pg_temp.z('21'), 30, interval '5 hours');
+SELECT pg_temp.hrefund_on(pg_temp.z('04'), pg_temp.z('15'), NULL, pg_temp.z('22'), 20, interval '4 hours', DATE '2026-03-14');
+SELECT pg_temp.hbounce(pg_temp.z('01'), pg_temp.z('11'), pg_temp.z('16'), interval '3 hours');
+SELECT pg_temp.hback(pg_temp.z('04'), pg_temp.z('15'), pg_temp.z('17'), interval '2 hours');
+SELECT pg_temp.ok('Z1 Fable P1: payment 0, K −30, R 0 (R''s 20 covers K)', pg_temp.reads(pg_temp.z('01'), pg_temp.z('21'), pg_temp.z('22')) = '0.00/-30.00/0.00');
+-- P1c: the same with the payment holding 40 of its own (K 60), 70 taken back.
+SELECT pg_temp.hpay(pg_temp.z('41'), pg_temp.z('51'), 100, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('61'), pg_temp.z('71'), pg_temp.z('41'), 60, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('42'), pg_temp.z('52'), NULL, pg_temp.z('61'), 20, interval '8 hours');
+SELECT pg_temp.hback(pg_temp.z('42'), pg_temp.z('52'), pg_temp.z('53'), interval '7 hours');
+SELECT pg_temp.hreissue(pg_temp.z('62'), pg_temp.z('42'), 20, interval '6 hours');
+SELECT pg_temp.hrefund(pg_temp.z('43'), pg_temp.z('54'), NULL, pg_temp.z('61'), 40, interval '5 hours');
+SELECT pg_temp.hrefund_on(pg_temp.z('44'), pg_temp.z('55'), NULL, pg_temp.z('62'), 20, interval '4 hours', DATE '2026-03-14');
+SELECT pg_temp.hrow(pg_temp.z('56'), pg_temp.z('51'), 70, interval '3 hours');
+SELECT pg_temp.hback(pg_temp.z('44'), pg_temp.z('55'), pg_temp.z('57'), interval '2 hours');
+SELECT pg_temp.ok('Z1c Fable P1c: payment 0, K −10, R 0', pg_temp.reads(pg_temp.z('41'), pg_temp.z('61'), pg_temp.z('62')) = '0.00/-10.00/0.00');
+-- Opus F: payment 100, K 100; K's refund of 30 comes back as K2; K refunds
+-- 70 and K2 its 30; 10 is taken back; K2's refund comes back: K 0, K2 20.
+SELECT pg_temp.hpay(pg_temp.z('81'), pg_temp.z('91'), 100, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('a1'), pg_temp.z('b1'), pg_temp.z('81'), 100, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('82'), pg_temp.z('92'), NULL, pg_temp.z('a1'), 30, interval '8 hours');
+SELECT pg_temp.hback(pg_temp.z('82'), pg_temp.z('92'), pg_temp.z('93'), interval '7 hours');
+SELECT pg_temp.hreissue(pg_temp.z('a2'), pg_temp.z('82'), 30, interval '6 hours');
+SELECT pg_temp.hrefund(pg_temp.z('83'), pg_temp.z('94'), NULL, pg_temp.z('a1'), 70, interval '5 hours');
+SELECT pg_temp.hrefund_on(pg_temp.z('84'), pg_temp.z('95'), NULL, pg_temp.z('a2'), 30, interval '4 hours', DATE '2026-03-14');
+SELECT pg_temp.hrow(pg_temp.z('96'), pg_temp.z('91'), 10, interval '3 hours');
+SELECT pg_temp.hback(pg_temp.z('84'), pg_temp.z('95'), pg_temp.z('97'), interval '2 hours');
+SELECT pg_temp.ok('Z2 Opus F: payment 0, K 0, K2 20', pg_temp.reads(pg_temp.z('81'), pg_temp.z('a1'), pg_temp.z('a2')) = '0.00/0.00/20.00');
+-- Codex 01: payment 100, K 100; K refunds 30, remits 70 and is escheated;
+-- the refund comes back as K2; 80 is taken back and 20 of it given back.
+SELECT pg_temp.hpay(pg_temp.z('c1'), pg_temp.z('d1'), 100, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('e1'), pg_temp.z('f1'), pg_temp.z('c1'), 100, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('c2'), pg_temp.z('d2'), NULL, pg_temp.z('e1'), 30, interval '8 hours');
+SELECT pg_temp.hremit(pg_temp.z('e1'), pg_temp.z('e9'), 70, interval '7 hours');
+SELECT pg_temp.hescheat(pg_temp.z('e1'), pg_temp.z('e9'), interval '7 hours');
+SELECT pg_temp.hback(pg_temp.z('c2'), pg_temp.z('d2'), pg_temp.z('d3'), interval '6 hours');
+SELECT pg_temp.hreissue(pg_temp.z('e2'), pg_temp.z('c2'), 30, interval '6 hours');
+SELECT pg_temp.hrow(pg_temp.z('d4'), pg_temp.z('d1'), 80, interval '5 hours');
+SELECT pg_temp.hrow(pg_temp.z('d5'), pg_temp.z('d4'), -20, interval '4 hours');
+SELECT pg_temp.ok('Z3 Codex 01: payment 0, K −30 (escheated), K2 0', pg_temp.reads(pg_temp.z('c1'), pg_temp.z('e1'), pg_temp.z('e2')) = '0.00/-30.00/0.00');
+
+-- B2 (Opus B1): a credit is escheated only when its own side, without the
+-- cover, holds nothing positive either.
+-- Opus E: payment 60, credit 20; the payment's own 40 refunded; 30 taken
+-- back and 20 of it given back (the credit's 20 covers the payment's −10);
+-- 10 remitted. Both read 0, and the escheat is refused.
+SELECT pg_temp.hpay(pg_temp.z('05'), pg_temp.z('18'), 60, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('25'), pg_temp.z('35'), pg_temp.z('05'), 20, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('06'), pg_temp.z('19'), pg_temp.z('05'), NULL, 40, interval '8 hours');
+SELECT pg_temp.hrow(pg_temp.z('1b'), pg_temp.z('18'), 30, interval '7 hours');
+SELECT pg_temp.hrow(pg_temp.z('1c'), pg_temp.z('1b'), -20, interval '6 hours');
+SELECT pg_temp.hremit(pg_temp.z('25'), pg_temp.z('e5'), 10, interval '5 hours');
+SELECT pg_temp.ok('Z4 Opus E: payment 0, credit 0 after the remittance', pg_temp.reads(pg_temp.z('05'), pg_temp.z('25'), pg_temp.z('25')) = '0.00/0.00/0.00');
+SELECT pg_temp.refuses_at('Z4a its escheat is refused: its own 10 covers the payment''s deficit',
+  $q$SELECT pg_temp.hescheat(pg_temp.z('25'), pg_temp.z('e5'), interval '4 hours')$q$,
+  '23001', 'holds money of its own');
+SELECT pg_temp.hback(pg_temp.z('06'), pg_temp.z('19'), pg_temp.z('1d'), interval '3 hours');
+SELECT pg_temp.ok('Z4b the payment''s refund comes back: payment 30, the credit (active) 10', pg_temp.reads(pg_temp.z('05'), pg_temp.z('25'), pg_temp.z('25')) = '30.00/10.00/10.00');
+-- Ec: instead, the bank gives back the other 10 of its take-back.
+SELECT pg_temp.hpay(pg_temp.z('07'), pg_temp.z('1e'), 60, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('26'), pg_temp.z('36'), pg_temp.z('07'), 20, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('08'), pg_temp.z('1f'), pg_temp.z('07'), NULL, 40, interval '8 hours');
+SELECT pg_temp.hrow(pg_temp.z('27'), pg_temp.z('1e'), 30, interval '7 hours');
+SELECT pg_temp.hrow(pg_temp.z('28'), pg_temp.z('27'), -20, interval '6 hours');
+SELECT pg_temp.hremit(pg_temp.z('26'), pg_temp.z('e6'), 10, interval '5 hours');
+SELECT pg_temp.refuses_at('Z4c Ec: likewise refused',
+  $q$SELECT pg_temp.hescheat(pg_temp.z('26'), pg_temp.z('e6'), interval '4 hours')$q$,
+  '23001', 'holds money of its own');
+SELECT pg_temp.admits('Z4d and the bank''s give-back of the other 10 is recorded',
+  $q$SELECT pg_temp.hrow(pg_temp.z('29'), pg_temp.z('27'), -10, interval '3 hours')$q$);
+SELECT pg_temp.ok('Z4e payment 0, the credit 10', pg_temp.reads(pg_temp.z('07'), pg_temp.z('26'), pg_temp.z('26')) = '0.00/10.00/10.00');
+-- The control: a credit wholly remitted, with no deficit beside it, is still
+-- escheated.
+SELECT pg_temp.hpay(pg_temp.z('09'), pg_temp.z('2a'), 60, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('2b'), pg_temp.z('2c'), pg_temp.z('09'), 20, interval '9 hours');
+SELECT pg_temp.hremit(pg_temp.z('2b'), pg_temp.z('e7'), 20, interval '8 hours');
+SELECT pg_temp.admits('Z4f a credit wholly remitted is escheated',
+  $q$SELECT pg_temp.hescheat(pg_temp.z('2b'), pg_temp.z('e7'), interval '7 hours')$q$);
+
+-- B3 (Opus B3): a reissue holding a share of what was taken back under its
+-- payment is not voided; one holding none is.
+-- Opus V: payment 100, K 50; K refunds 20; K's refund of 30 comes back as K2;
+-- 10 is taken back, and K2 (K holding nothing) absorbs it.
+SELECT pg_temp.hpay(pg_temp.z('0a'), pg_temp.z('2d'), 100, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('2e'), pg_temp.z('2f'), pg_temp.z('0a'), 50, interval '9 hours');
+SELECT pg_temp.hrefund(pg_temp.z('0b'), pg_temp.z('3a'), NULL, pg_temp.z('2e'), 20, interval '8 hours');
+SELECT pg_temp.hrefund(pg_temp.z('0c'), pg_temp.z('3b'), NULL, pg_temp.z('2e'), 30, interval '7 hours');
+SELECT pg_temp.hback(pg_temp.z('0c'), pg_temp.z('3b'), pg_temp.z('3c'), interval '6 hours');
+SELECT pg_temp.hreissue(pg_temp.z('3d'), pg_temp.z('0c'), 30, interval '6 hours');
+SELECT pg_temp.hrow(pg_temp.z('3e'), pg_temp.z('2d'), 10, interval '5 hours');
+SELECT pg_temp.ok('Z5 Opus V: payment 50, K 0, K2 20', pg_temp.reads(pg_temp.z('0a'), pg_temp.z('2e'), pg_temp.z('3d')) = '50.00/0.00/20.00');
+SELECT pg_temp.refuses_at('Z5a K2''s void is refused while it carries 10 of what was taken back',
+  $q$UPDATE public.customer_credits SET status = 'voided', status_recorded_at = now() - interval '4 hours' WHERE id = pg_temp.z('3d')$q$,
+  '23001', 'of what was taken back');
+-- Once the bank gives the 10 back, K2 holds no share, and its void is admitted.
+SELECT pg_temp.hrow(pg_temp.z('3f'), pg_temp.z('3e'), -10, interval '3 hours');
+SELECT pg_temp.admits('Z5b K2''s void with no share left is admitted',
+  $q$UPDATE public.customer_credits SET status = 'voided', status_recorded_at = now() - interval '2 hours' WHERE id = pg_temp.z('3d')$q$);
+SELECT pg_temp.ok('Z5c payment 50, K 30', pg_temp.reads(pg_temp.z('0a'), pg_temp.z('2e'), pg_temp.z('2e')) = '50.00/30.00/30.00');
+
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
+SELECT pg_temp.agree('Z1a Fable P1', pg_temp.z('01'), pg_temp.z('21'));
+SELECT pg_temp.agree('Z1d Fable P1c', pg_temp.z('41'), pg_temp.z('61'));
+SELECT pg_temp.agree('Z2a Opus F', pg_temp.z('81'), pg_temp.z('a1'));
+SELECT pg_temp.agree('Z3a Codex 01', pg_temp.z('c1'), pg_temp.z('e1'));
+SELECT pg_temp.agree('Z4g Opus E', pg_temp.z('05'), pg_temp.z('25'));
+SELECT pg_temp.agree('Z4h Ec', pg_temp.z('07'), pg_temp.z('26'));
+SELECT pg_temp.agree('Z5d Opus V', pg_temp.z('0a'), pg_temp.z('2e'));
+RESET ROLE;
+
+-- B4 (Codex B2): a reissue line is at most 999 reissues deep; the 1000th is
+-- refused when it is made, and a walk that meets a deeper line raises.
+-- The chain is loaded fast (no triggers), its 999th and 1000th reissues
+-- through the guards: the 999th passes the bound (whatever the later checks
+-- say of a fixture with no money rows), the 1000th is refused by it.
+SELECT pg_temp.hpay(pg_temp.z('0d'), pg_temp.z('4a'), 1, interval '10 hours');
+SELECT pg_temp.hcredit(pg_temp.z('4b'), pg_temp.z('4c'), pg_temp.z('0d'), 1, interval '9 hours');
+CREATE TEMP TABLE z_chain (gen integer PRIMARY KEY, credit uuid, refund uuid);
+INSERT INTO z_chain VALUES (0, pg_temp.z('4b'), NULL);
+-- guards_off()/guards_on(): every trigger on payments and customer_credits
+-- off (an ENABLE ALWAYS guard fires under session_replication_role too), then
+-- each back as it was.
+CREATE TEMP TABLE z_guards AS SELECT tgrelid::regclass AS rel, tgname, tgenabled FROM pg_trigger
+ WHERE tgrelid IN ('public.payments'::regclass, 'public.customer_credits'::regclass) AND NOT tgisinternal;
+CREATE FUNCTION pg_temp.guards_off() RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  SET CONSTRAINTS ALL IMMEDIATE;  -- a table with checks still deferred cannot be altered
+  ALTER TABLE public.payments DISABLE TRIGGER ALL;
+  ALTER TABLE public.customer_credits DISABLE TRIGGER ALL;
+END $$;
+CREATE FUNCTION pg_temp.guards_on() RETURNS void LANGUAGE plpgsql AS $$
+DECLARE g record;
+BEGIN
+  ALTER TABLE public.payments ENABLE TRIGGER ALL;
+  ALTER TABLE public.customer_credits ENABLE TRIGGER ALL;
+  FOR g IN SELECT * FROM z_guards WHERE tgenabled <> 'O' LOOP
+    EXECUTE format('ALTER TABLE %s %s TRIGGER %I', g.rel,
+                   CASE g.tgenabled WHEN 'A' THEN 'ENABLE ALWAYS' WHEN 'R' THEN 'ENABLE REPLICA' ELSE 'DISABLE' END, g.tgname);
+  END LOOP;
+END $$;
+SELECT pg_temp.guards_off();
+DO $$
+DECLARE i integer; v_prev uuid := pg_temp.z('4b'); v_r uuid; v_k uuid;
+BEGIN
+  FOR i IN 1 .. 999 LOOP
+    v_r := gen_random_uuid();
+    INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id, status, effective_date, effective_date_method)
+    VALUES (v_r, '00000000-0000-4000-8000-0000000023a1', 'Z6-' || i, '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-12', -1, 'refund', v_prev, 'nsf', DATE '2026-03-12', 'other');
+    IF i < 999 THEN
+      v_k := gen_random_uuid();
+      INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
+      VALUES (v_k, '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 1, DATE '2026-03-14', v_r);
+      INSERT INTO z_chain VALUES (i, v_k, v_r);
+      v_prev := v_k;
+    ELSE
+      INSERT INTO z_chain VALUES (i, NULL, v_r);
+    END IF;
+  END LOOP;
+END $$;
+SELECT pg_temp.guards_on();
+DO $$
+DECLARE v_r uuid := (SELECT refund FROM z_chain WHERE gen = 999);
+BEGIN
+  BEGIN
+    INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
+    VALUES (pg_temp.z('4d'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 1, DATE '2026-03-14', v_r);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'roll back';
+  EXCEPTION WHEN OTHERS THEN
+    IF strpos(SQLERRM, 'reissues deep') > 0 THEN
+      RAISE EXCEPTION 'FAIL Z6 the 999th reissue is refused by the bound: %', SQLERRM;
+    END IF;
+  END;
+  RAISE NOTICE 'PASS Z6 the 999th reissue passes the bound';
+END $$;
+SELECT pg_temp.guards_off();
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
+SELECT pg_temp.z('4d'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 1, DATE '2026-03-14', refund FROM z_chain WHERE gen = 999;
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id, status, effective_date, effective_date_method)
+VALUES (pg_temp.z('0e'), '00000000-0000-4000-8000-0000000023a1', 'Z6-1000', '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-12', -1, 'refund', pg_temp.z('4d'), 'nsf', DATE '2026-03-12', 'other');
+SELECT pg_temp.guards_on();
+SELECT pg_temp.ok('Z6a the 999th reissue''s root is the overpayment credit', public.overpayment_root(pg_temp.z('4d')) = pg_temp.z('4b'));
+SELECT pg_temp.refuses_at('Z6b the 1000th is refused when it is made',
+  $q$INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES (pg_temp.z('4e'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 1, DATE '2026-03-14', pg_temp.z('0e'))$q$,
+  '23514', 'reissues deep');
+SELECT pg_temp.guards_off();
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id) VALUES
+  (pg_temp.z('4e'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 1, DATE '2026-03-14', pg_temp.z('0e'));
+SELECT pg_temp.guards_on();
+SELECT pg_temp.refuses_at('Z6c a planted 1000th: its root walk raises, never NULL',
+  $q$SELECT public.overpayment_root(pg_temp.z('4e'))$q$, '22000', 'reissues deep');
+SELECT pg_temp.refuses_at('Z6d and so does the family walk from the root',
+  $q$SELECT count(*) FROM public.overpayment_family(pg_temp.z('4b'))$q$, '22000', 'reissues deep');
+SELECT pg_temp.guards_off();
+DELETE FROM public.customer_credits WHERE id = pg_temp.z('4e');
+SELECT pg_temp.guards_on();
+SELECT pg_temp.ok('Z6e the guards are back as they were',
+  NOT EXISTS (SELECT 1 FROM z_guards g JOIN pg_trigger t ON t.tgrelid = g.rel AND t.tgname = g.tgname WHERE t.tgenabled <> g.tgenabled)
+  AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid IN ('public.payments'::regclass, 'public.customer_credits'::regclass) AND t.tgisinternal AND t.tgenabled <> 'O'));
 
 -- ============================================================== I invariants
 -- r2 (Codex S2): each invariant is called, not folded into a constant.
