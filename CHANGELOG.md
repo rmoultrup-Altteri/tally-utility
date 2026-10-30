@@ -6,6 +6,20 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-10-29 (night, money) — -23 round 6 reviewed (all three: not yet); round 7 built and tested, waiting on Kyle
+
+**What was done:**
+- **Round 6's three reviews** (Opus, Fable, Codex) all said not yet. The common finding: a payment's credits never covered each other's shortfall, so after a bounce one credit could read −50 and its reissue +20, with the +20 looking refundable when it wasn't. Opus also found an escheat admitted on money that later came back, and a voided reissue whose share of a take-back stayed in the payment's limit; Codex found the 1,000th reissue losing its payment; all three found a deadlock between a reissue's void and a give-back. Codex's probes were run on a fresh clone (outputs in `codex-r6.md`).
+- **Kyle asked in Slack** (Ryan sent it): do a payment's credits net against each other, and which covers a shortfall first, the sibling credits or the payment's own money?
+- **Round 7 built on our lean** (siblings first, the latest first), with every other fix: escheat only on the credit's own money, no void of a reissue carrying a take-back's share, the payment's lock first on a reissue's void, a 999-deep reissue bound that raises instead of reading NULL.
+- **Tests:** battery 372/372 (Z section new; agree() now checks escheated credits); races 39/39 (CR25 new; deadlocks on r6); mutations 218/218 (N212–N219 new; N203 re-anchored to Y7i; N129's one miss was timing).
+
+**Decisions:** which credit covers a shortfall goes to Kyle, and round 7 isn't frozen until he answers (Ryan). Refusing a reissue's void while it carries a take-back's share is a known limit, not put to Kyle (Ryan). DECISION-LOG 2026-10-29 (-23 r7).
+
+**Failed approaches:** Codex with `-s read-only` (can't write its files); passing a voided reissue's share back to its credit (a new path through every reader and cap).
+
+**Next:** Kyle's answer → record it in GBM → freeze round 7 → three reviewers. Then -24, and -25/-26 to review.
+
 ## 2026-10-29 — parallel streams set up (board, per-stream handoffs, clones, CI lock); scenarios run beside the schema; -23 r6 built and frozen
 
 **What was done:**
