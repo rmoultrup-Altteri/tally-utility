@@ -1,0 +1,8 @@
+Verdict: **not yet**.
+
+- **B1 — predicted:** two positive sibling credits can produce a displayed balance below what the cap permits.
+- **B2 — predicted:** a refund returned after valid escheat can leave money stranded on the escheated credit.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-23/review/codex-r7.md)
+
+All six hashes matched. Eleven unexecuted probes supplied; no database commands or test runners executed.

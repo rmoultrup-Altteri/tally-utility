@@ -1,0 +1,137 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ hback 
+-------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+SET CONSTRAINTS
+psql:/tmp/cx7/01-two-positive-siblings.sql:183: NOTICE:  PAYMENT 00000000-0000-4000-8000-000000003201 position={"amount":100.00,"received":90.00,"applied":0,"credited":90.00,"refunded":0,"remaining":0.00}
+ positions 
+-----------
+ 
+(1 row)
+
+psql:/tmp/cx7/01-two-positive-siblings.sql:183: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-000000003221","status":"active","remaining":0.00,"own_remaining":-10.00}
+psql:/tmp/cx7/01-two-positive-siblings.sql:183: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-000000003222","status":"active","remaining":20.00,"own_remaining":20.00}
+psql:/tmp/cx7/01-two-positive-siblings.sql:183: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-000000003223","status":"active","remaining":10.00,"own_remaining":20.00}
+                  id                  |              credit_id               |  on_date   |          created_at           | absorbed 
+--------------------------------------+--------------------------------------+------------+-------------------------------+----------
+ 00000000-0000-4000-8000-000000003219 | 00000000-0000-4000-8000-000000003221 | 2026-03-15 | 2026-11-01 18:22:41.155386+00 |    10.00
+(1 row)
+
+psql:/tmp/cx7/01-two-positive-siblings.sql:185: NOTICE:  DRAW amount=10.01 admitted SQLSTATE=00000
+psql:/tmp/cx7/01-two-positive-siblings.sql:185: NOTICE:  DRAW amount=10.01 caught SQLSTATE=P0099 message=probe rollback of admitted draw
+ attempt 
+---------
+ 
+(1 row)
+
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/cx7/01-two-positive-siblings.sql:186: NOTICE:  DRAW amount=20 admitted SQLSTATE=00000
+psql:/tmp/cx7/01-two-positive-siblings.sql:186: NOTICE:  DRAW amount=20 caught SQLSTATE=P0099 message=probe rollback of admitted draw
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/cx7/01-two-positive-siblings.sql:187: NOTICE:  DRAW amount=20.01 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003223: on 2026-11-02 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+ attempt 
+---------
+ 
+(1 row)
+
+psql:/tmp/cx7/01-two-positive-siblings.sql:189: NOTICE:  DRAW amount=20 admitted SQLSTATE=00000
+psql:/tmp/cx7/01-two-positive-siblings.sql:189: NOTICE:  DRAW amount=20 caught SQLSTATE=P0099 message=probe rollback of admitted draw
+psql:/tmp/cx7/01-two-positive-siblings.sql:194: NOTICE:  agree caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003201: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:/tmp/cx7/01-two-positive-siblings.sql:194: NOTICE:  agree caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003221: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 110.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:/tmp/cx7/01-two-positive-siblings.sql:194: NOTICE:  agree caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003222: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:/tmp/cx7/01-two-positive-siblings.sql:194: NOTICE:  agree caught SQLSTATE=P0099 message=roll back
+psql:/tmp/cx7/01-two-positive-siblings.sql:194: NOTICE:  agree caught SQLSTATE=P0099 message=roll back
+psql:/tmp/cx7/01-two-positive-siblings.sql:194: NOTICE:  agreement caught SQLSTATE=P0001 message=FAIL Codex r7 finding (credit 3223): it reads 10.00, and a refund of 10.01 got admitted
+DO
+ROLLBACK
