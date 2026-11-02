@@ -39,5 +39,6 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 | `cancel-rebill.md` | voiding and rebilling a wrong bill | SCN-0002 – 0006 |
 | `deposits.md` | taking, refunding and applying deposits | SCN-0007 – 0012 |
 | `backbilling.md` | how far back a correction may reach | SCN-0013 – 0019 |
+| `periods-and-aging.md` | periods, the close, GL mapping, aging, write-off recovery | SCN-0020 – 0026 |
 
-**Next free ID: SCN-0020.**
+**Next free ID: SCN-0027.**
