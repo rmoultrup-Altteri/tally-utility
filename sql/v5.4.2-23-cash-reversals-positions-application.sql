@@ -399,17 +399,20 @@
 --       one pot, shown as one net balance. The cover nets within one
 --       payment only: across payments, a credit still reads as refundable,
 --       and runs its own escheat clock, while another payment's bounce
---       leaves the customer owing. The core nets the pot before a refund or
---       an escheat report (APPLICATION-CONTRACTS AC-44); a database cap
---       across the customer's payments can be added later as a tightening.
+--       leaves the customer owing. The core nets the pot before a refund,
+--       and before an escheat report only where the state's rule allows
+--       that setoff (Ryan, 2026-11-02); it records the netting as an
+--       application to the bounced payment's shortfall, v5.4.2-27's row
+--       (APPLICATION-CONTRACTS AC-44). A database cap across the customer's
+--       payments can be added later as a tightening.
 --   R24. r8 (Fable S2, Opus N2): a credit whose own money covers a deficit
 --       beside it that nothing will give back (a bounce's shortfall) reads
 --       nothing and never closes: its escheat is refused (it holds money of
 --       its own), a draw on it by the cap on the payment and its credits
 --       together, and its void is a correction. The money is right: the
 --       utility holds it against what the customer was paid. The core reads
---       it as netted, not dormant (AC-44). A closing act, applying a credit
---       to a shortfall under its own payment, would be a later addition.
+--       it as netted, not dormant (AC-44). Its closing act, applying the
+--       credit to the shortfall, is v5.4.2-27's (Ryan, 2026-11-02).
 --
 -- ----------------------------------------------------------------------------
 -- Kyle's K-10 (2026-10-21; gas-billing-memory kyle-decisions-2026-10-21-
