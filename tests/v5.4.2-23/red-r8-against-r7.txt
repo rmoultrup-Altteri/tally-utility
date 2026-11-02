@@ -1,0 +1,10 @@
+v5.4.2-23 r8 tests against frozen r7 (patch-23-frozen-r7.sql), 2026-11-01
+
+battery-23.sql (stops at the first failure):
+ERROR:  FAIL Q4 Opus H: a give-back of 40 is refused (10 of it would be K's own, on an escheated credit): accepted
+
+races/cash-23.sh:
+FAIL CR26: a deadlock: A: 
+ERROR:  40P01: deadlock detected
+DETAIL:  Process 29609 waits for ExclusiveLock on advisory lock [724587,2860717921,2699622569,1]; blocked by process 29617.
+(every other race PASS: 39)

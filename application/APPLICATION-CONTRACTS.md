@@ -374,16 +374,22 @@ Set `invoices.pdf_url` and `pdf_sha256` together; on a draft or held bill, chang
 `account_ledger.running_balance` is dropped (CI-019, Ryan 2026-10-13). Read a balance with `account_balance_as_of(customer, on_date, recorded_at)`: all three arguments are required, and an invisible customer raises. `void_invoice()` returns `credit_balance` as the same sum.
 
 ### AC-44 — A customer's credits are one pot: show one net credit balance, and net a credit against what the customer owes before refunding or escheating it — SILENT
-*Introduced by v5.4.2-23 r7 (Kyle, 2026-10-30, `gas-billing-memory/application/kyle-decisions-2026-10-30-credit-shortfall-after-bounce.md`; Ryan, 2026-11-01).*
+*Introduced by v5.4.2-23 r7 (Kyle, 2026-10-30, `gas-billing-memory/application/kyle-decisions-2026-10-30-credit-shortfall-after-bounce.md`; Ryan, 2026-11-01). Escheat netting made per-state, and the netting's record named, in r8 (Opus r7 N3; Ryan, 2026-11-02).*
 
 The schema nets credits only within one payment: a shortfall on one of a payment's credits is covered by its other credits, then by the payment (`overpayment_absorbed_as_of`). Across payments it does not. When payment X's bounce leaves the customer owing 30 and payment Y left a credit of 20, the database still reads Y's credit as 20, admits its refund, and lets it reach escheat dormancy on its own.
 
 Kyle's rule is that all of a customer's credits are one pot. The core must therefore:
 - show the customer and the operator one net credit balance, never one line per payment or reissue;
-- before refunding a credit, or reporting it for escheat, apply it to what the customer owes on a payment left short by a bounce (an ordinary application), and refund or report only what is left of the pot;
+- before refunding a credit, apply it to what the customer owes on a payment left short by a bounce, and refund only what is left of the pot (Kyle's ruling; the utility's policy);
+- **record that netting as an application of the credit to the bounced payment's shortfall**, never as a charge billed for the shortfall (Ryan, 2026-11-02; Opus r7 N3). A bounce waits until the payment's bill applications are undone, so what a bounce leaves owed off the bills is money already paid out (a refund), and an ordinary application cannot reach it: every application names an invoice. Billing it would put on the bill a charge the customer was never assessed, which Kyle ruled out (K-10, 2026-10-21). The row kind is v5.4.2-27's (claimed, not drafted); money owed on a bill reopened by the bounce is applied to that bill as usual;
+- before reporting a credit for escheat, net it across payments **only where the escheat state's rule allows a holder that setoff** (Ryan, 2026-11-02). Netting across payments before a report is a setoff against a separate debt, which each state's unclaimed-property law allows or not. The core reads that per-jurisdiction rule (a typed rule row under the 2026-10-06 rule-terms convention); where it is not allowed, or no rule row exists for the state, report the credit's own money in full and collect the debt separately. Netting within one payment is not a setoff and always applies (the database does it);
 - allow a partial refund up to the available pot; how much is utility policy.
 
 The per-source credits stay underneath, for the bounce caps, bank tie-out and escheat dates. A database guard (a customer-wide refund and escheat cap) can be added later as a tightening, with no data migration (DECISION-LOG 2026-11-01).
+
+Two more things the core must know (v5.4.2-23 r8):
+- **A per-credit figure is an attribution, not what that credit can pay.** Within one payment, when two credits (or the payment and a credit) hold money beside a shortfall, the one the shortfall is placed on reads less than the database lets it pay out (R20; Ryan, 2026-11-01). Show the net; never offer "refund this credit's balance" as that credit's limit.
+- **A credit reading 0 that holds money of its own is netted, not dormant** (R24). Its money covers a shortfall under its own payment. The database refuses its escheat; the core's escheat run should expect such credits and leave them alone.
 
 
 ### AC-42 — Call `assert_reference_version()` first, in the same transaction, before any rate, item or zone edit — REJECTS

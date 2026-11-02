@@ -1952,14 +1952,22 @@ BEGIN
   UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = p_row, status_recorded_at = now() - p_ago WHERE id = p_refund;
 END $$;
 -- agree() (Opus, Fable S3): a payment and its overpayment credit's family
--- each read what their caps admit — a refund of a side's remainder is
--- admitted when it is positive, and a cent more is refused — and the
--- remainders add up to the ledger (what stands of the payment, less all
--- that it and the family gave outside the family).
-CREATE FUNCTION pg_temp.agree_side(p_label text, p_pay uuid, p_credit uuid, p_rem numeric) RETURNS void LANGUAGE plpgsql AS $$
+-- read what the ledger leaves, and no line more than it can pay. r8 (Ryan,
+-- 2026-11-01, option A): a line's position is an attribution. A refund of a
+-- line's remainder is admitted when it is positive; a refund of everything
+-- the lines read, and a cent, is refused from every line (with one line
+-- holding money, that is its remainder and a cent); no line reads money
+-- while another reads a deficit; an escheated credit reads nothing; the
+-- remainders add up to what stands of the payment, less all that it and the
+-- family gave outside the family. A line may pay out more than it reads
+-- when another line beside it also reads money (r7 B1).
+-- The lines agree() reads, made by the owner (tally_app has no TEMP).
+CREATE TEMP TABLE agree_lines (id uuid, status text, remaining numeric);
+GRANT SELECT, INSERT, DELETE ON agree_lines TO tally_app, tally_core;
+CREATE FUNCTION pg_temp.agree_side(p_label text, p_pay uuid, p_credit uuid, p_rem numeric, p_pool numeric) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_state text; v_amt numeric;
 BEGIN
-  FOREACH v_amt IN ARRAY (CASE WHEN p_rem > 0 THEN ARRAY[p_rem + 0.01, p_rem] ELSE ARRAY[0.01] END) LOOP
+  FOREACH v_amt IN ARRAY (CASE WHEN p_rem > 0 THEN ARRAY[p_pool + 0.01, p_rem] ELSE ARRAY[p_pool + 0.01] END) LOOP
     v_state := NULL;
     BEGIN
       INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id, refunds_customer_credit_id)
@@ -1969,27 +1977,37 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       v_state := coalesce(v_state, SQLSTATE);
     END;
-    IF v_state IS DISTINCT FROM (CASE WHEN v_amt = p_rem THEN 'admitted' ELSE '23514' END) THEN
-      RAISE EXCEPTION 'FAIL %: it reads %, and a refund of % got %', p_label, p_rem, v_amt, v_state;
+    IF v_state IS DISTINCT FROM (CASE WHEN v_amt = p_rem AND v_amt <> p_pool + 0.01 THEN 'admitted' ELSE '23514' END) THEN
+      RAISE EXCEPTION 'FAIL %: it reads % of the % the lines read, and a refund of % got %', p_label, p_rem, p_pool, v_amt, v_state;
     END IF;
   END LOOP;
 END $$;
 CREATE FUNCTION pg_temp.agree(p_label text, p_pay uuid, p_credit uuid) RETURNS void LANGUAGE plpgsql AS $$
-DECLARE v_p numeric; v_f numeric; v_net numeric; f record;
+DECLARE v_p numeric; v_f numeric; v_net numeric; v_pool numeric; v_neg boolean; f record;
 BEGIN
+  DELETE FROM agree_lines;
+  INSERT INTO agree_lines
+  SELECT c.id, c.status, x.remaining FROM public.overpayment_family(p_credit) g JOIN public.customer_credits c ON c.id = g.id
+   CROSS JOIN LATERAL public.customer_credit_position_as_of(c.id, DATE '2026-12-31', clock_timestamp()) x;
   SELECT remaining INTO v_p FROM public.payment_position_as_of(p_pay, DATE '2026-12-31', clock_timestamp());
-  PERFORM pg_temp.agree_side(p_label || ' (payment)', p_pay, NULL, v_p);
+  SELECT greatest(v_p, 0) + coalesce(sum(greatest(remaining, 0)) FILTER (WHERE status = 'active'), 0),
+         v_p < 0 OR coalesce(bool_or(remaining < 0) FILTER (WHERE status <> 'voided'), false)
+    INTO v_pool, v_neg FROM agree_lines;
+  IF v_neg AND (v_p > 0 OR EXISTS (SELECT 1 FROM agree_lines WHERE status <> 'voided' AND remaining > 0)) THEN
+    RAISE EXCEPTION 'FAIL %: a line reads money beside another''s deficit (payment %; credits %)', p_label, v_p,
+      (SELECT string_agg(right(id::text, 4) || ' ' || remaining, ', ' ORDER BY id) FROM agree_lines);
+  END IF;
+  PERFORM pg_temp.agree_side(p_label || ' (payment)', p_pay, NULL, v_p, v_pool);
   v_f := 0;
-  FOR f IN SELECT c.id, x.remaining FROM public.overpayment_family(p_credit) g JOIN public.customer_credits c ON c.id = g.id
-             CROSS JOIN LATERAL public.customer_credit_position_as_of(c.id, DATE '2026-12-31', clock_timestamp()) x LOOP
-    IF (SELECT status FROM public.customer_credits WHERE id = f.id) = 'active' THEN
-      PERFORM pg_temp.agree_side(p_label || ' (credit ' || right(f.id::text, 4) || ')', NULL, f.id, f.remaining);
+  FOR f IN SELECT * FROM agree_lines LOOP
+    IF f.status = 'active' THEN
+      PERFORM pg_temp.agree_side(p_label || ' (credit ' || right(f.id::text, 4) || ')', NULL, f.id, f.remaining, v_pool);
     -- r7 (Opus B1): an escheated credit holds nothing (a deficit at most).
-    ELSIF (SELECT status FROM public.customer_credits WHERE id = f.id) = 'escheated' AND f.remaining > 0 THEN
+    ELSIF f.status = 'escheated' AND f.remaining > 0 THEN
       RAISE EXCEPTION 'FAIL %: escheated credit % reads %', p_label, right(f.id::text, 4), f.remaining;
     END IF;
     -- A voided credit's money is counted on the credit it went back to.
-    CONTINUE WHEN (SELECT status FROM public.customer_credits WHERE id = f.id) = 'voided';
+    CONTINUE WHEN f.status = 'voided';
     v_f := v_f + f.remaining;
   END LOOP;
   SELECT d.received - d.applied - d.refunded INTO v_net FROM public.payment_draws_as_of(p_pay, DATE '2026-12-31', clock_timestamp()) d;
@@ -1998,9 +2016,9 @@ BEGIN
   IF v_p + v_f IS DISTINCT FROM v_net THEN
     RAISE EXCEPTION 'FAIL %: the payment reads % and its credits %, which is not the % the ledger leaves', p_label, v_p, v_f, v_net;
   END IF;
-  RAISE NOTICE 'PASS %: payment %, credits %, each what its cap admits', p_label, v_p, v_f;
+  RAISE NOTICE 'PASS %: payment %, credits %, none more than it can pay', p_label, v_p, v_f;
 END $$;
-GRANT EXECUTE ON FUNCTION pg_temp.x(text), pg_temp.agree_side(text, uuid, uuid, numeric), pg_temp.agree(text, uuid, uuid) TO tally_app, tally_core;
+GRANT EXECUTE ON FUNCTION pg_temp.x(text), pg_temp.agree_side(text, uuid, uuid, numeric, numeric), pg_temp.agree(text, uuid, uuid) TO tally_app, tally_core;
 -- The shapes of rounds 4 and 5, through the helper.
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
@@ -2235,6 +2253,13 @@ SELECT pg_temp.ok('Y7i 50 taken back comes out of the credit and its reissue (cr
   AND (SELECT remaining = 10 FROM public.customer_credit_position_as_of(pg_temp.x('83'), DATE '2026-12-31', clock_timestamp()))
   AND (SELECT remaining = 40 FROM public.payment_position_as_of(pg_temp.x('4f'), DATE '2026-12-31', clock_timestamp())));
 SELECT pg_temp.agree('Y7j the family', pg_temp.x('4f'), pg_temp.x('82'));
+-- r8: agree() no longer requires a line to pay exactly what it reads (option
+-- A), so the reissue's own cap is checked directly: it holds 30 less its 20
+-- share of the take-back, and refunds no more than 10.
+SELECT pg_temp.refuses_at('Y7j2 the reissue refunds no more than its own 10 (its 20 share of the take-back counts)',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id)
+     VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-Y7J2', '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-16', -11, 'refund', pg_temp.x('83'))$q$,
+  '23514', 'more than its 30.00');
 
 -- S2 (Opus S2, Fable S2): a give-back under a payment whose credit is
 -- escheated is refused only as far as the credit would then hold money.
@@ -2500,13 +2525,18 @@ BEGIN
     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
     VALUES (pg_temp.z('4d'), '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c5', 'refund_reissue', 1, DATE '2026-03-14', v_r);
     SET CONSTRAINTS ALL IMMEDIATE;
+    -- r8 (Codex S1): made in full, and a refund of what it holds is
+    -- admitted, through the payment's cap.
+    INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id)
+    VALUES ('00000000-0000-4000-8000-0000000023a1', 'Z6-999R', '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-15', -1, 'refund', pg_temp.z('4d'));
+    SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'roll back';
   EXCEPTION WHEN OTHERS THEN
-    IF strpos(SQLERRM, 'reissues deep') > 0 THEN
-      RAISE EXCEPTION 'FAIL Z6 the 999th reissue is refused by the bound: %', SQLERRM;
+    IF SQLSTATE <> 'P0099' THEN
+      RAISE EXCEPTION 'FAIL Z6 the 999th reissue and a refund of it: refused with % (%)', SQLSTATE, SQLERRM;
     END IF;
   END;
-  RAISE NOTICE 'PASS Z6 the 999th reissue passes the bound';
+  RAISE NOTICE 'PASS Z6 the 999th reissue is made, and a refund of it admitted';
 END $$;
 SELECT pg_temp.guards_off();
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
@@ -2532,6 +2562,148 @@ SELECT pg_temp.guards_on();
 SELECT pg_temp.ok('Z6e the guards are back as they were',
   NOT EXISTS (SELECT 1 FROM z_guards g JOIN pg_trigger t ON t.tgrelid = g.rel AND t.tgname = g.tgname WHERE t.tgenabled <> g.tgenabled)
   AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid IN ('public.payments'::regclass, 'public.customer_credits'::regclass) AND t.tgisinternal AND t.tgenabled <> 'O'));
+
+-- ============================================================== r8: round 7's findings
+-- Ids 33xx, written q('xx'), all of C5; history loads as in r6 (h*()).
+CREATE FUNCTION pg_temp.q(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SELECT ('00000000-0000-4000-8000-0000000033' || p)::uuid $$;
+-- settle_now(): the deferred check on a refund of an escheated credit that
+-- came back, run now (then deferred again), so one act's result is seen
+-- before the next.
+CREATE FUNCTION pg_temp.settle_now() RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  SET CONSTRAINTS public.enforce_escheated_credit_settled IMMEDIATE;
+  SET CONSTRAINTS public.enforce_escheated_credit_settled DEFERRED;
+END $$;
+-- hback_settled(): hback(), then the check; with p_reissue, the reissue of
+-- p_amount carrying it first, in the same transaction. The check is deferred
+-- first: a SET CONSTRAINTS in a rolled-back subtransaction (Z6) outlives it.
+CREATE FUNCTION pg_temp.hback_settled(p_refund uuid, p_entry uuid, p_row uuid, p_ago interval, p_reissue uuid DEFAULT NULL, p_amount numeric DEFAULT NULL) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  SET CONSTRAINTS public.enforce_escheated_credit_settled DEFERRED;
+  PERFORM pg_temp.hback(p_refund, p_entry, p_row, p_ago);
+  IF p_reissue IS NOT NULL THEN
+    PERFORM pg_temp.hreissue(p_reissue, p_refund, p_amount, p_ago);
+  END IF;
+  PERFORM pg_temp.settle_now();
+END $$;
+-- qpay(), qrefund(), qrefund_on(): hpay(), hrefund() and hrefund_on() with
+-- payment numbers of their own (B23-Q…).
+CREATE FUNCTION pg_temp.qpay(p_id uuid, p_entry uuid, p_amount numeric, p_ago interval) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, created_at)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', 'B23-Q' || right(p_id::text, 2), '00000000-0000-4000-8000-0000000023c5', DATE '2026-03-10', p_amount, 'check', now() - p_ago);
+  PERFORM pg_temp.hpost(p_id, p_entry, p_ago);
+END $$;
+CREATE FUNCTION pg_temp.qrefund_on(p_id uuid, p_entry uuid, p_pay uuid, p_credit uuid, p_amount numeric, p_ago interval, p_on date DEFAULT DATE '2026-03-12') RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id, refunds_customer_credit_id, created_at)
+  VALUES (p_id, '00000000-0000-4000-8000-0000000023a1', 'B23-Q' || right(p_id::text, 2) || 'R', '00000000-0000-4000-8000-0000000023c5', p_on, -p_amount, 'refund', p_pay, p_credit, now() - p_ago);
+  PERFORM pg_temp.hpost(p_id, p_entry, p_ago);
+END $$;
+GRANT EXECUTE ON FUNCTION pg_temp.q(text) TO tally_app, tally_core;
+
+-- B1 (Fable B1, Opus B2, Codex B1; Ryan, 2026-11-01, option A): with two
+-- lines holding money beside a deficit, the one the cover falls on reads
+-- less than it can pay out; none reads more, and they add up to the ledger.
+-- Fable P2: payment 100, K 100; K's refunds of 20 and 30 come back as R1 and
+-- R2; K refunds 50, R1 20, R2 30; 10 is taken back (on K); R1's and R2's
+-- refunds come back. K's −10 is covered by R2: K 0, R1 20, R2 20.
+SELECT pg_temp.qpay(pg_temp.q('01'), pg_temp.q('11'), 100, interval '12 hours');
+SELECT pg_temp.hcredit(pg_temp.q('21'), pg_temp.q('31'), pg_temp.q('01'), 100, interval '11 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('02'), pg_temp.q('12'), NULL, pg_temp.q('21'), 20, interval '10 hours');
+SELECT pg_temp.hback(pg_temp.q('02'), pg_temp.q('12'), pg_temp.q('13'), interval '9 hours 30 minutes');
+SELECT pg_temp.hreissue(pg_temp.q('22'), pg_temp.q('02'), 20, interval '9 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('03'), pg_temp.q('14'), NULL, pg_temp.q('21'), 30, interval '8 hours 30 minutes');
+SELECT pg_temp.hback(pg_temp.q('03'), pg_temp.q('14'), pg_temp.q('15'), interval '8 hours');
+SELECT pg_temp.hreissue(pg_temp.q('23'), pg_temp.q('03'), 30, interval '7 hours 30 minutes');
+SELECT pg_temp.qrefund_on(pg_temp.q('04'), pg_temp.q('16'), NULL, pg_temp.q('21'), 50, interval '7 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('05'), pg_temp.q('17'), NULL, pg_temp.q('22'), 20, interval '6 hours', DATE '2026-03-14');
+SELECT pg_temp.qrefund_on(pg_temp.q('06'), pg_temp.q('18'), NULL, pg_temp.q('23'), 30, interval '5 hours', DATE '2026-03-14');
+SELECT pg_temp.hrow(pg_temp.q('19'), pg_temp.q('11'), 10, interval '4 hours');
+SELECT pg_temp.hback(pg_temp.q('05'), pg_temp.q('17'), pg_temp.q('1a'), interval '3 hours');
+SELECT pg_temp.hback(pg_temp.q('06'), pg_temp.q('18'), pg_temp.q('1b'), interval '2 hours');
+SELECT pg_temp.ok('Q1 Fable P2: payment 0, R1 20, R2 20', pg_temp.reads(pg_temp.q('01'), pg_temp.q('22'), pg_temp.q('23')) = '0.00/20.00/20.00');
+SELECT pg_temp.ok('Q1b and K 0', pg_temp.reads(pg_temp.q('01'), pg_temp.q('21'), pg_temp.q('21')) = '0.00/0.00/0.00');
+-- Fable P3: the payment holds money too. Payment 100, K 60; the payment's
+-- own 40 refunded; K's refund of 20 comes back as R; K refunds 40 and R 20;
+-- 10 is taken back (on K); the payment's refund, then R's, comes back.
+SELECT pg_temp.qpay(pg_temp.q('41'), pg_temp.q('51'), 100, interval '12 hours');
+SELECT pg_temp.hcredit(pg_temp.q('61'), pg_temp.q('71'), pg_temp.q('41'), 60, interval '11 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('42'), pg_temp.q('52'), pg_temp.q('41'), NULL, 40, interval '10 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('43'), pg_temp.q('53'), NULL, pg_temp.q('61'), 20, interval '9 hours 30 minutes');
+SELECT pg_temp.hback(pg_temp.q('43'), pg_temp.q('53'), pg_temp.q('54'), interval '9 hours');
+SELECT pg_temp.hreissue(pg_temp.q('62'), pg_temp.q('43'), 20, interval '8 hours 30 minutes');
+SELECT pg_temp.qrefund_on(pg_temp.q('44'), pg_temp.q('55'), NULL, pg_temp.q('61'), 40, interval '8 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('45'), pg_temp.q('56'), NULL, pg_temp.q('62'), 20, interval '7 hours', DATE '2026-03-14');
+SELECT pg_temp.hrow(pg_temp.q('57'), pg_temp.q('51'), 10, interval '6 hours');
+SELECT pg_temp.hback(pg_temp.q('42'), pg_temp.q('52'), pg_temp.q('58'), interval '5 hours');
+SELECT pg_temp.hback(pg_temp.q('45'), pg_temp.q('56'), pg_temp.q('59'), interval '4 hours');
+SELECT pg_temp.ok('Q2 Fable P3: payment 40, K 0, R 10', pg_temp.reads(pg_temp.q('41'), pg_temp.q('61'), pg_temp.q('62')) = '40.00/0.00/10.00');
+-- Opus G: payment 100, K 50; K's refund of 30 comes back as K2; K refunds
+-- 20, K2 30 and the payment its 50; 10 is taken back (on K); the payment's
+-- refund, then K2's, comes back.
+SELECT pg_temp.qpay(pg_temp.q('81'), pg_temp.q('91'), 100, interval '12 hours');
+SELECT pg_temp.hcredit(pg_temp.q('a1'), pg_temp.q('b1'), pg_temp.q('81'), 50, interval '11 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('82'), pg_temp.q('92'), NULL, pg_temp.q('a1'), 30, interval '10 hours');
+SELECT pg_temp.hback(pg_temp.q('82'), pg_temp.q('92'), pg_temp.q('93'), interval '9 hours 30 minutes');
+SELECT pg_temp.hreissue(pg_temp.q('a2'), pg_temp.q('82'), 30, interval '9 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('83'), pg_temp.q('94'), NULL, pg_temp.q('a1'), 20, interval '8 hours 30 minutes');
+SELECT pg_temp.qrefund_on(pg_temp.q('84'), pg_temp.q('95'), NULL, pg_temp.q('a2'), 30, interval '8 hours', DATE '2026-03-14');
+SELECT pg_temp.qrefund_on(pg_temp.q('85'), pg_temp.q('96'), pg_temp.q('81'), NULL, 50, interval '7 hours');
+SELECT pg_temp.hrow(pg_temp.q('97'), pg_temp.q('91'), 10, interval '6 hours');
+SELECT pg_temp.hback(pg_temp.q('85'), pg_temp.q('96'), pg_temp.q('98'), interval '5 hours');
+SELECT pg_temp.ok('Q3 Opus G: payment 40, K 0 once the payment''s refund comes back', pg_temp.reads(pg_temp.q('81'), pg_temp.q('a1'), pg_temp.q('a1')) = '40.00/0.00/0.00');
+SELECT pg_temp.hback(pg_temp.q('84'), pg_temp.q('95'), pg_temp.q('99'), interval '4 hours');
+SELECT pg_temp.ok('Q3a then K2''s: payment 50, K 0, K2 20', pg_temp.reads(pg_temp.q('81'), pg_temp.q('a1'), pg_temp.q('a2')) = '50.00/0.00/20.00');
+
+-- B2 (Opus B1, Codex B2; Ryan, 2026-10-21): nothing comes back to an
+-- escheated credit, read on its own side, after the escheat as at it.
+-- Opus H: payment 100, K 50; the payment's own 50 refunded; 20 taken back
+-- (on K); K's 30 remitted and K escheated; 40 more taken back (K 30, the
+-- payment 10). A give-back of 40 would put 10 of K's own back on K.
+SELECT pg_temp.qpay(pg_temp.q('c1'), pg_temp.q('d1'), 100, interval '12 hours');
+SELECT pg_temp.hcredit(pg_temp.q('e1'), pg_temp.q('f1'), pg_temp.q('c1'), 50, interval '11 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('c2'), pg_temp.q('d2'), pg_temp.q('c1'), NULL, 50, interval '10 hours');
+SELECT pg_temp.hrow(pg_temp.q('d3'), pg_temp.q('d1'), 20, interval '9 hours');
+SELECT pg_temp.hremit(pg_temp.q('e1'), pg_temp.q('e9'), 30, interval '8 hours');
+SELECT pg_temp.hescheat(pg_temp.q('e1'), pg_temp.q('e9'), interval '8 hours');
+SELECT pg_temp.hrow(pg_temp.q('d4'), pg_temp.q('d1'), 40, interval '7 hours');
+SELECT pg_temp.refuses_at('Q4 Opus H: a give-back of 40 is refused (10 of it would be K''s own, on an escheated credit)',
+  $q$SELECT pg_temp.hrow(pg_temp.q('d5'), pg_temp.q('d4'), -40, interval '6 hours')$q$,
+  '23001', 'escheated');
+SELECT pg_temp.admits('Q4a a give-back of 30 only cancels K''s deficit, and is recorded',
+  $q$SELECT pg_temp.hrow(pg_temp.q('d6'), pg_temp.q('d4'), -30, interval '5 hours')$q$);
+SELECT pg_temp.hback(pg_temp.q('c2'), pg_temp.q('d2'), pg_temp.q('d7'), interval '4 hours');
+SELECT pg_temp.ok('Q4b the payment''s refund comes back: payment 40, K 0', pg_temp.reads(pg_temp.q('c1'), pg_temp.q('e1'), pg_temp.q('e1')) = '40.00/0.00/0.00');
+-- Codex 02: payment 100, K 30; K refunds 20 and the payment 70; K's 10
+-- remitted and K escheated; 50 taken back (K 30, the payment 20), 30 given
+-- back (to K). K's refund comes back: 20 of K's own, covering the payment's
+-- −20. It is carried to a reissue, not left on K.
+SELECT pg_temp.qpay(pg_temp.q('07'), pg_temp.q('1c'), 100, interval '12 hours');
+SELECT pg_temp.hcredit(pg_temp.q('24'), pg_temp.q('32'), pg_temp.q('07'), 30, interval '11 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('08'), pg_temp.q('1d'), NULL, pg_temp.q('24'), 20, interval '10 hours');
+SELECT pg_temp.qrefund_on(pg_temp.q('09'), pg_temp.q('1e'), pg_temp.q('07'), NULL, 70, interval '9 hours 30 minutes');
+SELECT pg_temp.hremit(pg_temp.q('24'), pg_temp.q('e2'), 10, interval '9 hours');
+SELECT pg_temp.hescheat(pg_temp.q('24'), pg_temp.q('e2'), interval '9 hours');
+SELECT pg_temp.hrow(pg_temp.q('1f'), pg_temp.q('1c'), 50, interval '8 hours');
+SELECT pg_temp.hrow(pg_temp.q('2a'), pg_temp.q('1f'), -30, interval '7 hours');
+SELECT pg_temp.ok('Q5 Codex 02: payment −20, K 0 before the return', pg_temp.reads(pg_temp.q('07'), pg_temp.q('24'), pg_temp.q('24')) = '-20.00/0.00/0.00');
+SELECT pg_temp.refuses_at('Q5a K''s refund coming back is not left on the escheated K',
+  $q$SELECT pg_temp.hback_settled(pg_temp.q('08'), pg_temp.q('1d'), pg_temp.q('2b'), interval '6 hours')$q$,
+  '23514', 'was escheated');
+SELECT pg_temp.admits('Q5b carried to a reissue of 20, its own money, in the same transaction',
+  $q$SELECT pg_temp.hback_settled(pg_temp.q('08'), pg_temp.q('1d'), pg_temp.q('2b'), interval '6 hours', pg_temp.q('25'), 20)$q$);
+SELECT pg_temp.hback(pg_temp.q('09'), pg_temp.q('1e'), pg_temp.q('2c'), interval '5 hours');
+SELECT pg_temp.ok('Q5c the payment''s refund comes back: payment 50, K 0 (escheated), R 20', pg_temp.reads(pg_temp.q('07'), pg_temp.q('24'), pg_temp.q('25')) = '50.00/0.00/20.00');
+
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
+SELECT pg_temp.agree('Q1a Fable P2', pg_temp.q('01'), pg_temp.q('21'));
+SELECT pg_temp.agree('Q2a Fable P3', pg_temp.q('41'), pg_temp.q('61'));
+SELECT pg_temp.agree('Q3b Opus G', pg_temp.q('81'), pg_temp.q('a1'));
+SELECT pg_temp.agree('Q4c Opus H', pg_temp.q('c1'), pg_temp.q('e1'));
+SELECT pg_temp.agree('Q5d Codex 02', pg_temp.q('07'), pg_temp.q('24'));
+RESET ROLE;
 
 -- ============================================================== I invariants
 -- r2 (Codex S2): each invariant is called, not folded into a constant.

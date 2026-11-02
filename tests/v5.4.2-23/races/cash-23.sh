@@ -92,6 +92,11 @@
 #        voids a reissue of it (whose id sorts first), B gives money back
 #        under its payment. A takes the payment's lock first, so B waits on
 #        A; C commits, A commits, B is admitted: no deadlock.
+# r8 (Opus S1):
+#   CR26 A moves an overpayment credit to escheated, waits, then refunds
+#        from its payment; B gives money back under the payment. A's move
+#        takes the payment's lock first, so B waits on A: no deadlock, both
+#        admitted (Opus D2: on r7, A's refund deadlocked, 40P01).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -191,6 +196,12 @@ R25=00000000-0000-4000-8000-000000002575
 E25R=00000000-0000-4000-8000-000000002576
 E25N=00000000-0000-4000-8000-000000002577
 E25T=00000000-0000-4000-8000-000000002578
+P26=00000000-0000-4000-8000-0000000025a0
+E26=00000000-0000-4000-8000-0000000025a1
+AP26=00000000-0000-4000-8000-0000000025a2
+K26=00000000-0000-4000-8000-0000000025a3
+EV26=00000000-0000-4000-8000-0000000025a4
+E26T=00000000-0000-4000-8000-0000000025a5
 I4=00000000-0000-4000-8000-000000002404
 L41=00000000-0000-4000-8000-000000002441
 L42=00000000-0000-4000-8000-000000002442
@@ -806,6 +817,50 @@ OUT=$(cat "$B_OUT")
 rm -f "$C_OUT"
 if grep -q "40P01" "$A_OUT" "$B_OUT"; then echo "FAIL CR25: a deadlock: A: $(cat "$A_OUT") / B: $OUT"; fail=1
 else verdict "CR25 a reissue's void and a give-back under its payment take their locks in one order: B waits on A, no deadlock, both admitted (Fable S1, Opus S1)" 0
+fi
+
+# CR26 (Opus S1, D2): an escheat move, then a draw on the payment, against a
+# give-back under it. Setup, committed: payment 100, credit K 20 remitted in
+# full, 10 taken back (on the payment: K holds nothing).
+"${PSQL[@]}" >/dev/null <<SQL || { echo "CR26 setup failed"; exit 2; }
+BEGIN;
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES $(pay "$P26" R23-P26 100);
+$(post "$P26" "$E26" 100)
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP26', '$T', '$C', '$P26', 20, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K26', '$T', '$C', 'overpayment', 20, DATE '2026-03-05', '$P26', '$AP26');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related) VALUES ('$EV26', '$T', '$K26', '$C', 'escheated_to_state', 20);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES ('$E26T', '$T', '$C', DATE '2026-03-08', 'adjustment', 'taken back', 10, '$E26');
+COMMIT;
+SQL
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_a';
+BEGIN;
+$AS_OP
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '$EV26' WHERE id = '$K26';
+SELECT pg_sleep(3);
+INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id)
+VALUES ('$T', 'R23-R26', '$C', DATE '2026-03-09', -5, 'refund', '$P26');
+COMMIT;
+SQL
+APID=$!
+sleep 1
+"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
+SET application_name = 'race23_b';
+BEGIN;
+$AS_OP
+INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-09', 'adjustment', 'cleared after all', -5, '$E26T');
+COMMIT;
+SQL
+BPID=$!
+sleep 1
+WAITED=$(waiting)
+wait $APID; AST=$?
+wait $BPID; BST=$?
+OUT=$(cat "$B_OUT")
+if grep -q "40P01" "$A_OUT" "$B_OUT"; then echo "FAIL CR26: a deadlock: A: $(cat "$A_OUT") / B: $OUT"; fail=1
+else verdict "CR26 an escheat move, then a draw on the payment, against a give-back under it: B waits on A, no deadlock, both admitted (Opus S1)" 0
 fi
 
 exit $fail

@@ -549,10 +549,10 @@ MUTATIONS = [
      rep("    SELECT array_agg(k.id ORDER BY k.id <> c.id, k.created_at, k.id),\n           array_agg(k.original_amount ORDER BY k.id <> c.id, k.created_at, k.id),\n           array_agg(k.created_at ORDER BY k.id <> c.id, k.created_at, k.id),\n           array_agg(CASE WHEN k.status = 'voided' THEN k.status_recorded_at END ORDER BY k.id <> c.id, k.created_at, k.id)",
          "    SELECT array_agg(k.id ORDER BY k.id = c.id, k.created_at, k.id),\n           array_agg(k.original_amount ORDER BY k.id = c.id, k.created_at, k.id),\n           array_agg(k.created_at ORDER BY k.id = c.id, k.created_at, k.id),\n           array_agg(CASE WHEN k.status = 'voided' THEN k.status_recorded_at END ORDER BY k.id = c.id, k.created_at, k.id)")),
     ("N205", "a reissue's own share is not counted in what was left before it", "W6a",
-     rep("        SELECT x.remaining + y.issued INTO v_left", "        SELECT x.remaining + NEW.original_amount INTO v_left")),
+     rep("                + public.customer_credit_own_remaining_as_of(NEW.id, DATE '9999-12-31', pg_catalog.clock_timestamp());\n", "                + NEW.original_amount;\n")),
     ("N206", "a give-back under a payment is refused whenever its credit is escheated (r5)", "Y8",
      rep("c.status = 'escheated' AND x.remaining > 0\n", "c.status = 'escheated'\n")),
-    ("N207", "a reissue's own cap counts its amount alone (its share of the take-back forgotten)", "Y7j",
+    ("N207", "a reissue's own cap counts its amount alone (its share of the take-back forgotten)", "Y7j2",
      rep("                         WHERE v_family AND s.credit_id = p_id\n", "                         WHERE v_family AND s.credit_id = p_id AND v_origin = 'overpayment'\n")),
     ("N208", "a superuser's payment or credit may be recorded in the future (Opus S1)", "Y9",
      rep("    IF NEW.created_at IS NOT NULL AND (SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user)\n", "    IF false\n")),
@@ -574,7 +574,8 @@ MUTATIONS = [
      rep("    IF NEW.status = 'voided' AND OLD.origin_type = 'refund_reissue' THEN\n        SELECT coalesce(sum(s.absorbed), 0) INTO v_left",
          "    IF false THEN\n        SELECT coalesce(sum(s.absorbed), 0) INTO v_left")),
     ("N215", "a reissue's void takes no lock on its payment (the RR-E deadlock)", "CR25",
-     rep("        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))\n           FROM public.customer_credits c WHERE c.id = public.overpayment_root(OLD.id);\n", "")),
+     rep("        -- under the payment take their locks in one order.\n        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))\n           FROM public.customer_credits c WHERE c.id = public.overpayment_root(OLD.id);\n",
+         "        -- under the payment take their locks in one order.\n")),
     ("N216", "a reissue deeper than the bound is made (Codex B2)", "Z6b",
      rep("        IF public.reissue_generation(v_refund.refunds_customer_credit_id) + 1 > public.reissue_line_bound() THEN", "        IF false THEN")),
     ("N217", "the root walk reads a line deeper than the bound as one that starts elsewhere (Codex B2)", "Z6c",
@@ -585,6 +586,27 @@ MUTATIONS = [
     ("N219", "the split's walk loses its plan settings (Codex S2)", "APPLY:lost its plan settings",
      rep("    RETURNS TABLE (id uuid, credit_id uuid, on_date date, created_at timestamp with time zone, absorbed numeric)\n    LANGUAGE plpgsql STABLE\n    SET search_path = public, pg_temp\n    SET enable_seqscan = off\n",
          "    RETURNS TABLE (id uuid, credit_id uuid, on_date date, created_at timestamp with time zone, absorbed numeric)\n    LANGUAGE plpgsql STABLE\n    SET search_path = public, pg_temp\n")),
+    # ---- r8 (round 7's findings)
+    ("N220", "a give-back reads an escheated credit's covered position, not its own side (Opus B1)", "Q4",
+     rep("              CROSS JOIN LATERAL (SELECT public.customer_credit_own_remaining_as_of(c.id, DATE '9999-12-31', pg_catalog.clock_timestamp()) AS remaining) x\n",
+         "              CROSS JOIN LATERAL public.customer_credit_position_as_of(c.id, DATE '9999-12-31', pg_catalog.clock_timestamp()) x\n")),
+    ("N221", "a refund of an escheated credit that came back is settled on the covered position (Codex B2)", "Q5a",
+     rep("    v_left := public.customer_credit_own_remaining_as_of(NEW.refunds_customer_credit_id, DATE '9999-12-31', pg_catalog.clock_timestamp());\n",
+         "    SELECT x.remaining INTO v_left FROM public.customer_credit_position_as_of(NEW.refunds_customer_credit_id, DATE '9999-12-31', pg_catalog.clock_timestamp()) x;\n")),
+    ("N222", "a reissue is sized on the covered positions (Codex B2)", "Q5b",
+     rep("        v_left := public.customer_credit_own_remaining_as_of(v_refund.refunds_customer_credit_id, DATE '9999-12-31', pg_catalog.clock_timestamp())\n                + public.customer_credit_own_remaining_as_of(NEW.id, DATE '9999-12-31', pg_catalog.clock_timestamp());\n",
+         "        SELECT x.remaining + y.issued INTO v_left\n          FROM public.customer_credit_position_as_of(v_refund.refunds_customer_credit_id, DATE '9999-12-31', pg_catalog.clock_timestamp()) x,\n               public.customer_credit_position_as_of(NEW.id, DATE '9999-12-31', pg_catalog.clock_timestamp()) y;\n")),
+    ("N223", "a credit's own side reads the cover (Opus B1, Codex B2)", "Z4a",
+     rep("public.overpayment_absorbed_as_of(v_root, p_on, p_recorded_at, false)", "public.overpayment_absorbed_as_of(v_root, p_on, p_recorded_at)")),
+    ("N224", "an escheat move takes no lock on its payment (Opus S1, the D2 deadlock)", "CR26",
+     rep("    IF NEW.status = 'escheated' AND OLD.status <> 'escheated' THEN\n        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))\n",
+         "    IF false THEN\n        PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))\n")),
+    ("N225", "the family walk loses its plan settings (Fable S1)", "APPLY:lost its plan settings",
+     rep("    RETURNS TABLE (id uuid, created_at timestamp with time zone)\n    LANGUAGE plpgsql STABLE\n    SET search_path = public, pg_temp\n    SET enable_seqscan = off\n",
+         "    RETURNS TABLE (id uuid, created_at timestamp with time zone)\n    LANGUAGE plpgsql STABLE\n    SET search_path = public, pg_temp\n")),
+    ("N226", "the draws' read loses its plan settings (Fable S1)", "APPLY:lost its plan settings",
+     rep("    RETURNS TABLE (id uuid, on_date date, amount numeric, created_at timestamp with time zone)\n    LANGUAGE sql STABLE\n    SET search_path = public, pg_temp\n    SET enable_seqscan = off\n",
+         "    RETURNS TABLE (id uuid, on_date date, amount numeric, created_at timestamp with time zone)\n    LANGUAGE sql STABLE\n    SET search_path = public, pg_temp\n")),
 ]
 
 
@@ -651,8 +673,9 @@ def main() -> int:
             missed += 1
             continue
         # The worst statistics for the walks' plans: a vacuumed ledger the
-        # planner believes empty (-22 r4).
-        v = sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-qc", "VACUUM public.account_ledger"])
+        # planner believes empty (-22 r4); r8 (Fable S1): and the cash tables
+        # the reissue line's walks read.
+        v = sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-qc", "VACUUM public.account_ledger, public.payments, public.customer_credits"])
         if v.returncode:
             print(f"{mid} SETUP-ERROR: {v.stderr.strip()[:140]}")
             missed += 1
