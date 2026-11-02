@@ -303,23 +303,27 @@ SELECT pg_temp.ok('L3 the in-use check holds SHARE on the entity table until com
   EXISTS (SELECT 1 FROM pg_locks l WHERE l.relation = 'public.customers'::regclass AND l.mode = 'ShareLock' AND l.pid = pg_backend_pid()));
 
 -- ====================================================================== K. dependencies retired
+-- v5.4.2-28 (CI-101, Ryan 2026-11-02): a dependency is dated and bi-
+-- temporal in place; -21's "retire" is a close (as retracted here: entered
+-- in error; as superseded when it stopped applying, battery-28 D7). Each K
+-- case keeps its -21 meaning in the new shape.
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
-INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES
+INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES
   ('00000000-0000-4000-8000-000000002191', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141',
-   '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152');
-SELECT pg_temp.refuses_at('K2 a dependency born retired',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, retired_reason)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002152', '00000000-0000-4000-8000-000000002153', 'why')$q$,
-  '23514', 'born live');
+   '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152', '2026-01-01');
+SELECT pg_temp.refuses_at('K2 a dependency born retired (closed)',
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date, recorded_until, closed_type, closed_reason)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002152', '00000000-0000-4000-8000-000000002153', '2026-01-01', now(), 'retracted', 'why')$q$,
+  '23514', 'born open');
 SELECT pg_temp.refuses_at('K3a2 an edit carried inside a retirement',
-  $q$UPDATE public.rate_item_dependencies SET notes = 'edited', retired_reason = 'and retired' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'write-once');
+  $q$UPDATE public.rate_item_dependencies SET notes = 'edited', recorded_until = now(), closed_type = 'retracted', closed_reason = 'and retired' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'never edited in place');
 SELECT pg_temp.refuses_at('K3a a live dependency edited',
-  $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'write-once');
-SELECT pg_temp.refuses_at('K3b an update that is not a retirement',
-  $q$UPDATE public.rate_item_dependencies SET retired_by = '00000000-0000-4000-8000-0000000021b1' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'only change');
+  $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'never edited in place');
+SELECT pg_temp.refuses_at('K3b an update that is not a retirement (a closer with no close)',
+  $q$UPDATE public.rate_item_dependencies SET closed_by = '00000000-0000-4000-8000-0000000021b1' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_close_consistent_check');
 SELECT pg_temp.refuses_at('K1 a retirement with a blank reason',
-  $q$UPDATE public.rate_item_dependencies SET retired_reason = '   ' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_retired_reason_check');
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = '   ' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_close_consistent_check');
 SELECT pg_temp.refuses_at('K-del the application deletes a dependency',
   $q$DELETE FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '42501', 'permission denied');
 RESET ROLE;
@@ -329,32 +333,32 @@ UPDATE public.rate_schedules SET updated_at = '2000-01-01' WHERE id = '00000000-
 SET LOCAL session_replication_role = origin;
 SELECT pg_temp.ok('K5-fixture the header is back-dated', (SELECT updated_at < now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002141'));
 SET ROLE tally_app;
-UPDATE public.rate_item_dependencies SET retired_reason = 'battery-21 K3', retired_at = '2000-01-01', retired_by = '00000000-0000-4000-8000-0000000021b2'
+UPDATE public.rate_item_dependencies SET recorded_until = '2000-01-01', closed_type = 'retracted', closed_reason = 'battery-21 K3', closed_by = '00000000-0000-4000-8000-0000000021b2'
  WHERE id = '00000000-0000-4000-8000-000000002191';
 SELECT pg_temp.ok('K3c a retirement is stamped by the database, whatever is supplied',
-  (SELECT retired_at = now() FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'));
+  (SELECT recorded_until = now() FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'));
 SELECT pg_temp.ok('K3e who retired it is the session''s user, not another tenant''s id supplied',
-  (SELECT retired_by = '00000000-0000-4000-8000-0000000021b1' FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'));
+  (SELECT closed_by = '00000000-0000-4000-8000-0000000021b1' FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'));
 SELECT pg_temp.ok('K5a a retirement takes the schedule header (the mutex)',
   (SELECT updated_at = now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002141'));
 SELECT pg_temp.refuses_at('K3d2 a retired row''s reason rewritten',
-  $q$UPDATE public.rate_item_dependencies SET retired_reason = 'another reason' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'permanent');
+  $q$UPDATE public.rate_item_dependencies SET closed_reason = 'another reason' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'immutable');
 SELECT pg_temp.refuses_at('K3d a retirement is permanent',
-  $q$UPDATE public.rate_item_dependencies SET retired_at = NULL, retired_reason = NULL WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'permanent');
-SELECT pg_temp.admits('K4 the retired dependency is added again (live rows are unique)',
-  $q$INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-000000002192', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152')$q$);
-SELECT pg_temp.refuses_at('K4b a second live copy',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152')$q$,
-  '23505', 'rate_item_dependencies_live_key');
-UPDATE public.rate_item_dependencies SET retired_reason = 'battery-21 K5' WHERE id = '00000000-0000-4000-8000-000000002192';
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = NULL, closed_type = NULL, closed_reason = NULL, closed_by = NULL WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'immutable');
+SELECT pg_temp.admits('K4 the retired dependency is added again (open rows are unique)',
+  $q$INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-000000002192', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152', '2026-01-01')$q$);
+SELECT pg_temp.refuses_at('K4b a second open copy',
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152', '2026-01-01')$q$,
+  '23P01', 'rate_item_dependencies_open_no_overlap_excl');
+UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'battery-21 K5' WHERE id = '00000000-0000-4000-8000-000000002192';
 SELECT pg_temp.admits('K5 with A on B retired, B on A is no cycle',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002152', '00000000-0000-4000-8000-000000002151')$q$);
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002152', '00000000-0000-4000-8000-000000002151', '2026-01-01')$q$);
 SELECT pg_temp.refuses_at('K5b a live cycle is still refused (A on B while B on A)',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152')$q$,
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002141', '00000000-0000-4000-8000-000000002151', '00000000-0000-4000-8000-000000002152', '2026-01-01')$q$,
   '23514', 'closes a cycle');
 RESET ROLE;
 

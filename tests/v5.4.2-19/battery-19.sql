@@ -267,49 +267,50 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019a1', 'D'),
   ('00000000-0000-4000-8000-0000000019f0', '00000000-0000-4000-8000-0000000019a2', 'T2X');
 SET ROLE tally_app;
-INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES
-  ('00000000-0000-4000-8000-000000001951', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019b0'),
-  ('00000000-0000-4000-8000-000000001952', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019b0', '00000000-0000-4000-8000-0000000019c0'),
-  ('00000000-0000-4000-8000-000000001953', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019c0');
+INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES
+  ('00000000-0000-4000-8000-000000001951', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019b0', '2026-01-01'),
+  ('00000000-0000-4000-8000-000000001952', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019b0', '00000000-0000-4000-8000-0000000019c0', '2026-01-01'),
+  ('00000000-0000-4000-8000-000000001953', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019c0', '2026-01-01');
 DO $$ BEGIN RAISE NOTICE 'PASS Q4: a diamond (A on B, B on C, A on C) is a DAG and is accepted'; END $$;
 SELECT pg_temp.refuses('Q4b a 2-cycle (B on A while A on B)',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019b0', '00000000-0000-4000-8000-0000000019a0')$q$, '23514');
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019b0', '00000000-0000-4000-8000-0000000019a0', '2026-01-01')$q$, '23514');
 -- v5.4.2-21 (CI-014): a dependency is write-once except for its retirement,
 -- so the edit is refused before the cycle walk (restrict_violation).
 SELECT pg_temp.refuses('Q4d an edit that turns an edge into a cycle',
   $q$UPDATE public.rate_item_dependencies SET dependent_rate_item_id = '00000000-0000-4000-8000-0000000019c0', base_rate_item_id = '00000000-0000-4000-8000-0000000019a0'
      WHERE id = '00000000-0000-4000-8000-000000001953'$q$, '23001');
 SELECT pg_temp.refuses('Q4e a dependency on another tenant''s rate item',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019f0')$q$, '23503');
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019f0', '2026-01-01')$q$, '23503');
 -- v5.4.2-21 (CI-014): a dependency is not edited but retired and re-added.
+-- (v5.4.2-28: dated; a retirement is a close as retracted.)
 -- Retiring A on C and adding A on D keeps the graph acyclic and passes.
-UPDATE public.rate_item_dependencies SET retired_reason = 'battery-19 Q4f: A moves from C to D' WHERE id = '00000000-0000-4000-8000-000000001953';
-INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES
-  ('00000000-0000-4000-8000-000000001954', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019d0');
+UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'battery-19 Q4f: A moves from C to D' WHERE id = '00000000-0000-4000-8000-000000001953';
+INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES
+  ('00000000-0000-4000-8000-000000001954', '00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019d0', '2026-01-01');
 DO $$ BEGIN RAISE NOTICE 'PASS Q4f: a retire and re-add that keeps the graph acyclic passes'; END $$;
 -- r2 (Codex S2): with A no longer on C directly, C on A can only close the
 -- 3-hop cycle A on B on C on A — the walk must recurse past one hop.
 SELECT pg_temp.refuses('Q4c a 3-cycle with no shortcut (C on A while A on B on C)',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019c0', '00000000-0000-4000-8000-0000000019a0')$q$, '23514');
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019c0', '00000000-0000-4000-8000-0000000019a0', '2026-01-01')$q$, '23514');
 -- Reversing the lone edge A on D to D on A passes once A on D is retired:
 -- the walk counts live dependencies only (v5.4.2-21), or it would see the
 -- retired edge and call this a 2-cycle.
-UPDATE public.rate_item_dependencies SET retired_reason = 'battery-19 Q4h: reversed' WHERE id = '00000000-0000-4000-8000-000000001954';
-INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-  VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019a0');
+UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'battery-19 Q4h: reversed' WHERE id = '00000000-0000-4000-8000-000000001954';
+INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+  VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019a0', '2026-01-01');
 DO $$ BEGIN RAISE NOTICE 'PASS Q4h: reversing a lone edge passes (a retired edge is not part of a cycle)'; END $$;
 -- r3 (Fable N7): another tenant's schedule, not just another tenant's item.
 SELECT pg_temp.refuses_at('Q4i a dependency filed under another tenant''s schedule',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001943', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019b0')$q$, '23503', 'is not a row of this dependency''s tenant');
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001943', '00000000-0000-4000-8000-0000000019a0', '00000000-0000-4000-8000-0000000019b0', '2026-01-01')$q$, '23503', 'is not a row of this dependency''s tenant');
 RESET ROLE;
 -- The owner sees every tenant: the check compares tenants, not just visibility.
 SELECT pg_temp.refuses('Q4g the owner writes a dependency on another tenant''s rate item',
-  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019f0')$q$, '23503');
+  $q$INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001941', '00000000-0000-4000-8000-0000000019d0', '00000000-0000-4000-8000-0000000019f0', '2026-01-01')$q$, '23503');
 -- Q5: a 40-layer diamond (2^40 paths) is checked in well under a second (r2, Opus S5).
 INSERT INTO public.rate_schedules (id, tenant_id, code) VALUES ('00000000-0000-4000-8000-000000001942', '00000000-0000-4000-8000-0000000019a1', 'RS-DEEP');
 DO $$
@@ -318,16 +319,16 @@ BEGIN
   INSERT INTO public.rate_items (id, tenant_id, item_code)
   SELECT md5('deep' || g)::uuid, '00000000-0000-4000-8000-0000000019a1', 'DEEP-' || g FROM generate_series(0, 120) g;
   FOR i IN 0..39 LOOP   -- layer i: top(3i) depends on 3i+1 and 3i+2; both depend on 3i+3
-    INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES
-      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i))::uuid,   md5('deep' || (3*i+1))::uuid),
-      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i))::uuid,   md5('deep' || (3*i+2))::uuid),
-      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i+1))::uuid, md5('deep' || (3*i+3))::uuid),
-      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i+2))::uuid, md5('deep' || (3*i+3))::uuid);
+    INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES
+      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i))::uuid,   md5('deep' || (3*i+1))::uuid, '2026-01-01'),
+      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i))::uuid,   md5('deep' || (3*i+2))::uuid, '2026-01-01'),
+      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i+1))::uuid, md5('deep' || (3*i+3))::uuid, '2026-01-01'),
+      ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep' || (3*i+2))::uuid, md5('deep' || (3*i+3))::uuid, '2026-01-01');
   END LOOP;
   t0 := clock_timestamp();
   BEGIN
-    INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id)
-    VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep120')::uuid, md5('deep0')::uuid);
+    INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
+    VALUES ('00000000-0000-4000-8000-0000000019a1', '00000000-0000-4000-8000-000000001942', md5('deep120')::uuid, md5('deep0')::uuid, '2026-01-01');
     RAISE EXCEPTION 'FAIL Q5: the 40-layer cycle was accepted';
   EXCEPTION WHEN check_violation THEN NULL;
   END;

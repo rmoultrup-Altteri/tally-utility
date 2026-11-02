@@ -40,6 +40,7 @@ PENDING=(
   sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
+  sql/v5.4.2-28-rates-small-fixes.sql:rate_item_dependencies.effective_date
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.
@@ -122,7 +123,7 @@ done
 battery() {  # $1 file
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26; do
+for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 28; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"

@@ -106,7 +106,7 @@ else
 fi
 }
 
-dep() { echo "INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES ('$T', '$S', '$1', '$2');"; }
+dep() { echo "INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES ('$T', '$S', '$1', '$2', '2026-01-01');"; }
 
 two "$(dep "$I1" "$I2")" "READ COMMITTED" "$(dep "$I2" "$I1")"
 check "C1 READ COMMITTED: the second half of a cycle waits, then is refused" "23514" "closes a cycle"

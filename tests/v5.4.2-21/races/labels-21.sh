@@ -55,7 +55,7 @@ INSERT INTO public.custom_field_definitions (id, tenant_id, entity_type, field_k
   ('$K2', '$T', 'customers', 'k_two', 'Two', 'text'),
   ('$K3', '$T', 'customers', 'k_three', 'Three', 'text'),
   ('$K4', '$T', 'customers', 'k_four', 'Four', 'text');
-INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES ('$D1', '$T', '$S', '$IA', '$IB');
+INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES ('$D1', '$T', '$S', '$IA', '$IB', '2026-01-01');
 SQL
 
 waiting() {
@@ -126,14 +126,14 @@ SQL
 if echo "$OUT" | grep -q "25000" && echo "$OUT" | grep -q "READ COMMITTED"; then echo "PASS LR3 a label delete at REPEATABLE READ"
 else echo "FAIL LR3: $OUT"; fail=1; fi
 
-two "UPDATE public.rate_item_dependencies SET retired_reason = 'race-21 LR4' WHERE id = '$D1';" \
-    "INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES ('$T', '$S', '$IB', '$IA');"
+two "UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'race-21 LR4' WHERE id = '$D1';" \
+    "INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES ('$T', '$S', '$IB', '$IA', '2026-01-01');"
 verdict "LR4 B on A while A on B is being retired: waits on the header, then passes" 0
 
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
 BEGIN;
 $APP
-INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id) VALUES ('$T', '$S', '$IA', '$IB');
+INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date) VALUES ('$T', '$S', '$IA', '$IB', '2026-01-01');
 COMMIT;
 SQL
 )

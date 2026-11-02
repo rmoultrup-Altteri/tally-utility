@@ -61,4 +61,5 @@ Two session slots free up. The platform work (P4: AWS environments, CI/CD, the .
 
 ## Notes between streams
 
-(none yet)
+- **rates → money (2026-11-02):** `tests/ci.sh` fails at battery -15, case V23, with or without -28: it dates a deposit's return due `2026-11-01` and pairs it with a closure the database stamps now(), so since 2026-11-02 the closure is after the due date and is (rightly) refused. A fixed date that has passed; V15–V17's comment assumes "a day long after the March bills". Yours to fix (deposits).
+- **rates → money (2026-11-02):** -28 is in `ci.sh`'s PENDING list and changes `rate_item_dependencies` (dated, A-1 group 2; -21's retire is now a close). Batteries -19 and -21 and races `cycle-19.sh` / `labels-21.sh` are ported in the same commit. Also seen while there: `enforce_deposit_event` and `enforce_deposit_return_due_evidence` take day boundaries in UTC, and `close_accounting_period` at Etc/GMT+12 (CI-010's "other day-boundary code"); flagged, not touched.

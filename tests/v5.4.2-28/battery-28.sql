@@ -11,6 +11,13 @@
 --      children (agree / disagree / none / void excluded / nested), the
 --      refusal when no zone can be read, no lookup for a 0.00 line, the old
 --      Chicago signature gone, no zone constant left in any function.
+--   D  rider dependencies dated in place (CI-101; Ryan 2026-11-02, option
+--      1): the date required, born open, stamped, frozen, one open row per
+--      link per day, cycles by overlapping dates (and the stated
+--      conservative refusal), succession and retraction, the as-of read.
+--      Transaction time is read only at now() and just before: inside one
+--      transaction every stamp is now(). Races: -19's cycle-19.sh and -21's
+--      labels-21.sh, ported to the dated shape.
 --
 -- The fixture's one fact that matters: customer C1 became a state agency at
 -- 2026-07-01 05:30 UTC. That is 00:30 on July 1 in Central time (after the
@@ -240,6 +247,176 @@ SELECT pg_temp.ok('Z7 both functions: the application and the core, not PUBLIC',
                    AND NOT coalesce(aclcontains(p.proacl, makeaclitem(0, p.proowner, 'EXECUTE', false)), true))
      FROM unnest(ARRAY['public.customer_is_state_agency_as_of(uuid,date,text)', 'public.invoice_time_zone_as_of(uuid,date)']::regprocedure[]) f
      JOIN pg_proc p ON p.oid = f));
+
+-- ============================================ D. rider dependencies, dated
+-- Fixtures: schedule RS28; items A, B, C, D, E of tenant 1; tenant 2 and
+-- its user (a forged changed_by / closed_by). Every write is tally_app's.
+INSERT INTO public.tenants (id, name, slug) VALUES
+  ('00000000-0000-4000-8000-0000000028a2', 'T2 Gasco', 'bat28-t2');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('00000000-0000-4000-8000-0000000028b2', '00000000-0000-4000-8000-0000000028a2', 'Op2', 'op2@bat28.test', 'operator');
+INSERT INTO public.rate_schedules (id, tenant_id, code) VALUES
+  ('00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-0000000028a1', 'RS28');
+INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
+  ('00000000-0000-4000-8000-0000000028aa', '00000000-0000-4000-8000-0000000028a1', 'A'),
+  ('00000000-0000-4000-8000-0000000028bb', '00000000-0000-4000-8000-0000000028a1', 'B'),
+  ('00000000-0000-4000-8000-0000000028cc', '00000000-0000-4000-8000-0000000028a1', 'C'),
+  ('00000000-0000-4000-8000-0000000028dd', '00000000-0000-4000-8000-0000000028a1', 'D'),
+  ('00000000-0000-4000-8000-0000000028ee', '00000000-0000-4000-8000-0000000028a1', 'E');
+-- dep(): the SQL of one dependency (dependent on base) from p_from to p_to;
+-- p_extra adds columns and values (a leading comma each).
+CREATE FUNCTION pg_temp.dep(p_dep text, p_base text, p_from text, p_to text DEFAULT NULL, p_id text DEFAULT NULL,
+                            p_cols text DEFAULT '', p_vals text DEFAULT '') RETURNS text LANGUAGE sql AS $$
+  SELECT format($f$INSERT INTO public.rate_item_dependencies (id, tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date, expiry_date%s)
+    VALUES (%s, '00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841',
+            '00000000-0000-4000-8000-0000000028%s', '00000000-0000-4000-8000-0000000028%s', %L, %L%s)$f$,
+    p_cols, coalesce(quote_literal('00000000-0000-4000-8000-0000000028' || p_id), 'DEFAULT'),
+    repeat(lower(p_dep), 2), repeat(lower(p_base), 2), p_from, p_to, p_vals)
+$$;
+CREATE FUNCTION pg_temp.did(p_id text) RETURNS uuid LANGUAGE sql AS $$ SELECT ('00000000-0000-4000-8000-0000000028' || p_id)::uuid $$;
+GRANT EXECUTE ON FUNCTION pg_temp.dep(text, text, text, text, text, text, text), pg_temp.did(text) TO tally_app;
+
+-- D0: the -21 retirement columns are gone; the shape is A-1 group 2.
+SELECT pg_temp.ok('D0 retired_at, retired_by and retired_reason are dropped; the A-1 columns are there',
+  NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'rate_item_dependencies' AND column_name LIKE 'retired%')
+  AND (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'rate_item_dependencies'
+        AND column_name IN ('effective_date', 'expiry_date', 'recorded_at', 'recorded_until', 'change_type', 'change_reason',
+                            'changed_by', 'supersedes_id', 'closed_type', 'closed_reason', 'closed_by')) = 11);
+
+-- (Back-date the header past its own updated_at trigger, so D7c can see the bump.)
+SET LOCAL session_replication_role = replica;
+UPDATE public.rate_schedules SET updated_at = '2000-01-01' WHERE id = '00000000-0000-4000-8000-000000002841';
+SET LOCAL session_replication_role = origin;
+
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
+-- D1: an in-force date is required, and the bracket is ordered.
+SELECT pg_temp.refuses_at('D1a a dependency with no in-force date',
+  replace(pg_temp.dep('A', 'B', '2026-01-01'), $s$'2026-01-01'$s$, 'NULL'), '23502', 'effective_date');
+SELECT pg_temp.refuses_at('D1b an expiry before the start',
+  pg_temp.dep('A', 'B', '2026-03-01', '2026-02-01'), '23514', 'rate_item_dependencies_valid_bracket_check');
+-- D2: born open, initial, stamped by the database.
+SELECT pg_temp.refuses_at('D2a born closed',
+  pg_temp.dep('A', 'B', '2026-01-01', NULL, NULL, ', recorded_until, closed_type, closed_reason', $v$, now(), 'retracted', 'born closed'$v$),
+  '23514', 'born open');
+SELECT pg_temp.refuses_at('D2b born as a backfill',
+  pg_temp.dep('A', 'B', '2026-01-01', NULL, NULL, ', change_type', $v$, 'backfill'$v$), '23514', 'backfill');
+SELECT pg_temp.refuses_at('D2c a successor that names nothing',
+  pg_temp.dep('A', 'B', '2026-01-01', NULL, NULL, ', change_type', $v$, 'succession'$v$), '23514', 'rate_item_dependencies_supersedes_check');
+SELECT pg_temp.admits('D2d A on B, January to March, with a forged recorded_at and changed_by',
+  pg_temp.dep('A', 'B', '2026-01-01', '2026-03-31', '01', ', recorded_at, changed_by', $v$, '2001-01-01', '00000000-0000-4000-8000-0000000028b2'$v$));
+SELECT pg_temp.ok('D2e recorded_at is the database''s, changed_by the session''s user',
+  (SELECT recorded_at = now() AND changed_by = '00000000-0000-4000-8000-0000000028b1' AND change_type = 'initial'
+     FROM public.rate_item_dependencies WHERE id = pg_temp.did('01')));
+-- D3: frozen.
+SELECT pg_temp.refuses_at('D3a an open row edited in place',
+  $q$UPDATE public.rate_item_dependencies SET expiry_date = '2026-06-30' WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '23001', 'never edited in place');
+SELECT pg_temp.refuses_at('D3b even its notes',
+  $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '23001', 'never edited in place');
+SELECT pg_temp.refuses_at('D3c the application deletes a dependency',
+  $q$DELETE FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '42501', 'permission denied');
+-- D4: one open row per link per day; the bracket is inclusive.
+SELECT pg_temp.refuses_at('D4a A on B again from March 31 (the last day of the first)',
+  pg_temp.dep('A', 'B', '2026-03-31'), '23P01', 'rate_item_dependencies_open_no_overlap_excl');
+SELECT pg_temp.admits('D4b A on B again from April 1 (no shared day)',
+  pg_temp.dep('A', 'B', '2026-04-01', NULL, '02'));
+-- D5: cycles by date.
+SELECT pg_temp.refuses_at('D5a B on A from March: shares March with A on B',
+  pg_temp.dep('B', 'A', '2026-03-01', '2026-03-31'), '23514', 'closes a cycle');
+SELECT pg_temp.refuses_at('D5b B on A from April: A on B is in force again from April (row 02)',
+  pg_temp.dep('B', 'A', '2026-04-01'), '23514', 'closes a cycle');
+-- D6: the stated conservative refusal. D on E through March, E on C from
+-- April; C on D for all of 2026 would need all three on one day, which
+-- never happens, and is refused anyway (each link overlaps the new one).
+SELECT pg_temp.admits('D6-fixture D on E, January to March 2026', pg_temp.dep('D', 'E', '2026-01-01', '2026-03-31', '04'));
+SELECT pg_temp.admits('D6-fixture E on C, from April 2026', pg_temp.dep('E', 'C', '2026-04-01', NULL, '05'));
+SELECT pg_temp.refuses_at('D6 C on D for 2026: no day holds the whole cycle, refused by design (conservative)',
+  pg_temp.dep('C', 'D', '2026-01-01', '2026-12-31'), '23514', 'closes a cycle');
+SELECT pg_temp.admits('D6b C on D from 2027: D on E has ended, no overlap, no cycle',
+  pg_temp.dep('C', 'D', '2027-01-01', NULL, '03'));
+-- D7: the dependency stopped applying on a date: close as superseded, add
+-- the successor with that expiry (same transaction).
+SELECT pg_temp.refuses_at('D7a a close with a blank reason',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded', closed_reason = ' ' WHERE id = '00000000-0000-4000-8000-000000002803'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+UPDATE public.rate_item_dependencies SET recorded_until = '2001-01-01', closed_type = 'superseded', closed_reason = 'C on D ends 2027-06-30',
+                                         closed_by = '00000000-0000-4000-8000-0000000028b2'
+ WHERE id = pg_temp.did('03');
+SELECT pg_temp.admits('D7b the successor, C on D January to June 2027',
+  pg_temp.dep('C', 'D', '2027-01-01', '2027-06-30', '06', ', change_type, change_reason, supersedes_id',
+              $v$, 'succession', 'tariff sheet 7 withdrawn', '00000000-0000-4000-8000-000000002803'$v$));
+SELECT pg_temp.ok('D7c the close is stamped (recorded_until now, closed_by the session''s user) and took the schedule header',
+  (SELECT recorded_until = now() AND closed_by = '00000000-0000-4000-8000-0000000028b1' FROM public.rate_item_dependencies WHERE id = pg_temp.did('03'))
+  AND (SELECT updated_at = now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002841'));
+SELECT pg_temp.admits('D7d C on D has ended, so D on C from July 2027 is no cycle',
+  pg_temp.dep('D', 'C', '2027-07-01', NULL, '07'));
+SELECT pg_temp.refuses_at('D7e a closed row is immutable',
+  $q$UPDATE public.rate_item_dependencies SET closed_reason = 'rewritten' WHERE id = '00000000-0000-4000-8000-000000002803'$q$, '23001', 'immutable');
+SELECT pg_temp.refuses_at('D7f a successor of another link',
+  pg_temp.dep('A', 'C', '2026-01-01', NULL, NULL, ', change_type, supersedes_id', $v$, 'succession', '00000000-0000-4000-8000-000000002803'$v$),
+  '23514', 'different entity');
+SELECT pg_temp.refuses_at('D7g closed as superseded with no successor at commit',
+  $q$DO $d$ BEGIN
+       UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded', closed_reason = 'no successor'
+        WHERE id = '00000000-0000-4000-8000-000000002805';
+       SET CONSTRAINTS enforce_superseded_has_successor IMMEDIATE;
+     END $d$$q$, '23000', 'no ASSERTED');
+SET CONSTRAINTS enforce_superseded_has_successor DEFERRED;
+-- D8: entered in error: close as retracted; it has no successor, and it
+-- leaves the cycle walk.
+UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'keyed against the wrong item'
+ WHERE id = pg_temp.did('02');
+-- D8a: a correction says why (on a properly closed predecessor; the block
+-- is rolled back with the refusal).
+SELECT pg_temp.refuses_at('D8a a correction with no reason',
+  $q$DO $d$ BEGIN
+       UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded', closed_reason = 'dates were wrong'
+        WHERE id = '00000000-0000-4000-8000-000000002804';
+       INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date, expiry_date, change_type, supersedes_id)
+       VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-0000000028dd', '00000000-0000-4000-8000-0000000028ee',
+               '2026-01-01', '2026-02-28', 'correction', '00000000-0000-4000-8000-000000002804');
+     END $d$$q$, '23514', 'rate_item_dependencies_change_reason_check');
+SELECT pg_temp.refuses_at('D8b a successor of a retracted row, with a reason',
+  pg_temp.dep('A', 'B', '2026-04-01', NULL, NULL, ', change_type, change_reason, supersedes_id', $v$, 'correction', 'try', '00000000-0000-4000-8000-000000002802'$v$),
+  '23514', 'a retracted assertion has no successor');
+SELECT pg_temp.admits('D8c B on A from April now passes: the retracted A on B is not in the walk',
+  pg_temp.dep('B', 'A', '2026-04-01', NULL, '08'));
+-- D9: the read.
+SELECT pg_temp.ok('D9a in force on 2026-02-10: A on B, D on E',
+  (SELECT array_agg(item_code_pair ORDER BY item_code_pair) FROM (
+     SELECT di.item_code || '>' || bi.item_code AS item_code_pair
+       FROM public.rate_item_dependencies_as_of('00000000-0000-4000-8000-000000002841', DATE '2026-02-10', now()) d
+       JOIN public.rate_items di ON di.id = d.dependent_rate_item_id JOIN public.rate_items bi ON bi.id = d.base_rate_item_id) x)
+  = ARRAY['A>B', 'D>E']);
+SELECT pg_temp.ok('D9b in force on 2026-08-01: B on A, E on C',
+  (SELECT array_agg(item_code_pair ORDER BY item_code_pair) FROM (
+     SELECT di.item_code || '>' || bi.item_code AS item_code_pair
+       FROM public.rate_item_dependencies_as_of('00000000-0000-4000-8000-000000002841', DATE '2026-08-01', now()) d
+       JOIN public.rate_items di ON di.id = d.dependent_rate_item_id JOIN public.rate_items bi ON bi.id = d.base_rate_item_id) x)
+  = ARRAY['B>A', 'E>C']);
+SELECT pg_temp.ok('D9b2 2027: C on D (the successor) in March, D on C in August',
+  (SELECT array_agg(di.item_code || '>' || bi.item_code)
+     FROM public.rate_item_dependencies_as_of('00000000-0000-4000-8000-000000002841', DATE '2027-03-01', now()) d
+     JOIN public.rate_items di ON di.id = d.dependent_rate_item_id JOIN public.rate_items bi ON bi.id = d.base_rate_item_id
+    WHERE di.item_code IN ('C', 'D')) = ARRAY['C>D']
+  AND (SELECT array_agg(di.item_code || '>' || bi.item_code)
+     FROM public.rate_item_dependencies_as_of('00000000-0000-4000-8000-000000002841', DATE '2027-08-01', now()) d
+     JOIN public.rate_items di ON di.id = d.dependent_rate_item_id JOIN public.rate_items bi ON bi.id = d.base_rate_item_id
+    WHERE di.item_code IN ('C', 'D')) = ARRAY['D>C']);
+SELECT pg_temp.ok('D9c as known before any of it was recorded: nothing',
+  NOT EXISTS (SELECT 1 FROM public.rate_item_dependencies_as_of('00000000-0000-4000-8000-000000002841', DATE '2026-02-10', now() - interval '1 second')));
+SELECT pg_temp.refuses_at('D9d the read needs every coordinate',
+  $q$SELECT * FROM public.rate_item_dependencies_as_of('00000000-0000-4000-8000-000000002841', NULL, now())$q$, '22004', 'all required');
+RESET ROLE;
+SELECT pg_temp.refuses_at('D9e the owner deletes a dependency',
+  $q$DELETE FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '23001', 'never');
+SELECT pg_temp.ok('D10 the read: the application and the core, not PUBLIC',
+  has_function_privilege('tally_app', 'public.rate_item_dependencies_as_of(uuid,date,timestamptz)', 'EXECUTE')
+  AND has_function_privilege('tally_core', 'public.rate_item_dependencies_as_of(uuid,date,timestamptz)', 'EXECUTE')
+  AND NOT (SELECT coalesce(aclcontains(proacl, makeaclitem(0, proowner, 'EXECUTE', false)), true)
+             FROM pg_proc WHERE oid = 'public.rate_item_dependencies_as_of(uuid,date,timestamptz)'::regprocedure));
+SELECT public.assert_wave1_guard_invariants();
+DO $$ BEGIN RAISE NOTICE 'PASS D11: the wave-1 guard invariant holds with the two A-1 triggers'; END $$;
 
 DO $$ BEGIN RAISE NOTICE 'battery-28: all checks passed'; END $$;
 ROLLBACK;
