@@ -6,6 +6,10 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-11-01 (-23 r8) — a line's position is an attribution: never more than it can pay, not always all of it
+
+- **Option A (Ryan, 2026-11-01): narrow the promise, don't make the caps read the cover.** With two holders of money beside a deficit, the cover hands the deficit to one of them, which then reads less than its own caps admit (all three r7 reviews, B1: Opus's payment 50 and reissue 20, the reissue admitting 30). The schema now promises that no line reads more than it can pay, that the payment's and its credits' positions add up to what the ledger leaves, and that no line reads money beside another's deficit. It no longer promises that each line pays exactly what it reads. *Why:* Kyle (10-30) rules that the customer and the operator see one net credit balance, and that number is always right; the per-line figures are the tracking underneath, which he left to us. *Why not B (per-side caps read the covered position):* it reverses r6's "a draw uses only its own side's money", makes every cap depend on the siblings' state at the reading, and reopens the hardest logic in the patch after seven rounds; it adds nothing stored, so it stays available later. *Accepted:* a screen that shows per-line credits can show a line paying out more than it read, and a sibling's figure then moving untouched. *Where it lives:* the comments at `overpayment_absorbed_as_of`, R17, R20; agree() in the battery; r8 plan B1.
+
 ## 2026-11-01 (-23 r7) — Kyle: a customer's credits are one pot; round 7 freezes as built
 
 - **Kyle answered (2026-10-30, pushed to GBM, `kyle-decisions-2026-10-30-credit-shortfall-after-bounce.md`):** to the customer and the operator, all of a customer's credits are one pot, shown as one net balance; a bounce's shortfall uses up the total credit and the customer owes the rest; how the pieces are tracked underneath, and in what order, is ours. *So:* round 7's order (a credit's shortfall covered by its sibling credits, the latest first, then by the payment) stands unchanged; either order gives the same total.
