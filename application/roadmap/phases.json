@@ -130,7 +130,7 @@
         },
         {
           "name": "Scenario prose for each invariant",
-          "status": "todo"
+          "status": "partial"
         },
         {
           "name": "State machines, exception paths, persona matrix",
@@ -138,7 +138,7 @@
         },
         {
           "name": "Worked bills with dollar figures (Kyle checks)",
-          "status": "todo"
+          "status": "partial"
         },
         {
           "name": "Coverage audit against the 135 invariants",

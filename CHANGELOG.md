@@ -6,6 +6,24 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-02 (scenarios) — first scenarios session: source inventory, shape and cast decided, SCN-0001–0032 drafted and reviewed, 17 questions to Kyle
+
+**What was done:**
+- **Source inventory** (`application/scenarios-source-inventory-2026-11-02/`): GBM's 29 per-family docs hold no scenarios (axes-only outlines from July); most material predates the October rulings and treats §7.45 as binding on city systems; the fixtures can't price a bill.
+- **Three decisions** (Ryan): scenarios live in `scenarios/` here; the shape (Status, Rule, Given, When, a worked bill, Open); a cast of invented names on real small-city tariffs (Brenham, Stinnett; research in `scenarios/cast-sources/`).
+- **32 scenarios** across billing, cancel-rebill, deposits, backbilling, and periods and aging, plus the reviewers' top gaps (an upward correction, a deposit-paid final bill voided, a straddling bill rebilled after close, a never-disconnectable backbill in the aging, Fremont deposit interest).
+- **Three-reviewer pass** (Opus, Fable, Codex; `scenarios/review/2026-11-02/`): every figure correct; must-fix rule errors verified and applied (a correction can't name a never-issued bill; a meter error is an adjustment, not a reissue; gas corrections refuse current rates; the close snapshot ages as of the period's last day; GL precedence is charge > class > territory > tax; and others).
+- **Board note to rates:** city systems can't backbill until the backbilling tariff table exists.
+- **17 questions to Kyle** drafted into his Slack DM; Ryan sent them.
+
+**Decisions:** DECISION-LOG 2026-11-02 (where scenarios live; their shape; the cast).
+
+**Failed approaches:** sending Slack directly to Kyle (his DM is Slack Connect: drafts only; the user search doesn't find him). Fifteen candidate towns were investor-owned-served and dropped from the cast.
+
+**Next:** Ryan on the Mcf bill-line question (roadmap R-19); Kyle's answers (K-12); the remaining reviewer gaps; date-tracking, weather normalization and tenant isolation.
+
+---
+
 ## 2026-11-02 (rates) — the rates stream's first session: v5.4.2-28 (small fixes) built, tested and reviewed once; round-2 fix list; two of three calls settled
 
 **What was done:**
@@ -28,6 +46,8 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 **Failed approaches:** a jsonpath `(@ * 10000).floor()` in a CHECK. PostgreSQL prints it back as text that doesn't parse, so dumps break.
 
 **Next:** Ryan's call on reading the zone only when it can change the answer. Then build round 2, freeze it, and send it to all three reviewers.
+
+---
 
 ## 2026-10-29 (night, money) — -23 round 6 reviewed (all three: not yet); round 7 built and tested, waiting on Kyle
 
