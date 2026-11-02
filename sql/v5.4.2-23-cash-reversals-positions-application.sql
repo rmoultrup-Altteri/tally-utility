@@ -352,8 +352,8 @@
 --       payment and its credits together. r7 (Fable B1, Opus B2, Codex B1):
 --       so is the cover at the reading, a credit in deficit covered first by
 --       the family's other credits holding money (the latest first), then by
---       the payment. Which side covers first is put to Kyle (2026-10-29); the
---       money is the same either way.
+--       the payment. Kyle (2026-10-30): the order is ours; the money is the
+--       same either way.
 --   R21. r6 (Opus N6): overpayment_shares walks the payment's tree once per
 --       read, and each take-back reads what each credit had given at its
 --       instant. Measured 2026-10-29 (one at a time, history loads): a
@@ -361,6 +361,17 @@
 --       entry reads a position in 2-4 ms and takes a draw in about 5 ms (up
 --       to 90 ms on a session's first call, while plans are made); with 10
 --       reissues and 50 rows, 10-25 ms and 20-100 ms.
+--   R22. r7 (Opus B3; Ryan, 2026-10-29): a reissue carrying a share of a
+--       take-back is not voided until the share is given back. A reissue
+--       made by mistake after a take-back stays, its money on that line,
+--       still the customer's, until refunded or applied.
+--   R23. r7 (Kyle, 2026-10-30; Ryan, 2026-11-01): a customer's credits are
+--       one pot, shown as one net balance. The cover nets within one
+--       payment only: across payments, a credit still reads as refundable,
+--       and runs its own escheat clock, while another payment's bounce
+--       leaves the customer owing. The core nets the pot before a refund or
+--       an escheat report (APPLICATION-CONTRACTS AC-44); a database cap
+--       across the customer's payments can be added later as a tightening.
 --
 -- ----------------------------------------------------------------------------
 -- Kyle's K-10 (2026-10-21; gas-billing-memory kyle-decisions-2026-10-21-
