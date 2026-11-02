@@ -18,6 +18,9 @@
 --      Transaction time is read only at now() and just before: inside one
 --      transaction every stamp is now(). Races: -19's cycle-19.sh and -21's
 --      labels-21.sh, ported to the dated shape.
+--   R  rates carry at most four decimals (K-06; Ryan 2026-11-02, option 2):
+--      a version's rate, a tier's rate, a schedule's override; negative
+--      rates too; a tier rate that is not a number; columns stay scale 6.
 --
 -- The fixture's one fact that matters: customer C1 became a state agency at
 -- 2026-07-01 05:30 UTC. That is 00:30 on July 1 in Central time (after the
@@ -417,6 +420,50 @@ SELECT pg_temp.ok('D10 the read: the application and the core, not PUBLIC',
              FROM pg_proc WHERE oid = 'public.rate_item_dependencies_as_of(uuid,date,timestamptz)'::regprocedure));
 SELECT public.assert_wave1_guard_invariants();
 DO $$ BEGIN RAISE NOTICE 'PASS D11: the wave-1 guard invariant holds with the two A-1 triggers'; END $$;
+
+-- ========================================= R. rates carry four decimals
+-- Kyle K-06; Ryan 2026-11-02, option 2. Items R1..R6 of tenant 1; each
+-- admitted version gets its own item (versions of one item may not overlap).
+INSERT INTO public.rate_items (id, tenant_id, item_code)
+SELECT ('00000000-0000-4000-8000-00000000287' || g)::uuid, '00000000-0000-4000-8000-0000000028a1', 'R' || g FROM generate_series(1, 6) g;
+-- riv(): the SQL of one version of item R<n> with p_cols / p_vals added.
+CREATE FUNCTION pg_temp.riv(p_n int, p_kind text, p_cols text, p_vals text) RETURNS text LANGUAGE sql AS $$
+  SELECT format($f$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type%s)
+    VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-00000000287%s', 'R%s', 'gas', %L, 'regulated', DATE '2026-01-01', 'initial'%s)$f$,
+    p_cols, p_n, p_n, p_kind, p_vals)
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.riv(int, text, text, text) TO tally_app;
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
+SELECT public.assert_reference_version('rate_items', ('00000000-0000-4000-8000-00000000287' || g)::uuid, 1) FROM generate_series(1, 6) g;
+SELECT pg_temp.admits('R1a a rate of four decimals',
+  pg_temp.riv(1, 'per_unit_usage', ', rate_value', ', 0.4321'));
+SELECT pg_temp.refuses_at('R1b a rate of five decimals',
+  pg_temp.riv(2, 'per_unit_usage', ', rate_value', ', 0.43215'), '23514', 'rate_item_versions_rate_four_decimals_check');
+SELECT pg_temp.refuses_at('R1c a negative rate of five decimals (a credit rider)',
+  pg_temp.riv(2, 'per_unit_usage', ', rate_value', ', -0.00001'), '23514', 'rate_item_versions_rate_four_decimals_check');
+SELECT pg_temp.admits('R1d a negative rate of four decimals',
+  pg_temp.riv(2, 'per_unit_usage', ', rate_value', ', -12.0001'));
+SELECT pg_temp.admits('R2a tiers at four decimals',
+  pg_temp.riv(3, 'tiered_usage', ', tier_config', $v$, '{"tiers": [{"label": "1", "floor": 0, "ceiling": 10.123456, "rate": 0.5}, {"label": "2", "floor": 10.123456, "ceiling": null, "rate": 0.4321}]}'$v$));
+SELECT pg_temp.refuses_at('R2b a tier rate of five decimals',
+  pg_temp.riv(4, 'tiered_usage', ', tier_config', $v$, '{"tiers": [{"label": "1", "floor": 0, "ceiling": 10, "rate": 0.5}, {"label": "2", "floor": 10, "ceiling": null, "rate": 0.43215}]}'$v$),
+  '23514', 'rate_item_versions_tier_rates_four_decimals_check');
+SELECT pg_temp.refuses_at('R2c a tier rate that is not a number',
+  pg_temp.riv(4, 'tiered_usage', ', tier_config', $v$, '{"tiers": [{"label": "1", "floor": 0, "ceiling": null, "rate": "0.5"}]}'$v$),
+  '23514', 'rate_item_versions_tier_rates_four_decimals_check');
+-- Schedule overrides: RS28 (section D) carries R5 and R6.
+SELECT pg_temp.refuses_at('R3a a schedule override of five decimals',
+  $q$INSERT INTO public.rate_schedule_items (tenant_id, rate_schedule_id, rate_item_id, rate_override, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-000000002875', 1.23456, DATE '2026-01-01')$q$,
+  '23514', 'rate_schedule_items_rate_override_four_decimals_check');
+SELECT pg_temp.admits('R3b a schedule override of four decimals',
+  $q$INSERT INTO public.rate_schedule_items (tenant_id, rate_schedule_id, rate_item_id, rate_override, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-000000002876', 1.2345, DATE '2026-01-01')$q$);
+RESET ROLE;
+SELECT pg_temp.ok('R4 the rate columns stay six-decimal (relaxing is dropping a check, no data moves)',
+  (SELECT bool_and(numeric_scale = 6) FROM information_schema.columns
+    WHERE table_schema = 'public' AND (table_name, column_name) IN (('rate_item_versions', 'rate_value'), ('rate_schedule_items', 'rate_override'))));
 
 DO $$ BEGIN RAISE NOTICE 'battery-28: all checks passed'; END $$;
 ROLLBACK;

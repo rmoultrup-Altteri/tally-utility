@@ -13,9 +13,10 @@
 --
 --              Ryan, 2026-11-02 (DECISION-LOG, option 1): rider dependencies
 --              are dated in place, the rate_schedule_items pattern.
+--              Ryan, 2026-11-02 (DECISION-LOG, option 2): rates carry at most
+--              four decimals (Kyle K-06), checked where they are entered.
 --
--- Scope so far: section 1 (CI-010), section 2 (CI-101). CI-109 (rounding) is
--- still being settled. CI-091 (the meter test fee) left -28 for its own patch
+-- Scope: section 1 (CI-010), section 2 (CI-101), section 3 (CI-109). CI-091 (the meter test fee) left -28 for its own patch
 -- after the dated history (Ryan, 2026-11-02); CI-089 needs no SQL (nothing
 -- in the schema names a prompt-pay discount; K-06 drops the element).
 --
@@ -48,6 +49,21 @@
 --   April, with a third link spanning both); it never admits a real cycle,
 --   since every link of a cycle on day D overlaps the new row at D.
 --   Read through rate_item_dependencies_as_of(schedule, day, recorded_at).
+--
+-- ----------------------------------------------------------------------------
+-- 3. Rates carry at most four decimals (CI-109)
+-- ----------------------------------------------------------------------------
+--   Kyle K-06: money to the cent, half-up; rates and intermediate math carry
+--   four decimals; one rule, not per tariff. The rounding is the core's,
+--   pinned for replay by each bill snapshot's formula_version. The schema
+--   refuses a rate with more than four decimals where it is entered: a rate
+--   item version's rate_value, each tier's rate in its tier_config, and a
+--   schedule's rate_override. Factors (meter, heating value, pressure) are
+--   not rates and keep six. Not here: invoice_line_items.rate (the money
+--   stream's table; a board note), deposit interest rates (money; an annual
+--   percentage, not a tariff rate), rate_item_history (retired, read-only).
+--   Accepted: a jurisdiction filing a five-decimal rate is refused until the
+--   check is relaxed, deliberately.
 --
 -- PRECONDITION for section 2: rate_item_dependencies is empty (it is in
 --   every database built from tu.sql). The first run refuses a table with
@@ -554,6 +570,32 @@ DO $$ BEGIN
     PERFORM public.assert_wave1_guard_invariants();
     PERFORM public.assert_no_hard_delete_invariants();
 END $$;
+
+-- ============================================================================
+-- 3. Rates carry at most four decimals (CI-109)
+-- ============================================================================
+-- A CHECK, not a narrower column: relaxing it is dropping the check. The
+-- tables are empty in every database built from tu.sql; on one with rows a
+-- non-conforming rate fails the patch rather than be rounded.
+ALTER TABLE public.rate_item_versions DROP CONSTRAINT IF EXISTS rate_item_versions_rate_four_decimals_check;
+ALTER TABLE public.rate_item_versions ADD CONSTRAINT rate_item_versions_rate_four_decimals_check
+    CHECK (rate_value IS NULL OR rate_value = round(rate_value, 4));
+-- Each tier's rate: a number with at most four decimals (jsonb numbers are
+-- numeric, so the test is exact). Bracket floors and ceilings are usage,
+-- not rates, and are not checked.
+ALTER TABLE public.rate_item_versions DROP CONSTRAINT IF EXISTS rate_item_versions_tier_rates_four_decimals_check;
+ALTER TABLE public.rate_item_versions ADD CONSTRAINT rate_item_versions_tier_rates_four_decimals_check
+    CHECK (tier_config IS NULL
+           OR NOT jsonb_path_exists(tier_config, '$.tiers[*] ? (exists (@.rate)) .rate ? (@.type() != "number" || @ * 10000 != (@ * 10000).floor())'));
+ALTER TABLE public.rate_schedule_items DROP CONSTRAINT IF EXISTS rate_schedule_items_rate_override_four_decimals_check;
+ALTER TABLE public.rate_schedule_items ADD CONSTRAINT rate_schedule_items_rate_override_four_decimals_check
+    CHECK (rate_override IS NULL OR rate_override = round(rate_override, 4));
+COMMENT ON CONSTRAINT rate_item_versions_rate_four_decimals_check ON public.rate_item_versions IS
+    'v5.4.2-28 (CI-109; Kyle K-06; Ryan 2026-11-02, option 2): a rate carries at most four decimals. The column stays numeric(14,6): relaxing the rule is dropping this check. Rounding money (to the cent, half-up) and intermediates (four decimals) is the core''s, pinned per bill by the snapshot''s formula_version.';
+COMMENT ON CONSTRAINT rate_item_versions_tier_rates_four_decimals_check ON public.rate_item_versions IS
+    'v5.4.2-28 (CI-109; K-06): every tier''s rate is a number with at most four decimals.';
+COMMENT ON CONSTRAINT rate_schedule_items_rate_override_four_decimals_check ON public.rate_schedule_items IS
+    'v5.4.2-28 (CI-109; K-06): a schedule''s rate override carries at most four decimals.';
 
 -- ============================================================================
 -- END PATCH v5.4.2-28

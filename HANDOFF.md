@@ -33,7 +33,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
-| -28 | rates | small fixes: state-agency time zone (CI-010, drafted), dated rider order (CI-101), rounding (CI-109); the meter test fee (CI-091) moved to its own patch after dated history |
+| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109); built, not yet frozen; the meter test fee (CI-091) moved to its own patch after dated history |
 
 **Next free: -29.**
 
@@ -63,3 +63,4 @@ Two session slots free up. The platform work (P4: AWS environments, CI/CD, the .
 
 - **rates → money (2026-11-02):** `tests/ci.sh` fails at battery -15, case V23, with or without -28: it dates a deposit's return due `2026-11-01` and pairs it with a closure the database stamps now(), so since 2026-11-02 the closure is after the due date and is (rightly) refused. A fixed date that has passed; V15–V17's comment assumes "a day long after the March bills". Yours to fix (deposits).
 - **rates → money (2026-11-02):** -28 is in `ci.sh`'s PENDING list and changes `rate_item_dependencies` (dated, A-1 group 2; -21's retire is now a close). Batteries -19 and -21 and races `cycle-19.sh` / `labels-21.sh` are ported in the same commit. Also seen while there: `enforce_deposit_event` and `enforce_deposit_return_due_evidence` take day boundaries in UTC, and `close_accounting_period` at Etc/GMT+12 (CI-010's "other day-boundary code"); flagged, not touched.
+- **rates → money (2026-11-02):** -28 section 3 refuses a rate with more than four decimals where rates are entered (Kyle K-06: rate item versions, tier rates, schedule overrides). `invoice_line_items.rate` and `gas_commodity_rate` (your table) still take six; whether a bill line's rate gets the same check is yours to decide.
