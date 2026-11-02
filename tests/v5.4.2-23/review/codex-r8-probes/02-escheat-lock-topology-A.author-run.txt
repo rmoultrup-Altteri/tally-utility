@@ -1,0 +1,6 @@
+BEGIN
+SET
+psql:<stdin>:18: NOTICE:  A has P then K; start B now
+DO
+psql:<stdin>:18: NOTICE:  A completed SQLSTATE=00000
+ROLLBACK

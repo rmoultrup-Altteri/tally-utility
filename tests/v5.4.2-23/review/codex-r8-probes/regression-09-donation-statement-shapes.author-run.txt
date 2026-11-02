@@ -1,0 +1,18 @@
+BEGIN
+SET
+SET
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+psql:<stdin>:110: NOTICE:  donation multi-row CAUGHT SQLSTATE=23514 MESSAGE=credit f887b9de-8ad7-443d-936c-3add21049a0a: on 2026-03-15 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+DO
+psql:<stdin>:110: NOTICE:  donation CTE CAUGHT SQLSTATE=23514 MESSAGE=credit f887b9de-8ad7-443d-936c-3add21049a0a: on 2026-03-15 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+ROLLBACK
+rc=0 0s

@@ -1,0 +1,26 @@
+BEGIN
+SET
+SET
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 1
+UPDATE 1
+SAVEPOINT
+COPY probe: expected native ERROR 23514 (still pending); the following error is the probe result, not LAST_ERROR_SQLSTATE.
+psql:<stdin>:97: ERROR:  23514: account_ledger 20936d4d-0994-4cb3-8092-94e8d12b7d70 posts payment copy-voided, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+CONTEXT:  PL/pgSQL function enforce_ledger_reversal() line 68 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:98: error: ERROR:  23514: account_ledger 20936d4d-0994-4cb3-8092-94e8d12b7d70 posts payment copy-voided, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+CONTEXT:  PL/pgSQL function enforce_ledger_reversal() line 68 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK
+ROLLBACK
+rc=0 0s

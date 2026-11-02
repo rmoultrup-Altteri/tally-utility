@@ -1,0 +1,41 @@
+BEGIN
+SET
+SET
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+psql:<stdin>:117: NOTICE:  payment arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 02a954a0-a581-4311-bbde-835ccd4d7dff is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is repeatable read): it must see every row committed while it waited (R-02, v5.4.2-23)
+psql:<stdin>:117: NOTICE:  credit arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 21a2bec9-5f10-4725-a195-83b441411c09 is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is repeatable read): it must see every row committed while it waited (R-02, v5.4.2-23)
+psql:<stdin>:117: NOTICE:  payment move CAUGHT SQLSTATE=25000 MESSAGE=payment dd7e4f6c-c0bc-4e99-b736-bd445ab13812: a status move is written at READ COMMITTED (this transaction is repeatable read): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+psql:<stdin>:117: NOTICE:  credit move CAUGHT SQLSTATE=25000 MESSAGE=customer credit c5d8e2ef-8a42-4941-8a60-6378cca0d2d3: a status move is written at READ COMMITTED (this transaction is repeatable read): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+psql:<stdin>:117: NOTICE:  draw pin CAUGHT SQLSTATE=25000 MESSAGE=a row drawing on credit c5d8e2ef-8a42-4941-8a60-6378cca0d2d3 is written at READ COMMITTED (this transaction is repeatable read): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+DO
+ROLLBACK
+BEGIN
+SET
+SET
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+psql:<stdin>:232: NOTICE:  payment arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger 87dcc81c-d22e-4571-a8dd-d0563eaa4d25 is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited (R-02, v5.4.2-23)
+psql:<stdin>:232: NOTICE:  credit arrival CAUGHT SQLSTATE=25000 MESSAGE=account_ledger a3df3483-c564-414a-a31a-5c321f4c3f34 is read against its source or tree under a lock, so it is posted at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited (R-02, v5.4.2-23)
+psql:<stdin>:232: NOTICE:  payment move CAUGHT SQLSTATE=25000 MESSAGE=payment 42a785d9-bc1e-4e6f-8ed5-a66742974986: a status move is written at READ COMMITTED (this transaction is serializable): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+psql:<stdin>:232: NOTICE:  credit move CAUGHT SQLSTATE=25000 MESSAGE=customer credit 722601c8-f0c1-41cd-af2f-73dbf21dc746: a status move is written at READ COMMITTED (this transaction is serializable): it must see every draw committed while it waited (CI-013, v5.4.2-23)
+DO
+ROLLBACK
+psql:<stdin>:232: NOTICE:  draw pin CAUGHT SQLSTATE=25000 MESSAGE=a row drawing on credit 722601c8-f0c1-41cd-af2f-73dbf21dc746 is written at READ COMMITTED (this transaction is serializable): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+rc=0 0s

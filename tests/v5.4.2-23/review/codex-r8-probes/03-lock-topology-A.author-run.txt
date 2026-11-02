@@ -1,0 +1,8 @@
+BEGIN
+SET
+psql:<stdin>:19: NOTICE:  session A acquired P
+psql:<stdin>:19: NOTICE:  session A acquired K
+DO
+psql:<stdin>:19: NOTICE:  session A acquired R
+psql:<stdin>:19: NOTICE:  session A completed SQLSTATE=00000
+ROLLBACK

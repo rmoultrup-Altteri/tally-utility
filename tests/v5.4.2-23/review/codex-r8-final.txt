@@ -1,0 +1,7 @@
+Verdict: **not yet**.
+
+**B1 — predicted:** A returned refund requires an own-side reissue, but the pool cap rejects that reissue while the family remains in deficit.
+
+[Full review](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-23/review/codex-r8.md) · [Reproduction probe](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-23/review/codex-r8-probes/01-negative-pool-reissue.sql)
+
+All six hashes match. Source review only; no database tests executed.

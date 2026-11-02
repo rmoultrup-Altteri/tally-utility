@@ -1,0 +1,60 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+psql:<stdin>:147: NOTICE:  generation=1 elapsed=00:00:00.269685 SQLSTATE=00000
+psql:<stdin>:147: NOTICE:  generation=10 elapsed=00:00:02.698435 SQLSTATE=00000
+psql:<stdin>:147: NOTICE:  generation=20 elapsed=00:00:05.507762 SQLSTATE=00000
+psql:<stdin>:147: NOTICE:  root=00000000-0000-4000-8000-000000003221 generation=20
+psql:<stdin>:147: NOTICE:  PAYMENT 00000000-0000-4000-8000-000000003201 position={"amount":1.00,"received":1.00,"applied":0,"credited":1.00,"refunded":0,"remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-000000003221","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a0","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a1","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a2","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a3","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a4","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a5","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a6","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a7","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a8","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032a9","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032aa","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032ab","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032ac","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032ad","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032ae","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032af","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032b0","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032b1","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032b2","status":"active","remaining":0.00,"own_remaining":0.00}
+psql:<stdin>:147: NOTICE:  CREDIT {"id":"00000000-0000-4000-8000-0000000032b3","status":"active","remaining":1.00,"own_remaining":1.00}
+psql:<stdin>:147: NOTICE:  DRAW amount=1 admitted SQLSTATE=00000
+psql:<stdin>:147: NOTICE:  DRAW amount=1 caught SQLSTATE=P0099 message=probe rollback of admitted draw
+DO
+ROLLBACK
+rc=0 6s

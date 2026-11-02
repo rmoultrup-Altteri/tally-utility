@@ -1,0 +1,5 @@
+BEGIN
+SET
+psql:<stdin>:16: NOTICE:  B completed SQLSTATE=00000
+DO
+ROLLBACK

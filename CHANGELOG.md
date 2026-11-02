@@ -6,6 +6,22 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-01 to 11-02 (money) — -23 round 7 reviewed, round 8 built and reviewed (Fable ready; Codex and Opus not yet); AC-44 settled; -27 claimed
+
+**What was done:**
+- **11-01 (the session before, never logged):** Kyle's K-11 answer recorded (a customer's credits are one pot); round 7 frozen and reviewed by all three (not yet: two lines holding money beside a deficit can't both pay what they read; an escheated credit's own money could rise after the escheat; a deadlock between the escheat move and a give-back; slow walks under bad statistics). Ryan chose option A (no line reads more than it can pay). Round 8 built.
+- **Round 8's mutation run** first caught 223 of 225: N207 (a reissue's cap forgetting its share of a take-back) passed because the narrowed agree() no longer sees a cap set too high, so Y7j2 checks it directly; N223 was relabelled to Z4a. Rerun: 225/225. Battery 390/390, races 40/40. Committed; frozen; three reviewers launched.
+- **AC-44 settled (Ryan):** netting before an escheat report is a per-state rule (no rule row: report in full); netting is recorded as a new kind of application to the bounced payment's shortfall, never a billed charge (Kyle's K-10 words); that row is **-27**, claimed and moved ahead of -24.
+- **Reviews:** Fable ready (two test additions). Codex not yet: a bank's return of an escheated credit's refund can't be recorded while the family is in deficit, because the family cap refuses the required reissue though it moves no money out (probe confirmed). Opus not yet: a refund's return that began before a take-back moves the take-back's share off an escheated reissue after the fact; and two per-side cap mutations pass all 390 checks (same root as N207).
+- **CI on -23 r8 + -25 + -26:** all their steps pass; -15's V23 fails because its fixed due date (2026-11-01) has passed (fails on plain `tally` too).
+- 7 leaked postgres-mcp containers (10-27) removed.
+
+**Decisions:** option A (11-01); AC-44's per-state escheat netting and -27; -27 before -24. DECISION-LOG 2026-11-01 and 2026-11-02 (-23 r8). Roadmap: counsel question C-03.
+
+**Failed approaches:** narrowing agree() without a direct check on each per-side cap; rewriting roadmap JSON with a different indent; editing the roadmap before pulling the other stream's wrap-up.
+
+**Next:** Ryan's call on Codex B1's fix (recommended: the family cap skips the two internal moves) → r9 plan from all three reviews → build, test, freeze, review. Fix -15's expired test. Then -27.
+
 ## 2026-11-02 (scenarios) — first scenarios session: source inventory, shape and cast decided, SCN-0001–0032 drafted and reviewed, 17 questions to Kyle
 
 **What was done:**
@@ -23,6 +39,7 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 **Next:** Ryan on the Mcf bill-line question (roadmap R-19); Kyle's answers (K-12); the remaining reviewer gaps; date-tracking, weather normalization and tenant isolation.
 
 ---
+
 
 ## 2026-11-02 (rates) — the rates stream's first session: v5.4.2-28 (small fixes) built, tested and reviewed once; round-2 fix list; two of three calls settled
 

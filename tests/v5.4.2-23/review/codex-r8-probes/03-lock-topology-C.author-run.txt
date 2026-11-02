@@ -1,0 +1,6 @@
+BEGIN
+SET
+psql:<stdin>:16: NOTICE:  session C acquired K
+DO
+psql:<stdin>:16: NOTICE:  session C completed SQLSTATE=00000
+ROLLBACK

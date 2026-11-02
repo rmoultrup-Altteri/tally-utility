@@ -1,0 +1,4507 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ ok 
+----
+ 
+(1 row)
+
+SET
+psql:<stdin>:164: NOTICE:  PASS T1 Texas gas has two law rows for distribution systems, both delegating to the utility (K-05)
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:171: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — missing adhoc, adjustment, consolidated_summary, credit, deposit, late_fee, minimum_bill_adjustment, penalty, surcharge, tax, usage_charge (K-07: no assumed default; v5.4.2-23)
+psql:<stdin>:171: NOTICE:  PASS T2 a tariff order that leaves a charge type out (K-07: no assumed default): refused by every bill-line charge type exactly once (payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — missing adhoc)
+psql:<stdin>:176: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — listed twice adhoc, adjustment, base_charge, consolidated_summary, credit, deposit, late_fee, minimum_bill_adjustment, misc, penalty, surcharge, tax, usage_charge (K-07: no assumed default; v5.4.2-23)
+psql:<stdin>:176: NOTICE:  PASS T3 a charge type in both lists: refused by listed twice (payment allocation tariff (TX gas): the within-bill order names every bill-line charge type exactly once — listed twice )
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:181: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment_allocation_tariffs: the document is not a valid payment_allocation_tariff v1: /within_bill/order: unknown key (v5.4.2-17)
+psql:<stdin>:181: NOTICE:  PASS T4 the shape admits no other class order: an "order" list in place of the two lists is not a document: refused by payment_allocation_tariff (payment_allocation_tariffs: the document is not a valid payment_allocation_tariff v1: /within_bill/order: unknown key (v)
+psql:<stdin>:185: NOTICE:  PASS T5 the utility's own complete order, regulated first (in force January 1 to March 31)
+ admits 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b2
+(1 row)
+
+psql:<stdin>:191: NOTICE:  Codex r8 caught SQLSTATE=42501 message=new row violates row-level security policy for table "payment_allocation_tariffs": a utility writes its own tariff only (v5.4.2-23)
+psql:<stdin>:191: NOTICE:  PASS T6 another utility writes no tariff for T1: refused by row-level security (new row violates row-level security policy for table "payment_allocation_tariffs": a utility writes its own tariff only )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 5
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+RESET
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:233: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_restriction_agency_check"
+psql:<stdin>:233: NOTICE:  PASS A6 only an agency payment carries a restriction: refused by payments_restriction_agency_check (new row for relation "payments" violates check constraint "payments_restriction_agency_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:238: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "payments" violates foreign key constraint "payments_restricted_line_fkey"
+psql:<stdin>:238: NOTICE:  PASS A6b a restricted line is a line of the restricted bill: refused by payments_restricted_line_fkey (insert or update on table "payments" violates foreign key constraint "payments_restricted_line_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:243: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "payments" violates foreign key constraint "payments_restricted_invoice_fkey"
+psql:<stdin>:243: NOTICE:  PASS A6c a restricted bill is the payment's customer's: refused by payments_restricted_invoice_fkey (insert or update on table "payments" violates foreign key constraint "payments_restricted_invoice_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:253: NOTICE:  PASS A1 an application to a bill line, oldest first, citing the tariff in force
+psql:<stdin>:258: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_line_fkey"
+psql:<stdin>:258: NOTICE:  PASS A1b a line of another bill: refused by invoice_applications_line_fkey (insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_line_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:263: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_invoice_fkey"
+psql:<stdin>:263: NOTICE:  PASS A1c another customer's bill: refused by invoice_applications_invoice_fkey (insert or update on table "invoice_applications" violates foreign key constraint "invoice_applications_invoice_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:268: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_one_source_check"
+psql:<stdin>:268: NOTICE:  PASS A1d one source, not two: refused by invoice_applications_one_source_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_one_source_check")
+psql:<stdin>:271: NOTICE:  Codex r8 caught SQLSTATE=42501 message=permission denied for table invoice_applications
+psql:<stdin>:271: NOTICE:  PASS A2 an application is never edited: refused by permission denied (permission denied for table invoice_applications)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:273: NOTICE:  Codex r8 caught SQLSTATE=42501 message=permission denied for table invoice_applications
+psql:<stdin>:273: NOTICE:  PASS A2b nor deleted: refused by permission denied (permission denied for table invoice_applications)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:278: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check"
+psql:<stdin>:278: NOTICE:  PASS A2c an undo says why and who: refused by invoice_applications_operator_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:283: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 00000000-0000-4000-8000-000000002341: its undos would come to 61.00, more than its 60.00 (A2 cap, v5.4.2-23)
+psql:<stdin>:283: NOTICE:  PASS A2d an undo takes back at most the application: refused by A2 cap (application 00000000-0000-4000-8000-000000002341: its undos would come to 61.00, more than its 60.00 (A2 cap, v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:288: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 2df14fd9-d315-45d2-90b7-00bbed419ebb is dated 2026-03-04, before the application it undoes (00000000-0000-4000-8000-000000002341, 2026-03-05): an undo is dated on or after it (A2, v5.4.2-23)
+psql:<stdin>:288: NOTICE:  PASS A2e an undo is dated on or after what it undoes: refused by dated on or after it (application 2df14fd9-d315-45d2-90b7-00bbed419ebb is dated 2026-03-04, before the application it undoes (00000000-0000-40)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:293: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 8ce25416-62c0-4f3b-b172-319bcae8fd1e undoes 00000000-0000-4000-8000-000000002341: an undo names an application (not an undo) of the same source and line (A2, v5.4.2-23)
+psql:<stdin>:293: NOTICE:  PASS A2f an undo is of the same source: refused by of the same source and line (application 8ce25416-62c0-4f3b-b172-319bcae8fd1e undoes 00000000-0000-4000-8000-000000002341: an undo names an applicati)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:298: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application a00cbb53-844b-4fff-8b60-19bd7ef3233c undoes 00000000-0000-4000-8000-000000002341: an undo names an application (not an undo) of the same source and line (A2, v5.4.2-23)
+psql:<stdin>:298: NOTICE:  PASS A2i an undo is of the same payment (P4 for P1's application): refused by of the same source and line (application a00cbb53-844b-4fff-8b60-19bd7ef3233c undoes 00000000-0000-4000-8000-000000002341: an undo names an applicati)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:302: NOTICE:  PASS A2g a partial undo, with its reason and user
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:307: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 58742556-7e62-4ef4-8b5c-f957937b2f55 undoes 00000000-0000-4000-8000-000000002342: an undo names an application (not an undo) of the same source and line (A2, v5.4.2-23)
+psql:<stdin>:307: NOTICE:  PASS A2h an undo is never undone (re-apply instead): a well-formed undo naming an undo: refused by (not an undo) (application 58742556-7e62-4ef4-8b5c-f957937b2f55 undoes 00000000-0000-4000-8000-000000002342: an undo names an applicati)
+psql:<stdin>:312: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_sign_check"
+psql:<stdin>:312: NOTICE:  PASS A2j an undo's sign is negative (a positive row naming an application): refused by invoice_applications_sign_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_sign_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:318: NOTICE:  Codex r8 caught SQLSTATE=23514 message=line 0 of invoice B23-I1: on 2026-03-07 its applications would come to 61.00, more than the line's 60.00 (R-06 cap, v5.4.2-23)
+psql:<stdin>:318: NOTICE:  PASS A3 a line takes no more than it is (50 applied of 60, then 11): refused by more than the line's (line 0 of invoice B23-I1: on 2026-03-07 its applications would come to 61.00, more than the line's 60.00 (R-06 cap, v5.4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:322: NOTICE:  PASS A3b and exactly what is left (10)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:327: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 22c13db8-90dd-425f-bcb0-8d2b996ab396: line 2 of invoice B23-I1 is -10.00 — only a positive line takes money; a credit or adjustment line is the bill's own netting (A3, v5.4.2-23)
+psql:<stdin>:327: NOTICE:  PASS A3c a credit line takes no money (the bill's own netting): refused by only a positive line takes money (application 22c13db8-90dd-425f-bcb0-8d2b996ab396: line 2 of invoice B23-I1 is -10.00 — only a positive line takes money;)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:331: NOTICE:  PASS A3d the add-on line from the same payment (40: 100 of 100 drawn)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:336: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002361: on 2026-03-07 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 101.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:336: NOTICE:  PASS A3e a payment pays no more than it is: 1 more of P1's 100: refused by more than its 100 (payment 00000000-0000-4000-8000-000000002361: on 2026-03-07 what it gave (applications, credits, refunds, donations, esc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:341: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002362 (pending) for application: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:341: NOTICE:  PASS A3f a pending payment pays nothing: refused by drawn from a posted payment (a row drawing on payment 00000000-0000-4000-8000-000000002362 (pending) for application: money is drawn from a posted pa)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:346: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002363 (posted, a deposit) for application: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:346: NOTICE:  PASS A3g a deposit pays no bill (K-05): refused by a deposit (a row drawing on payment 00000000-0000-4000-8000-000000002363 (posted, a deposit) for application: money is drawn from a)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:351: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 8ce6b37b-35c8-44a1-917b-2a3f5165ea4c: invoice B23-I4 is draft — money is applied to an issued, unvoided bill (A3, v5.4.2-23)
+psql:<stdin>:351: NOTICE:  PASS A3h a draft bill takes no money: refused by an issued, unvoided bill (application 8ce6b37b-35c8-44a1-917b-2a3f5165ea4c: invoice B23-I4 is draft — money is applied to an issued, unvoided bill)
+psql:<stdin>:356: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002371 is dated 2026-03-01, before the credit (2026-03-02): money is drawn on or after it arrives (A3, R-06; v5.4.2-23)
+psql:<stdin>:356: NOTICE:  PASS A3i money is applied on or after it arrived (credit issued March 2, applied March 1): refused by drawn on or after it arrives (a row drawing on credit 00000000-0000-4000-8000-000000002371 is dated 2026-03-01, before the credit (2026-03-02): money )
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:360: NOTICE:  PASS A3j a credit pays a line
+psql:<stdin>:365: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002373 (voided) for application: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:365: NOTICE:  PASS A3k a voided credit pays nothing: refused by or an active credit (a row drawing on credit 00000000-0000-4000-8000-000000002373 (voided) for application: money is drawn from a posted paym)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:370: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 7980c5d5-f1b2-48be-882a-2e3274b29c9e is dated 2026-02-25, before its bill (2026-03-01): money is applied on or after it (A3, v5.4.2-23)
+psql:<stdin>:370: NOTICE:  PASS A3l money is applied on or after its bill (K74 issued February 20, applied February 25, before I2's March 1): refused by before its bill (application 7980c5d5-f1b2-48be-882a-2e3274b29c9e is dated 2026-02-25, before its bill (2026-03-01): money is applied on )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:376: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check"
+psql:<stdin>:376: NOTICE:  PASS A4 an operator's choice says why: refused by invoice_applications_operator_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_operator_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:381: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "invoice_applications" violates check constraint "invoice_applications_tariff_check"
+psql:<stdin>:381: NOTICE:  PASS A4b a rule-chosen application names its tariff: refused by invoice_applications_tariff_check (new row for relation "invoice_applications" violates check constraint "invoice_applications_tariff_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:390: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment_allocation_tariffs row 00000000-0000-4000-8000-0000000023ac is not in force on 2026-03-07 (v5.4.2-17)
+psql:<stdin>:390: NOTICE:  PASS A4c the tariff is in force on the application's date (a row from April 1, cited on March 7): refused by is not in force on (payment_allocation_tariffs row 00000000-0000-4000-8000-0000000023ac is not in force on 2026-03-07 (v5.4.2-17))
+psql:<stdin>:394: NOTICE:  PASS A4d an operator's choice with a reason and user
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:399: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 39dbeb52-3931-4222-a765-3b74520ed392 says restriction: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:<stdin>:399: NOTICE:  PASS A4e an unrestricted payment says no restriction: refused by restriction is a restricted payment (application 39dbeb52-3931-4222-a765-3b74520ed392 says restriction: restriction is a restricted payment's own target; flo)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:404: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 6a333ac6-10c9-4b61-978e-ca956969d95e says oldest_first: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:<stdin>:404: NOTICE:  PASS A4f a restricted payment is not applied oldest first: refused by restriction is a restricted payment (application 6a333ac6-10c9-4b61-978e-ca956969d95e says oldest_first: restriction is a restricted payment's own target; fl)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:408: NOTICE:  PASS A4g the agency's money goes to its target, the add-on (D7-1 b)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:412: NOTICE:  PASS A4h or to gas service ahead of the unregulated target, said so (CI-050's floor; Kyle to rule which wins)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:417: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 3927f969-9f08-4a0d-852c-5c5b6a3081da says floor_over_restriction: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:<stdin>:417: NOTICE:  PASS A4i the floor takes a regulated line only (the add-on of I1 is not one): refused by floor_over_restriction a regulated line (application 3927f969-9f08-4a0d-852c-5c5b6a3081da says floor_over_restriction: restriction is a restricted payment's own )
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:420: NOTICE:  PASS A5 every application to I1's gas line is visible on the line: 60 + 10 - 10 = 60 applied, nothing open
+psql:<stdin>:429: NOTICE:  PASS M1 the counters are gone
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:432: NOTICE:  PASS M1b P1's position: 100 applied (60 - 10 + 10 + 40), nothing left
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:434: NOTICE:  PASS M1c by the money date: on March 6, P1 had paid 50 (60 less the undo)
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:436: NOTICE:  PASS M1d before the payment's date there is no position
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:439: NOTICE:  Codex r8 caught SQLSTATE=22004 message=payment_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-11-02 18:40:20.96512+00) (v5.4.2-23)
+psql:<stdin>:439: NOTICE:  PASS M1e a position is read at given coordinates (no live fallback): refused by both given (payment_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-1)
+psql:<stdin>:442: NOTICE:  PASS M1f K71's position: 25 applied, nothing left; I2's line 14 has 25 + 20 applied of 60
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:444: NOTICE:  PASS M1g I1's position from its lines: 90 of lines, 100 applied, 0 open on its positive lines
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+psql:<stdin>:457: NOTICE:  PASS M1j by the recorded instant: 90 minutes ago P8 was known and nothing of it applied; now 5 is
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:462: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002371 cannot move from active to fully_applied (CI-013; v5.4.2-23): an active credit ends escheated or voided, and those are terminal — issue a new credit (a refund or donation is read from the position, not a status)
+psql:<stdin>:462: NOTICE:  PASS M1h a credit is not "fully applied": what is left is read, not stored: refused by cannot move from active to fully_applied (customer credit 00000000-0000-4000-8000-000000002371 cannot move from active to fully_applied (CI-013; v5.4.2-23): an ac)
+RESET
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:468: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_status_check"
+psql:<stdin>:468: NOTICE:  PASS M1i nor born so (the status vocabulary has no such value): refused by customer_credits_status_check (new row for relation "customer_credits" violates check constraint "customer_credits_status_check")
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:473: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P2: amount is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment and post a new one
+psql:<stdin>:473: NOTICE:  PASS M2 a pending payment's amount is fixed from insert (R-05): refused by is written once (payment B23-P2: amount is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:475: NOTICE:  PASS M2b a reference that arrives later is written once
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:477: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P2: provider_transaction_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment and post a new one
+psql:<stdin>:477: NOTICE:  PASS M2c and never changed: refused by is written once (payment B23-P2: provider_transaction_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — re)
+psql:<stdin>:479: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P4: restricted_to_line_item_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) — reverse the payment and post a new one
+psql:<stdin>:479: NOTICE:  PASS M2d a payment's restriction is fixed from insert: refused by is written once (payment B23-P4: restricted_to_line_item_id is written once, at insert or when first recorded (R-05, CI-013; v5.4.2-23) —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:481: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002371: original_amount is fixed from insert (R-05, CI-013; v5.4.2-23) — void it and issue a new credit
+psql:<stdin>:481: NOTICE:  PASS M2e a credit's amount is fixed from insert: refused by fixed from insert (customer credit 00000000-0000-4000-8000-000000002371: original_amount is fixed from insert (R-05, CI-013; v5.4.2-23) — v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:488: NOTICE:  Codex r8 caught SQLSTATE=23001 message=adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to amount — void or waive it and create a new charge
+psql:<stdin>:488: NOTICE:  PASS M2f a pending one-off charge's amount is fixed from insert: refused by fixed from insert (adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to amount — void or w)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:490: NOTICE:  Codex r8 caught SQLSTATE=23001 message=adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to regulatory_class — void or waive it and create a new charge
+psql:<stdin>:490: NOTICE:  PASS M2g and its class (D7-2): refused by regulatory_class (adhoc charge B23-A1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to regulatory_class —)
+psql:<stdin>:492: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "adhoc_charges" violates check constraint "adhoc_charges_void_reason_check"
+psql:<stdin>:492: NOTICE:  PASS M2h a void says why: refused by adhoc_charges_void_reason_check (new row for relation "adhoc_charges" violates check constraint "adhoc_charges_void_reason_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:496: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-P2: the move to posted names the row behind it in status_cause_id (none) — its posting ledger entry (of type payment, referencing this payment, at minus its amount, with nothing under it) (Q1 (a), v5.4.2-23)
+psql:<stdin>:496: NOTICE:  PASS M3 a move to posted names its posting ledger entry: refused by its posting ledger entry (payment B23-P2: the move to posted names the row behind it in status_cause_id (none) — its posting ledger entry (of type)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:502: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-P2: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002382) — its posting ledger entry (of type payment, referencing this payment, at minus its amount, with nothing under it) (Q1 (a), v5.4.2-23)
+psql:<stdin>:502: NOTICE:  PASS M3b the entry is the payment's own, at minus its amount (P1's entry named for P2): refused by its posting ledger entry (payment B23-P2: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002382) — i)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:505: NOTICE:  PASS M3c posted, naming its entry
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:507: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P2 cannot move from posted to pending (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf or reversed, and the rest are terminal — post a new payment (a refund is read from the position, not a status)
+psql:<stdin>:507: NOTICE:  PASS M3d nothing returns to pending: refused by cannot move from posted to pending (payment B23-P2 cannot move from posted to pending (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:509: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P2: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23)
+psql:<stdin>:509: NOTICE:  PASS M3e the cause changes only with the status: refused by change only with the status (payment B23-P2: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23))
+psql:<stdin>:513: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 586787c5-58b8-4244-b753-b028184576d5 undoes payment 00000000-0000-4000-8000-000000002361's posting entry 00000000-0000-4000-8000-000000002382 while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)
+psql:<stdin>:513: NOTICE:  PASS M3f bounced money is not still paying bills: the bounce row itself waits while P1 is applied (guard the act): refused by while the payment is applied to bills (account_ledger 586787c5-58b8-4244-b753-b028184576d5 undoes payment 00000000-0000-4000-8000-000000002361's posting entry )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ALTER TABLE
+INSERT 0 1
+ALTER TABLE
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:524: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P1 cannot move to nsf while it is applied to bills (or its overpayment credit or a reissue of it is), or a refund of the credit is waiting to go out: undo the applications and cancel the refund first (CI-013, v5.4.2-23)
+psql:<stdin>:524: NOTICE:  PASS M3f2 nor does the move to nsf pass while P1 is applied (the planted bounce row past the ledger's guard): refused by while it is applied to bills (payment B23-P1 cannot move to nsf while it is applied to bills (or its overpayment credit or a reissue of it is), or a r)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:529: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002361: on 2026-03-09 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 201.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:529: NOTICE:  PASS M3f3 and P1 gives no more money: its posting entry is undone (O2; r3: the cap counts what was taken back): refused by R-06 cap (payment 00000000-0000-4000-8000-000000002361: on 2026-03-09 what it gave (applications, credits, refunds, donations, esc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+psql:<stdin>:543: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check"
+psql:<stdin>:543: NOTICE:  PASS C1 an overpayment credit cites the customer's approval: refused by customer_credits_overpayment_approved_check (new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:547: NOTICE:  PASS C1b the approval: the payment, the amount, who took it (the time is the database's)
+psql:<stdin>:549: NOTICE:  PASS C1c its time is stamped, not supplied
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:553: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey"
+psql:<stdin>:553: NOTICE:  PASS C1d the credit equals the approved amount: refused by customer_credits_approval_fkey (insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:557: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey"
+psql:<stdin>:557: NOTICE:  PASS C1e and comes from the approved payment: refused by customer_credits_approval_fkey (insert or update on table "customer_credits" violates foreign key constraint "customer_credits_approval_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:561: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check"
+psql:<stdin>:561: NOTICE:  PASS C1f an overpayment credit names its payment (an approval without one is not checked by the FK): refused by customer_credits_overpayment_approved_check (new row for relation "customer_credits" violates check constraint "customer_credits_overpayment_approved_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:564: NOTICE:  PASS C1g the credit, under its approval
+psql:<stdin>:568: NOTICE:  Codex r8 caught SQLSTATE=23505 message=duplicate key value violates unique constraint "customer_credits_one_per_approval"
+psql:<stdin>:568: NOTICE:  PASS C1h one approval, one credit: refused by customer_credits_one_per_approval (duplicate key value violates unique constraint "customer_credits_one_per_approval")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:570: NOTICE:  Codex r8 caught SQLSTATE=42501 message=permission denied for table customer_credit_approvals
+psql:<stdin>:570: NOTICE:  PASS C1i an approval is never edited: refused by permission denied (permission denied for table customer_credit_approvals)
+psql:<stdin>:572: NOTICE:  PASS C1j P6's position counts the credit: 5 credited, 45 left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:579: NOTICE:  Codex r8 caught SQLSTATE=23505 message=duplicate key value violates unique constraint "customer_credits_one_live_per_payment"
+psql:<stdin>:579: NOTICE:  PASS C1k r4: a payment holds one live overpayment credit (P6 already holds 5): refused by customer_credits_one_live_per_payment (duplicate key value violates unique constraint "customer_credits_one_live_per_payment")
+psql:<stdin>:583: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002366: on 2026-03-11 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 51.00, more than its 50.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:583: NOTICE:  PASS C1l a refund draws on the same money (45 left, 46 refunded): refused by more than its 50 (payment 00000000-0000-4000-8000-000000002366: on 2026-03-11 what it gave (applications, credits, refunds, donations, esc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:586: NOTICE:  PASS C1m the rest refunded (45)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:589: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-P6 cannot move from posted to refunded (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf or reversed, and the rest are terminal — post a new payment (a refund is read from the position, not a status)
+psql:<stdin>:589: NOTICE:  PASS M3g r3 (Ryan, 2026-10-21): refunded is not a status: refused by cannot move from posted to refunded (payment B23-P6 cannot move from posted to refunded (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf)
+psql:<stdin>:591: NOTICE:  PASS M3g2 the position says it: 5 credited, 45 refunded, nothing left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:600: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002365: on 2026-03-11 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 31.00, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:600: NOTICE:  PASS C1k2 an approval for more than is left makes no credit past the payment (P5: 5 applied, 10 refunded, 16 held, of 30): refused by more than its 30 (payment 00000000-0000-4000-8000-000000002365: on 2026-03-11 what it gave (applications, credits, refunds, donations, esc)
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:602: NOTICE:  PASS M3i P5: 30 less 5 applied and 10 refunded leaves 15
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:611: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-00000000236a (pending) for overpayment_credit: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:611: NOTICE:  PASS C1m2 a pending payment holds no credit (money not yet arrived): refused by drawn from a posted payment (a row drawing on payment 00000000-0000-4000-8000-00000000236a (pending) for overpayment_credit: money is drawn from a po)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:614: NOTICE:  Codex r8 caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-000000002371: the move to voided names the row behind it in status_cause_id (none) — the ledger row reversing its credit_issued entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:<stdin>:614: NOTICE:  PASS M3h0 a credit's void names the row behind it: refused by the ledger row reversing its credit_issued entry (customer credit 00000000-0000-4000-8000-000000002371: the move to voided names the row behind it in status_cause_id (non)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ALTER TABLE
+psql:<stdin>:618: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 17213216-0f73-4efd-b9df-34fd7f950bdd undoes credit 00000000-0000-4000-8000-000000002371's credit_issued entry 00000000-0000-4000-8000-000000002384 while the credit is drawn on (applied, refunded, donated or escheated): undo those first (guard the act; CI-013, v5.4.2-23)
+psql:<stdin>:618: NOTICE:  PASS M3h a credit's money is not withdrawn on the ledger while it is drawn on (K71 paid 25 of I2; O6): refused by while the credit is drawn on (account_ledger 17213216-0f73-4efd-b9df-34fd7f950bdd undoes credit 00000000-0000-4000-8000-000000002371's credit_issued e)
+INSERT 0 1
+ALTER TABLE
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:629: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002371 cannot be voided while 25.00 of it is drawn on (applied, refunded, donated or escheated): undo those first (CI-013, v5.4.2-23)
+psql:<stdin>:629: NOTICE:  PASS M3h2 a credit is voided only when nothing of it is drawn on (K71 paid 25 of I2): refused by cannot be voided while (customer credit 00000000-0000-4000-8000-000000002371 cannot be voided while 25.00 of it is drawn on (applied, refunded, )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:634: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "tenants" violates check constraint "tenants_overpayment_handling_check"
+psql:<stdin>:634: NOTICE:  PASS C2 overpayment_handling no longer applies to a bill of the payer's choosing (K-05): refused by tenants_overpayment_handling_check (new row for relation "tenants" violates check constraint "tenants_overpayment_handling_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:636: NOTICE:  PASS C2b the allocation strategy column is retired (K-05: oldest first)
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:647: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check"
+psql:<stdin>:647: NOTICE:  PASS X1 an nsf names the entry it reverses: refused by account_ledger_reversal_types_name_check (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_name_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:651: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "account_ledger" violates foreign key constraint "account_ledger_reverses_ledger_entry_fkey"
+psql:<stdin>:651: NOTICE:  PASS X1b of its own customer: refused by account_ledger_reverses_ledger_entry_fkey (insert or update on table "account_ledger" violates foreign key constraint "account_ledger_reverses_ledger_entry_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:655: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 151de93e-e56a-478e-ac6a-e252b39618fa (10.00) reverses 00000000-0000-4000-8000-000000002391 (100.00): a reversal has the opposite sign of the entry it names, and neither is zero (R-02, v5.4.2-23)
+psql:<stdin>:655: NOTICE:  PASS X2 with the opposite sign: refused by a reversal has the opposite sign of the entry it names (account_ledger 151de93e-e56a-478e-ac6a-e252b39618fa (10.00) reverses 00000000-0000-4000-8000-000000002391 (100.00): a re)
+psql:<stdin>:659: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 550f7276-3937-420d-9223-aeb000366a8d is dated 2026-02-28, before 2026-03-01, the date of the entry it names (00000000-0000-4000-8000-000000002391): a reversal is dated on or after the entry it names (R-02, v5.4.2-23)
+psql:<stdin>:659: NOTICE:  PASS X2b and never dated before it: refused by dated on or after the entry it names (account_ledger 550f7276-3937-420d-9223-aeb000366a8d is dated 2026-02-28, before 2026-03-01, the date of the entry it nam)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:665: NOTICE:  Codex r8 caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-03 the rows netted against it would come to -110.00, outside 0 to -100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:<stdin>:665: NOTICE:  PASS X2c reversals total at most the entry (60 + 50 of 100): refused by R-02 cap (entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-03 the rows netted against it would come to -110)
+INSERT 0 2
+DO
+psql:<stdin>:669: NOTICE:  PASS X2d a reversal of a reversal frees the room it took (R2 of 50 admitted after RR1)
+psql:<stdin>:673: NOTICE:  Codex r8 caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-05 the rows netted against it would come to -110.00, outside 0 to -100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:<stdin>:673: NOTICE:  PASS X2e three levels down still nets into the original: R3 under RR1 brings R1 back, 60 + 50 of 100: refused by entry 00000000-0000-4000-8000-000000002391 (entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-05 the rows netted against it would come to -110)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:677: NOTICE:  Codex r8 caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-02 the rows netted against it would come to -110.00, outside 0 to -100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:<stdin>:677: NOTICE:  PASS X2f and at every date: an earlier-dated reversal is not made room for by a later one: refused by R-02 cap (entry 00000000-0000-4000-8000-000000002391 (charge, 100.00): on 2026-03-02 the rows netted against it would come to -110)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:682: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 3bac5c63-2b62-4c60-9986-6d0aff98e786 is recorded at a non-finite or future time (2026-11-03 18:40:20.868075+00): every ledger row is recorded at a time already reached (R-02, v5.4.2-23)
+psql:<stdin>:682: NOTICE:  PASS X2g a ledger row is recorded at a time already reached (the owner's too): refused by non-finite or future time (account_ledger 3bac5c63-2b62-4c60-9986-6d0aff98e786 is recorded at a non-finite or future time (2026-11-03 18:40:20.8680)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:686: NOTICE:  Codex r8 caught SQLSTATE=23514 message=ledger tree 00000000-0000-4000-8000-000000002391: f1ee26b3-db65-409a-a085-71646f303c20 is recorded at 2026-11-01 18:40:20.868075+00, a time chosen for it, before 00000000-0000-4000-8000-000000002392 (recorded at 2026-11-02 18:40:20.868075+00) already in the tree — a history row is recorded after every row already in its tree (R-02, v5.4.2-23)
+psql:<stdin>:686: NOTICE:  PASS X2h a history row with a chosen time is recorded after every row already in its tree: refused by a time chosen for it (ledger tree 00000000-0000-4000-8000-000000002391: f1ee26b3-db65-409a-a085-71646f303c20 is recorded at 2026-11-01 18:40:2)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:707: NOTICE:  PASS X3 the void reverses the 60 left of the charge, not -(amount_due), and names it
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:709: NOTICE:  PASS X3b nothing of the charge is left after it
+ ok 
+----
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:719: NOTICE:  PASS X3c a charge already fully reversed voids with no ledger row
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:724: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application eff054d0-ffa9-4976-a741-6a4b02d4cddc: invoice B23-I2 is void — money is applied to an issued, unvoided bill (A3, v5.4.2-23)
+psql:<stdin>:724: NOTICE:  PASS X3d a void bill takes no new money: refused by an issued, unvoided bill (application eff054d0-ffa9-4976-a741-6a4b02d4cddc: invoice B23-I2 is void — money is applied to an issued, unvoided bill )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+ snap 
+------
+ 
+(1 row)
+
+psql:<stdin>:752: NOTICE:  Codex r8 caught SQLSTATE=23514 message=invoice B23-I5 cannot be issued: line 0 (adhoc, Surge protection) is classed against its source wrongly — it is regulated, its one-off charge 00000000-0000-4000-8000-0000000023e1 is unregulated (D7-2, CI-050; v5.4.2-23)
+psql:<stdin>:752: NOTICE:  PASS LC1 a line classed against its one-off charge wrongly is refused at issue (invoice B23-I5 cannot be issued: line 0 (adhoc, Surge protection) is classed against its source wrongly — it is regulate)
+DO
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:756: NOTICE:  Codex r8 caught SQLSTATE=23502 message=null value in column "regulatory_class" of relation "invoice_line_items" violates not-null constraint
+psql:<stdin>:756: NOTICE:  PASS LC2 every line carries a class (NOT NULL; no assumed default): refused by regulatory_class (null value in column "regulatory_class" of relation "invoice_line_items" violates not-null constraint)
+SET
+UPDATE 1
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:769: NOTICE:  Codex r8 caught SQLSTATE=23514 message=invoice_applications: dated 2026-03-06, on or before 2026-03-06, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+psql:<stdin>:769: NOTICE:  PASS F1 an application dated in a closed period: refused by a closed period is frozen (invoice_applications: dated 2026-03-06, on or before 2026-03-06, the end of the tenant's last closed accounting period —)
+RESET
+ bill 
+------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:784: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payments 5af4307f-17fb-41e0-958b-5d839fc5c3f2 is born posted, naming none: a payment is born pending with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+psql:<stdin>:784: NOTICE:  PASS R1 a payment is born pending: not posted with no posting entry: refused by is born posted (payments 5af4307f-17fb-41e0-958b-5d839fc5c3f2 is born posted, naming none: a payment is born pending with no cause, and )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:788: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payments d36ec90b-11c4-4d1e-8b5a-735dd166a27f is born nsf, naming none: a payment is born pending with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+psql:<stdin>:788: NOTICE:  PASS R1b nor nsf with no cause: refused by is born nsf (payments d36ec90b-11c4-4d1e-8b5a-735dd166a27f is born nsf, naming none: a payment is born pending with no cause, and rea)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:792: NOTICE:  Codex r8 caught SQLSTATE=23514 message=customer_credits e3c6c213-384f-46f1-a690-80c910bc8865 is born voided, naming none: a credit is born active with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+psql:<stdin>:792: NOTICE:  PASS R1c a credit is born active: refused by is born voided (customer_credits e3c6c213-384f-46f1-a690-80c910bc8865 is born voided, naming none: a credit is born active with no cause)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:794: NOTICE:  PASS R1d payments.status defaults to pending
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 5
+INSERT 0 1
+psql:<stdin>:807: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-Q1: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002480) — its posting ledger entry (of type payment, referencing this payment, at minus its amount, with nothing under it) (Q1 (a), v5.4.2-23)
+psql:<stdin>:807: NOTICE:  PASS R2 a payment is posted by a payment row, not an adjustment of its amount (Codex B4): refused by of type payment (payment B23-Q1: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002480) — i)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:817: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-Q1: the move to nsf names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002485) — an nsf ledger row reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:<stdin>:817: NOTICE:  PASS R3 a 1.00 nsf row does not end a 30.00 payment (Opus B2 O3): refused by which then has nothing left (payment B23-Q1: the move to nsf names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002485) — an n)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:822: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002461: on 2026-03-11 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 30.01, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:822: NOTICE:  PASS R3b r3 (K-10): the payment gives only what stands on the ledger: 1.00 taken back, 29.01 of 30 is refused: refused by R-06 cap (payment 00000000-0000-4000-8000-000000002461: on 2026-03-11 what it gave (applications, credits, refunds, donations, esc)
+INSERT 0 1
+psql:<stdin>:826: NOTICE:  PASS R3c the rest returned, the move to nsf names an nsf row and nothing is left
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:828: NOTICE:  PASS R3d the move's time is the database's
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:831: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-Q1: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23)
+psql:<stdin>:831: NOTICE:  PASS R3e and is never written by a caller: refused by change only with the status (payment B23-Q1: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:853: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-Q2: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-00000000249f) — a ledger row (not nsf) reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:<stdin>:853: NOTICE:  PASS R4 reversed names a reversal that is not an nsf (an nsf row wholly undoing its own posting entry is refused)
+DO
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:858: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-Q2: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002486) — a ledger row (not nsf) reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:<stdin>:858: NOTICE:  PASS R4a nor another payment's nsf row: refused by not nsf (payment B23-Q2: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002486) —)
+psql:<stdin>:860: NOTICE:  PASS R4b reversed, naming the adjustment that undoes its posting entry
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:862: NOTICE:  PASS R4c a pending payment is voided, naming nothing
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:867: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_only_check"
+psql:<stdin>:867: NOTICE:  PASS R5 a payment row does not "reverse" a charge (Fable S7): refused by account_ledger_reversal_types_only_check (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_only_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:871: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 4c1ae7d4-4ec6-4b71-8f66-e2d95547ca33 is dated 2026-12-02, after today: a reversal is dated on or before the day it is posted (R-02, v5.4.2-23)
+psql:<stdin>:871: NOTICE:  PASS R5b a reversal is not dated after today (Opus S2): refused by after today (account_ledger 4c1ae7d4-4ec6-4b71-8f66-e2d95547ca33 is dated 2026-12-02, after today: a reversal is dated on or before t)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:876: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "customer_credits" violates check constraint "customer_credits_payment_overpayment_check"
+psql:<stdin>:876: NOTICE:  PASS R6 a goodwill credit naming a payment is refused: it would spend the payment twice (Fable B1): refused by customer_credits_payment_overpayment_check (new row for relation "customer_credits" violates check constraint "customer_credits_payment_overpayment_check")
+psql:<stdin>:880: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "customer_credit_approvals" violates foreign key constraint "customer_credit_approvals_approved_by_fkey"
+psql:<stdin>:880: NOTICE:  PASS R6b an approval is signed by the tenant's own user (Opus S4): refused by customer_credit_approvals_approved_by_fkey (insert or update on table "customer_credit_approvals" violates foreign key constraint "customer_credit_approvals_approve)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:889: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002463: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 21.00, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:889: NOTICE:  PASS R7 while the credit holds Q3's 20, Q3 refunds nothing: refused by more than its 20 (payment 00000000-0000-4000-8000-000000002463: on 2026-03-12 what it gave (applications, credits, refunds, donations, esc)
+psql:<stdin>:891: NOTICE:  PASS R7b an overpayment credit posts no ledger row, so its void names nothing
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:894: NOTICE:  PASS R7c the voided credit no longer holds Q3's money: Q3 refunds 20
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:896: NOTICE:  PASS R7d Q3's position: no credit, 20 refunded, nothing left
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:901: NOTICE:  PASS R8 Q4 (40) pays 15 of I6's gas line
+ admits 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:905: NOTICE:  PASS R8b Q4: 15 applied and 25 refunded leave nothing (r3: read, not a status)
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:909: NOTICE:  PASS R8c an undo gives 15 back to Q4 (r3: no final label for it to contradict; Opus B3 O4b)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:911: NOTICE:  PASS R8d and cancelling the pending refund gives its 25 back (Opus B3 O4c)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:913: NOTICE:  PASS R8d2 Q4: all 40 left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+psql:<stdin>:927: NOTICE:  PASS R8e Q9 refunded in full: nothing left
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:931: NOTICE:  PASS R8f the refund check comes back: an nsf row undoes the refund's own posting row (Fable S3)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:933: NOTICE:  PASS R8g the refund moves to nsf, naming it
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:935: NOTICE:  PASS R8h Q9's 10 is its own again
+INSERT 0 5
+INSERT 0 4
+psql:<stdin>:952: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002476: its money is not on the ledger (no credit_issued entry) — it gives no money (guard the act; A3, R-06; v5.4.2-23)
+psql:<stdin>:952: NOTICE:  PASS R9 a credit with no credit_issued entry gives no money (K6, Opus B2): refused by its money is not on the ledger (a row drawing on credit 00000000-0000-4000-8000-000000002476: its money is not on the ledger (no credit_issued entry) — )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:956: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002472: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 31.00, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:956: NOTICE:  PASS R10 a credit refunds no more than it is (K2: 31 of 30; Fable S6): refused by more than its 30 (credit 00000000-0000-4000-8000-000000002472: on 2026-03-12 what it gave (applications, credits, refunds, donations, esch)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:959: NOTICE:  PASS R10b K2 refunded in full
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:962: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002472 cannot move from active to refunded (CI-013; v5.4.2-23): an active credit ends escheated or voided, and those are terminal — issue a new credit (a refund or donation is read from the position, not a status)
+psql:<stdin>:962: NOTICE:  PASS R10c r3: refunded is not a credit status either: refused by cannot move from active to refunded (customer credit 00000000-0000-4000-8000-000000002472 cannot move from active to refunded (CI-013; v5.4.2-23): an active )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:964: NOTICE:  PASS R10d the credit's pending refund is cancelled: its 30 is the credit's again
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:966: NOTICE:  PASS R10e K2: 30 left
+psql:<stdin>:969: NOTICE:  PASS R11 K3 (100) donated in full: the donation is a draw on it
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:973: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002473: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 101.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:973: NOTICE:  PASS R11b nothing is refunded after a full donation (Codex B1): refused by more than its 100 (credit 00000000-0000-4000-8000-000000002473: on 2026-03-12 what it gave (applications, credits, refunds, donations, esch)
+psql:<stdin>:976: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002473 cannot move from active to donated (CI-013; v5.4.2-23): an active credit ends escheated or voided, and those are terminal — issue a new credit (a refund or donation is read from the position, not a status)
+psql:<stdin>:976: NOTICE:  PASS R11c r3: donated is not a status: refused by cannot move from active to donated (customer credit 00000000-0000-4000-8000-000000002473 cannot move from active to donated (CI-013; v5.4.2-23): an active c)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:978: NOTICE:  PASS R11c2 K3's position: 100 given up, nothing left
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:981: NOTICE:  PASS R11d K4 (15): a donation of 1
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:983: NOTICE:  PASS R11e K4 (15) after a donation of 1: 14 left (Codex B1)
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:987: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 30656574-e3ec-45a2-86ba-ab5dc172c178 donates credit 00000000-0000-4000-8000-000000002474: a donation of a credit is the amount given up, more than 0 (R-06, v5.4.2-23)
+psql:<stdin>:987: NOTICE:  PASS R11f a donation of a credit is more than 0: refused by more than 0 (account_ledger 30656574-e3ec-45a2-86ba-ab5dc172c178 donates credit 00000000-0000-4000-8000-000000002474: a donation of a)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:990: NOTICE:  PASS R12 K5 (10): a dormancy flag is recorded
+psql:<stdin>:993: NOTICE:  Codex r8 caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-000000002475: the move to escheated names the row behind it in status_cause_id (00000000-0000-4000-8000-0000000024e1) — its escheated_to_state escheatment event (Q1 (a), v5.4.2-23)
+psql:<stdin>:993: NOTICE:  PASS R12b a dormancy flag is not an escheat (Codex B4): refused by escheated_to_state (customer credit 00000000-0000-4000-8000-000000002475: the move to escheated names the row behind it in status_cause_id ()
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:997: NOTICE:  Codex r8 caught SQLSTATE=23514 message=escheatment event 3d55afbc-aa69-4dbe-b048-975ec23b3a87 remits credit 00000000-0000-4000-8000-000000002475: an escheated_to_state event carries the amount remitted, more than 0 (R-06, v5.4.2-23)
+psql:<stdin>:997: NOTICE:  PASS R12c a remittance carries its amount: refused by carries the amount remitted (escheatment event 3d55afbc-aa69-4dbe-b048-975ec23b3a87 remits credit 00000000-0000-4000-8000-000000002475: an escheated_)
+psql:<stdin>:1001: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002475: on 2026-11-02 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 11.00, more than its 10.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1001: NOTICE:  PASS R12d and remits no more than is left (11 of 10): refused by more than its 10 (credit 00000000-0000-4000-8000-000000002475: on 2026-11-02 what it gave (applications, credits, refunds, donations, esch)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1004: NOTICE:  PASS R12e the remittance of 10
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1006: NOTICE:  PASS R12f K5 moves to escheated, naming its remittance
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1008: NOTICE:  PASS R12g K5's position: 10 given up, nothing left
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1017: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002474 moves to escheated only when nothing of it is left: 1.00 remains (CI-013, v5.4.2-23)
+psql:<stdin>:1017: NOTICE:  PASS R12h a credit is escheated only when nothing of it is left (1 of 15): refused by only when nothing of it is left (customer credit 00000000-0000-4000-8000-000000002474 moves to escheated only when nothing of it is left: 1.00 remains (C)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:1021: NOTICE:  PASS R12i and is, once the last 1 is remitted
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1026: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002474 (escheated) for undo: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:1026: NOTICE:  PASS R12j an undo does not bring money back to an escheated credit (Opus B3 O4b): refused by an undo only while its source has not ended (a row drawing on credit 00000000-0000-4000-8000-000000002474 (escheated) for undo: money is drawn from a posted payment )
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1034: NOTICE:  Codex r8 caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-000000002476: the move to voided names the row behind it in status_cause_id (00000000-0000-4000-8000-0000000024a7) — the ledger row reversing its credit_issued entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:<stdin>:1034: NOTICE:  PASS R13 a credit is voided only when its credit_issued entry is wholly reversed (4 of 12): refused by which then has nothing left (customer credit 00000000-0000-4000-8000-000000002476: the move to voided names the row behind it in status_cause_id (000)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:1038: NOTICE:  PASS R13b and voided once it is
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1044: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application dc03ee17-4a48-44ab-a068-32f6bce2fc36 says restriction: restriction is a restricted payment's own target; floor_over_restriction a regulated line taken ahead of an unregulated target; oldest_first an unrestricted source (D7-1, CI-050; v5.4.2-23)
+psql:<stdin>:1044: NOTICE:  PASS R14 a restricted payment says restriction only for its target line (P4, restricted to I2's add-on, on I1's gas line): refused by restriction is a restricted payment (application dc03ee17-4a48-44ab-a068-32f6bce2fc36 says restriction: restriction is a restricted payment's own target; flo)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+psql:<stdin>:1055: NOTICE:  Codex r8 caught SQLSTATE=23514 message=line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4.2-23)
+psql:<stdin>:1055: NOTICE:  PASS R15 two applications in one INSERT that together pass the line (35 + 30 of 60): refused by more than the line's (line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1063: NOTICE:  Codex r8 caught SQLSTATE=23514 message=line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4.2-23)
+psql:<stdin>:1063: NOTICE:  PASS R15b and through a writable CTE: refused by more than the line's (line 0 of invoice B23-I6: on 2026-03-11 its applications would come to 80.00, more than the line's 60.00 (R-06 cap, v5.4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:1067: NOTICE:  PASS R16 a draft bill's line has no position (Codex B3)
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1070: NOTICE:  PASS R16b nor an issued bill before it was issued (I1, issued three hours ago, read four hours back)
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1072: NOTICE:  PASS R16c nor before its invoice date (I1, read on February 28)
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+psql:<stdin>:1085: NOTICE:  PASS R17 a refund voided two hours ago still counts at an instant three hours ago, and not now (Codex B3, R2 closed)
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1090: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000246b: a row drawing on it is recorded at 2026-11-01 18:40:20.868075+00, a time chosen for it, before the payment was posted (recorded at 2026-11-02 18:40:20.868075+00) (R-06, v5.4.2-23)
+psql:<stdin>:1090: NOTICE:  PASS R18 a history row is not recorded before its source (Opus S3): refused by before the payment was posted (payment 00000000-0000-4000-8000-00000000246b: a row drawing on it is recorded at 2026-11-01 18:40:20.868075+00, a time c)
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+psql:<stdin>:1102: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application f3cc18e2-1de7-4b4f-84a7-1f2cdc349591 is recorded at 2026-11-02 14:40:20.868075+00, a time chosen for it, before invoice B23-I1 was issued (2026-11-02 15:40:20.868075+00) (A3, v5.4.2-23)
+psql:<stdin>:1102: NOTICE:  PASS R18b nor before its bill was issued: refused by before invoice B23-I1 was issued (application f3cc18e2-1de7-4b4f-84a7-1f2cdc349591 is recorded at 2026-11-02 14:40:20.868075+00, a time chosen for it, bef)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ assert_reference_version 
+--------------------------
+                        2
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ snap 
+------
+ 
+(1 row)
+
+psql:<stdin>:1134: NOTICE:  Codex r8 caught SQLSTATE=23514 message=invoice B23-I7 cannot be issued: line 0 (base_charge, Gas service) is classed against its source wrongly — it is unregulated, its rate item 00000000-0000-4000-8000-0000000024c1 is regulated at (2026-03-31, 2026-11-02 18:40:20.868075+00) (D7-2, CI-050; v5.4.2-23)
+psql:<stdin>:1134: NOTICE:  PASS LC3 a line classed against its rate item's version wrongly is refused at issue (invoice B23-I7 cannot be issued: line 0 (base_charge, Gas service) is classed against its source wrongly — it is unregul)
+DO
+RESET
+INSERT 0 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1158: NOTICE:  PASS S1 a refund is posted by its own ledger row, naming no entry (K-10: a refund is its own movement of money)
+psql:<stdin>:1162: NOTICE:  PASS S1b the bank takes the whole 50 back: the posted refund does not shrink the bounce (K-10: a bounce is capped by earlier reversals only)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1166: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 80.01, more than its 50.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1166: NOTICE:  PASS S2 nothing more is refunded once the money came back (K-10: a refund is capped by the payment less refunds and reversals): refused by R-06 cap (payment 00000000-0000-4000-8000-000000002761: on 2026-03-12 what it gave (applications, credits, refunds, donations, esc)
+psql:<stdin>:1168: NOTICE:  PASS S1c the payment moves to nsf
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1170: NOTICE:  PASS S1d the customer owes the 30 refunded (Kyle's example: -50 + 30 + 50)
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1173: NOTICE:  PASS S1e the payment's position: none of it stands on the ledger, 30 refunded, 30 short (Fable S7)
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:1183: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002763: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 50.01, more than its 50.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1183: NOTICE:  PASS S3 50 paid, 5 taken back: a refund of 45.01 is refused: refused by R-06 cap (payment 00000000-0000-4000-8000-000000002763: on 2026-03-12 what it gave (applications, credits, refunds, donations, esc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1186: NOTICE:  PASS S3b and a refund of 45 is admitted (r2 refused any draw once anything was taken back)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1189: NOTICE:  PASS S3c its position: 45 stands on the ledger, 45 refunded, nothing left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:1200: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger c7c4409d-77a4-4fb8-8013-c81ef4b3f6b8 undoes payment 00000000-0000-4000-8000-000000002765's posting entry 00000000-0000-4000-8000-000000002786 while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)
+psql:<stdin>:1200: NOTICE:  PASS S4 the bounce waits while a refund of the payment is pending (K-10 Q2; Opus B3, Fable B3, Codex B1): refused by waiting to go out (account_ledger c7c4409d-77a4-4fb8-8013-c81ef4b3f6b8 undoes payment 00000000-0000-4000-8000-000000002765's posting entry )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1204: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 028793f5-8edb-400f-b79b-a65bef127ee2 undoes payment 00000000-0000-4000-8000-000000002765's posting entry 00000000-0000-4000-8000-000000002786 while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)
+psql:<stdin>:1204: NOTICE:  PASS S4a so does any undo of the payment's money: refused by waiting to go out (account_ledger 028793f5-8edb-400f-b79b-a65bef127ee2 undoes payment 00000000-0000-4000-8000-000000002765's posting entry )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1206: NOTICE:  PASS S4b the operator cancels the refund
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1210: NOTICE:  PASS S4c then the bounce is recorded
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1212: NOTICE:  PASS S4d and the payment moves to nsf
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1217: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "account_ledger" violates check constraint "account_ledger_refund_sign_check"
+psql:<stdin>:1217: NOTICE:  PASS S5 a refund row is money paid out, more than 0: refused by account_ledger_refund_sign_check (new row for relation "account_ledger" violates check constraint "account_ledger_refund_sign_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1221: NOTICE:  Codex r8 caught SQLSTATE=23514 message=new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_only_check"
+psql:<stdin>:1221: NOTICE:  PASS S5b and names no entry: it undoes nothing: refused by account_ledger_reversal_types_only_check (new row for relation "account_ledger" violates check constraint "account_ledger_reversal_types_only_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1226: NOTICE:  Codex r8 caught SQLSTATE=23505 message=duplicate key value violates unique constraint "account_ledger_payment_arrival_key"
+psql:<stdin>:1226: NOTICE:  PASS S6 a payment has one posting row: a second for S3 is refused: refused by account_ledger_payment_arrival_key (duplicate key value violates unique constraint "account_ledger_payment_arrival_key")
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:1232: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 71dae265-8405-4b7c-9b6c-bbf551199084 (payment, payment, -11.00) posts payment B23-S6: a posting row names its payment under reference_type payment, is of its own kind (payment, deposit or refund), at minus its amount (-10.00) (R-05, v5.4.2-23)
+psql:<stdin>:1232: NOTICE:  PASS S6b a posting row is at minus its payment's amount: refused by at minus its amount (account_ledger 71dae265-8405-4b7c-9b6c-bbf551199084 (payment, payment, -11.00) posts payment B23-S6: a posting row names)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1236: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger ff48eb30-a2b0-4dbf-a73e-004e88c1a9eb (payment, refund, -10.00) posts payment B23-S6: a posting row names its payment under reference_type payment, is of its own kind (payment, deposit or refund), at minus its amount (-10.00) (R-05, v5.4.2-23)
+psql:<stdin>:1236: NOTICE:  PASS S6c a posting row names its payment under one label, payment (Opus B1): refused by reference_type payment (account_ledger ff48eb30-a2b0-4dbf-a73e-004e88c1a9eb (payment, refund, -10.00) posts payment B23-S6: a posting row names )
+psql:<stdin>:1240: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 88f976fa-62fb-4848-a35b-538ecf109711 (deposit, payment, -10.00) posts payment B23-S6: a posting row names its payment under reference_type payment, is of its own kind (payment, deposit or refund), at minus its amount (-10.00) (R-05, v5.4.2-23)
+psql:<stdin>:1240: NOTICE:  PASS S6d and is of the payment's own kind (a deposit row for a bill payment): refused by of its own kind (account_ledger 88f976fa-62fb-4848-a35b-538ecf109711 (deposit, payment, -10.00) posts payment B23-S6: a posting row names)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1244: NOTICE:  Codex r8 caught SQLSTATE=23503 message=account_ledger 27ed27ec-cc43-4400-8d36-f68d16554266 posts payment 00000000-0000-4000-8000-000000002767: a posting row is on the account of its payment, of its own customer (R-05, v5.4.2-23)
+psql:<stdin>:1244: NOTICE:  PASS S6d2 and is on its payment's own account: refused by of its own customer (account_ledger 27ed27ec-cc43-4400-8d36-f68d16554266 posts payment 00000000-0000-4000-8000-000000002767: a posting row is)
+INSERT 0 3
+INSERT 0 2
+psql:<stdin>:1255: NOTICE:  Codex r8 caught SQLSTATE=23505 message=duplicate key value violates unique constraint "account_ledger_credit_arrival_key"
+psql:<stdin>:1255: NOTICE:  PASS S6e a credit has one credit_issued entry: a second for KA is refused (Codex B3, Fable S2): refused by account_ledger_credit_arrival_key (duplicate key value violates unique constraint "account_ledger_credit_arrival_key")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1259: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 1911e025-e62b-474e-9480-71ddf49f660d issues credit 00000000-0000-4000-8000-000000002772 at -11.00: a credit_issued row is at minus its amount (-12.00) (R-05, v5.4.2-23)
+psql:<stdin>:1259: NOTICE:  PASS S6f and it is at minus the credit's amount (KB, 12): refused by at minus its amount (account_ledger 1911e025-e62b-474e-9480-71ddf49f660d issues credit 00000000-0000-4000-8000-000000002772 at -11.00: a cred)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1263: NOTICE:  Codex r8 caught SQLSTATE=23503 message=account_ledger fa100abb-80de-4777-a3eb-48a25eed4e45 issues credit 00000000-0000-4000-8000-000000002772: a credit_issued row is on the account of its credit, of its own customer (R-05, v5.4.2-23)
+psql:<stdin>:1263: NOTICE:  PASS S6f2 and on the credit's own account: refused by of its own customer (account_ledger fa100abb-80de-4777-a3eb-48a25eed4e45 issues credit 00000000-0000-4000-8000-000000002772: a credit_issued )
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1270: NOTICE:  PASS S7 a goodwill credit's refund is posted
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1272: NOTICE:  PASS S7b KA: 10 refunded, 15 left
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1283: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger a45dcab6-c7ba-44ec-aee8-8f48adbe522b issues overpayment credit 00000000-0000-4000-8000-000000002773: an overpayment or refund_reissue credit posts no ledger row — its money is its payment's or its returned refund's, already on the ledger (R-06, v5.4.2-23)
+psql:<stdin>:1283: NOTICE:  PASS S6g an overpayment credit posts no credit_issued row (its money is its payment's): refused by posts no ledger row (account_ledger a45dcab6-c7ba-44ec-aee8-8f48adbe522b issues overpayment credit 00000000-0000-4000-8000-000000002773: an o)
+psql:<stdin>:1287: NOTICE:  PASS S7c an overpayment credit's refund is recorded and posted (Fable B2)
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1300: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000276b: a row drawing on it is recorded at 2026-11-02 16:40:20.868075+00, a time chosen for it, before the payment was posted (recorded at 2026-11-02 17:40:20.868075+00) (R-06, v5.4.2-23)
+psql:<stdin>:1300: NOTICE:  PASS S12 an application is not recorded before its payment was posted (Fable S4): refused by before the payment was posted (payment 00000000-0000-4000-8000-00000000276b: a row drawing on it is recorded at 2026-11-02 16:40:20.868075+00, a time c)
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1310: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002775: a row drawing on it is recorded at 2026-11-02 16:40:20.868075+00, a time chosen for it, before the credit was issued (recorded at 2026-11-02 17:40:20.868075+00) (R-06, v5.4.2-23)
+psql:<stdin>:1310: NOTICE:  PASS S12b nor before its credit was issued on the ledger: refused by before the credit was issued (credit 00000000-0000-4000-8000-000000002775: a row drawing on it is recorded at 2026-11-02 16:40:20.868075+00, a time ch)
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1320: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002772: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 12.01, more than its 12.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1320: NOTICE:  PASS S8 KB (12), 4 withdrawn: 8.01 applied is refused: refused by R-06 cap (credit 00000000-0000-4000-8000-000000002772: on 2026-03-12 what it gave (applications, credits, refunds, donations, esch)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1324: NOTICE:  PASS S8b and 8 is admitted
+INSERT 0 1
+INSERT 0 1
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1333: NOTICE:  PASS S9 KD's donation undone: 50 of it is applied
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1335: NOTICE:  PASS S9b KD's position: nothing given up, 50 applied, 50 left
+psql:<stdin>:1340: NOTICE:  Codex r8 caught SQLSTATE=23503 message=account_ledger 258c9889-8d78-41c1-bd9c-dbb434514bc9 donates credit 00000000-0000-4000-8000-000000002774: a donation is on the account of its credit, of its own customer (R-06, v5.4.2-23)
+psql:<stdin>:1340: NOTICE:  PASS S10 a donation on C1's account of C3's credit: refused by of its own customer (account_ledger 258c9889-8d78-41c1-bd9c-dbb434514bc9 donates credit 00000000-0000-4000-8000-000000002774: a donation is o)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1344: NOTICE:  Codex r8 caught SQLSTATE=23503 message=insert or update on table "escheatment_events" violates foreign key constraint "escheatment_events_credit_customer_fkey"
+psql:<stdin>:1344: NOTICE:  PASS S10b an escheat remittance names its credit's own customer: refused by escheatment_events_credit_customer_fkey (insert or update on table "escheatment_events" violates foreign key constraint "escheatment_events_credit_customer_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1349: NOTICE:  Codex r8 caught SQLSTATE=23514 message=escheatment_events: a remittance dated 2026-03-05 (UTC), on or before 2026-03-06, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-23)
+psql:<stdin>:1349: NOTICE:  PASS S11 an escheat remittance dated in a closed period: refused by a closed period is frozen (escheatment_events: a remittance dated 2026-03-05 (UTC), on or before 2026-03-06, the end of the tenant's last closed ac)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1361: NOTICE:  Codex r8 caught SQLSTATE=23503 message=payment B23-S13: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002792) — its posting ledger entry (of type payment, referencing this payment, at minus its amount, with nothing under it) (Q1 (a), v5.4.2-23)
+psql:<stdin>:1361: NOTICE:  PASS S13 a payment is not posted by an entry already undone: refused by with nothing under it (payment B23-S13: the move to posted names the row behind it in status_cause_id (00000000-0000-4000-8000-000000002792) — )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+psql:<stdin>:1385: NOTICE:  PASS V1 a payment held as a credit that was refunded in full bounces (K-10 through the credit)
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1387: NOTICE:  PASS V1b and moves to nsf
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1389: NOTICE:  PASS V1c the credit paid out 60 that never arrived: the customer owes it; the payment reads nothing
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1397: NOTICE:  PASS V2 refunded in part (40 of 60): the bounce is not held up by the 20 the credit still holds (the common case)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1400: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002872: on 2026-03-13 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 101.00, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1400: NOTICE:  PASS V2b the 20 the credit held went with the payment: nothing more is drawn from it: refused by R-06 cap (credit 00000000-0000-4000-8000-000000002872: on 2026-03-13 what it gave (applications, credits, refunds, donations, esch)
+psql:<stdin>:1402: NOTICE:  PASS V2c the credit: 40 paid out against nothing, so 40 owed
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1410: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger d0ba8aa7-12e9-4b81-8407-f959095386b8 undoes payment 00000000-0000-4000-8000-000000002865's posting entry 00000000-0000-4000-8000-000000002887 while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)
+psql:<stdin>:1410: NOTICE:  PASS V3 a refund from the credit still waiting to go out holds up the bounce (K-10 2): refused by waiting to go out (account_ledger d0ba8aa7-12e9-4b81-8407-f959095386b8 undoes payment 00000000-0000-4000-8000-000000002865's posting entry )
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1418: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger f3550648-6b6b-4cdb-bf0f-eb52e13e8620 undoes payment 00000000-0000-4000-8000-000000002867's posting entry 00000000-0000-4000-8000-000000002888 while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)
+psql:<stdin>:1418: NOTICE:  PASS V3b so does money of the credit still paying a bill: refused by applied to bills (account_ledger f3550648-6b6b-4cdb-bf0f-eb52e13e8620 undoes payment 00000000-0000-4000-8000-000000002867's posting entry )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1421: NOTICE:  Codex r8 caught SQLSTATE=23505 message=duplicate key value violates unique constraint "customer_credits_one_live_per_payment"
+psql:<stdin>:1421: NOTICE:  PASS V4 a payment holds one live overpayment credit: refused by customer_credits_one_live_per_payment (duplicate key value violates unique constraint "customer_credits_one_live_per_payment")
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1430: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on credit 00000000-0000-4000-8000-000000002875 (escheated) for undo: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:1430: NOTICE:  PASS V5 a donation is not undone once its credit is escheated: refused by an undo only while its source has not ended (a row drawing on credit 00000000-0000-4000-8000-000000002875 (escheated) for undo: money is drawn from a posted payment )
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1437: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002876 is not escheated while a refund of it is waiting to go out: post or cancel the refund first (v5.4.2-23)
+psql:<stdin>:1437: NOTICE:  PASS V6 a credit is not escheated while a refund of it is waiting to go out: refused by waiting to go out (customer credit 00000000-0000-4000-8000-000000002876 is not escheated while a refund of it is waiting to go out: post or)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1446: NOTICE:  PASS V7 refunded 30, remitted 70: escheated
+INSERT 0 1
+DO
+psql:<stdin>:1465: NOTICE:  Codex r8 caught SQLSTATE=23514 message=refund B23-V7R of credit 00000000-0000-4000-8000-000000002877 came back (nsf): 30.00 is left on a credit that was escheated — carry it to a new credit (origin refund_reissue, naming the refund) in the same transaction (Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:1465: NOTICE:  PASS V7a the returned refund does not stay on the escheated credit: it goes into a new credit in the same transaction (refund B23-V7R of credit 00000000-0000-4000-8000-000000002877 came back (nsf): 30.00 is left on a cr)
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1469: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 7a284c29-2dff-4193-a2c3-3901a1ad0283 reissues B23-V7R for 29.00: it carries what came back (30.00) as far as it is what is left on the credit (30.00 before it) (Ryan, 2026-10-21; K-10; v5.4.2-23)
+psql:<stdin>:1469: NOTICE:  PASS V7b the new credit carries exactly what came back: refused by what came back (credit 7a284c29-2dff-4193-a2c3-3901a1ad0283 reissues B23-V7R for 29.00: it carries what came back (30.00) as far as it i)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1471: NOTICE:  PASS V7c the new credit, naming the returned refund
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1473: NOTICE:  PASS V7d the escheated credit has nothing left; the new credit holds the 30
+psql:<stdin>:1476: NOTICE:  Codex r8 caught SQLSTATE=23505 message=duplicate key value violates unique constraint "customer_credits_one_per_reissued_refund"
+psql:<stdin>:1476: NOTICE:  PASS V7e one new credit per returned refund: refused by customer_credits_one_per_reissued_refund (duplicate key value violates unique constraint "customer_credits_one_per_reissued_refund")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1479: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000002878 cannot be voided: its money would go back to credit 00000000-0000-4000-8000-000000002877, which is escheated or voided (Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:1479: NOTICE:  PASS V7f nor is it voided back onto the escheated credit: refused by escheated (customer credit 00000000-0000-4000-8000-000000002878 cannot be voided: its money would go back to credit 00000000-0000-4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1481: NOTICE:  PASS V7g it pays a bill like any credit
+ admits 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1487: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 85bfbeab-e2cd-4d84-bd78-7f4c968d6710 reissues B23-V7R2: a refund_reissue credit carries a refund of a credit that came back (nsf or reversed); B23-V7R2 is pending
+psql:<stdin>:1487: NOTICE:  PASS V7h a refund still standing is not reissued: refused by came back (credit 85bfbeab-e2cd-4d84-bd78-7f4c968d6710 reissues B23-V7R2: a refund_reissue credit carries a refund of a credit that)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1501: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 3277e2db-c840-4eab-836e-af2530afacfd reissues B23-V7iR for 20.00: it carries what came back (20.00) as far as it is what is left on the credit (10.00 before it) (Ryan, 2026-10-21; K-10; v5.4.2-23)
+psql:<stdin>:1501: NOTICE:  PASS V7i a reissue carries no more than is left on its credit: refused by what is left (credit 3277e2db-c840-4eab-836e-af2530afacfd reissues B23-V7iR for 20.00: it carries what came back (20.00) as far as it )
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1510: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000287a: on 2026-03-13 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1510: NOTICE:  PASS V8 the undo of a donation reversed while the money is refunded: two draws of one 100: refused by R-06 cap (credit 00000000-0000-4000-8000-00000000287a: on 2026-03-13 what it gave (applications, credits, refunds, donations, esch)
+INSERT 0 1
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1516: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger bd36792e-938d-4e8d-a1e8-4802cbf539c9 posts payment B23-V9, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+psql:<stdin>:1516: NOTICE:  PASS V9 not for a voided payment: refused by still pending (account_ledger bd36792e-938d-4e8d-a1e8-4802cbf539c9 posts payment B23-V9, which is voided: a posting row is written for )
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+psql:<stdin>:1523: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger 2dcdc1b2-9242-4cea-834a-5baa27c25491 posts payment B23-V9R, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+psql:<stdin>:1523: NOTICE:  PASS V9b nor for a cancelled refund (the ledger would pay out what was cancelled): refused by still pending (account_ledger 2dcdc1b2-9242-4cea-834a-5baa27c25491 posts payment B23-V9R, which is voided: a posting row is written for)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ post_on 
+---------
+ 
+(1 row)
+
+psql:<stdin>:1530: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000286f: on 2026-03-11 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 60.00, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1530: NOTICE:  PASS V10 a refund dated the 11th, before the payment settled: refused by R-06 cap (payment 00000000-0000-4000-8000-00000000286f: on 2026-03-11 what it gave (applications, credits, refunds, donations, esc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1532: NOTICE:  PASS V10a and dated the 12th it is admitted
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1537: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000287b: on 2026-03-11 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 25.00, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1537: NOTICE:  PASS V10b a donation of a credit dated before its credit_issued entry: refused by R-06 cap (credit 00000000-0000-4000-8000-00000000287b: on 2026-03-11 what it gave (applications, credits, refunds, donations, esch)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1546: NOTICE:  PASS V11 the money came back and was restored: a refund of 1 dated after is admitted
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:1553: NOTICE:  PASS V12 the 5 was there after all: given back while a refund is pending
+ admits 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:1557: NOTICE:  PASS V13 voided, naming nothing
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1560: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger e2c97cf1-039d-4a58-8918-d9372ad6b99d issues credit 00000000-0000-4000-8000-00000000287c, which is voided: a credit_issued row is written for a credit still active (R-05, v5.4.2-23)
+psql:<stdin>:1560: NOTICE:  PASS V13b and nothing is issued for it afterwards: refused by still active (account_ledger e2c97cf1-039d-4a58-8918-d9372ad6b99d issues credit 00000000-0000-4000-8000-00000000287c, which is voided:)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1564: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger ae810d88-4008-4c3e-8f1e-3ceadb6381b1 gives money back to payment 00000000-0000-4000-8000-000000002761, which has ended: post a new payment (guard the act; CI-013, v5.4.2-23)
+psql:<stdin>:1564: NOTICE:  PASS V15 S1's payment bounced: the bank's return is not undone onto it (a re-presented check is a new payment): refused by which has ended (account_ledger ae810d88-4008-4c3e-8f1e-3ceadb6381b1 gives money back to payment 00000000-0000-4000-8000-000000002761, wh)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+psql:<stdin>:1572: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger b97767b0-b917-49e8-89bd-fb8b9f5021e0 gives money back to credit 00000000-0000-4000-8000-00000000287d, which has ended: issue a new credit (guard the act; CI-013, v5.4.2-23)
+psql:<stdin>:1572: NOTICE:  PASS V15b nor a withdrawal undone onto an escheated credit: refused by which has ended (account_ledger b97767b0-b917-49e8-89bd-fb8b9f5021e0 gives money back to credit 00000000-0000-4000-8000-00000000287d, whi)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ALTER TABLE
+INSERT 0 1
+ALTER TABLE
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:1584: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-V4 cannot move to nsf while it is applied to bills (or its overpayment credit or a reissue of it is), or a refund of the credit is waiting to go out: undo the applications and cancel the refund first (CI-013, v5.4.2-23)
+psql:<stdin>:1584: NOTICE:  PASS V16 nor does the move to nsf pass while the payment's overpayment credit is applied: refused by while it is applied to bills (payment B23-V4 cannot move to nsf while it is applied to bills (or its overpayment credit or a reissue of it is), or a r)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1601: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000285d: a row drawing on it is recorded at 2026-11-02 16:40:20.868075+00, a time chosen for it, before 00000000-0000-4000-8000-00000000289b was recorded under its arrival entry (money taken back or given back, at 2026-11-02 17:40:20.868075+00) (R-06, v5.4.2-23)
+psql:<stdin>:1601: NOTICE:  PASS V14 an application recorded before the money it uses was given back: refused by given back (payment 00000000-0000-4000-8000-00000000285d: a row drawing on it is recorded at 2026-11-02 16:40:20.868075+00, a time c)
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+psql:<stdin>:1695: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-000000002984 is under refund 00000000-0000-4000-8000-000000002962's posting row, and the refund is nsf: nothing more goes under it — a re-sent refund is a new refund (guard the act; CI-013, v5.4.2-23)
+psql:<stdin>:1695: NOTICE:  PASS W1 a refund check that bounced is not paid out again under its own row (80 out of a 50 payment): refused by a re-sent refund is a new refund (account_ledger 00000000-0000-4000-8000-000000002984 is under refund 00000000-0000-4000-8000-000000002962's posting row, )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1697: NOTICE:  PASS W1a the payment still reads its 50: the 30 came back
+ ok 
+----
+ 
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+psql:<stdin>:1702: NOTICE:  PASS W1b control: under a refund still posted, a partial return and its correction are admitted
+ admits 
+--------
+ 
+(1 row)
+
+ wgood 
+-------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+INSERT 0 1
+psql:<stdin>:1714: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-00000000298c is under refund 00000000-0000-4000-8000-000000002965's posting row, and the refund is nsf: nothing more goes under it — a re-sent refund is a new refund (guard the act; CI-013, v5.4.2-23)
+psql:<stdin>:1714: NOTICE:  PASS W1c nor while its reissue holds the 30 (the same money out twice): refused by a re-sent refund is a new refund (account_ledger 00000000-0000-4000-8000-00000000298c is under refund 00000000-0000-4000-8000-000000002965's posting row, )
+ refuses_at 
+------------
+ 
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:1724: NOTICE:  PASS W2 10 taken back from a credit holding 20 of a 60 payment: the credit holds 10, the payment 40
+ ok 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1726: NOTICE:  PASS W2a the payment gives the 40 it reads
+psql:<stdin>:1728: NOTICE:  PASS W2b and the credit its 10
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1731: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002966: on 2026-03-12 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 61.00, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1731: NOTICE:  PASS W2c then nothing more from the payment: refused by R-06 cap (payment 00000000-0000-4000-8000-000000002966: on 2026-03-12 what it gave (applications, credits, refunds, donations, esc)
+psql:<stdin>:1734: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002973: on 2026-03-13 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 21.00, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1734: NOTICE:  PASS W2d nor from the credit: refused by R-06 cap (credit 00000000-0000-4000-8000-000000002973: on 2026-03-13 what it gave (applications, credits, refunds, donations, esch)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1736: NOTICE:  PASS W2e the 10 was there after all: given back under the payment
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1739: NOTICE:  PASS W2f it goes back to the credit first: the credit holds 10 again, the payment still nothing
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1749: NOTICE:  PASS W3 10 taken back after the credit paid out its 20: the payment reads 30, the credit 0
+psql:<stdin>:1752: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002967 and its overpayment credit: on 2026-03-14 what they gave and what was taken back on the ledger would come to 61.00, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1752: NOTICE:  PASS W3a a refund of 31 from the payment is more than it holds: refused by R-06 cap (payment 00000000-0000-4000-8000-000000002967 and its overpayment credit: on 2026-03-14 what they gave and what was taken)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1754: NOTICE:  PASS W3b a refund of 30 is not
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1757: NOTICE:  PASS W3c and nothing is left on either
+RESET
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1777: NOTICE:  PASS W4 a credit of the 70 left after 30 was taken back holds 70
+psql:<stdin>:1779: NOTICE:  PASS W4a and refunds it
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+ bill 
+------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:1793: NOTICE:  PASS W12b the credit applies its 20 in the same instant (the take-back reads it as already made: the payment's)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1796: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000295f and its overpayment credit: on 2026-03-12 what they gave and what was taken back on the ledger would come to 70.00, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:1796: NOTICE:  PASS W12 then 40 more from the payment in the same instant: the two together give at most 50: refused by and its overpayment credit (payment 00000000-0000-4000-8000-00000000295f and its overpayment credit: on 2026-03-12 what they gave and what was taken)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1798: NOTICE:  PASS W12a 30 is admitted
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:1806: NOTICE:  PASS W5 control: the credit, 40 after 20 taken back, remits its 40 and is escheated
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1809: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-000000002996 gives money back under payment 00000000-0000-4000-8000-00000000296c, and 20.00 of it would come back to credit 00000000-0000-4000-8000-000000002976, which is escheated: nothing comes back to an escheated credit — post a new payment (Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:1809: NOTICE:  PASS W5a the 20 is not given back under the payment onto the escheated credit: refused by escheated (account_ledger 00000000-0000-4000-8000-000000002996 gives money back under payment 00000000-0000-4000-8000-00000000296c,)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1823: NOTICE:  PASS W6 10 of the payment bounced, then the 30 came back: 20 is back on the escheated credit
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1826: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit ae0e1f1b-89a6-4fbf-8e72-bdab60eac5af reissues B23-W296eR for 30.00: it carries what came back (30.00) as far as it is what is left on the credit (20.00 before it) (Ryan, 2026-10-21; K-10; v5.4.2-23)
+psql:<stdin>:1826: NOTICE:  PASS W6a the reissue is not the 30 that came back: refused by what is left (credit ae0e1f1b-89a6-4fbf-8e72-bdab60eac5af reissues B23-W296eR for 30.00: it carries what came back (30.00) as far as i)
+psql:<stdin>:1828: NOTICE:  PASS W6b it is the 20 left
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1829: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=admitted
+psql:<stdin>:1829: NOTICE:  PASS W6c and the escheated credit is settled
+ settles 
+---------
+ 
+(1 row)
+
+psql:<stdin>:1832: NOTICE:  PASS W6d nothing on the escheated credit; 20 on the reissue
+ ok 
+----
+ 
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+ settles 
+---------
+ 
+(1 row)
+
+psql:<stdin>:1844: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=admitted
+psql:<stdin>:1844: NOTICE:  PASS W7 the payment bounced in full, then the refund came back: settled with nothing to carry
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:1846: NOTICE:  PASS W7a the customer owes the 70 remitted from money that never arrived
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1849: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit c3c4fcf3-799b-423a-b518-e08866190428 reissues B23-W295aR for 30.00: it carries what came back (30.00) as far as it is what is left on the credit (-70.00 before it) (Ryan, 2026-10-21; K-10; v5.4.2-23)
+psql:<stdin>:1849: NOTICE:  PASS W7b and no reissue carries money that is not there: refused by what is left (credit c3c4fcf3-799b-423a-b518-e08866190428 reissues B23-W295aR for 30.00: it carries what came back (30.00) as far as i)
+ wgood 
+-------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1860: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit da17056c-0559-4dfc-a68a-8e50c5f5be58 reissues B23-W295bR, dated 2026-03-21: a reissue is dated on or after the row by which its refund came back (2026-03-25) (Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:1860: NOTICE:  PASS W8 a reissue dated before the refund came back: refused by on or after (credit da17056c-0559-4dfc-a68a-8e50c5f5be58 reissues B23-W295bR, dated 2026-03-21: a reissue is dated on or after the ro)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1862: NOTICE:  PASS W8a dated the day it came back
+ settles 
+---------
+ 
+(1 row)
+
+psql:<stdin>:1863: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=admitted
+psql:<stdin>:1863: NOTICE:  PASS W8b settled
+RESET
+ wgood 
+-------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+psql:<stdin>:1875: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000297c: a row drawing on it is recorded at 2026-11-01 18:40:20.868075+00, a time chosen for it, before the credit was issued (recorded at 2026-11-02 18:40:20.868075+00) (R-06, v5.4.2-23)
+psql:<stdin>:1875: NOTICE:  PASS W11 a reissue recorded at a chosen time before its source's rows: refused by a time chosen for it (credit 00000000-0000-4000-8000-00000000297c: a row drawing on it is recorded at 2026-11-01 18:40:20.868075+00, a time ch)
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:1879: NOTICE:  PASS W11a recorded now, it is admitted
+psql:<stdin>:1883: NOTICE:  Codex r8 caught SQLSTATE=23514 message=account_ledger f0c66a19-bf29-43ac-8f38-6685163da48a issues refund_reissue credit 00000000-0000-4000-8000-00000000297b: an overpayment or refund_reissue credit posts no ledger row — its money is its payment's or its returned refund's, already on the ledger (R-06, v5.4.2-23)
+psql:<stdin>:1883: NOTICE:  PASS W9 control: no credit_issued row for a reissue: refused by posts no ledger row (account_ledger f0c66a19-bf29-43ac-8f38-6685163da48a issues refund_reissue credit 00000000-0000-4000-8000-00000000297b: a)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ wpay 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1897: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment B23-W5d: status_recorded_at 2026-11-03 18:40:26.932338+00 is not a time already reached — a status is recorded at a finite time already reached (Q1 (a), v5.4.2-23)
+psql:<stdin>:1897: NOTICE:  PASS W10 a superuser's move stamped in the future: refused by a time already reached (payment B23-W5d: status_recorded_at 2026-11-03 18:40:26.932338+00 is not a time already reached — a status is recorded a)
+psql:<stdin>:1900: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment B23-W5d: status_recorded_at infinity is not a time already reached — a status is recorded at a finite time already reached (Q1 (a), v5.4.2-23)
+psql:<stdin>:1900: NOTICE:  PASS W10a or at infinity: refused by a time already reached (payment B23-W5d: status_recorded_at infinity is not a time already reached — a status is recorded at a finite time alrea)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1903: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment B23-W295c: status_recorded_at 2026-11-03 18:40:26.932778+00 is not a time already reached — a status is recorded at a finite time already reached (Q1 (a), v5.4.2-23)
+psql:<stdin>:1903: NOTICE:  PASS W10b nor moved there later, with the status unchanged: refused by a time already reached (payment B23-W295c: status_recorded_at 2026-11-03 18:40:26.932778+00 is not a time already reached — a status is recorded)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1906: NOTICE:  Codex r8 caught SQLSTATE=23514 message=customer_credits 001b30f4-8db0-46cb-935f-2a64bcad0214 is born with status_recorded_at 2026-11-03 18:40:26.933037+00, not a time already reached — a status is recorded at a finite time already reached (Q1 (a), v5.4.2-23)
+psql:<stdin>:1906: NOTICE:  PASS W10c nor born there: refused by a time already reached (customer_credits 001b30f4-8db0-46cb-935f-2a64bcad0214 is born with status_recorded_at 2026-11-03 18:40:26.933037+00, not)
+INSERT 0 1
+psql:<stdin>:1911: NOTICE:  Codex r8 caught SQLSTATE=23514 message=customer credit 00000000-0000-4000-8000-00000000297e: status_recorded_at 2026-11-03 18:40:26.933523+00 is not a time already reached — a status is recorded at a finite time already reached (Q1 (a), v5.4.2-23)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:1911: NOTICE:  PASS W10e nor a credit's move: refused by a time already reached (customer credit 00000000-0000-4000-8000-00000000297e: status_recorded_at 2026-11-03 18:40:26.933523+00 is not a time alr)
+psql:<stdin>:1913: NOTICE:  PASS W10d control: a time already reached is kept
+ admits 
+--------
+ 
+(1 row)
+
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE TABLE
+GRANT
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2039: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002966: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2039: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002973: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2039: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2039: NOTICE:  PASS Y0 W2 (taken back from the credit, both drawn, given back): payment 0.00, credits 10.00, none more than it can pay
+psql:<stdin>:2040: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002967 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 60.01, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2040: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002974: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2040: NOTICE:  PASS Y0a W3 (the credit paid out, the take-back on the payment): payment 0.00, credits 0.00, none more than it can pay
+psql:<stdin>:2041: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000296a: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2041: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002975: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 70.00 (R-06 cap, K-10; v5.4.2-23)
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2041: NOTICE:  PASS Y0b W4 (a take-back before the credit): payment 0.00, credits 0.00, none more than it can pay
+psql:<stdin>:2042: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000295f and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 60.01, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2042: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000297d: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2042: NOTICE:  PASS Y0c W12 (one instant): payment 0.00, credits 0.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2043: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000296d: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 120.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2043: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002978: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2043: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2043: NOTICE:  PASS Y0d W6 (a reissue after part of the payment bounced): payment 0.00, credits 20.00, none more than it can pay
+psql:<stdin>:2044: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002970 (nsf) for refund: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:2044: NOTICE:  PASS Y0e W7 (the payment bounced in full after the remittance): payment 0.00, credits -70.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+RESET
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2058: NOTICE:  PASS Y1 before the return the shortfall is the credit's: the payment 0, the credit -10
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2062: NOTICE:  PASS Y1a after it the payment reads 30 and the credit 0, not 40 and -10
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2065: NOTICE:  PASS Y1b at the take-back's own instant the split is unchanged (fixed once recorded)
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2068: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003061 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 60.01, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2068: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2068: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003071: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 60.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2068: NOTICE:  PASS Y1c Opus P1: payment 30.00, credits 0.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+RESET
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2079: NOTICE:  PASS Y2 Opus P2: the payment reads 10 and the credit 0, not 30 and -20
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2082: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003064 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 60.01, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2082: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2082: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003072: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 50.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2082: NOTICE:  PASS Y2a Opus P2: payment 10.00, credits 0.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+RESET
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:2094: NOTICE:  PASS Y3 Codex B2: the credit reads 10 and the payment 0, not 20 and -10
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2097: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003067: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 80.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2097: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003067 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 60.01, more than the payment's 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2097: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2097: NOTICE:  PASS Y3a Codex B2: payment 0.00, credits 10.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2107: NOTICE:  PASS Y4 the give-back's id sorts first: the credit still holds 100, the payment 0
+psql:<stdin>:2108: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003069: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2108: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003074: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2108: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2108: NOTICE:  PASS Y4a Codex B3, ids one way: payment 0.00, credits 100.00, none more than it can pay
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2115: NOTICE:  PASS Y4b the other way, and dated apart: the same
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2117: NOTICE:  PASS Y4c and on the day between, the 20 is out of the credit
+psql:<stdin>:2118: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000306a: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2118: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003075: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2118: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2118: NOTICE:  PASS Y4d Codex B3, ids the other way: payment 0.00, credits 100.00, none more than it can pay
+RESET
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+psql:<stdin>:2130: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003076: a row under its payment's posting entry is recorded at 2026-11-02 16:10:20.868075+00, a time chosen for it, before 00000000-0000-4000-8000-00000000306c (recorded at 2026-11-02 16:40:20.868075+00) already counted — a history row is recorded after every row already drawing on its source (R-06, v5.4.2-23)
+psql:<stdin>:2130: NOTICE:  PASS Y5 a take-back recorded before the credit's refund, already counted (Fable P7b): refused by a row under its payment's posting entry is recorded at (credit 00000000-0000-4000-8000-000000003076: a row under its payment's posting entry is recorded at 2026-11-02 16:10:20.)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+psql:<stdin>:2135: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000306d: a row under its posting entry is recorded at 2026-11-02 16:10:20.868075+00, a time chosen for it, before 00000000-0000-4000-8000-000000003077 (recorded at 2026-11-02 16:40:20.868075+00) already counted — a history row is recorded after every row already drawing on its source (R-06, v5.4.2-23)
+psql:<stdin>:2135: NOTICE:  PASS Y5a nor before the credit itself (Fable RR-B): refused by a row under its posting entry is recorded at (payment 00000000-0000-4000-8000-00000000306d: a row under its posting entry is recorded at 2026-11-02 16:10:20.868075+00)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2137: NOTICE:  PASS Y5b control: recorded after them, it is admitted
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2140: NOTICE:  PASS Y5c and the split reads it after the refund: the take-back is the payment's
+ ok 
+----
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2151: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-X6fR: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23)
+psql:<stdin>:2151: NOTICE:  PASS Y6 the owner moves a returned refund's status time, its status unchanged (Codex B4): refused by change only with the status (payment B23-X6fR: status_cause_id and status_recorded_at change only with the status they explain (Q1 (a), v5.4.2-23))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2157: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment B23-X70R moves to nsf at 2026-11-02 17:20:20.868075+00, a time chosen for it, before a row already recorded on its lineage (at 2026-11-02 17:40:20.868075+00) — a history load records a move after every row it follows (Q1 (a), v5.4.2-23)
+psql:<stdin>:2157: NOTICE:  PASS Y6a a history move to nsf chosen before its own nsf row: refused by before a row already recorded on its lineage (payment B23-X70R moves to nsf at 2026-11-02 17:20:20.868075+00, a time chosen for it, before a row already recorded on i)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2159: NOTICE:  PASS Y6b control: chosen after it, the move is kept
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2170: NOTICE:  Codex r8 caught SQLSTATE=23514 message=customer credit 00000000-0000-4000-8000-000000003081 moves to escheated at 2026-11-02 16:40:20.868075+00, a time chosen for it, before a row already recorded on its lineage (at 2026-11-02 17:40:20.868075+00) — a history load records a move after every row it follows (Q1 (a), v5.4.2-23)
+psql:<stdin>:2170: NOTICE:  PASS Y6c a history move to escheated chosen before its remittance: refused by before a row already recorded on its lineage (customer credit 00000000-0000-4000-8000-000000003081 moves to escheated at 2026-11-02 16:40:20.868075+00, a time chosen )
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2172: NOTICE:  PASS Y6d control: chosen after it, the move is kept
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+INSERT 0 1
+ wrefund 
+---------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2190: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-0000000030a4 undoes payment 00000000-0000-4000-8000-00000000305a's posting entry 00000000-0000-4000-8000-0000000030a1 while the payment is applied to bills (or its overpayment credit is), or a refund of either is waiting to go out: undo the applications and cancel the refund first (guard the act; K-10; CI-013, v5.4.2-23)
+psql:<stdin>:2190: NOTICE:  PASS Y7 the bounce waits while the reissue has a refund waiting to go out: refused by or a refund of either is waiting (account_ledger 00000000-0000-4000-8000-0000000030a4 undoes payment 00000000-0000-4000-8000-00000000305a's posting entry )
+UPDATE 1
+psql:<stdin>:2193: NOTICE:  PASS Y7a with the refund cancelled, the bounce is posted
+ admits 
+--------
+ 
+(1 row)
+
+UPDATE 1
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2198: NOTICE:  PASS Y7b the reissue's money went with the payment: the reissue, the credit and the payment read 0
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2201: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000305a and its overpayment credit: on 2026-03-16 what they gave and what was taken back on the ledger would come to 101.00, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2201: NOTICE:  PASS Y7c and the reissue pays out nothing of money that never arrived: refused by and its overpayment credit (payment 00000000-0000-4000-8000-00000000305a and its overpayment credit: on 2026-03-16 what they gave and what was taken)
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+INSERT 0 1
+ settles 
+---------
+ 
+(1 row)
+
+psql:<stdin>:2214: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=admitted
+psql:<stdin>:2214: NOTICE:  PASS Y7d the reissue settles the escheated credit
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2219: NOTICE:  PASS Y7e the reissue reads 0; the escheated credit owes the 70 remitted
+psql:<stdin>:2222: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000305e and its overpayment credit: on 2026-03-16 what they gave and what was taken back on the ledger would come to 101.00, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2222: NOTICE:  PASS Y7f and the reissue pays out nothing: refused by and its overpayment credit (payment 00000000-0000-4000-8000-00000000305e and its overpayment credit: on 2026-03-16 what they gave and what was taken)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2223: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-00000000305a (nsf) for refund: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:2223: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003079: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2223: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000305a and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 100.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2223: NOTICE:  PASS Y7g Codex B1, active credit: payment 0.00, credits 0.00, none more than it can pay
+psql:<stdin>:2224: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-00000000305e (nsf) for refund: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:2224: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000305e and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 100.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2224: NOTICE:  PASS Y7h Codex B1, escheated credit: payment 0.00, credits -70.00, none more than it can pay
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wrefund 
+---------
+ 
+(1 row)
+
+ post 
+------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+UPDATE 1
+INSERT 0 1
+ wrefund 
+---------
+ 
+(1 row)
+
+RESET
+ALTER TABLE
+INSERT 0 1
+ALTER TABLE
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2247: NOTICE:  Codex r8 caught SQLSTATE=23001 message=payment B23-W304c cannot move to nsf while it is applied to bills (or its overpayment credit or a reissue of it is), or a refund of the credit is waiting to go out: undo the applications and cancel the refund first (CI-013, v5.4.2-23)
+psql:<stdin>:2247: NOTICE:  PASS Y7m nor does the move to nsf pass while the reissue has a refund waiting: refused by or a reissue of it (payment B23-W304c cannot move to nsf while it is applied to bills (or its overpayment credit or a reissue of it is), or )
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2268: NOTICE:  PASS Y7i 50 taken back comes out of the credit and its reissue (credit first): credit 0, reissue 10, payment 40
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2269: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000304f: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 110.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2269: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2269: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003082: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 110.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2269: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003083: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2269: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2269: NOTICE:  PASS Y7j the family: payment 40.00, credits 10.00, none more than it can pay
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2276: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003083: on 2026-03-16 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 31.00, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2276: NOTICE:  PASS Y7j2 the reissue refunds no more than its own 10 (its 20 share of the take-back counts): refused by more than its 30.00 (credit 00000000-0000-4000-8000-000000003083: on 2026-03-16 what it gave (applications, credits, refunds, donations, esch)
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2285: NOTICE:  PASS Y8 Opus P5: the 10 the payment carried is given back
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2288: NOTICE:  PASS Y8a the escheated credit reads 0, the payment its 50
+ wpay 
+------
+ 
+(1 row)
+
+ wcredit 
+---------
+ 
+(1 row)
+
+ wescheat 
+----------
+ 
+(1 row)
+
+ wrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:2294: NOTICE:  PASS Y8b Fable P11: 20 keyed in error after the remittance is a deficit on the credit
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2296: NOTICE:  PASS Y8c its correction only cancels the deficit, so it is admitted
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2298: NOTICE:  PASS Y8d the credit reads 0
+ ok 
+----
+ 
+(1 row)
+
+RESET
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2305: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payments 64f5bda0-2bf0-470e-a236-9216c65a2b1a is recorded at 2026-11-03 18:40:35.576936+00, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-23)
+psql:<stdin>:2305: NOTICE:  PASS Y9 a superuser's payment recorded tomorrow: refused by a time already reached (payments 64f5bda0-2bf0-470e-a236-9216c65a2b1a is recorded at 2026-11-03 18:40:35.576936+00, not a time already reached —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2308: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payments e223409e-95da-47ca-9422-be98f12a7089 is recorded at 2026-11-03 18:40:35.577263+00, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-23)
+psql:<stdin>:2308: NOTICE:  PASS Y9a a refund of a credit recorded tomorrow (Opus P4): refused by a time already reached (payments e223409e-95da-47ca-9422-be98f12a7089 is recorded at 2026-11-03 18:40:35.577263+00, not a time already reached —)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2311: NOTICE:  Codex r8 caught SQLSTATE=23514 message=customer_credits a2118568-d708-48cf-8164-91da2c58d9a7 is recorded at infinity, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-23)
+psql:<stdin>:2311: NOTICE:  PASS Y9b a credit recorded at infinity: refused by a time already reached (customer_credits a2118568-d708-48cf-8164-91da2c58d9a7 is recorded at infinity, not a time already reached — every money )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2314: NOTICE:  Codex r8 caught SQLSTATE=23514 message=application 8ce89e99-b483-42bf-98d4-c4bcd0a87504 is recorded at 2026-11-03 18:40:35.577654+00, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-23)
+psql:<stdin>:2314: NOTICE:  PASS Y9c an application recorded tomorrow: refused by a time already reached (application 8ce89e99-b483-42bf-98d4-c4bcd0a87504 is recorded at 2026-11-03 18:40:35.577654+00, not a time already reache)
+psql:<stdin>:2317: NOTICE:  Codex r8 caught SQLSTATE=23514 message=escheatment event 2da38e76-7e97-465c-b8a1-b8c1b84a85e0 is recorded at 2026-11-03 18:40:35.578067+00, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-23)
+psql:<stdin>:2317: NOTICE:  PASS Y9d a remittance recorded tomorrow: refused by a time already reached (escheatment event 2da38e76-7e97-465c-b8a1-b8c1b84a85e0 is recorded at 2026-11-03 18:40:35.578067+00, not a time already )
+ refuses_at 
+------------
+ 
+(1 row)
+
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+ hbounce 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2378: NOTICE:  PASS Z1 Fable P1: payment 0, K −30, R 0 (R's 20 covers K)
+ ok 
+----
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2389: NOTICE:  PASS Z1c Fable P1c: payment 0, K −10, R 0
+ ok 
+----
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund_on 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2401: NOTICE:  PASS Z2 Opus F: payment 0, K 0, K2 20
+ ok 
+----
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hremit 
+--------
+ 
+(1 row)
+
+ hescheat 
+----------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:2413: NOTICE:  PASS Z3 Codex 01: payment 0, K −30 (escheated), K2 0
+ ok 
+----
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hremit 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2426: NOTICE:  PASS Z4 Opus E: payment 0, credit 0 after the remittance
+psql:<stdin>:2429: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000003225 is not escheated while it holds money of its own (10.00) that covers a shortfall beside it: it would come back to it when the shortfall goes (Opus B1; Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:2429: NOTICE:  PASS Z4a its escheat is refused: its own 10 covers the payment's deficit: refused by holds money of its own (customer credit 00000000-0000-4000-8000-000000003225 is not escheated while it holds money of its own (10.00) that cover)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2431: NOTICE:  PASS Z4b the payment's refund comes back: payment 30, the credit (active) 10
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hremit 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2441: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-000000003226 is not escheated while it holds money of its own (10.00) that covers a shortfall beside it: it would come back to it when the shortfall goes (Opus B1; Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:2441: NOTICE:  PASS Z4c Ec: likewise refused: refused by holds money of its own (customer credit 00000000-0000-4000-8000-000000003226 is not escheated while it holds money of its own (10.00) that cover)
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2443: NOTICE:  PASS Z4d and the bank's give-back of the other 10 is recorded
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2444: NOTICE:  PASS Z4e payment 0, the credit 10
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hremit 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2451: NOTICE:  PASS Z4f a credit wholly remitted is escheated
+ admits 
+--------
+ 
+(1 row)
+
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2464: NOTICE:  PASS Z5 Opus V: payment 50, K 0, K2 20
+psql:<stdin>:2467: NOTICE:  Codex r8 caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-00000000323d cannot be voided while it carries 10.00 of what was taken back under its payment: refund or apply what it holds, or give the take-back back first (Opus B3; K-10; v5.4.2-23)
+psql:<stdin>:2467: NOTICE:  PASS Z5a K2's void is refused while it carries 10 of what was taken back: refused by of what was taken back (customer credit 00000000-0000-4000-8000-00000000323d cannot be voided while it carries 10.00 of what was taken back unde)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:2471: NOTICE:  PASS Z5b K2's void with no share left is admitted
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:2472: NOTICE:  PASS Z5c payment 50, K 30
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2476: NOTICE:  Codex r8 caught SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000003201 (nsf) for refund: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+psql:<stdin>:2476: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003221: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 150.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2476: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003201 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 130.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2476: NOTICE:  PASS Z1a Fable P1: payment 0.00, credits -30.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2477: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003241: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2477: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003261: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 90.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2477: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003241 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 110.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2477: NOTICE:  PASS Z1d Fable P1c: payment 0.00, credits -10.00, none more than it can pay
+psql:<stdin>:2478: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003281: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 120.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2478: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-0000000032a1: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 130.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2478: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003281 and its overpayment credit: on 2026-10-01 what they gave and what was taken back on the ledger would come to 100.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2478: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2478: NOTICE:  PASS Z2a Opus F: payment 0.00, credits 20.00, none more than it can pay
+psql:<stdin>:2479: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000032c1: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2479: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000032c1 and its overpayment credit: on 2026-11-02 what they gave and what was taken back on the ledger would come to 130.01, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2479: NOTICE:  PASS Z3a Codex 01: payment 0.00, credits -30.00, none more than it can pay
+psql:<stdin>:2480: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003205: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2480: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2480: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003225: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 40.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2480: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2480: NOTICE:  PASS Z4g Opus E: payment 30.00, credits 10.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2481: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003207: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2481: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003226: on 2026-11-02 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2481: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2481: NOTICE:  PASS Z4h Ec: payment 0.00, credits 10.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2482: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000320a: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 130.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2482: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2482: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000322e: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 50.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2482: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2482: NOTICE:  PASS Z5d Opus V: payment 50.00, credits 30.00, none more than it can pay
+RESET
+ hpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+CREATE TABLE
+INSERT 0 1
+SELECT 20
+CREATE FUNCTION
+CREATE FUNCTION
+ guards_off 
+------------
+ 
+(1 row)
+
+DO
+ guards_on 
+-----------
+ 
+(1 row)
+
+DO
+psql:<stdin>:2555: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2555: NOTICE:  PASS Z6 the 999th reissue is made, and a refund of it admitted
+ guards_off 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ guards_on 
+-----------
+ 
+(1 row)
+
+psql:<stdin>:2562: NOTICE:  PASS Z6a the 999th reissue's root is the overpayment credit
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2565: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000324e reissues Z6-1000: its line would be more than 999 reissues deep, past what any walk of it reads — post a new payment or credit instead (Codex B2; v5.4.2-23)
+psql:<stdin>:2565: NOTICE:  PASS Z6b the 1000th is refused when it is made: refused by reissues deep (credit 00000000-0000-4000-8000-00000000324e reissues Z6-1000: its line would be more than 999 reissues deep, past what a)
+ guards_off 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ guards_on 
+-----------
+ 
+(1 row)
+
+psql:<stdin>:2571: NOTICE:  Codex r8 caught SQLSTATE=22000 message=credit 00000000-0000-4000-8000-00000000324e: its reissue line is more than 999 reissues deep, past what any walk of it reads (Codex B2; v5.4.2-23)
+psql:<stdin>:2571: NOTICE:  PASS Z6c a planted 1000th: its root walk raises, never NULL: refused by reissues deep (credit 00000000-0000-4000-8000-00000000324e: its reissue line is more than 999 reissues deep, past what any walk of it r)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2573: NOTICE:  Codex r8 caught SQLSTATE=22000 message=credit 00000000-0000-4000-8000-00000000324b: its reissue line is more than 999 reissues deep, past what any walk of it reads (Codex B2; v5.4.2-23)
+psql:<stdin>:2573: NOTICE:  PASS Z6d and so does the family walk from the root: refused by reissues deep (credit 00000000-0000-4000-8000-00000000324b: its reissue line is more than 999 reissues deep, past what any walk of it r)
+ guards_off 
+------------
+ 
+(1 row)
+
+DELETE 1
+ guards_on 
+-----------
+ 
+(1 row)
+
+psql:<stdin>:2579: NOTICE:  PASS Z6e the guards are back as they were
+ ok 
+----
+ 
+(1 row)
+
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+ qpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2640: NOTICE:  PASS Q1 Fable P2: payment 0, R1 20, R2 20
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2641: NOTICE:  PASS Q1b and K 0
+ ok 
+----
+ 
+(1 row)
+
+ qpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2656: NOTICE:  PASS Q2 Fable P3: payment 40, K 0, R 10
+ ok 
+----
+ 
+(1 row)
+
+ qpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ hreissue 
+----------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2670: NOTICE:  PASS Q3 Opus G: payment 40, K 0 once the payment's refund comes back
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2672: NOTICE:  PASS Q3a then K2's: payment 50, K 0, K2 20
+ ok 
+----
+ 
+(1 row)
+
+ qpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hremit 
+--------
+ 
+(1 row)
+
+ hescheat 
+----------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2688: NOTICE:  Codex r8 caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-0000000033d5 gives money back under payment 00000000-0000-4000-8000-0000000033c1, and 10.00 of it would come back to credit 00000000-0000-4000-8000-0000000033e1, which is escheated: nothing comes back to an escheated credit — post a new payment (Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:2688: NOTICE:  PASS Q4 Opus H: a give-back of 40 is refused (10 of it would be K's own, on an escheated credit): refused by escheated (account_ledger 00000000-0000-4000-8000-0000000033d5 gives money back under payment 00000000-0000-4000-8000-0000000033c1,)
+psql:<stdin>:2690: NOTICE:  PASS Q4a a give-back of 30 only cancels K's deficit, and is recorded
+ admits 
+--------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:2692: NOTICE:  PASS Q4b the payment's refund comes back: payment 40, K 0
+ qpay 
+------
+ 
+(1 row)
+
+ hcredit 
+---------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ qrefund_on 
+------------
+ 
+(1 row)
+
+ hremit 
+--------
+ 
+(1 row)
+
+ hescheat 
+----------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+ hrow 
+------
+ 
+(1 row)
+
+psql:<stdin>:2705: NOTICE:  PASS Q5 Codex 02: payment −20, K 0 before the return
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:2708: NOTICE:  Codex r8 caught SQLSTATE=23514 message=refund B23-Q08R of credit 00000000-0000-4000-8000-000000003324 came back (nsf): 20.00 is left on a credit that was escheated — carry it to a new credit (origin refund_reissue, naming the refund) in the same transaction (Ryan, 2026-10-21; v5.4.2-23)
+psql:<stdin>:2708: NOTICE:  PASS Q5a K's refund coming back is not left on the escheated K: refused by was escheated (refund B23-Q08R of credit 00000000-0000-4000-8000-000000003324 came back (nsf): 20.00 is left on a credit that was esche)
+psql:<stdin>:2710: NOTICE:  PASS Q5b carried to a reissue of 20, its own money, in the same transaction
+ admits 
+--------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2712: NOTICE:  PASS Q5c the payment's refund comes back: payment 50, K 0 (escheated), R 20
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000023b1
+(1 row)
+
+psql:<stdin>:2716: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003301: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 140.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2716: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003321: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 150.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2716: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003322: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 40.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2716: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2716: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003323: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 40.01, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2716: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2716: NOTICE:  PASS Q1a Fable P2: payment 0.00, credits 40.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2717: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003341: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 110.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2717: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2717: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003361: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 120.01, more than its 60.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2717: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003362: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 50.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2717: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2717: NOTICE:  PASS Q2a Fable P3: payment 40.00, credits 10.00, none more than it can pay
+psql:<stdin>:2718: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003381: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 120.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2718: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2718: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-0000000033a1: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 130.01, more than its 50.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2718: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-0000000033a2: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 30.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2718: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2718: NOTICE:  PASS Q3b Opus G: payment 50.00, credits 20.00, none more than it can pay
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2719: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000033c1: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 100.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2719: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2719: NOTICE:  PASS Q4c Opus H: payment 40.00, credits 0.00, none more than it can pay
+psql:<stdin>:2720: NOTICE:  Codex r8 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000003307: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 120.01, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2720: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+psql:<stdin>:2720: NOTICE:  Codex r8 caught SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000003325: on 2026-10-01 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 70.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:2720: NOTICE:  Codex r8 caught SQLSTATE=P0099 message=roll back
+ agree 
+-------
+ 
+(1 row)
+
+psql:<stdin>:2720: NOTICE:  PASS Q5d Codex 02: payment 50.00, credits 20.00, none more than it can pay
+RESET
+psql:<stdin>:2728: NOTICE:  PASS I1 every -23 guard is in place, exactly
+DO
+DO
+psql:<stdin>:2735: NOTICE:  PASS I2 the earlier invariants still hold with -23
+ROLLBACK
+rc=0 36s
