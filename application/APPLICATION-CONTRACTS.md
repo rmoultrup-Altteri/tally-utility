@@ -426,6 +426,15 @@ The database refuses each of those writes unless the transaction holds the check
   - A platform administrator's binding and switch are a platform administrator's (r3).
   - Self-signup or federated first login would need a supervisor service identity to bind. That identity must stay out of operators' reach; it does not exist today.
   - A tenant's last tenant_admin can switch itself off. Only a platform administrator then restores the tenant's supervision.
+
+### AC-45 — Store a percentage rate as a percent; accept and show it however the utility writes it — REJECTS
+*Decided 2026-11-02 (Ryan, v5.4.2-28 section 3, CI-109).*
+
+A rate carries at most four decimals as stored (Kyle K-06). For a percentage rate, four decimals is enough only in percent: 1.997% stored as `1.9970` with unit `percent` is exact, but the same rate as a fraction (unit `decimal`, `0.01997`) needs five and is refused (`23514`).
+- **Store:** every percentage rate (taxes, gross receipts, franchise fees, any percent-of-bill item) with `rate_unit = 'percent'`, in `rate_item_versions.rate_value` and `rate_schedule_items.rate_override` alike.
+- **Enter:** accept the rate in whatever form the clerk uses (1.997, 1.997%, 0.01997) and convert to percent before the write. Never refuse a clerk for typing a fraction, and never round the converted value: if it has more than four decimals of a percent, show that to the clerk instead.
+- **Show:** in the form the utility prefers. The display preference is the app's, not the schema's.
+- The `decimal` unit is not used for new rates. It stays in the schema's list for now; retiring it is a later rates patch.
 ---
 
 ## Meter test history
