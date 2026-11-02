@@ -80,6 +80,14 @@ An investor-owned gas utility regulated by the Railroad Commission, serving the 
 
 An **invented** state, so a scenario can show that a statutory rule is a row for its place and nothing is hard-coded to Texas. Its rows are drafted when the first scenario needs them (for example, a winter disconnect ban or required deposit interest).
 
+**Prairie Line Gas Company (invented)**: an investor-owned gas utility regulated by Fremont's commission, live on the platform from Jan 1, 2026. Its tariff is drafted only as far as a scenario needs.
+
+Fremont's rows so far (all **invented**):
+
+| Rule | Fremont | First used |
+|---|---|---|
+| Deposit interest | simple interest on a residential cash deposit from the day posted, at the state's yearly rate (2% for 2026), actual days over 365, rounded per accrual; no minimum holding period; a floor for every utility the commission regulates | SCN-0032 |
+
 ---
 
 ## Customers
@@ -91,6 +99,8 @@ An **invented** state, so a scenario can show that a statutory rule is a row for
 | BB-01 | Bluebonnet | homeowner inside the city | R-U | deposit $150 |
 | BB-02 | Bluebonnet | renter outside the city | R-R | deposit $250 |
 | BB-03 | Bluebonnet | the county courthouse | G | a governmental account; no pipeline safety fee if a state agency |
+| GP-01 | Gulf Plains | residential, unincorporated area | — | Texas law binds; rates invented per scenario until the tariff is drafted |
+| PL-01 | Prairie Line (Fremont) | residential | — | deposit $200 |
 
 ---
 

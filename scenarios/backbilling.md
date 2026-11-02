@@ -161,3 +161,30 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(b)** Given also the delegated law row for city-owned systems ("the city sets its own standard"; to be written with the tariff table), the same periods as SCN-0013 are billed (Bluebonnet's own amounts, at its own rates). The record cites Bluebonnet's tariff record and the delegated row, not the Texas rule.
 - In (a) a fast meter's refund is held back too: the refusal protects the customer from an uncited charge, but it also delays money owed to them. Kyle's answer below should cover both directions.
 - **Open (Kyle):** what do city systems actually do about backbilling when the ordinance is silent: bill back as far as the records go, follow the state's six months by habit, or something else? The answer decides what onboarding asks each city to state.
+
+---
+
+### SCN-0031 — A backbilled charge sits in the aging like any debt, but can never ground a disconnection
+
+*Status:* draft (2026-11-02), not yet sent to Kyle. Written against the rulings: carrying the limit into collections is the collections family's (v5.4.2-26, not yet built).
+*Rule:* a meter-error charge under Texas law can never be the reason for a disconnection, however old it gets (enforceable scope "never"); that limit travels with the charge. Aging is balance-forward and shows the debt by age whatever its kind; a collection step reads the charge's limit, not its age bucket. Sources: §7.45(4)(E)(vi); F-1; a2-rules §6.4; aging as SCN-0023 (Kyle 10-15, K-05: oldest bill first).
+
+**Given**
+- SCN-0013: GP-01's $28.00 slow-meter charge, approved and evaluated on Jul 6, 2026.
+- Gulf Plains issues bills on the 5th of the following month, due 16 days later (**invented**).
+- The July bill, issued Aug 5: July's gas $40.00 (**invented**) and the backbilling adjustment $28.00, as its own line carrying its limit: **$68.00**.
+- GP-01 pays $40.00 on Aug 18.
+- The August bill, issued Sep 5, due Sep 21: **$42.00**, unpaid.
+
+**When** GP-01's account is read on Oct 1: its aging, and what may ground a disconnection notice.
+
+**Then**
+- Balance **$70.00**, aged:
+
+| Bucket | Amount | From |
+|---|---|---|
+| 0–30 days | $42.00 | the August bill, 26 days |
+| 31–60 days | $28.00 | what is left of the July bill, 57 days |
+
+- What may ground a disconnection: the August bill's $42.00, now past due. The $28.00 never can, though it is older; it can still be billed, reminded and collected by other means.
+- **Open (Kyle):** the $40.00 payment is taken here as covering July's gas, leaving the backbilling line unpaid. Had GP-01 paid only $28.00, does it go to the backbilling line or to July's gas? If to the backbilling line first, the $40.00 of ordinary gas stays unpaid and GP-01 can be cut off for it; if to the ordinary gas first, only $12.00 can. The order within a bill decides how much the protection is worth to the customer.

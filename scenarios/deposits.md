@@ -115,3 +115,50 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Then**
 - **(a)** No interest. An accrual for these 30 days is refused, though the formula would give $0.49.
 - **(b)** One accrual, Jan 1 – Jan 31 (31 days): $200.00 × 3% × 31/365 = 0.5096 → **$0.51**, credited before the refund. Refund: $200.00 principal and $0.51 interest, shown separately.
+
+---
+
+### SCN-0029 — A final bill paid from the deposit is later voided: the customer is owed the difference
+
+*Status:* draft (2026-11-02), not yet sent to Kyle. Written against the ruling: how credits are tracked belongs to the cash family (v5.4.2-23, in review).
+*Rule:* money movements are never edited: a void reverses the bill's charge, but the deposit's application and its refund stay as they happened. What results is shown to the customer as one net balance, and a credit owed to a former customer is paid out. Sources: every reversal names what it undoes (CI-017); a customer's credits are one pot, shown as one net balance (Kyle 10-30); a fully or partly applied deposit is settled before the customer can close (deposit rules §4.3–4.4).
+
+**Given**
+- SCN-0009: BB-01 moved out Apr 2, 2027; the final bill of $41.37 was paid from the $150.00 deposit, and $108.63 was refunded by check on Apr 6 (**invented** date).
+- On Apr 20 the final read is found keyed high. The corrected final bill is **$30.12** (**invented**; its arithmetic belongs to the account-lifecycle family).
+
+**When** the operator voids the final bill and issues the correction.
+
+**Then**
+
+| Entry | Amount | Names |
+|---|---|---|
+| Final bill charge | +$41.37 | — |
+| Deposit applied to the final bill | −$41.37 | the deposit |
+| Void reversal | −$41.37 | the final bill's charge |
+| Correction (final) bill charge | +$30.12 | — (names the voided bill) |
+| **Balance** | **−$11.25**, a credit owed to BB-01 | |
+
+- The deposit's own history is unchanged: $150.00 held, $41.37 applied, $108.63 refunded. Neither the application nor the refund is edited, and the deposit does not reappear as held.
+- BB-01 sees one figure: a credit of $11.25. The account cannot close until it is paid out; with no service continuing, it is refunded.
+- **Open (Kyle):** is the $11.25 a deposit refund (paid whatever its size, like any deposit refund) or an ordinary overpayment (subject to the utility's minimum refund amount and, if uncashed, unclaimed-property rules)? The money came from the deposit, but the deposit had already been settled.
+
+---
+
+### SCN-0032 — The same deposit in Fremont earns interest from the first day
+
+*Status:* draft (2026-11-02), not yet sent to Kyle. Fremont's law is **invented**; this tests that a statutory rule is a row for its place.
+*Rule:* the deposit's law row is found by the premise's state, service and customer class; where a state's interest rate binds, it is a floor, and the utility's tariff may pay more, never less. Sources: deposit decisions 4 and 5 (Ryan 10-12); the rule-terms convention (Ryan 10-06: law rows are typed keys with terms, per place); "launch scope is not architecture scope".
+
+**Given**
+- Prairie Line Gas Company, an investor-owned utility in the State of Fremont (`cast.md` §4); customer PL-01, residential.
+- Fremont's law row (**invented**): a gas utility it regulates pays simple interest on a residential cash deposit from the day it is posted, at the state's yearly rate, 2% for 2026; actual days over 365, rounded per accrual. No minimum holding period.
+- A $200.00 cash deposit posted Jan 1, 2026 and refunded Jan 31, 2026: held 30 days, accrued Jan 1–30.
+
+**When** the refund is made with Prairie Line's own tariff stating (a) no rate; (b) 1%; (c) 3%.
+
+**Then**
+- **(a)** One accrual: $200.00 × 2% × 30/365 = 0.3288 → **$0.33**, citing Fremont's row. Refund: $200.00 principal and $0.33 interest, shown separately. The same deposit under Texas law earns nothing (SCN-0012 a).
+- **(b)** Prairie Line's tariff record is refused when entered: 1% is below the floor of the law row it maps to.
+- **(c)** $200.00 × 3% × 30/365 = 0.4932 → **$0.49**, citing the tariff record and the law row.
+- Nothing in the calculation names Texas or Fremont: the same steps read a different row.
