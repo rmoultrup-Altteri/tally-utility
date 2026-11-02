@@ -1,5 +1,6 @@
 -- ============================================================================
--- PATCH v5.4.2-28 — rates small fixes (draft r1, in progress)
+-- PATCH v5.4.2-28 — rates small fixes: the state-agency time zone, dated rider
+--                    dependencies, four-decimal rates (r1, frozen for review 2026-11-02)
 -- ============================================================================
 -- Authority:   the rates stream's first patch (HANDOFF.md board, claimed
 --              2026-11-02). Spec: application/invariant-parity-measurement-
