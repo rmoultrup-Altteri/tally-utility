@@ -6,6 +6,29 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-02 (rates) — the rates stream's first session: v5.4.2-28 (small fixes) built, tested and reviewed once; round-2 fix list; two of three calls settled
+
+**What was done:**
+- **Claimed -28** and built `sql/v5.4.2-28-rates-small-fixes.sql`. It judges the pipeline safety fee's state-agency exemption at midnight in the bill's own time zone, not Chicago's (CI-010). It gives rider dependencies their own in-force dates and a recorded history, like schedule items (CI-101). It refuses a rate with more than four decimals where rates are entered (CI-109).
+- **The prompt-pay discount (CI-089) needs no SQL.** The meter test fee (CI-091) moves to its own patch after dated history.
+- **Tests:** battery 77 PASS, mutations 11/11, the -19/-21 batteries and races ported to the dated shape. The full `ci.sh` passes except battery -15 V23, the money stream's (a fixed date that has now passed; board note).
+- **Round 1 frozen and reviewed** by Opus (not yet), Fable (ready) and Codex (not yet; I ran its probes).
+  - The worst finding: the tier-rate check can't be restored from a database dump.
+  - A dependency can be closed without a reason.
+  - A summary bill that has its own address skips its member bills' time zones.
+  - A long transaction can record a cycle in the past.
+  - The fix list is `application/rates-build-2026-11-02/v5.4.2-28-r2-plan.md`.
+- **Board notes to money:** V23; -28 in PENDING; UTC day boundaries in deposits and period close; bill-line rates outside the four-decimal check; freezing a summary bill's members at issue.
+
+**Decisions (Ryan, DECISION-LOG 2026-11-02):**
+- The scope of -28: four entries.
+- A summary bill is fixed once it goes out. Every member bill is final at issue and nothing attaches after; that's the money stream's rule.
+- Percentage rates are stored as percent to four decimals. The app accepts fractions and converts them (AC-45).
+
+**Failed approaches:** a jsonpath `(@ * 10000).floor()` in a CHECK. PostgreSQL prints it back as text that doesn't parse, so dumps break.
+
+**Next:** Ryan's call on reading the zone only when it can change the answer. Then build round 2, freeze it, and send it to all three reviewers.
+
 ## 2026-10-29 (night, money) — -23 round 6 reviewed (all three: not yet); round 7 built and tested, waiting on Kyle
 
 **What was done:**

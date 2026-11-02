@@ -33,7 +33,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
-| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109); r1 frozen 2026-11-02, in review; the meter test fee (CI-091) moved to its own patch after dated history |
+| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109); r1 reviewed 2026-11-02 (not yet), r2 fix list written, waits on one Ryan call; the meter test fee (CI-091) moved to its own patch after dated history |
 
 **Next free: -29.**
 
@@ -42,7 +42,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 1. -23 (money)
 2. -25 (money)
 3. -26 (money)
-4. -28 (rates; frozen r1 2026-11-02, in review)
+4. -28 (rates; r1 reviewed 2026-11-02, r2 to build)
 
 A patch joins the queue when it is frozen for review. Before mirroring, re-run its battery on the current `tally`; a patch reviewed before an earlier mirror is re-tested, and re-reviewed only if the re-test fails.
 
