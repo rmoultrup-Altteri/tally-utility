@@ -94,7 +94,7 @@ An **invented** state, so a scenario can show that a statutory rule is a row for
 
 ## Questions the real tariffs raise (for Kyle)
 
-None of the five tariffs read publishes these; the scenarios need an answer, or a rule that the tariff must state one.
+None of the five tariffs read publishes these; the scenarios need an answer, or a rule that the tariff must state one. Questions 1–4 go to Kyle with the first batch of worked bills (Ryan, 2026-11-02); question 5 is raised with Ryan when collections scenarios start (after -26 mirrors).
 
 1. **A rate change partway through a billing period.** No tariff says. Brenham's 2021 release suggests the whole bill goes at the new rates from the first billing cycle after the change. What do city systems do in practice: whole bill by cycle, by read date, or split by days? And if a tariff doesn't say, should the platform refuse to bill the straddling period until the utility states its policy?
 2. **The pipeline safety fee.** Do city systems bill it, and on which bill?
