@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `~/code/tally-utility` | schema: money and collections | `handoffs/schema-money.md` | payments, credits, the ledger, invoices and their applications, deposits, disputes, collections and dunning, `service_orders`, program enrollments, notices and the communication log |
 | `~/code/tally-utility-rates` | schema: rates, meters, places | `handoffs/schema-rates.md` | rate schedules, items and versions, riders, tax and franchise rules, gas cost and PGA, places and jurisdictions, zones and factor tables, meters, `meter_readings`, `meter_deployments`, `service_locations`, backbilling rules |
-| `~/code/tally-utility-scenarios` | scenarios and test strategy (P2), beside the schema (gate relaxed 2026-10-29) | `handoffs/scenarios.md` | no schema files; scenario docs (where they live is its first question) |
+| `~/code/tally-utility-scenarios` | scenarios and test strategy (P2), beside the schema (gate relaxed 2026-10-29) | `handoffs/scenarios.md` | no schema files; `scenarios/` (Ryan, 2026-11-02) and `application/scenarios-source-inventory-2026-11-02/` |
 
 A table not listed belongs to whichever stream touches it first; add it here when you do. A patch that needs another stream's table leaves a note below rather than editing it.
 
