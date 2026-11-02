@@ -32,7 +32,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -24 | money | unmatched cash, agency pledges (not drafted) |
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
-| -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted) |
+| -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
 
 **Next free: -28.**
 
