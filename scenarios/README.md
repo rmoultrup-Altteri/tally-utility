@@ -38,5 +38,6 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 | `billing-pipeline-and-charge-composition.md` | the billing pipeline and charge composition | SCN-0001 |
 | `cancel-rebill.md` | voiding and rebilling a wrong bill | SCN-0002 – 0006 |
 | `deposits.md` | taking, refunding and applying deposits | SCN-0007 – 0012 |
+| `backbilling.md` | how far back a correction may reach | SCN-0013 – 0019 |
 
-**Next free ID: SCN-0013.**
+**Next free ID: SCN-0020.**
