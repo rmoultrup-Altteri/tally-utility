@@ -33,8 +33,9 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
+| -28 | rates | small fixes: state-agency time zone (CI-010), drop prompt-pay discount (CI-089), meter test fee by outcome (CI-091), dated rider order (CI-101), rounding (CI-109) (not drafted) |
 
-**Next free: -28.**
+**Next free: -29.**
 
 ## Mirror queue
 
