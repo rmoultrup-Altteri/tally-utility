@@ -26,7 +26,7 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 
 - **Rules and rulings, not tables.** No column or table names in a scenario. Where a family's schema is still being built (the board's mirror queue), write against the ruling and say what the patch may still change.
 - **Arithmetic** follows Kyle's 10-15 rounding: four decimals in working figures, half-up to the cent on each line.
-- **Places.** The cast is invented small city-owned systems (e.g. Cedar Bend Municipal Gas), so a scenario never borrows a real city's tariff by accident. A Texas state rule appears only where it binds the utility in the scenario; a city system's policy is its own tariff row, or nothing. Where a rule is a per-jurisdiction row, the scenario says which row.
+- **Places.** The cast (`cast.md`) is invented names on real small-city tariffs, so a scenario never makes a claim about a real city's current policy. A Texas state rule appears only where it binds the utility in the scenario; a city system's policy is its own tariff row, or nothing. Where a rule is a per-jurisdiction row, the scenario says which row.
 - **IDs** are `SCN-NNNN`, assigned once and never reused. The next free number is kept below.
 - **Kyle's answers** are recorded on the scenario (its Status line) and, for a ruling, in the decision log and in GBM as today.
 
@@ -34,6 +34,7 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 
 | File | Family | Scenarios |
 |---|---|---|
+| `cast.md` | the utilities, places and customers every scenario uses | — |
 | `billing-pipeline-and-charge-composition.md` | the billing pipeline and charge composition | SCN-0001 |
 
 **Next free ID: SCN-0002.**

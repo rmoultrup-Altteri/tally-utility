@@ -4,30 +4,33 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 
 ### SCN-0001 — Rates change partway through a billing period
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* when a city's ordinance changes rates partway through a billing period, the bill splits each charge at the effective date as its tariff says, and each line shows its own arithmetic. Sources: each line carries its own arithmetic (Ryan 10-14, CI-016; Kyle 10-15, R-01); four-decimal working math, half-up to the cent (Kyle 10-15, K-06).
+*Status:* draft (2026-11-02), not yet sent to Kyle. Its split rule waits on Kyle (cast question 1).
+*Rule:* when a city's ordinance changes rates partway through a billing period, the bill applies each rate to its share of the period as the tariff says, and each line shows its own arithmetic. Sources: each line carries its own arithmetic (Ryan 10-14, CI-016; Kyle 10-15, R-01); four-decimal working math, half-up to the cent (Kyle 10-15, K-06); every charge declares whether it is taxable (Kyle 10-14).
 
 **Given**
-- Cedar Bend Municipal Gas, a city-owned system. Its tariff (invented for this example) splits a period by days at a rate change.
-- A residential customer; billing period Oct 15 – Nov 13, 30 days.
-- An ordinance effective Nov 1: customer charge $12.00 → $14.00 a month; delivery $6.50 → $7.00 per Mcf.
-- Gas-cost factor for the period: $4.1250 per Mcf.
-- Reads 1,234 → 1,286 hundred cubic feet: 52 hundred cubic feet, 5.2 Mcf.
+- Bluebonnet City Gas (`cast.md` §2); customer BB-01, a homeowner inside the city, schedule R-U.
+- An ordinance effective Oct 1 raises R-U from $11.80 to $12.80 a month and from $2.75 to $2.96 per Mcf. The new rates are the cast's; **the old ones are invented**.
+- **For this scenario, the tariff states that a period straddling a rate change is split by days (invented; the source tariff is silent, cast question 1).**
+- Commodity charge $5.35 per Mcf; the gas cost adjustment for the cycle is a charge of $0.42 per Mcf (invented).
+- City sales tax on residential gas inside the city at 1% (invented), on every gas line (cast question 4).
+- Billing period Sep 15 – Oct 14, 30 days. Reads 6.0 Mcf.
 
-**When** the November bill is issued.
+**When** the October bill is issued.
 
 **Then**
 
 | Line | Arithmetic | Amount |
 |---|---|---|
-| Customer charge, Oct 15–31 | $12.00 × 17/30 days | $6.80 |
-| Customer charge, Nov 1–13 | $14.00 × 13/30 = 6.0667 | $6.07 |
-| Delivery, Oct 15–31 | 5.2 Mcf × 17/30 = 2.9467 Mcf × $6.50 = 19.1536 | $19.15 |
-| Delivery, Nov 1–13 | 5.2 Mcf × 13/30 = 2.2533 Mcf × $7.00 = 15.7731 | $15.77 |
-| Gas cost | 5.2 Mcf × $4.1250 | $21.45 |
-| **Total** | | **$69.24** |
+| Customer charge, Sep 15–30 | $11.80 × 16/30 = 6.2933 | $6.29 |
+| Customer charge, Oct 1–14 | $12.80 × 14/30 = 5.9733 | $5.97 |
+| Distribution, Sep 15–30 | 6.0 Mcf × 16/30 = 3.2000 Mcf × $2.75 = 8.8000 | $8.80 |
+| Distribution, Oct 1–14 | 6.0 Mcf × 14/30 = 2.8000 Mcf × $2.96 = 8.2880 | $8.29 |
+| Commodity charge | 6.0 Mcf × $5.35 | $32.10 |
+| Gas cost adjustment | 6.0 Mcf × $0.42 | $2.52 |
+| City sales tax | 1% × $63.97 (the six lines above) = 0.6397 | $0.64 |
+| **Total** | | **$64.61** |
 
 - Each customer-charge line records its coverage dates, the days it covers, the days in the period and the split policy applied.
-- Each delivery line records its quantity, unit and rate.
+- Each distribution line records its quantity, unit and rate; the tax line records the lines in its base.
 
-**Open (Kyle):** does the gas-cost factor split at its own change date, or follow the bill date? Does any tax, or the pipeline safety fee, apply to a residential bill from a city-owned system?
+**Open (Kyle):** cast question 1 (how a mid-period change is billed; if the whole bill goes at the new rates, the total is $65.18 before tax: $12.80 + 6.0 × $2.96 + $32.10 + $2.52). Cast question 4 (the tax base).
