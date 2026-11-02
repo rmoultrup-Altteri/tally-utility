@@ -25,7 +25,9 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 ## Conventions
 
 - **Rules and rulings, not tables.** No column or table names in a scenario. Where a family's schema is still being built (the board's mirror queue), write against the ruling and say what the patch may still change.
-- **Arithmetic** follows Kyle's 10-15 rounding: four decimals in working figures, half-up to the cent on each line.
+- **Arithmetic** follows Kyle's 10-15 rounding: four decimals in working figures, half-up to the cent on each line. A tax line's base is the sum of the rounded lines it names.
+- **A worked bill shows the bill's components**, not the stored line rows: how many rows a component becomes (for example whether the commodity rate rides on the usage line) is the build's choice. A test asserts each component's arithmetic and amount, not the row count.
+- **Dates.** Every tariff record in the cast is taken as in force from Jan 1, 2025 unless a scenario says otherwise (**invented**: the source tariffs are dated 2015–2026), so scenarios in 2026 can use them.
 - **Places.** The cast (`cast.md`) is invented names on real small-city tariffs, so a scenario never makes a claim about a real city's current policy. A Texas state rule appears only where it binds the utility in the scenario; a city system's policy is its own tariff row, or nothing. Where a rule is a per-jurisdiction row, the scenario says which row.
 - **IDs** are `SCN-NNNN`, assigned once and never reused. The next free number is kept below.
 - **Kyle's answers** are recorded on the scenario (its Status line) and, for a ruling, in the decision log and in GBM as today.

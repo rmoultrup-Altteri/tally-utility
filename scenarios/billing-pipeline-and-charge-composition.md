@@ -11,7 +11,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 - Bluebonnet City Gas (`cast.md` §2); customer BB-01, a homeowner inside the city, schedule R-U.
 - An ordinance effective Oct 1 raises R-U from $11.80 to $12.80 a month and from $2.75 to $2.96 per Mcf. The new rates are the cast's; **the old ones are invented**.
 - **For this scenario, the tariff states that a period straddling a rate change is split by days (invented; the source tariff is silent, cast question 1).**
-- Commodity charge $5.35 per Mcf; the gas cost adjustment for the cycle is a charge of $0.42 per Mcf (invented).
+- Commodity charge $5.35 per Mcf; the gas cost adjustment for the cycle is a charge of $0.42 per Mcf (invented). **Assumed: the city sets its gas cost adjustment per billing cycle**, so a cycle never straddles a change of it; if it is a dated factor instead, it splits like a rate (CI-034). That is part of cast question 1.
 - City sales tax on residential gas inside the city at 1% (invented), on every gas line (cast question 4).
 - Billing period Sep 15 – Oct 14, 30 days. Reads 6.0 Mcf.
 
@@ -32,5 +32,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 
 - Each customer-charge line records its coverage dates, the days it covers, the days in the period and the split policy applied.
 - Each distribution line records its quantity, unit and rate; the tax line records the lines in its base.
+
+**Open (Ryan):** cast question 7: the bill-line rule requires therms and a meter factor on every gas usage line, which an Mcf tariff does not use; as written, this bill's distribution lines would be refused at issue.
 
 **Open (Kyle):** cast question 1 (how a mid-period change is billed; if the whole bill goes at the new rates, the total is $65.18 before tax: $12.80 + 6.0 × $2.96 + $32.10 + $2.52). Cast question 4 (the tax base).

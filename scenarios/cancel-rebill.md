@@ -58,17 +58,18 @@ The customer's ledger:
 ### SCN-0003 — A bill held before issue is voided: nothing posts
 
 *Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* voiding a bill that was held and never issued posts nothing; only the replacement posts. Sources: Ryan 10-14 (CI-017, the void): the line is posting, not mailing; a held bill's void posts nothing (this reversed the earlier behaviour, which credited it).
+*Rule:* voiding a bill that was held and never issued posts nothing, and its replacement is an ordinary bill, not a correction: a correction may only replace a bill that was issued and then voided. Sources: Ryan 10-14 (CI-017, the void): the line is posting, not mailing; a held bill's void posts nothing (this reversed the earlier behaviour, which credited it); v5.4.2-10 (a correction names a bill that is void and was once issued).
 
 **Given**
 - The November bill run computes BB-01's bill from a read keyed as 60.0 Mcf: $541.97 ($536.60 of gas lines and $5.37 tax). It is held for high usage and never issued.
 - On review the read is 6.0 Mcf.
 
-**When** the operator voids the held bill and issues the replacement, which names it.
+**When** the operator voids the held bill and issues the November bill again from the corrected read.
 
 **Then**
-- The replacement is the reference bill: **$65.83**.
-- The ledger has one entry, the replacement's charge of +$65.83. The held bill's void writes no reversal, because there was no charge to reverse.
+- The new bill is an ordinary November bill, the reference bill: **$65.83**.
+- The ledger has one entry, its charge of +$65.83. The held bill's void writes no reversal, because there was no charge to reverse.
+- Issuing it as a correction naming the held bill is refused: that bill was never issued.
 - Had the held bill been issued and posted first, its void would reverse $541.97 instead (SCN-0002's pattern).
 
 ---
@@ -118,9 +119,9 @@ The customer's ledger:
   | **Total** | | **$54.34** |
 
 - September was closed on Oct 10. November is open.
-- On Nov 20 a meter test shows the September read should have been 4.0 Mcf.
+- On Nov 20 BB-01 calls about the September bill. The meter's register photo from the Sep 14 read shows 4.0 Mcf; the reader keyed 5.0. The meter measured correctly: the bill was computed from a wrong figure. (A meter that measured wrong is corrected under the backbilling rules, as an adjustment on a later bill, not by void and reissue: `backbilling.md`.)
 
-**When** the operator voids the September bill and issues the correction on Nov 20, rate basis historical.
+**When** the operator voids the September bill and issues the correction on Nov 20, rate basis historical (the original period's).
 
 **Then**
 - The correction uses September's world: the pre-Oct 1 rates and September's gas cost adjustment:
@@ -142,7 +143,7 @@ The customer's ledger:
 ### SCN-0006 — A correction must state its rate basis; the two bases give different bills
 
 *Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* every correction run records whether it rebills at the original period's rates (historical), today's (current) or a stated date (custom); a run with no stated basis is refused. Sources: CI-007 (structurally enforced; the parity measurement); "a cancel-rebill uses the original period's world" (the related invariant).
+*Rule:* every correction run records whether it rebills at the original period's rates (historical), today's (current) or a stated date (custom); a run with no stated basis is refused; and a gas correction must use the original period's rates. Sources: CI-007 (structurally enforced; the parity measurement); CI-005 (a cancel-rebill uses the original period's world); Kyle 06-12 (DE-3, GBM `configurable-rules/de-review-answers.md`): gas corrections rate at the historical period, "current" is for non-gas services only.
 
 **Given** SCN-0005's facts.
 
@@ -151,5 +152,5 @@ The customer's ledger:
 **Then**
 - **No basis stated:** refused.
 - **Historical:** $45.85, as in SCN-0005.
-- **Current:** the November world: $12.80, 4.0 × $2.96 = $11.84, $21.40, 4.0 × $0.42 = $1.68, tax 1% × $47.72 = $0.48: **$48.20**. Recorded as current, so a later reader can see why the correction charged $2.35 more than the historical one.
-- **Open (Kyle):** for a misread, is "current" ever lawful, or should a correction of a past period's usage be held to historical, with current reserved for runs the tariff allows (for example a refund ordered at new rates)?
+- **Current:** refused, because this is a gas correction. (Had it been allowed, the November world would have charged $48.20: $12.80, 4.0 × $2.96 = $11.84, $21.40, 4.0 × $0.42 = $1.68, tax 1% × $47.72 = $0.48, which is $2.35 more than the original period's rates. That difference is what the rule protects against.)
+- The schema records the basis; the refusal of "current" for gas is the core's (Kyle's DE-3 proposed a guard; it is not yet an invariant in GBM's canonical list).

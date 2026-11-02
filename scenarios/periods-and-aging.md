@@ -16,13 +16,13 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 **When**
 - (a) a billing clerk closes September on Oct 5;
 - (b) a supervisor closes September at 11:00 p.m. Central on Sep 30;
-- (c) a supervisor closes October on Oct 10, with September still open;
+- (c) a supervisor closes October on Nov 2, with September still open;
 - (d) a supervisor closes September on Oct 10.
 
 **Then**
 - (a) refused: not a supervisor.
 - (b) refused: Sep 30 has not yet ended everywhere. The earliest moment is 12:00 UTC on Oct 1 (7:00 a.m. Central).
-- (c) refused: September must close first.
+- (c) refused: September must close first. (October itself has ended everywhere by then, so this is the only reason.)
 - (d) closed. From then on, nothing dated on or before Sep 30 can be written.
 
 ---
@@ -30,7 +30,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 ### SCN-0021 — A payment received in a closed month is recorded in the open one, keeping the customer's date
 
 *Status:* draft (2026-11-02), not yet sent to Kyle. Payments belong to the cash family (-23 in review); this tests only the freeze and the customer's date, which -19 and -22 built.
-*Rule:* money dated inside a closed period is refused; the customer's own payment date (postmark for mail) is kept separately for the customer's rights, such as whether the payment was on time. Sources: -22 (the freeze on the payment date, the ledger date and the credit date); -19 and Kyle 06-12 (the customer-initiation date: postmark for mail, sent date for electronic).
+*Rule:* money dated inside a closed period is refused; the customer's own payment date is kept separately for the customer's rights, such as whether the payment was on time, by the method the utility's tariff states. Sources: -22 (the freeze on the payment date, the ledger date and the credit date); -19 (the customer-initiation date and its method); CI-058 (the method varies by place); Bluebonnet's method is the cast's, **invented**: postmark for mail.
 
 **Given** September is closed (SCN-0020 d). On Oct 14 a clerk finds BB-01's check for $54.34 in a misrouted mail tray, postmarked Sep 27.
 
@@ -38,7 +38,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 **Then**
 - (a) refused: September is closed.
-- (b) accepted. The payment counts in October's activity. For on-time questions the customer's date is Sep 27, so if the September bill was due Oct 3 it was paid on time and carries no late penalty.
+- (b) accepted. The payment counts in October's activity. For on-time questions the customer's date is Sep 27. The September bill was issued Sep 18; fifteen days later is Saturday Oct 3, so it was due Monday Oct 5. It was paid on time and carries no late penalty; a penalty already posted for it would be reversed, naming the penalty.
 
 ---
 
@@ -55,7 +55,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 **When** the September snapshot is read on Nov 25.
 
 **Then**
-- It still shows charges of $54.34, and the aging buckets as they stood on Oct 10.
+- It still shows charges of $54.34, and the aging **as of Sep 30, the period's last day, as recorded at the close on Oct 10**: the Sep 18 charge is 12 days old, in the 0–30 bucket.
 - The unbilled figure appears on the snapshot with its basis. It is not a ledger entry, so no customer's balance includes it.
 - The void (−$54.34) and the correction (+$45.85) appear in November's activity when November closes.
 
@@ -66,13 +66,13 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 *Status:* draft (2026-11-02), not yet sent to Kyle.
 *Rule:* each entry is netted with the reversals that name it; the balance left is aged newest first, the debt-side view of paying the oldest bill first. Sources: -22 drafting call 5; Kyle 10-15 (K-05: oldest bill first); Ryan 10-13 (the balance is summed from the ledger, not stored).
 
-**Given** BB-01's ledger:
+**Given** BB-01's ledger (no late penalty was assessed on the July and August bills: **invented**, to keep the ledger short):
 
 | Date | Entry | Amount |
 |---|---|---|
 | Jul 15 | July bill | +$58.20 |
 | Aug 15 | August bill | +$61.40 |
-| Sep 15 | September bill | +$54.34 |
+| Sep 18 | September bill | +$54.34 |
 | Sep 20 | payment | −$100.00 |
 | Oct 15 | October bill | +$64.61 |
 
@@ -84,7 +84,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 | Bucket | Amount | From |
 |---|---|---|
 | 0–30 days | $64.61 | the October bill, 17 days |
-| 31–60 days | $54.34 | the September bill, 47 days |
+| 31–60 days | $54.34 | the September bill, 44 days |
 | 61–90 days | $19.60 | what is left of the August bill, 78 days |
 | 91–120, over 120 | — | the July bill and $41.80 of August are covered by the payment |
 
@@ -95,7 +95,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 *Status:* draft (2026-11-02), not yet sent to Kyle.
 *Rule:* as SCN-0023. A void nets out the entry it names; the correction is a new entry and ages from its own date. Sources: as SCN-0023; CI-017 (the correction names the voided bill).
 
-**Given** SCN-0023's ledger, plus SCN-0005's correction: on Nov 20 the September bill is voided (−$54.34, naming the Sep 15 entry) and corrected (+$45.85).
+**Given** SCN-0023's ledger, plus SCN-0005's correction: on Nov 20 the September bill is voided (−$54.34, naming the Sep 18 entry) and corrected (+$45.85).
 
 **When** the aging is read as of Nov 25.
 
@@ -112,27 +112,29 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ---
 
-### SCN-0025 — GL mapping: the most specific mapping wins, and an export refuses an unmapped line
+### SCN-0025 — GL mapping: a fixed order of precedence, and an export refuses an unmapped line
 
 *Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* GL account mapping is the utility's dated configuration, keyed by charge type, class, territory and tax jurisdiction; the most specific mapping in force wins; two equally specific ones are an error; an export refuses a line with no mapping, but the bill still posts; no mapping may start or end inside a closed period. Sources: -22 G1–G4 and drafting call 7; D-2 (GL mapping is tenant configuration).
+*Rule:* GL account mapping is the utility's dated configuration, keyed by the charge (its kind of bill line, one-off charge or ledger entry, and its code), customer class, territory and tax jurisdiction, each of which may be left open. Where several mappings fit a line, the one that names the charge wins over one that names the class, which wins over territory, which wins over tax jurisdiction. Two mappings with the same key and overlapping dates are refused when entered. An export refuses a line with no mapping, but the bill still posts. No mapping may start or end inside a closed period. Sources: -22 G1–G4 and drafting call 7 (`gl_mapping_as_of`: weights 8, 4, 2, 1); D-2 (GL mapping is tenant configuration).
 
-**Given** Bluebonnet's mappings from Jan 1, 2026 (account numbers **invented**):
+**Given** Bluebonnet's mappings from Jan 1, 2026 (account numbers **invented**). The kinds of bill line are the platform's: a customer charge is a base charge; distribution is a usage charge; the commodity charge and the gas cost adjustment are per-unit surcharges (**invented** classification for this tariff; cast question 7); city sales tax is a tax line.
 
-| Charge type | Class | Territory | Tax jurisdiction | Account |
+| Charge | Class | Territory | Tax jurisdiction | Account |
 |---|---|---|---|---|
-| distribution | any | any | any | 4010 gas distribution revenue |
-| distribution | any | rural | any | 4011 rural distribution revenue |
-| commodity, gas cost adjustment | any | any | any | 4020 gas cost revenue |
-| city sales tax | any | any | the city | 2300 sales tax payable |
+| base charge | open | open | open | 4000 customer charge revenue |
+| usage charge | open | open | open | 4010 distribution revenue |
+| usage charge | open | rural | open | 4011 rural distribution revenue |
+| usage charge | residential | open | open | 4012 residential distribution revenue |
+| surcharge | open | open | open | 4020 gas cost revenue |
+| tax | open | open | the city | 2300 sales tax payable |
 
-**When** November's export runs. It contains BB-01's bill (urban), BB-02's bill (rural), and a $15.00 pilot relight fee on BB-02 for which no mapping exists.
+**When** November's export runs. It contains BB-01's bill (residential, urban), BB-02's bill (residential, rural), and a $15.00 pilot relight fee on BB-02, a one-off charge dated Nov 12, for which no mapping exists.
 
 **Then**
-- BB-01's distribution line goes to 4010; BB-02's to 4011, the more specific mapping.
-- The relight fee is refused by the export, naming the charge type with no mapping. BB-02's bill and ledger entry stand; only the export is held back until a mapping exists.
-- A new mapping dated Sep 1 (inside closed September) is refused; one dated Nov 1 is accepted, and the relight fee then exports.
-- A second mapping for "distribution, any, rural, any" in force at the same time is refused as a tie.
+- BB-01's and BB-02's distribution lines both go to 4012. For BB-02, three mappings fit: 4010 (charge), 4011 (charge and territory) and 4012 (charge and class); class outranks territory, so 4012 wins.
+- The relight fee is refused by the export, naming the charge with no mapping: every mapping names a kind of bill line, and the fee is a one-off charge. BB-02's bill and ledger entry stand; only the export is held back until a mapping covering Nov 12 exists.
+- A new mapping dated Sep 1 (inside closed September) is refused; one dated Nov 1 is accepted.
+- A second "usage charge, rural" mapping whose dates overlap 4011's is refused when entered.
 
 ---
 
@@ -151,5 +153,5 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 **Then**
 - (a) accepted. The account's balance is the $50.00 recovery less the $50.00 payment: $0.00. $70.00 remains written off.
 - (b) refused: it would recover $130.00 of a $120.00 write-off.
-- (c) after the reversal, the full $120.00 is written off again, and a recovery of up to $120.00 may be entered.
+- (c) after the reversal, the full $120.00 is written off again, and a recovery of up to $120.00 may be entered. The $50.00 payment still stands, so BB-02 now shows a **$50.00 credit** until the recovery is re-entered correctly or the payment is dealt with.
 - A recovery naming no write-off, or another customer's, is refused.

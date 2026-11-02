@@ -14,13 +14,13 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Given**
 - Bluebonnet City Gas; customer BB-02, a renter outside the city (schedule R-R).
 - On Jan 5, 2026 BB-02 pays $250.00 designated as a deposit (the only designation a customer can make besides "bill"; Kyle 10-15, K-05). Category "renter", which Bluebonnet's tariff maps to the law's residential class.
-- Bluebonnet's tariff: refund as a bill credit after 12 months with no returned checks, no disconnect notices and no more than two late penalties. No interest (**invented**; the source is silent, and no state floor binds a city system).
-- Over the next twelve months BB-02 pays every bill; two are paid late and carry the 10% penalty (March and July). No returned check, no disconnect notice.
+- Bluebonnet's tariff: refund as a bill credit after 12 months with no returned checks, no disconnect notices and no more than two late penalties (the second route, "also refunded if no bill is past due", is cast question 6 and not used here). No interest (**invented**; the source is silent, and no state floor binds a city system).
+- Over the next twelve months BB-02 pays every bill; two are paid late and carry the 10% penalty, posted Mar 20 and Jul 20, 2026. No returned check, no disconnect notice.
 
-**When** the deposit reaches twelve months on Jan 5, 2027.
+**When** the deposit reaches twelve months on Jan 5, 2027 (bills are dated the 15th; the twelve counted are Jan 15 – Dec 15, 2026).
 
 **Then**
-- The core records that the return fell due on Jan 5, 2027, citing Bluebonnet's tariff record, the twelve bills, and the two late penalties counted.
+- The core records that the return fell due on Jan 5, 2027, citing Bluebonnet's tariff record, the twelve bills, and the two late penalties counted. (Bluebonnet's tariff counts **months**, read here as the deposit's anniversary; the Texas rule counts twelve bills instead, and would fall due on the twelfth clean bill.)
 - The next bill carries a credit of **$250.00**, with no interest line.
 - Exactly one due record exists however many times the check runs.
 
@@ -31,13 +31,13 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 *Status:* draft (2026-11-02), not yet sent to Kyle.
 *Rule:* as SCN-0007; the tariff's limit on late penalties disqualifies the refund. Sources: as SCN-0007.
 
-**Given** SCN-0007, except that the November 2026 bill is also paid late: three late penalties in the twelve months.
+**Given** SCN-0007, except that the November 2026 bill is also paid late: a third penalty, posted Nov 20, 2026. The check runs daily.
 
 **When** the deposit reaches twelve months on Jan 5, 2027.
 
 **Then**
 - No due record is written. The deposit stays held: $250.00.
-- **Open (Kyle):** the tariff doesn't say over what window the penalties are counted. If it is a rolling twelve months, the deposit falls due on Apr 5, 2027, once March 2026 drops out (two penalties remain). If it is the whole time held, it never falls due by this route, only at move-out. Which do city systems mean?
+- **Open (Kyle):** the tariff doesn't say over what window the penalties are counted. (For contrast, the build's reading of the Texas rule counts every late payment since the deposit was posted: deposit rules DG4, case B15.) If it is a rolling twelve months, the deposit falls due on Mar 21, 2027, the first day the Mar 20, 2026 penalty is more than twelve months old (two remain). If it is the whole time held, it never falls due by this route, only at move-out. And under the tariff's second route (cast question 6), it may fall due on Jan 5, 2027 regardless, since no bill is past due. Which do city systems mean?
 
 ---
 
@@ -108,7 +108,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 **Given**
 - Gulf Plains Gas Company (`cast.md` §3), a customer in the unincorporated area, where the Texas rule binds.
-- A $200.00 cash deposit posted Jan 1, 2026. Gulf Plains' interest rate for 2026: 3% (**invented**; at or above the state floor, also invented for this example).
+- A $200.00 cash deposit posted Jan 1, 2026. The interest rate in force for the period is 3% (**invented**), the rate the accrual cites; where §7.45 binds, it is the state-set rate the utility must pay (CI-130), and the accrual cites the rule the deposit was decided under (deposit rules §5.5).
 
 **When** the deposit is refunded (a) on Jan 31, 2026, 30 days held; (b) on Feb 1, 2026, 31 days held.
 
