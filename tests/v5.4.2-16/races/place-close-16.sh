@@ -100,7 +100,7 @@ INSERT INTO public.places (id, kind_code, state_code, place_code, name, effectiv
 VALUES ('$P14', 'state', 'RV', 'RV', 'Race state V (old)', DATE '1950-01-01', DATE '2000-01-01', 'race fixture');
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
 SELECT v.id, v.kind, 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'race fixture'
-  FROM (VALUES ('$P9'::uuid, 'county', '48001'), ('$P10'::uuid, 'county', '48003'), ('$P11'::uuid, 'municipality', 'RACE11'),
+  FROM (VALUES ('$P9'::uuid, 'county', '48996'), ('$P10'::uuid, 'county', '48998'), ('$P11'::uuid, 'municipality', 'RACE11'),
                ('$P16'::uuid, 'municipality', 'RACE16')) v(id, kind, code),
        (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX') s;
 SQL

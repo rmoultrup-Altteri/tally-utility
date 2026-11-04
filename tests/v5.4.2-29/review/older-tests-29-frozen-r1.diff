@@ -1,0 +1,119 @@
+diff --git a/tests/ci.sh b/tests/ci.sh
+index c10c0ed..b575725 100755
+--- a/tests/ci.sh
++++ b/tests/ci.sh
+@@ -35,11 +35,13 @@ trap 'exit 130' INT TERM HUP
+ 
+ # patch file : a table it creates (its marker); a '!' before the marker means a table the
+ # patch DROPS (the patch is pending while that table still exists); a marker
+-# table.column is a column the patch adds
++# table.column is a column the patch adds; a '?' before the marker means an SQL
++# condition (no colon in it) that holds while the patch is pending (a data patch)
+ PENDING=(
+   sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
+   sql/v5.4.2-25-disputes.sql:disputes
+   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
++  "sql/v5.4.2-29-texas-counties.sql:?(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254"
+ )
+ BASE=ci_base
+ # A pending patch with a migration test gets the base as it stood just before it applied.
+@@ -99,7 +101,8 @@ docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $PRE
+ docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $PRE26" >/dev/null 2>&1
+ for entry in ${PENDING[@]+"${PENDING[@]}"}; do
+   patch=${entry%%:*}; marker=${entry##*:}
+-  if [ "${marker#!}" != "$marker" ]; then test_pending="to_regclass('public.${marker#!}') IS NOT NULL"
++  if [ "${marker#\?}" != "$marker" ]; then test_pending="${marker#\?}"
++  elif [ "${marker#!}" != "$marker" ]; then test_pending="to_regclass('public.${marker#!}') IS NOT NULL"
+   elif [ "${marker#*.}" != "$marker" ]; then
+     test_pending="NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${marker%%.*}' AND column_name = '${marker#*.}')"
+   else test_pending="to_regclass('public.$marker') IS NULL"; fi
+@@ -127,7 +130,7 @@ battery() {  # $1 file
+   q "$BASE" -qc "VACUUM public.account_ledger, public.payments, public.customer_credits" &&
+   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
+ }
+-for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 28; do
++for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 28 29; do
+   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
+ done
+ step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
+@@ -154,6 +157,12 @@ cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
+ cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
+ cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
+ cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
++step "source check v5.4.2-29" tests/v5.4.2-29/source-check-29.sh
++# The load's rules act when it applies, on a base without the counties: run
++# only while -29 is pending (after the mirror, restore a pre-29 base to run it).
++if [ "$(q tally -c "SELECT (SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254")" = "t" ]; then
++  step "load rules v5.4.2-29" tests/v5.4.2-29/reapply-29.sh
++fi
+ cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22
+ cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
+ cstep ci_r25 "races v5.4.2-25" bash tests/v5.4.2-25/races/disputes-25.sh ci_r25
+diff --git a/tests/v5.4.2-16/battery-16.sql b/tests/v5.4.2-16/battery-16.sql
+index f023059..dd6c89f 100644
+--- a/tests/v5.4.2-16/battery-16.sql
++++ b/tests/v5.4.2-16/battery-16.sql
+@@ -100,7 +100,7 @@ DO $$ BEGIN
+   INSERT INTO b16 SELECT 'tx', id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX';
+   INSERT INTO b16 SELECT 'elpaso_cty', id FROM public.places WHERE kind_code = 'county' AND place_code = '48141';
+   PERFORM pg_temp.place('zz', 'state', 'ZZ', 'ZZ', NULL, DATE '1900-01-01');
+-  PERFORM pg_temp.place('travis', 'county', 'TX', '48453', 'tx', DATE '1900-01-01');
++  PERFORM pg_temp.place('travis', 'county', 'TX', '48990', 'tx', DATE '1900-01-01');
+   PERFORM pg_temp.fact('travis', 'time_zone', '"America/Chicago"', DATE '1900-01-01');
+   PERFORM pg_temp.place('elpaso', 'municipality', 'TX', 'ELPASO', 'tx', DATE '1900-01-01');
+   PERFORM pg_temp.place('austin', 'municipality', 'TX', 'AUSTIN', 'tx', DATE '1900-01-01');
+@@ -984,7 +984,7 @@ INSERT INTO public.service_locations (id, tenant_id, customer_id, location_numbe
+ DO $$ BEGIN
+   PERFORM pg_temp.place('yy', 'state', 'YY', 'YY', NULL, DATE '2010-01-01');
+   PERFORM pg_temp.place('xw', 'state', 'XW', 'XW', NULL, DATE '1900-01-01', DATE '2015-01-01');
+-  PERFORM pg_temp.place('harris', 'county', 'TX', '48201', 'tx', DATE '1900-01-01');
++  PERFORM pg_temp.place('harris', 'county', 'TX', '48992', 'tx', DATE '1900-01-01');
+   PERFORM pg_temp.place('nanville', 'municipality', 'TX', 'NANVILLE', 'tx', DATE '1950-01-01');
+   PERFORM pg_temp.place('zoneeast', 'municipality', 'TX', 'ZONEEAST', 'tx', DATE '1950-01-01');
+   PERFORM pg_temp.fact('zoneeast', 'time_zone', '"America/Chicago"', DATE '1950-01-01');
+@@ -1172,7 +1172,7 @@ INSERT INTO public.service_locations (id, tenant_id, customer_id, location_numbe
+   ('00000000-0000-4000-8000-0000000016e9', '00000000-0000-4000-8000-0000000016a1', '00000000-0000-4000-8000-0000000016c1', 'L20', '20 Main', 'Austin', 'TX', '78720');
+ DO $$ BEGIN
+   PERFORM pg_temp.place('yz', 'state', 'YZ', 'YZ', NULL, DATE '2000-01-01');
+-  PERFORM pg_temp.place('bastrop', 'county', 'TX', '48021', 'tx', DATE '1900-01-01');
++  PERFORM pg_temp.place('bastrop', 'county', 'TX', '48994', 'tx', DATE '1900-01-01');
+   PERFORM pg_temp.fact('bastrop', 'time_zone', '"America/Chicago"', DATE '1900-01-01');
+ END $$;
+ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000016b1';
+diff --git a/tests/v5.4.2-16/races/place-close-16.sh b/tests/v5.4.2-16/races/place-close-16.sh
+index 5655244..2289559 100755
+--- a/tests/v5.4.2-16/races/place-close-16.sh
++++ b/tests/v5.4.2-16/races/place-close-16.sh
+@@ -100,7 +100,7 @@ INSERT INTO public.places (id, kind_code, state_code, place_code, name, effectiv
+ VALUES ('$P14', 'state', 'RV', 'RV', 'Race state V (old)', DATE '1950-01-01', DATE '2000-01-01', 'race fixture');
+ INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+ SELECT v.id, v.kind, 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'race fixture'
+-  FROM (VALUES ('$P9'::uuid, 'county', '48001'), ('$P10'::uuid, 'county', '48003'), ('$P11'::uuid, 'municipality', 'RACE11'),
++  FROM (VALUES ('$P9'::uuid, 'county', '48996'), ('$P10'::uuid, 'county', '48998'), ('$P11'::uuid, 'municipality', 'RACE11'),
+                ('$P16'::uuid, 'municipality', 'RACE16')) v(id, kind, code),
+        (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX') s;
+ SQL
+diff --git a/tests/v5.4.2-28/battery-28.sql b/tests/v5.4.2-28/battery-28.sql
+index 026243f..f33955e 100644
+--- a/tests/v5.4.2-28/battery-28.sql
++++ b/tests/v5.4.2-28/battery-28.sql
+@@ -116,15 +116,16 @@ INSERT INTO public.meters (id, tenant_id, meter_number, location_id, service_typ
+   ('00000000-0000-4000-8000-0000000028f3', '00000000-0000-4000-8000-0000000028a1', 'M3', '00000000-0000-4000-8000-0000000028d3', 'gas'),
+   ('00000000-0000-4000-8000-0000000028f4', '00000000-0000-4000-8000-0000000028a1', 'M4', '00000000-0000-4000-8000-0000000028d4', 'gas');
+ 
+--- Places: Texas, El Paso and Hudspeth counties are seeded (-16); Travis is
+--- loaded here with its zone, as a platform place.
++-- Places: Texas, El Paso and Hudspeth counties are seeded (-16); a Central
++-- county is planted here with its zone (an even code, never a real Texas
++-- county, so it does not collide with -29's load); it stands in for Travis.
+ CREATE TEMP TABLE b28 (k text PRIMARY KEY, id uuid);
+ INSERT INTO b28 SELECT 'tx', id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX';
+ INSERT INTO b28 SELECT 'elpaso', id FROM public.places WHERE kind_code = 'county' AND place_code = '48141';
+ INSERT INTO b28 SELECT 'hudspeth', id FROM public.places WHERE kind_code = 'county' AND place_code = '48229';
+ WITH p AS (
+   INSERT INTO public.places (kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+-  VALUES ('county', 'TX', '48453', 'Travis County', (SELECT id FROM b28 WHERE k = 'tx'), DATE '1900-01-01', 'battery 28 fixture')
++  VALUES ('county', 'TX', '48990', 'Battery County 28 (Central)', (SELECT id FROM b28 WHERE k = 'tx'), DATE '1900-01-01', 'battery 28 fixture')
+   RETURNING id)
+ INSERT INTO b28 SELECT 'travis', id FROM p;
+ INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note)

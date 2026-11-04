@@ -100,7 +100,7 @@ DO $$ BEGIN
   INSERT INTO b16 SELECT 'tx', id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX';
   INSERT INTO b16 SELECT 'elpaso_cty', id FROM public.places WHERE kind_code = 'county' AND place_code = '48141';
   PERFORM pg_temp.place('zz', 'state', 'ZZ', 'ZZ', NULL, DATE '1900-01-01');
-  PERFORM pg_temp.place('travis', 'county', 'TX', '48453', 'tx', DATE '1900-01-01');
+  PERFORM pg_temp.place('travis', 'county', 'TX', '48990', 'tx', DATE '1900-01-01');
   PERFORM pg_temp.fact('travis', 'time_zone', '"America/Chicago"', DATE '1900-01-01');
   PERFORM pg_temp.place('elpaso', 'municipality', 'TX', 'ELPASO', 'tx', DATE '1900-01-01');
   PERFORM pg_temp.place('austin', 'municipality', 'TX', 'AUSTIN', 'tx', DATE '1900-01-01');
@@ -984,7 +984,7 @@ INSERT INTO public.service_locations (id, tenant_id, customer_id, location_numbe
 DO $$ BEGIN
   PERFORM pg_temp.place('yy', 'state', 'YY', 'YY', NULL, DATE '2010-01-01');
   PERFORM pg_temp.place('xw', 'state', 'XW', 'XW', NULL, DATE '1900-01-01', DATE '2015-01-01');
-  PERFORM pg_temp.place('harris', 'county', 'TX', '48201', 'tx', DATE '1900-01-01');
+  PERFORM pg_temp.place('harris', 'county', 'TX', '48992', 'tx', DATE '1900-01-01');
   PERFORM pg_temp.place('nanville', 'municipality', 'TX', 'NANVILLE', 'tx', DATE '1950-01-01');
   PERFORM pg_temp.place('zoneeast', 'municipality', 'TX', 'ZONEEAST', 'tx', DATE '1950-01-01');
   PERFORM pg_temp.fact('zoneeast', 'time_zone', '"America/Chicago"', DATE '1950-01-01');
@@ -1172,7 +1172,7 @@ INSERT INTO public.service_locations (id, tenant_id, customer_id, location_numbe
   ('00000000-0000-4000-8000-0000000016e9', '00000000-0000-4000-8000-0000000016a1', '00000000-0000-4000-8000-0000000016c1', 'L20', '20 Main', 'Austin', 'TX', '78720');
 DO $$ BEGIN
   PERFORM pg_temp.place('yz', 'state', 'YZ', 'YZ', NULL, DATE '2000-01-01');
-  PERFORM pg_temp.place('bastrop', 'county', 'TX', '48021', 'tx', DATE '1900-01-01');
+  PERFORM pg_temp.place('bastrop', 'county', 'TX', '48994', 'tx', DATE '1900-01-01');
   PERFORM pg_temp.fact('bastrop', 'time_zone', '"America/Chicago"', DATE '1900-01-01');
 END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000016b1';

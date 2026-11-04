@@ -35,11 +35,13 @@ trap 'exit 130' INT TERM HUP
 
 # patch file : a table it creates (its marker); a '!' before the marker means a table the
 # patch DROPS (the patch is pending while that table still exists); a marker
-# table.column is a column the patch adds
+# table.column is a column the patch adds; a '?' before the marker means an SQL
+# condition (no colon in it) that holds while the patch is pending (a data patch)
 PENDING=(
   sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
+  "sql/v5.4.2-29-texas-counties.sql:?(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254"
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.
@@ -99,7 +101,8 @@ docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $PRE
 docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS $PRE26" >/dev/null 2>&1
 for entry in ${PENDING[@]+"${PENDING[@]}"}; do
   patch=${entry%%:*}; marker=${entry##*:}
-  if [ "${marker#!}" != "$marker" ]; then test_pending="to_regclass('public.${marker#!}') IS NOT NULL"
+  if [ "${marker#\?}" != "$marker" ]; then test_pending="${marker#\?}"
+  elif [ "${marker#!}" != "$marker" ]; then test_pending="to_regclass('public.${marker#!}') IS NOT NULL"
   elif [ "${marker#*.}" != "$marker" ]; then
     test_pending="NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${marker%%.*}' AND column_name = '${marker#*.}')"
   else test_pending="to_regclass('public.$marker') IS NULL"; fi
@@ -127,7 +130,7 @@ battery() {  # $1 file
   q "$BASE" -qc "VACUUM public.account_ledger, public.payments, public.customer_credits" &&
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 28; do
+for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 28 29; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
@@ -154,6 +157,12 @@ cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
 cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
 cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
 cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
+step "source check v5.4.2-29" tests/v5.4.2-29/source-check-29.sh
+# The load's rules act when it applies, on a base without the counties: run
+# only while -29 is pending (after the mirror, restore a pre-29 base to run it).
+if [ "$(q tally -c "SELECT (SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254")" = "t" ]; then
+  step "load rules v5.4.2-29" tests/v5.4.2-29/reapply-29.sh
+fi
 cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22
 cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
 cstep ci_r25 "races v5.4.2-25" bash tests/v5.4.2-25/races/disputes-25.sh ci_r25

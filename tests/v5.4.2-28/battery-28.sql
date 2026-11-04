@@ -116,15 +116,16 @@ INSERT INTO public.meters (id, tenant_id, meter_number, location_id, service_typ
   ('00000000-0000-4000-8000-0000000028f3', '00000000-0000-4000-8000-0000000028a1', 'M3', '00000000-0000-4000-8000-0000000028d3', 'gas'),
   ('00000000-0000-4000-8000-0000000028f4', '00000000-0000-4000-8000-0000000028a1', 'M4', '00000000-0000-4000-8000-0000000028d4', 'gas');
 
--- Places: Texas, El Paso and Hudspeth counties are seeded (-16); Travis is
--- loaded here with its zone, as a platform place.
+-- Places: Texas, El Paso and Hudspeth counties are seeded (-16); a Central
+-- county is planted here with its zone (an even code, never a real Texas
+-- county, so it does not collide with -29's load); it stands in for Travis.
 CREATE TEMP TABLE b28 (k text PRIMARY KEY, id uuid);
 INSERT INTO b28 SELECT 'tx', id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX';
 INSERT INTO b28 SELECT 'elpaso', id FROM public.places WHERE kind_code = 'county' AND place_code = '48141';
 INSERT INTO b28 SELECT 'hudspeth', id FROM public.places WHERE kind_code = 'county' AND place_code = '48229';
 WITH p AS (
   INSERT INTO public.places (kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
-  VALUES ('county', 'TX', '48453', 'Travis County', (SELECT id FROM b28 WHERE k = 'tx'), DATE '1900-01-01', 'battery 28 fixture')
+  VALUES ('county', 'TX', '48990', 'Battery County 28 (Central)', (SELECT id FROM b28 WHERE k = 'tx'), DATE '1900-01-01', 'battery 28 fixture')
   RETURNING id)
 INSERT INTO b28 SELECT 'travis', id FROM p;
 INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note)
