@@ -2,7 +2,7 @@
 
 How far back a correction may reach, and what is given up. Invariants: CI-008 (the cap per jurisdiction), CI-091 (meter test history), the A-2 rulings R-19 to R-39 (Kyle, September). The rules the core evaluates are in `application/a2-rules-for-the-core.md`; the law rows are v5.4.2-18 (mirrored).
 
-**Where this stands for city systems.** -18's rows bind investor-owned and cooperative utilities only: Texas law (Utilities Code 101.003(7)) excludes a municipal corporation. For a city system the lookup refuses, because "unknown law is not permission" (-18 residual R2). A city's backbilling rule is a delegated law row plus the city's own tariff record, to be written with the backbilling tariff table (the rates stream's carried-over item). Neither source tariff (Brenham, Stinnett) states a backbilling rule. So SCN-0013 to 0018 use Gulf Plains, the regulated utility, where Texas law binds; SCN-0019 is the city case.
+**Where this stands for city systems.** -18's rows bind investor-owned and cooperative utilities only: Texas law (Utilities Code 101.003(7)) excludes a municipal corporation. For a city system the lookup refuses today, because "unknown law is not permission" (-18 residual R2). Kyle's answer of 2026-11-03 (answer 8) replaces that for a city whose ordinance is silent: refunds go back as far as the records show, and undercharges take a six-month platform default until the city records its own rule, citing its ordinance; a missing rule never holds back a refund. A city's own rule is a delegated law row plus its tariff record, to be written with the backbilling tariff table (the rates stream's carried-over item; board note). Neither source tariff (Brenham, Stinnett) states a backbilling rule. So SCN-0013 to 0018 use Gulf Plains, the regulated utility, where Texas law binds; SCN-0019 is the city case.
 
 **How the amounts are given.** How a test's error becomes dollars per bill is not ruled (A-2 residual R2): the amount for each billing period is an input to the correction. These scenarios test which periods the rules admit, not the conversion. The amounts are **invented**.
 
@@ -23,7 +23,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0013 — A slow meter: six months back from the test, a straddling month given up whole
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* where 16 TAC §7.45 binds, a slow meter's undercharge may be billed back the shorter of six months before the test or to the last test; a period straddling the window's start is given up whole; each period is judged on its own. While the window still reaches before the utility went live and there is no reliable earlier test, the charge needs a supervisor's approval. Sources: §7.45(7)(B)(v)(I); R-25 (per period, never netted), R-32 (forfeit whole), R-34/R-35 (the last test, any outcome; none means six months alone), R-36 (the approval gate; a2-rules §9).
 
 **Given** the common facts; the test finds the meter **slow**; there is no earlier test on record.
@@ -46,7 +46,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0014 — An earlier test shortens the window, whatever it found
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* as SCN-0013; the last test before the finding bounds the window, whatever its outcome. Sources: R-34 (no accuracy filter: "the last test of the meter"), R-35.
 
 **Given** SCN-0013, plus a test on **Mar 10, 2026** that found the meter accurate, recorded on the platform with its readings.
@@ -68,7 +68,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0015 — A fast meter: the refund includes the straddling month, and no setting shortens it
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* for a fast meter the refund is mandatory over the same window; a period straddling the window is included whole; no utility setting or operator choice shortens it. Sources: R-25, R-32 (only adverse periods are forfeited), R-37 (option C: no override in the customer's favour direction).
 
 **Given** SCN-0013, except the test finds the meter **fast**: each amount is owed to the customer. Gulf Plains has set its own two-month limit on backbilling (as in SCN-0016).
@@ -84,8 +84,8 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0016 — The utility's own limit gives up more of a charge, never of a refund
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* a utility may set a backbilling limit stricter than the law, applied only to charges against the customer; each period it excludes is given up with that reason. Sources: R-37(d); "a utility may be stricter than the law, never looser" (audit rule 5).
+*Status:* draft (2026-11-02); checked by Kyle 2026-11-03 and confirmed as written: April given up whole, $3.30 (answer 11).
+*Rule:* a utility may set a backbilling limit stricter than the law, applied only to charges against the customer; each period it excludes is given up with that reason, and a period straddling the utility's limit is given up whole, as at the law's window: one rule. Sources: Kyle 11-03, answer 11; R-37(d); "a utility may be stricter than the law, never looser" (audit rule 5).
 
 **Given** SCN-0013 (slow, no earlier test), and Gulf Plains' own limit of **two months**.
 
@@ -102,13 +102,13 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 | May 2026 – Jun 14, 2026 | $3.30 | billed | |
 
 - The customer is charged **$3.30**, after the same supervisor approval as SCN-0013.
-- **Open (Kyle):** the Apr period is given up whole at the utility's limit as the build does it (r7). Does "forfeit whole" govern the utility's own limit too, or only the law's window? (a2-rules §6.3, open.)
+- April is given up whole because it straddles the utility's limit (a2-rules §6.3, now settled).
 
 ---
 
 ### SCN-0017 — A charge and a refund in different months are not netted
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* direction is decided for each billing period by the sign of its correction, never netted across the case, so a time-barred charge cannot hide behind a refund; the utility's own limit cuts charges, never refunds. Sources: R-25; R-37(d) (the utility's limit applies to every cause, charges only).
 
 **Given**
@@ -132,7 +132,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0018 — Tampering reaches back without a window, but only with a supervisor and evidence
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* a tampering or bypass finding has no backbilling window under Texas law, and entering that cause needs a supervisor's approval and recorded evidence. Sources: §7.45(4)(D)(v) and the (4)(E)(vi) carve-out; R-39; a2-rules §3.3.
 
 **Given** GP-01's meter is found bypassed on Jun 20, 2026. The bypass is claimed to have begun Jan 1, 2025; the correction for each billed period from Jan 2025 to May 2026 is given per period (the meter registered some use throughout). Gulf Plains has set no limit of its own.
@@ -147,39 +147,40 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ---
 
-### SCN-0019 — A city system's backbilling follows its own tariff, which it must state
+### SCN-0019 — A city system's backbilling follows its own tariff, or a six-month default for charges while it is silent
 
-*Status:* draft (2026-11-02), not yet sent to Kyle. Written against the ruling; the tariff table is not built.
-*Rule:* Texas's backbilling rule does not bind a city-owned system; the city sets its own standard as a tariff record, and a correction is refused while no record states one. Sources: Utilities Code 101.003(7); -18 residual R2; "unknown law is not permission" (places finding 1); standing rule: a city system's policy is its own tariff row, or nothing.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; case (a) reworked to his answer 8. Written against the ruling; the tariff table and the default row are not built.
+*Rule:* Texas's backbilling rule does not bind a city-owned system; the city sets its own standard as a tariff record, citing its ordinance. While it has none, a refund reaches back as far as the records show, and a charge reaches back six months by platform default; a period straddling the default's start is given up whole (one rule, answer 11). Sources: Kyle 11-03, answers 8 and 11; Utilities Code 101.003(7); the standing rule: a city system's policy is its own tariff row, and the platform default only where it is silent.
 
 **Given** Bluebonnet City Gas (`cast.md` §2); customer BB-01; the slow-meter facts of SCN-0013 on Bluebonnet's meter. Bluebonnet's published tariff says nothing about backbilling.
 
-**When** the correction is evaluated (a) today; (b) after Bluebonnet records a tariff rule: "six months before the test, bounded by the last test, a straddling month given up whole" (**invented**: a city that chooses to copy the state's rule).
+**When** the correction is evaluated (a) with Bluebonnet's ordinance silent; (a′) the same, but the test finds the meter fast; (b) after Bluebonnet records a tariff rule: "six months before the test, bounded by the last test, a straddling month given up whole" (**invented**: a city that chooses to copy the state's rule).
 
 **Then**
-- **(a)** Refused: no rule binds a city-owned system, and none of Bluebonnet's own is on record. The refusal names what is missing.
+- **(a)** Billed under the six-month default, which the record cites: the window starts Dec 15, 2025; December straddles it and is given up whole; January – June 14 are billed, **$28.00** (SCN-0013's amounts, standing in for Bluebonnet's own).
+- **(a′)** Refunded as far back as the records show: every period the correction gives an amount for, here all seven, **$34.20**. No window cuts it, and nothing waits on Bluebonnet stating a rule.
 - **(b)** Given also the delegated law row for city-owned systems ("the city sets its own standard"; to be written with the tariff table), the same periods as SCN-0013 are billed (Bluebonnet's own amounts, at its own rates). The record cites Bluebonnet's tariff record and the delegated row, not the Texas rule.
-- In (a) a fast meter's refund is held back too: the refusal protects the customer from an uncited charge, but it also delays money owed to them. Kyle's answer below should cover both directions.
-- **Open (Kyle):** what do city systems actually do about backbilling when the ordinance is silent: bill back as far as the records go, follow the state's six months by habit, or something else? The answer decides what onboarding asks each city to state.
+- Onboarding asks each city whether its ordinance states a backbilling rule; the default stands until it records one.
+- **Open (Kyle, next batch):** in (a), is the six-month default counted back from the test, as Texas's is, and is it also cut short by an earlier test? Does a charge under it need the supervisor's approval when the window reaches before the city went live (SCN-0013)? Written here as counted from the test, with no earlier test on record.
 
 ---
 
 ### SCN-0031 — A backbilled charge sits in the aging like any debt, but can never ground a disconnection
 
-*Status:* draft (2026-11-02), not yet sent to Kyle. Written against the rulings: carrying the limit into collections is the collections family's (v5.4.2-26, not yet built).
-*Rule:* a meter-error charge under Texas law can never be the reason for a disconnection, however old it gets (enforceable scope "never"); that limit travels with the charge. Aging is balance-forward and shows the debt by age whatever its kind; a collection step reads the charge's limit, not its age bucket. Sources: §7.45(4)(E)(vi); F-1; a2-rules §6.4; aging as SCN-0023 (Kyle 10-15, K-05: oldest bill first).
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; variant (b) added to his answer 12 (gas first). Written against the rulings: carrying the limit into collections is the collections family's (v5.4.2-26, not yet built).
+*Rule:* a meter-error charge under Texas law can never be the reason for a disconnection, however old it gets (enforceable scope "never"); that limit travels with the charge. Aging is balance-forward and shows the debt by age whatever its kind; a collection step reads the charge's limit, not its age bucket. A partial payment goes first to what can ground a disconnection, and last to the backbilled charge ("protect the customer"). Sources: Kyle 11-03, answer 12; §7.45(4)(E)(vi); F-1; a2-rules §6.4; aging as SCN-0023 (Kyle 10-15, K-05: oldest bill first).
 
 **Given**
 - SCN-0013: GP-01's $28.00 slow-meter charge, approved and evaluated on Jul 6, 2026.
 - Gulf Plains issues bills on the 5th of the following month, due 16 days later (**invented**).
 - The July bill, issued Aug 5: July's gas $40.00 (**invented**) and the backbilling adjustment $28.00, as its own line carrying its limit: **$68.00**.
-- GP-01 pays $40.00 on Aug 18.
+- GP-01 pays (a) $40.00 or (b) $28.00 on Aug 18.
 - The August bill, issued Sep 5, due Sep 21: **$42.00**, unpaid.
 
 **When** GP-01's account is read on Oct 1: its aging, and what may ground a disconnection notice.
 
 **Then**
-- Balance **$70.00**, aged:
+- **(a)** The $40.00 pays July's gas. Balance **$70.00**, aged:
 
 | Bucket | Amount | From |
 |---|---|---|
@@ -187,4 +188,4 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 | 31–60 days | $28.00 | what is left of the July bill, 57 days |
 
 - What may ground a disconnection: the August bill's $42.00, now past due. The $28.00 never can, though it is older; it can still be billed, reminded and collected by other means.
-- **Open (Kyle):** the $40.00 payment is taken here as covering July's gas, leaving the backbilling line unpaid. Had GP-01 paid only $28.00, does it go to the backbilling line or to July's gas? If to the backbilling line first, the $40.00 of ordinary gas stays unpaid and GP-01 can be cut off for it; if to the ordinary gas first, only $12.00 can. The order within a bill decides how much the protection is worth to the customer.
+- **(b)** The $28.00 goes to July's gas first, leaving $12.00 of it and the whole $28.00 backbilling line. Balance **$82.00**, aged: 0–30 days $42.00 (the August bill); 31–60 days $40.00 (what is left of the July bill). What may ground a disconnection: $42.00 and July's **$12.00**; the $28.00 never can. Applied to the backbilling line first instead, $40.00 of July would be disconnectable: that order is refused.

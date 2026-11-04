@@ -2,7 +2,7 @@
 
 How a wrong bill is undone and replaced. Invariants: CI-007 (the rate basis of a correction is stated), CI-017 (every reversal names what it undoes), CI-110 (a closed period never reopens), CI-016 (line arithmetic). Schema at parity for these; what happens to a payment already applied to the voided bill belongs to the cash family and is written after -23 mirrors.
 
-**Common to every scenario here.** Bluebonnet City Gas (`cast.md` §2), customer BB-01 (homeowner inside the city, schedule R-U). Rates before Oct 1 are $11.80 a month and $2.75 per Mcf (**invented**, as in SCN-0001); from Oct 1, $12.80 and $2.96 (the cast's). Commodity charge $5.35 per Mcf. Gas cost adjustment, a charge per Mcf: $0.30 on the September cycle, $0.42 on the October and November cycles (**invented**). City sales tax on residential gas 1% on every gas line (**invented**; cast question 4). Four-decimal working figures, half-up to the cent on each line (Kyle 10-15, K-06).
+**Common to every scenario here.** Bluebonnet City Gas (`cast.md` §2), customer BB-01 (homeowner inside the city, schedule R-U). Rates before Oct 1 are $11.80 a month and $2.75 per Mcf (**invented**, as in SCN-0001); from Oct 1, $12.80 and $2.96 (the cast's). Commodity charge $5.35 per Mcf. Gas cost adjustment, a charge per Mcf: $0.30 on the September cycle, $0.42 on the October and November cycles (**invented**). City sales tax on residential gas 1%, inside the city limits, on every gas line, all of which Bluebonnet flags taxable (**invented**; Kyle 11-03, answer 4). Four-decimal working figures, half-up to the cent on each line (Kyle 10-15, K-06).
 
 The reference bill, used below: **the November bill**, period Oct 15 – Nov 13, read 6.0 Mcf:
 
@@ -19,7 +19,7 @@ The reference bill, used below: **the November bill**, period Oct 15 – Nov 13,
 
 ### SCN-0002 — A misread found after the bill posted is voided and rebilled
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* a posted bill is corrected by voiding it, which reverses its charge, and issuing a correction bill that names the voided one. Sources: every reversal names what it undoes; a correction names the bill it replaces, which must be void (Ryan 10-14, CI-017); a void of a posted bill reverses its charge (Ryan 10-14).
 
 **Given**
@@ -52,12 +52,13 @@ The customer's ledger:
 
 - The voided bill stays readable as issued; nothing on it is edited.
 - A correction bill naming a bill that is not void is refused.
+- A keying error is flagged to the operator, who chooses how it is corrected: by rebilling (void and rebill here, since the bill is unpaid; credit and rebill if it were paid) or by keeping the keyed read as the next bill's starting read and letting the next read catch up (Kyle 11-03, answer 7). This scenario is the rebill path; the choice, who made it and why are recorded. SCN-0027 (b) tests both paths.
 
 ---
 
 ### SCN-0003 — A bill held before issue is voided: nothing posts
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* voiding a bill that was held and never issued posts nothing, and its replacement is an ordinary bill, not a correction: a correction may only replace a bill that was issued and then voided. Sources: Ryan 10-14 (CI-017, the void): the line is posting, not mailing; a held bill's void posts nothing (this reversed the earlier behaviour, which credited it); v5.4.2-10 (a correction names a bill that is void and was once issued).
 
 **Given**
@@ -76,12 +77,12 @@ The customer's ledger:
 
 ### SCN-0004 — A void after a partial reversal reverses only what is left
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* reversals against a charge total at most the charge; a void reverses what is left after earlier reversals, and a charge already fully reversed voids with no ledger entry. Sources: Kyle 10-15 (R-02); v5.4.2-21 drafting 10-15 (the void reverses the remainder).
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
+*Rule:* reversals against a charge total at most the charge; a void reverses what is left after earlier reversals, and a charge already fully reversed voids with no ledger entry. A courtesy credit the void absorbed carries onto the correction bill by default; if it was given because of the very error being corrected, it is queued for an operator to review instead. Sources: Kyle 10-15 (R-02); v5.4.2-21 drafting 10-15 (the void reverses the remainder); Kyle 11-03, answer 9 (the courtesy carries).
 
 **Given**
 - The reference bill posted on Nov 16 for $65.83.
-- On Nov 18 a supervisor approves a $10.00 courtesy reversal against that bill's charge (reason recorded; **invented** example).
+- On Nov 18 a supervisor approves a $10.00 courtesy reversal against that bill's charge, for a late service call (reason recorded; **invented** example), not for the misread.
 - On Nov 20 the read is found wrong, as in SCN-0002.
 
 **When** the operator voids the bill and issues the correction for 4.5 Mcf.
@@ -94,16 +95,17 @@ The customer's ledger:
 | Courtesy reversal | −$10.00 | the charge entry |
 | Void reversal | −$55.83 | the charge entry: what was left |
 | Correction bill charge | +$52.61 | — |
-| **Balance** | **$52.61** | |
+| Courtesy carried | −$10.00 | the correction bill's charge entry, and the Nov 18 courtesy it carries |
+| **Balance** | **$42.61** | |
 
 - A further reversal of any amount against the November charge is refused: nothing is left.
-- **Open (Kyle):** should the $10.00 courtesy be carried onto the correction bill? As written it is lost, because the void absorbs it. Under the rule as it stands, the operator would re-grant it against the correction.
+- Had the courtesy been given for the misread itself (a customer complaint about the high bill, say), it is not carried: it is queued for an operator, who decides, and the balance stays $52.61 until then.
 
 ---
 
 ### SCN-0005 — A correction to a bill in a closed period posts into the open period
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* a closed accounting period never reopens; the void and the correction post into an open period, and the closed period's figures stay as closed. Sources: v5.4.2-22 as drafted and reviewed 10-15/16 (a closed period never reopens; money dated inside one is refused).
 
 **Given**
@@ -142,8 +144,8 @@ The customer's ledger:
 
 ### SCN-0006 — A correction must state its rate basis; the two bases give different bills
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* every correction run records whether it rebills at the original period's rates (historical), today's (current) or a stated date (custom); a run with no stated basis is refused; and a gas correction must use the original period's rates. Sources: CI-007 (structurally enforced; the parity measurement); CI-005 (a cancel-rebill uses the original period's world); Kyle 06-12 (DE-3, GBM `configurable-rules/de-review-answers.md`): gas corrections rate at the historical period, "current" is for non-gas services only.
+*Status:* draft (2026-11-02); checked by Kyle 2026-11-03 and confirmed as written (answer 5).
+*Rule:* every correction run records whether it rebills at the original period's rates (historical), today's (current) or a stated date (custom); a run with no stated basis is refused; and a gas correction must use the original period's rates, at a city system as well as where Texas law binds (the platform default; a target's override stays). Sources: Kyle 11-03, answer 5; CI-007 (structurally enforced; the parity measurement); CI-005 (a cancel-rebill uses the original period's world); Kyle 06-12 (DE-3, GBM `configurable-rules/de-review-answers.md`): gas corrections rate at the historical period, "current" is for non-gas services only.
 
 **Given** SCN-0005's facts.
 
@@ -154,24 +156,25 @@ The customer's ledger:
 - **Historical:** $45.85, as in SCN-0005.
 - **Current:** refused, because this is a gas correction. (Had it been allowed, the November world would have charged $48.20: $12.80, 4.0 × $2.96 = $11.84, $21.40, 4.0 × $0.42 = $1.68, tax 1% × $47.72 = $0.48, which is $2.35 more than the original period's rates. That difference is what the rule protects against.)
 - The schema records the basis; the refusal of "current" for gas is the core's (Kyle's DE-3 proposed a guard; it is not yet an invariant in GBM's canonical list).
-- **Open (Kyle):** DE-3 was framed as protecting a correction the Railroad Commission mandates. Since the October rulings, that Commission's customer-service rule does not bind a city-owned system like Bluebonnet. Does the "historical only" guard still apply to city systems as a platform rule, or should each city's tariff choose?
+- Bluebonnet is a city system, which the Commission's customer-service rule does not bind; the guard applies anyway as the platform default (Kyle 11-03, answer 5).
 
 ---
 
-### SCN-0027 — A correction that charges more passes only as a price fix with the same usage
+### SCN-0027 — A correction that charges more passes as a price fix, or as a keying fix the operator chose
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* a bill that charges more for days already billed is refused unless it is a correction naming the voided bill, its cause is recorded, and under the law row for that cause it may travel by void and reissue. Under Texas law only a rate misapplication may, and only for the same period and exactly the same usage ("correct units, wrong price"). A correction that charges less needs no cause. Sources: R-33 (a bill computed wrong is not a meter that measured wrong); R-39 (rate misapplication is not a catch-all for billing errors); R-19 (the cause is recorded on the correction); a2-rules §12; the Texas rows of v5.4.2-18 (rate misapplication: delivered by reissue, usage unchanged, enforceable for six months).
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03. Case (b) reworked to his answer 7; the Texas law row (v5.4.2-18) still lets only a rate misapplication travel by reissue, and revisiting it for keying errors is the rates stream's (board note).
+*Rule:* a bill that charges more for days already billed is refused unless it is a correction naming the voided bill, its cause is recorded, and the cause may travel by void and reissue. Under Texas law a rate misapplication may, for the same period and exactly the same usage ("correct units, wrong price"). A human keying error may too, even when it adds usage: the system flags it to the operator, who chooses either to keep the keyed read as the next bill's starting read and let the next read catch up, or to rebill (credit and rebill if paid, void and rebill if unpaid). The choice, who made it and why are recorded, there is no size threshold, and whichever path is chosen the missed usage is billed exactly once. A correction that charges less needs no cause. Sources: Kyle 11-03, answer 7 and flag 3; R-33 (a bill computed wrong is not a meter that measured wrong); R-39 (rate misapplication is not a catch-all for billing errors); R-19 (the cause is recorded on the correction); a2-rules §12; the Texas rows of v5.4.2-18 (rate misapplication: delivered by reissue, usage unchanged, enforceable for six months).
 
 **Given**
 - Gulf Plains Gas Company (`cast.md` §3), GP-01, residential, in the unincorporated area, where Texas law binds.
 - Gulf Plains' residential rate, **invented for this scenario** (its tariff is not drafted): $15.00 a month and $4.10 per Mcf from Jan 1, 2026; $14.00 and $3.80 before. No tax line (**invented**).
 - The February bill (Feb 1–28, read 5.0 Mcf) was issued and posted Mar 5, priced by mistake at the 2025 rates: $14.00 + 5.0 × $3.80 = $19.00, **$33.00**. Unpaid.
 - On Apr 10 the mistake is found and the February bill is voided.
+- For (b) only: the register read Feb 1 was 1,000.0 Mcf; the Feb 28 read was keyed 1,005.0 for a true 1,005.5; the Mar 31 read was 1,009.5 (**invented**). The March bill (Mar 1–31), issued Apr 5 from the keyed Feb 28 read, billed 4.5 Mcf: $15.00 + 4.5 × $4.10 ($18.45) = **$33.45**, unpaid. True usage: February 5.5 Mcf, March 4.0 Mcf.
 
 **When** the replacement is issued in each of these ways:
 - (a) a correction naming the voided bill, cause "rate misapplication", Feb 1–28, 5.0 Mcf, at the original period's rates;
-- (b) as (a), but billing 5.5 Mcf, because the read is also found keyed low;
+- (b) as (a), and the Feb 28 read is also found keyed low, the operator choosing (b1) to catch up or (b2) to rebill;
 - (c) as (a), with no cause recorded;
 - (d) an ordinary February bill, not a correction, for the same amount as (a).
 
@@ -192,37 +195,40 @@ The customer's ledger:
   | **Balance** | **$35.50** | |
 
   The extra $2.50 carries the law's limit on collection for this cause: it may ground a disconnection for six months only (R-20, §7.45(4)(E)(v)).
-- **(b)** refused: a rate-misapplication correction must bill exactly the usage of the bill it replaces. More usage cannot travel by reissue under any cause.
+- **(b)** the keying error is flagged to the operator before the correction is issued.
+  - **(b1) catch up:** the correction bills 5.0 Mcf, **$35.50**, as (a). The keyed 1,005.0 stays the March bill's starting read, so the March bill's 4.5 Mcf ($33.45) already carries the missed 0.5 Mcf. Nothing else changes.
+  - **(b2) rebill:** the correction bills 5.5 Mcf, causes rate misapplication and keying error: $15.00 + 5.5 × $4.10 ($22.55) = **$37.55**. The March bill's starting read becomes 1,005.5, so March is voided and rebilled at 4.0 Mcf: $15.00 + 4.0 × $4.10 ($16.40) = **$31.40** (a decrease, so no cause gate).
+  - Either way February and March together bill 9.5 Mcf, **$68.95**. A 5.5 Mcf February correction that leaves March starting from the keyed read is refused: it would bill the 0.5 Mcf twice.
+  - The operator's choice, its maker and its reason are on the record of each path.
 - **(c)** refused: an increase needs its cause.
 - **(d)** refused: it charges more than the voided bill for the same days, and an ordinary bill carries no cause. (The same bill at $33.00 or less would be accepted.)
-- **Open (Kyle):** under (b), how is gas that was billed short because the read was keyed low corrected upward? It is not a meter that measured wrong, so not a backbilling adjustment, and the reissue path refuses more usage. None of the backbilling causes in the rulings fits "the reader keyed too low". Is it billed as a later read catching up, as an adjustment on the next bill, or something else?
+- **Open (Kyle, next batch):** (a)'s extra $2.50 may ground a disconnection for six months only. Does the extra 0.5 Mcf in (b2), billed for a keying error, carry the same limit, or none?
 
 ---
 
-### SCN-0028 — At a city system, an upward correction has no rule to travel by
+### SCN-0028 — At a city system with no stated rule, an upward correction takes the six-month default
 
-*Status:* draft (2026-11-02), not yet sent to Kyle. Written against the ruling; the backbilling tariff table is not built.
-*Rule:* as SCN-0027; the cause must resolve to a law row, and no Texas row binds a city-owned system. Until the city records its own rule, an increase is refused, while a decrease is not gated. Sources: as SCN-0027; Utilities Code 101.003(7); "unknown law is not permission"; SCN-0019.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03 (one display fix applied). Reworked to his answer 8. Written against the ruling; the backbilling tariff table and the platform's default row are not built (the rates stream's; board note).
+*Rule:* as SCN-0027; no Texas row binds a city-owned system. Where the city's ordinance says nothing, an undercharge may be corrected back six months by platform default, and the city may replace that by recording its own rule, citing its ordinance; a decrease is not limited at all. Sources: Kyle 11-03, answer 8; as SCN-0027; Utilities Code 101.003(7); SCN-0019.
 
 **Given**
 - Bluebonnet City Gas (`cast.md` §2), BB-01, with the facts in this file's common section.
-- The November bill (Oct 15 – Nov 13, 6.0 Mcf) was issued Nov 16, priced by mistake at the pre-Oct 1 R-U rates: $11.80 + 6.0 × $2.75 = $16.50 + $32.10 + $2.52 = $62.92; tax 1% × $62.92 = $0.63; **$63.55**.
+- The November bill (Oct 15 – Nov 13, 6.0 Mcf) was issued Nov 16, priced by mistake at the pre-Oct 1 R-U rates: $11.80 + 6.0 × $2.75 ($16.50) + $32.10 + $2.52 = $62.92; tax 1% × $62.92 = $0.63; **$63.55**.
 - On Nov 20 the mistake is found and the bill voided.
 
-**When** the correction is issued, naming the voided bill, cause "rate misapplication", 6.0 Mcf: (a) today; (b) after Bluebonnet records a tariff rule copying Texas's rate-misapplication row (**invented**, as SCN-0019 b), with the delegated law row for city systems.
+**When** the correction is issued, naming the voided bill, cause "rate misapplication", 6.0 Mcf: (a) with Bluebonnet's ordinance silent; (b) after Bluebonnet records a tariff rule copying Texas's rate-misapplication row, citing its ordinance (**invented**, as SCN-0019 b), with the delegated law row for city systems.
 
 **Then**
-- **(a)** refused: no rule says how a rate misapplication may be corrected at a city-owned system. The refusal names what is missing. The November bill stays voided until a correction is issued, so BB-01 owes nothing for November in the meantime.
-- **(b)** issued: the reference bill, **$65.83**, $2.28 more than the voided bill. The record cites Bluebonnet's tariff record and the delegated row.
-- By contrast, SCN-0002 and SCN-0005 (corrections that charge less) pass at Bluebonnet today: a decrease is not gated, because it can't be told apart from an honest misread correction (a2-rules §12.3).
-- **Open (Kyle):** together with SCN-0019's question: when a city's ordinance is silent, can it correct an undercharge at all, and how far back? Onboarding would ask each city to state it.
+- **(a)** issued: the reference bill, **$65.83**, $2.28 more than the voided bill. The November period is well inside six months, so the platform default admits it; the record cites the default, not a Bluebonnet rule.
+- **(b)** issued: the same **$65.83**. The record cites Bluebonnet's tariff record and the delegated row instead of the default.
+- SCN-0002 and SCN-0005 (corrections that charge less) pass at Bluebonnet either way: a decrease is never limited by the default.
 
 ---
 
 ### SCN-0030 — Correcting a bill that straddled a rate change, after its month has closed
 
-*Status:* draft (2026-11-02), not yet sent to Kyle. Depends on SCN-0001's split rule (cast question 1).
-*Rule:* as SCN-0005 and SCN-0006: the correction posts into the open period and rates at the original period's world. For a period that straddled a rate change, that world is both rates, split as the original bill split them. Sources: CI-005 (a cancel-rebill uses the original period's world); CI-110; Kyle 06-12 (DE-3); SCN-0001.
+*Status:* draft (2026-11-02); checked by Kyle 2026-11-03 and confirmed as written: $55.90 (answer 6).
+*Rule:* as SCN-0005 and SCN-0006: the correction posts into the open period and rates at the original period's world. For a period that straddled a rate change, that world is both rates, split as the original bill split them: a correction repeats the original bill's rate method and changes only what was wrong. Sources: Kyle 11-03, answer 6 (DE-3's "period end" was shorthand); CI-005 (a cancel-rebill uses the original period's world); CI-110; Kyle 06-12 (DE-3); SCN-0001.
 
 **Given**
 - SCN-0001's October bill: Sep 15 – Oct 14, 6.0 Mcf, split by days across the Oct 1 rate change, issued and posted Oct 15, **$64.61**.
@@ -246,4 +252,4 @@ The customer's ledger:
 | **Total** | | **$55.90** |
 
 - The void (−$64.61, naming the Oct 15 charge) and the correction (+$55.90) are dated Dec 3, in December. October's closed figures are unchanged.
-- **Open (Kyle):** your 06-12 proposal (DE-3) says a gas correction rates at "the voided invoice's period end". For this bill that is a single date, Oct 14, which puts the whole period at the new rates: $12.80 + 5.0 × $2.96 = $14.80 + $26.75 + $2.10 = $56.45, tax $0.56, **$57.01**. That is $1.11 more than repeating the original split. Did you mean the period-end date, or the original bill's rates however they were split?
+- Not $57.01: rating the whole period at the Oct 14 rates ($12.80 + 5.0 × $2.96 ($14.80) + $26.75 + $2.10 = $56.45, tax $0.56) is not the historical basis: it would change the rate method as well as the usage. A test expecting $57.01 is wrong.

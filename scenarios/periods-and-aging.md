@@ -8,7 +8,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0020 — Closing a period: only a supervisor, only after the last day has ended everywhere, only in order
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* closing a period is irreversible, so it is a supervisor's act; it is allowed only once the period's last day has ended in every time zone (UTC−12), and periods close in order. Sources: -22 drafting calls 2 and 3 (10-15); "a closed period never reopens".
 
 **Given** September and October 2026 are open.
@@ -29,7 +29,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0021 — A payment received in a closed month is recorded in the open one, keeping the customer's date
 
-*Status:* draft (2026-11-02), not yet sent to Kyle. Payments belong to the cash family (-23 in review); this tests only the freeze and the customer's date, which -19 and -22 built.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03. Payments belong to the cash family (-23 in review); this tests only the freeze and the customer's date, which -19 and -22 built.
 *Rule:* money dated inside a closed period is refused; the customer's own payment date is kept separately for the customer's rights, such as whether the payment was on time, by the method the utility's tariff states. Sources: -22 (the freeze on the payment date, the ledger date and the credit date); -19 (the customer-initiation date and its method); CI-058 (the method varies by place); Bluebonnet's method is the cast's, **invented**: postmark for mail.
 
 **Given** September is closed (SCN-0020 d). On Oct 14 a clerk finds BB-01's check for $54.34 in a misrouted mail tray, postmarked Sep 27.
@@ -44,7 +44,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0022 — The close snapshot does not change when a later correction reaches back
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* the close records the period's activity by entry type and its aging by bucket at one instant, and later writes never change it; unbilled revenue is reported with its basis, or omitted, and is never a ledger entry. Sources: -22 S1, S2, drafting call 4; D-2.
 
 **Given**
@@ -63,7 +63,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0023 — Aging is balance-forward: the balance is aged newest first
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* each entry is netted with the reversals that name it; the balance left is aged newest first, the debt-side view of paying the oldest bill first. Sources: -22 drafting call 5; Kyle 10-15 (K-05: oldest bill first); Ryan 10-13 (the balance is summed from the ledger, not stored).
 
 **Given** BB-01's ledger (no late penalty was assessed on the July and August bills: **invented**, to keep the ledger short):
@@ -90,31 +90,31 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ---
 
-### SCN-0024 — A corrected old bill ages from the correction's date
+### SCN-0024 — A corrected old bill keeps its age; only an increase ages from the correction
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
-*Rule:* as SCN-0023. A void nets out the entry it names; the correction is a new entry and ages from its own date. Sources: as SCN-0023; CI-017 (the correction names the voided bill).
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; reworked to his answer 10.
+*Rule:* as SCN-0023. A void nets out the entry it names; the correction is a new entry that carries an aging date apart from its posting date. What was already owed keeps its original age; a decrease reduces the old aged amount; any increase ages from the correction's date, with a new due date. Sources: Kyle 11-03, answer 10; as SCN-0023; CI-017 (the correction names the voided bill).
 
 **Given** SCN-0023's ledger, plus SCN-0005's correction: on Nov 20 the September bill is voided (−$54.34, naming the Sep 18 entry) and corrected (+$45.85).
 
 **When** the aging is read as of Nov 25.
 
 **Then**
-- Balance: **$130.06**. The September entry nets to zero with its void.
+- Balance: **$130.06**. The September entry nets to zero with its void. The correction is a decrease ($54.34 to $45.85), so all of it keeps the September bill's age: posted Nov 20, aged from Sep 18.
 
 | Bucket | Amount | From |
 |---|---|---|
-| 0–30 days | $45.85 | the correction, 5 days |
 | 31–60 days | $64.61 | the October bill, 41 days |
+| 61–90 days | $45.85 | the correction, aged from Sep 18: 68 days |
 | 91–120 days | $19.60 | what is left of the August bill, 102 days |
 
-- **Open (Kyle):** the corrected September usage now reads as current debt, though the service is three months old. Should a correction bill age from the date of the bill it replaces? It changes when an account reaches collections.
+- Had the correction been an increase, to $60.00 say, $54.34 would keep the Sep 18 age and $5.66 would age from Nov 20 (0–30 days, 5 days), with its own due date.
 
 ---
 
 ### SCN-0025 — GL mapping: a fixed order of precedence, and an export refuses an unmapped line
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* GL account mapping is the utility's dated configuration, keyed by the charge (its kind of bill line, one-off charge or ledger entry, and its code), customer class, territory and tax jurisdiction, each of which may be left open. Where several mappings fit a line, the one that names the charge wins over one that names the class, which wins over territory, which wins over tax jurisdiction. Two mappings with the same key and overlapping dates are refused when entered. An export refuses a line with no mapping, but the bill still posts. No mapping may start or end inside a closed period. Sources: -22 G1–G4 and drafting call 7 (`gl_mapping_as_of`: weights 8, 4, 2, 1); D-2 (GL mapping is tenant configuration).
 
 **Given** Bluebonnet's mappings from Jan 1, 2026 (account numbers **invented**). The kinds of bill line are the platform's: a customer charge is a base charge; distribution is a usage charge; the commodity charge and the gas cost adjustment are per-unit surcharges (**invented** classification for this tariff; cast question 7); city sales tax is a tax line.
@@ -140,7 +140,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0026 — A recovery after a write-off names it, and recoveries never exceed what was written off
 
-*Status:* draft (2026-11-02), not yet sent to Kyle.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
 *Rule:* a write-off recovery must name the write-off it reverses, give a reason and carry the opposite sign; the net of the write-off and everything under it stays between zero and the amount written off, at every date. Sources: -22 W3; review rounds 2 and 3 (the cap on the whole tree, at every date and instant); Kyle 10-15 (R-02: reversals against an entry total at most the entry).
 
 **Given** BB-02 moved out owing $120.00. Bluebonnet writes it off on Dec 31, 2026: a write-off entry of −$120.00.

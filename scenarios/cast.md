@@ -21,18 +21,18 @@ Modelled on **Stinnett** (fee schedule A7.000, ordinance 339-26 of 2/11/2026). A
 | Gas cost | the city's purchase price per Mcf, set monthly | Stinnett ("adjusted monthly as necessary") |
 | Inside / outside city | same rate | Stinnett (no split) |
 | Due | the 1st of the month | Stinnett |
-| Late penalty | 10% of the amount due if not paid in full by the 1st | Stinnett |
+| Late penalty | 10% of the amount due if not paid in full by the 1st: the whole amount due, not the current bill only, because the tariff says so (Kyle 11-03, answer 3 and flag 2) | Stinnett |
 | Cut-off | unpaid at 1:00 p.m. on the 10th: a $20 service charge is added and service is cut off | Stinnett |
-| Deposit | residential $100, commercial $200; an extra $125 after a second disconnection for nonpayment | Stinnett |
+| Deposit | residential $100, commercial $200; an extra $125 after a second disconnection for nonpayment, as a top-up of the one deposit balance; the two disconnections are counted over a rolling 12 months; reconnection is not held for it, since the tariff doesn't say so (Kyle 11-03, answer 15) | Stinnett |
 | Deposit refund | not stated in the source. **(invented)** At move-out the deposit pays the final bill and the rest is returned; no refund while service continues | — |
 | Deposit interest | not stated in the source; **none (invented)**; no state floor binds a city system | — |
 | Returned check | $25, plus $7 certified mail; a $20 late fee if after the 10th | Stinnett |
 | Reconnect | $30 in office hours, $45 after | Stinnett |
 | Meter re-read | free once a calendar year, otherwise $5, waived if the city's read was wrong | Stinnett |
-| Senior deposit | $40 for a customer aged 65 or over | borrowed from **Sealy** |
+| Senior deposit | $40 for a customer aged 65 or over; $100 until a date of birth is on file (Kyle 11-03, answer 16) | borrowed from **Sealy** |
 | Local sales tax on residential gas | **not adopted (invented)** | Tax Code §321.105 makes it the city's choice |
-| Pipeline safety fee | **not billed (invented)** | 16 TAC §8.201 lets the operator recover it; the source is silent |
-| Rate change partway through a period | **not stated in the source** (open, see below) | — |
+| Pipeline safety fee | **not billed (invented)**: the city absorbs it, so it never appears on a bill (Kyle 11-03, answer 2) | 16 TAC §8.201 lets the operator recover it; the source is silent |
+| Rate change partway through a period | **not stated in the source**; the city states the method (split by days, by read date, or by cycle) each time it enters a rate change, with no default (Kyle 11-03, answer 1) | — |
 
 ## 2. Bluebonnet City Gas — the larger system
 
@@ -54,21 +54,21 @@ Modelled on **Brenham** (tariff section 500, effective 10/1/2026). About **5,000
 | Item | Bluebonnet's tariff | Source |
 |---|---|---|
 | Unit | Mcf | Brenham |
-| Gas cost | a fixed **commodity charge of $5.35 per Mcf** on every schedule, plus a monthly **gas cost adjustment** per Mcf that can be a charge or a credit | Brenham sheet 595 |
+| Gas cost | a fixed **commodity charge of $5.35 per Mcf** on every schedule, plus a monthly **gas cost adjustment** per Mcf that can be a charge or a credit; the adjustment is set at month end and applies to the whole billing month, never split, and is fixed once locked (Kyle 11-03, answer 1) | Brenham sheet 595 |
 | Minimum bill | the customer charge, every month, even while service is off for the summer | Brenham |
 | Due | 15 days after the bill is issued; a weekend or holiday due date moves to the next workday | Brenham |
 | When a payment counts as made | **the postmark for mail, the sent date for electronic payments (invented)**; the source is silent, and the method varies by place (CI-058) | — |
-| Late penalty | rates are "net"; the "gross" rate for a late payment is 10% higher | Brenham |
+| Late penalty | rates are "net"; the "gross" rate for a late payment is 10% higher, on the current bill only, charged once (the platform default where the tariff doesn't say otherwise; Kyle 11-03, answer 3) | Brenham |
 | Delinquency | an unpaid bill on the due date makes all the customer's city services delinquent | Brenham (the platform bills gas only; see open questions) |
 | Deposit | homeowner $150; renter $250; landlord $300; commercial twice the highest monthly bill, at least $300 | Brenham |
-| Deposit refund | as a bill credit after 12 months with no returned checks, no disconnect notice and no more than two late penalties. The source adds: "It is also refunded if no bill is past due" (see question 6). Applied to the final bill at disconnection | Brenham |
+| Deposit refund | two routes only (Kyle 11-03, answer 13): (a) after 12 months with no returned checks, no disconnect notice, no more than two late penalties in a rolling 12 months (answer 14) and no bill past due, credited to future bills, or by check if the customer asks; (b) at disconnection, applied to what is owed and the rest refunded, the customer owing any shortfall. The source's "It is also refunded if no bill is past due" is a condition of route (a), not a third route | Brenham |
 | Deposit interest | not stated in the source; **none (invented)** | — |
 | Turn on or off at the customer's request | $50, plus $25 after hours | Brenham |
 | Pilot relight | $15, or $30 after hours | Brenham |
 | Taxes | "all taxes applicable to the sale of natural gas, excluding gross receipts taxes" | Brenham |
-| Local sales tax on residential gas | **adopted, city rate 1% (invented)**; it applies inside the city limits only | Tax Code §321.105 |
-| Pipeline safety fee | **billed once a year, $1.00 per service line, on the March bill, not to state agencies (invented timing)** | 16 TAC §8.201 |
-| Rate change partway through a period | **not stated in the source** (open, see below); the 2021 release ties a change to "the October utility billing cycle" | Brenham news release 2021 |
+| Local sales tax on residential gas | **adopted, city rate 1% (invented)**; it applies inside the city limits only, on the lines the city flags taxable (Kyle 11-03, answer 4); Bluebonnet flags every gas line (**invented**) | Tax Code §321.105 |
+| Pipeline safety fee | **billed once a year, $1.00 per service line, on the March bill, not to state agencies (invented timing)**: added only in the month the city passes it on, within §8.201's limits (Kyle 11-03, answer 2) | 16 TAC §8.201 |
+| Rate change partway through a period | **not stated in the source**; the city states the method each time it enters a rate change, with no default (Kyle 11-03, answer 1); the 2021 release ties a change to "the October utility billing cycle" | Brenham news release 2021 |
 
 ---
 
@@ -106,12 +106,12 @@ Fremont's rows so far (all **invented**):
 
 ## Questions the real tariffs raise (for Kyle)
 
-None of the five tariffs read publishes these; the scenarios need an answer, or a rule that the tariff must state one. Questions 1–4 and 6 go to Kyle with the first batch of worked bills (Ryan, 2026-11-02); question 5 is raised with Ryan when collections scenarios start (after -26 mirrors); question 7 is a schema question for Ryan.
+None of the five tariffs read publishes these; the scenarios need an answer, or a rule that the tariff must state one. **Questions 1–4 and 6 were sent to Kyle on Nov 2 and answered on Nov 3** (GBM `application/kyle-decisions-2026-11-03-scenario-batch-1.md`; his standing rule: always follow the tariff, and the platform default applies only where it is silent); the answers are folded into the tables above. Question 5 is raised with Ryan when collections scenarios start (after -26 mirrors); question 7 is a schema question for Ryan.
 
-1. **A rate change partway through a billing period.** No tariff says. Brenham's 2021 release suggests the whole bill goes at the new rates from the first billing cycle after the change. What do city systems do in practice: whole bill by cycle, by read date, or split by days? And if a tariff doesn't say, should the platform refuse to bill the straddling period until the utility states its policy? Second half: is a city's monthly gas cost adjustment a figure per billing cycle (never split), or a dated factor that splits by days like a rate?
-2. **The pipeline safety fee.** Do city systems bill it, and on which bill?
-3. **The 10% late penalty.** Is it on the current bill only, or on the whole amount due (previous balance and taxes too)?
-4. **Local sales tax on residential gas, where a city adopts it.** Is the base every gas line (customer charge, distribution, gas cost), and is it charged outside the city limits on a rural schedule?
+1. *Answered (Kyle 11-03, 1): the method is stated when the rate change is entered, no default; the gas cost adjustment is one locked figure per billing month, never split.* **A rate change partway through a billing period.** No tariff says. Brenham's 2021 release suggests the whole bill goes at the new rates from the first billing cycle after the change. What do city systems do in practice: whole bill by cycle, by read date, or split by days? And if a tariff doesn't say, should the platform refuse to bill the straddling period until the utility states its policy? Second half: is a city's monthly gas cost adjustment a figure per billing cycle (never split), or a dated factor that splits by days like a rate?
+2. *Answered (2): only in the month the city passes it on.* **The pipeline safety fee.** Do city systems bill it, and on which bill?
+3. *Answered (3): the current bill only by default; the tariff's wording wins.* **The 10% late penalty.** Is it on the current bill only, or on the whole amount due (previous balance and taxes too)?
+4. *Answered (4): inside city limits only, on the lines flagged taxable.* **Local sales tax on residential gas, where a city adopts it.** Is the base every gas line (customer charge, distribution, gas cost), and is it charged outside the city limits on a rural schedule?
 5. **The combined city bill.** These systems bill gas with water, sewer and trash, and an unpaid bill puts every service at risk. The platform bills gas only at first (Ryan, 2026-10-02). How should a scenario treat a customer whose gas is paid but whose water is not? (This one may be Ryan's, as a product question.)
-6. **Brenham's second refund route.** "It is also refunded if no bill is past due." Read literally, almost every customer qualifies at twelve months and the late-penalty limit does nothing. Does it mean at twelve months, or at disconnection?
+6. *Answered (13): a condition of the twelve-month route, not a route of its own.* **Brenham's second refund route.** "It is also refunded if no bill is past due." Read literally, almost every customer qualifies at twelve months and the late-penalty limit does nothing. Does it mean at twelve months, or at disconnection?
 7. **Bill lines billed in Mcf.** The platform's rule for bill lines (Ryan 10-14, CI-016) requires every gas usage line to carry a meter factor, hundreds of cubic feet used, therms billed and a commodity rate. Both source tariffs bill per Mcf with no therm conversion, and carry the gas cost as its own line. (This one is a schema question for Ryan, not for Kyle.)
