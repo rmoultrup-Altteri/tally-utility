@@ -35,4 +35,4 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 - Had the Oct 1 rate change been entered with no method, it is refused when entered; no bill is ever held for want of one.
 - Had it been entered as "by cycle" (the method Brenham's 2021 release suggests), the whole bill goes at the new rates: $12.80 + 6.0 × $2.96 ($17.76) + $32.10 + $2.52 = $65.18, tax $0.65, **$65.83** (the reference bill of `cancel-rebill.md`).
 
-**Open (Ryan):** cast question 7: the bill-line rule requires therms and a meter factor on every gas usage line, which an Mcf tariff does not use; as written, this bill's distribution lines would be refused at issue.
+- The distribution lines are billed in Mcf, a volume unit, so they carry quantity, unit and rate only; the gas conversion figures (meter factor, Ccf, therms, commodity rate) are required only on a line billed in an energy unit (Ryan 2026-11-04, cast question 7). A line whose unit is not one of therm, dekatherm, MMBtu, Ccf or Mcf is refused at issue.
