@@ -1,0 +1,126 @@
+--- tests/v5.4.2-23/review/cash-23-frozen-r9.sh	2026-11-04 12:25:58
++++ tests/v5.4.2-23/review/cash-23-frozen-r10.sh	2026-11-04 13:55:57
+@@ -111,6 +111,13 @@
+ #        early stamp (23001): in this shape the new order check changes the
+ #        refusal to a retry, not the outcome. It keeps a void from reading
+ #        the shares before a take-back already recorded.
++#   CR28c Opus r9 V: the harm the void check prevents. K's refunds of 15 and
++#        10 came back as R1 and R2; A's transaction begins (to void R2, which
++#        carries no share); B takes 10 back (falling on R1), then R1 remits
++#        its 5 and is escheated; A's void: refused for retry (40001). Without
++#        the check it is admitted at its early stamp, R2's money is back on K
++#        before the take-back, the share moves off R1, and the escheated R1
++#        holds 10 of its own. The retry is admitted: K 10, R1 holding nothing.
+ # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
+ # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
+ # barriers (application_name, polled with pg_stat_clear_snapshot()).
+@@ -232,6 +239,23 @@
+ EC27=00000000-0000-4000-8000-0000000025bd
+ EAN27=00000000-0000-4000-8000-0000000025be
+ EV27=00000000-0000-4000-8000-0000000025bf
++P28C=00000000-0000-4000-8000-0000000025d0
++E28C=00000000-0000-4000-8000-0000000025d1
++AP28C=00000000-0000-4000-8000-0000000025d2
++K28C=00000000-0000-4000-8000-0000000025d3
++R28C1=00000000-0000-4000-8000-0000000025d4
++R28C2=00000000-0000-4000-8000-0000000025d5
++RP28C=00000000-0000-4000-8000-0000000025d6
++RB28C1=00000000-0000-4000-8000-0000000025d7
++RB28C2=00000000-0000-4000-8000-0000000025d8
++RC28C=00000000-0000-4000-8000-0000000025d9
++EP28C=00000000-0000-4000-8000-0000000025da
++EB28C1=00000000-0000-4000-8000-0000000025db
++EB28C2=00000000-0000-4000-8000-0000000025dc
++EBN28C1=00000000-0000-4000-8000-0000000025dd
++EBN28C2=00000000-0000-4000-8000-0000000025de
++EC28C=00000000-0000-4000-8000-0000000025df
++EV28C=00000000-0000-4000-8000-0000000025e0
+ P28=00000000-0000-4000-8000-0000000025c0
+ E28=00000000-0000-4000-8000-0000000025c1
+ AP28=00000000-0000-4000-8000-0000000025c2
+@@ -975,6 +999,64 @@
+ if [ $? -eq 0 ]; then echo "PASS CR27a the retry is admitted"; else echo "FAIL CR27a: $OUT"; fail=1; fi
+ expect "CR27b the share stays on R: payment 0, K 20, R 0 (escheated, holding nothing of its own)" \
+   "$("${PSQL[@]}" -c "SELECT (SELECT remaining FROM public.payment_position_as_of('$P27', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$K27', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$R27', DATE '2026-12-31', clock_timestamp())) || ' ' || public.customer_credit_own_remaining_as_of('$R27', DATE '2026-12-31', clock_timestamp())")" "0.00 20.00 0.00 0.00"
++
++# CR28c (Opus r9 V). Setup: payment 100; K 50; the payment's own 50
++# refunded; K's refunds of 15 and 10 came back, carried to R1 and R2; K
++# refunded its last 25. Payment 0, K 0, R1 15, R2 10.
++"${PSQL[@]}" >/tmp/r23setup28c.out 2>&1 <<SQL || { echo "CR28c setup failed"; cat /tmp/r23setup28c.out; exit 2; }
++BEGIN; $AS_OP
++INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES $(pay "$P28C" R23-P28C 100);
++$(post "$P28C" "$E28C" 100)
++COMMIT;
++BEGIN; $AS_OP
++INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP28C', '$T', '$C', '$P28C', 50, '$OP');
++INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
++VALUES ('$K28C', '$T', '$C', 'overpayment', 50, DATE '2026-03-05', '$P28C', '$AP28C');
++COMMIT;
++BEGIN; $AS_OP
++$(refund_out "$RP28C" "'$P28C'" NULL 50 "$EP28C" 2026-03-06)
++COMMIT;
++BEGIN; $AS_OP
++$(refund_out "$RB28C1" NULL "'$K28C'" 15 "$EB28C1" 2026-03-06)
++COMMIT;
++BEGIN; $AS_OP
++$(came_back "$RB28C1" "$EB28C1" "$EBN28C1" 15)
++INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
++VALUES ('$R28C1', '$T', '$C', 'refund_reissue', 15, DATE '2026-03-07', '$RB28C1');
++COMMIT;
++BEGIN; $AS_OP
++$(refund_out "$RB28C2" NULL "'$K28C'" 10 "$EB28C2" 2026-03-06)
++COMMIT;
++BEGIN; $AS_OP
++$(came_back "$RB28C2" "$EB28C2" "$EBN28C2" 10)
++INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
++VALUES ('$R28C2', '$T', '$C', 'refund_reissue', 10, DATE '2026-03-07', '$RB28C2');
++COMMIT;
++BEGIN; $AS_OP
++$(refund_out "$RC28C" NULL "'$K28C'" 25 "$EC28C" 2026-03-07)
++COMMIT;
++SQL
++cr28c_reads() {
++"${PSQL[@]}" -c "SELECT (SELECT remaining FROM public.payment_position_as_of('$P28C', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$K28C', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$R28C1', DATE '2026-12-31', clock_timestamp())) || ' ' || public.customer_credit_own_remaining_as_of('$R28C1', DATE '2026-12-31', clock_timestamp())"
++}
++expect "CR28cs the setup reads payment 0, K 0, R1 15 (own 15)" "$(cr28c_reads)" "0.00 0.00 15.00 15.00"
++VOID28C="UPDATE public.customer_credits SET status = 'voided' WHERE id = '$R28C2';"
++begun 28c "$VOID28C" "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-08', 'adjustment', 'taken back', 10, '$E28C');
++COMMIT;
++BEGIN; $AS_OP
++INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related) VALUES ('$EV28C', '$T', '$R28C1', '$C', 'escheated_to_state', 5);
++UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '$EV28C' WHERE id = '$R28C1';"
++if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "void is recorded" "$A_OUT"; then echo "PASS CR28c Opus V: a reissue's void, carrying no share, begun before a take-back is refused for retry (Opus r9 S1)"
++else echo "FAIL CR28c: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
++OUT=$("${PSQL[@]}" 2>&1 <<SQL
++BEGIN;
++$AS_OP
++$VOID28C
++COMMIT;
++SQL
++)
++if [ $? -eq 0 ]; then echo "PASS CR28d the retry is admitted"; else echo "FAIL CR28d: $OUT"; fail=1; fi
++expect "CR28e the share stays on R1: payment 0, K 10, R1 0 (escheated, own 0)" "$(cr28c_reads)" "0.00 10.00 0.00 0.00"
+ 
+ # CR28 setup: payment 100; K 50; the payment's own 50 refunded; K's refund
+ # B of 20 came back and was reissued as R; K refunded its last 30.
+--- tests/v5.4.2-23/review/mutations-23-frozen-r9.py	2026-11-04 12:25:58
++++ tests/v5.4.2-23/review/mutations-23-frozen-r10.py	2026-11-04 13:55:57
+@@ -615,7 +615,7 @@
+      rep("        IF v_pool_pay IS NOT NULL AND p_purpose NOT IN ('reissue', 'overpayment_credit') THEN", "        IF v_pool_pay IS NOT NULL AND p_purpose NOT IN ('reissue', 'overpayment_credit', 'refund') THEN")),
+     ("N229", "a refund leaving a family is not ordered after a take-back under its payment (Opus B1, J)", "CR27",
+      rep("        PERFORM public.check_cash_leaving_order(\n            coalesce(OLD.refunds_payment_id,", "        PERFORM pg_catalog.num_nulls(\n            coalesce(OLD.refunds_payment_id,")),
+-    ("N230", "a family credit's void is not ordered after a take-back under its payment (Opus B1, the void)", "CR28",
++    ("N230", "a family credit's void is not ordered after a take-back under its payment (Opus B1, the void; r9: Opus V shows the harm)", "CR28c",
+      rep("    IF NEW.status = 'voided' THEN\n        PERFORM public.check_cash_leaving_order(", "    IF false THEN\n        PERFORM public.check_cash_leaving_order(")),
+     ("N231", "a reissue is sized against its own draws (Opus S1, one statement)", "U2",
+      rep("                + NEW.original_amount\n                - coalesce((SELECT s.absorbed FROM public.overpayment_absorbed_as_of(public.overpayment_root(NEW.id), DATE '9999-12-31', pg_catalog.clock_timestamp(), false) s\n                             WHERE s.credit_id = NEW.id), 0);\n",
+@@ -624,6 +624,9 @@
+      rep("                        SELECT l.transaction_date, l.amount - coalesce(x.absorbed, 0)\n", "                        SELECT l.transaction_date, l.amount - 2 * coalesce(x.absorbed, 0)\n")),
+     ("N233", "the overpayment credit's cap forgets its share of a take-back (Opus mB; the exact cap in agree() sees it first)", "Y7j",
+      rep("                         WHERE v_family AND s.credit_id = p_id\n", "                         WHERE v_family AND s.credit_id = p_id AND v_origin = 'refund_reissue'\n")),
++    ("N234", "the recorded-order checks are executable by tally_core (Fable r9 S1)", "APPLY:a recorded-order check is missing",
++     rep("GRANT EXECUTE ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) TO tally_app;",
++         "GRANT EXECUTE ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) TO tally_app, tally_core;")),
+ ]
+ 
+ 
