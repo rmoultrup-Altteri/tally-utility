@@ -189,3 +189,146 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 - What may ground a disconnection: the August bill's $42.00, now past due. The $28.00 never can, though it is older; it can still be billed, reminded and collected by other means.
 - **(b)** The $28.00 goes to July's gas first, leaving $12.00 of it and the whole $28.00 backbilling line. Balance **$82.00**, aged: 0–30 days $42.00 (the August bill); 31–60 days $40.00 (what is left of the July bill). What may ground a disconnection: $42.00 and July's **$12.00**; the $28.00 never can. Applied to the backbilling line first instead, $40.00 of July would be disconnectable: that order is refused.
+
+---
+
+### SCN-0035 — A meter that stopped registering: three months back, and the anchor question
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A7). The anchor follows the built Texas row (the test's date); that it should be the discovery date instead is an open disagreement (a2-rules §16, D1).
+*Rule:* where §7.45 binds, gas used but not metered may be charged for at most three months; the window is also cut short by the meter's deployment start, but not by an earlier test; a period straddling the window's start is given up whole; the charge can never ground a disconnection. The record says which basis estimated the unmetered use. Sources: §7.45(7)(B)(v)(II); (4)(E)(vi); the Texas rows of v5.4.2-18 (three months, test-date anchor, forfeit whole, never enforceable); R-23 and R-25 (the estimation basis is recorded); a2-rules §4.1 (F9), §9.1 (D3).
+
+**Given** the common facts, except: the meter stopped registering at all around Feb 25, 2026 (**invented**); the bills from March on show zero usage; and the Jun 15 test finds it **not registering**. The unmetered use for each period, estimated from GP-01's own use in the same months of 2025 (**invented**): Mar $22.00, Apr $18.00, May $12.00, Jun 1–14 $5.00. No earlier test.
+
+**When** the correction is evaluated.
+
+**Then**
+- The window starts **Mar 15, 2026** (Jun 15 less three months). The 2019 deployment start is earlier, so it doesn't count.
+
+| Period | Amount | Result | Why |
+|---|---|---|---|
+| Mar 2026 | $22.00 | given up | straddles the window's start (17 days inside) |
+| Apr 2026 – Jun 14, 2026 | $35.00 | billed | inside the window |
+
+- GP-01 is charged **$35.00**. It can never ground a disconnection.
+- No supervisor approval: the three-month window has no last-test term, so a weak test history cannot move it (the build's reading; Kyle's ruling R-36 names no cause, a2-rules D3).
+- The record names the estimation basis: the same customer's like-period use at the same premise.
+- How the charge reaches a bill is not ruled for this cause (OQ-1); the scenario tests the periods admitted, not the delivery.
+- **Open (Kyle, next batch):** §7.45(7)(B)(v)(II) counts three months back from when the meter "is found not to be registering". Is that the test (Jun 15, as built) or the day it was first noticed, say a reader's May 5 report of no movement (**invented**)? From May 5 the window would start Feb 5: February would be given up whole and March billed whole. And does R-36's approval apply to this cause on a meter with no test history?
+
+---
+
+### SCN-0036 — A large-volume customer outside the protected class: no window, and a claimed start bounds the reach
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A7).
+*Rule:* Texas's backbilling limits protect residential and small commercial customers only. Whether a customer is protected follows the utility's class mode: by default every customer is protected; under the explicit-class mode, a class outside the protected list is not. For an unprotected customer the rule has no window, the straddling month is kept, and the charge may be collected without limit; the reach is then bounded by the date the error is claimed to have begun, with its evidence, and with no claimed start the evaluation is refused as unbounded. Sources: the unprotected Texas rows of v5.4.2-18 ("16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern"); a2-rules §13.1 (class modes), §5.1 (the set start), §4.1 (`claimed_start`), §9.1 (the gate needs a last-test term).
+
+**Given** the common facts, except the customer is **GP-02 (invented)**, a large industrial plant on its own meter, customer class industrial. The Jun 15 test finds the meter **slow**; no earlier test. A field report shows the meter's register gear damaged at the Oct 1, 2025 read (**invented**). The error in each bill (**invented**):
+
+| Period | Error |
+|---|---|
+| Oct 2025 | $410.00 |
+| Nov 2025 | $520.00 |
+| Dec 2025 | $620.00 |
+| Jan 2026 | $840.00 |
+| Feb 2026 | $790.00 |
+| Mar 2026 | $510.00 |
+| Apr 2026 | $330.00 |
+| May 2026 | $210.00 |
+| Jun 1–14, 2026 | $120.00 |
+| **All** | **$4,350.00** |
+
+**When** the correction is evaluated with Gulf Plains' class mode (a) the default; (b) explicit class, claimed from Oct 1, 2025 citing the field report; (c) explicit class, no claimed start.
+
+**Then**
+- **(a)** GP-02 is protected, as SCN-0013: the window starts Dec 15, 2025; October and November lie before it and are not evaluated; December straddles it and is given up; January – June 14 are billed, **$2,800.00**, after a supervisor's approval, never disconnectable.
+- **(b)** GP-02 is unprotected. No window: every period from Oct 1, 2025 is billed, December whole, **$4,350.00**. No approval: the rule has no last-test term for a weak history to move. The charge may ground collection without limit. The record cites the unprotected row and the claimed start's evidence.
+- **(c)** Refused: an uncapped rule with no claimed start has no bound.
+- A period beginning before a claimed start is given up (reason "straddles the claimed start"); here October begins on it, so none is.
+
+---
+
+### SCN-0037 — Two customers inside the window: the correction follows the meter, and each period stays with whoever was billed for it
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Codex, 2026-11-02). How a charge reaches a former customer is the delivery patch's (v5.4.2-14).
+*Rule:* a meter correction is one finding about one meter, across every occupant it served; each period is judged on its own rule, for the customer and premise its bill names, and its amount belongs to that customer. Sources: R-37(b) ("the meter's readings across every deployment and occupant"); R-25; a2-rules §5.1 and §6.1.
+
+**Given** the common facts (slow meter, no earlier test, SCN-0013's approval), except the premise changed hands: **GP-03 (invented)**, residential, was billed Dec 2025 – Feb 2026 and moved out Feb 28; GP-01 moved in Mar 1 and was billed from March.
+
+**When** the correction is evaluated, (a) slow; (b) the same test finds the meter fast instead.
+
+**Then**
+- **(a)** December straddles the window and is given up, as SCN-0013. GP-03 is charged **$16.30** (Jan $8.40, Feb $7.90); GP-01 is charged **$11.70** (Mar – Jun 14). Together $28.00, as SCN-0013. GP-01 is never charged for GP-03's use. Neither charge can ground a disconnection.
+- **(b)** Every period is refunded, December whole: GP-03 is owed **$22.50** (Dec – Feb), GP-01 **$11.70**. GP-03's refund is owed though GP-03 has moved out.
+- The record names the customer and premise of each period.
+
+---
+
+### SCN-0038 — Crossed meters: one customer refunded, the other charged, and only the charge is limited
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02). Texas sets no window for crossed meters, and whether such a charge can ground a disconnection is referred to counsel (R-39: "never" until then).
+*Rule:* crossed meters are a discovery cause: the operator gives the discovery date and the date the fault is claimed to begin, with evidence. Each meter is its own case. Each period's direction is the sign of its correction. Texas law sets no window; the utility's own limit cuts charges only. Sources: R-39 (the Texas row: no window, enforceable never pending counsel); R-25; R-37(d); a2-rules §2.6.
+
+**Given**
+- Gulf Plains (`cast.md` §3). GP-01 and **GP-04 (invented)**, residential, live in the two halves of a duplex. On Feb 1, 2026 both meters were replaced, and the installer connected each to the other's line (the service order of that day is the evidence; **invented**). From February each was billed for the other's gas.
+- Found and put right on **Jun 1, 2026**; the claimed start is Feb 1. Evaluated on Jun 10.
+- The corrections (**invented**): GP-01 was billed for more gas than GP-01 used: Feb −$6.00, Mar −$5.50, Apr −$3.00, May −$2.00. GP-04 the mirror: +$6.00, +$5.50, +$3.00, +$2.00.
+
+**When** both cases are evaluated, (a) Gulf Plains with no limit of its own; (b) with its two-month limit (charges reach back to Apr 1).
+
+**Then**
+- **(a)** GP-01 is refunded **$16.50**. GP-04 is charged **$16.50**, which can never ground a disconnection. Nothing before Feb 1 is evaluated.
+- **(b)** GP-01's refund is still **$16.50**. GP-04's February and March are given up (the utility's limit); April begins on Apr 1, inside it; GP-04 is charged **$5.00** (Apr $3.00, May $2.00).
+- The two cases are separate findings, one per meter: withdrawing GP-04's charge doesn't touch GP-01's refund.
+
+---
+
+### SCN-0039 — A refund reaching before the utility went live, for bills it never loaded, is held, not declined
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Codex, Opus, 2026-11-02). How the held stretch's refund posts after the rest was delivered is the delivery patch's (v5.4.2-14).
+*Rule:* a fast meter's refund over the whole window is mandatory. A stretch of the window for which the platform holds no bill cannot be computed, so it is held with a validated reason; the rest of the correction goes ahead. A "legacy records not loaded" hold covers only days before the utility went live, and it closes only when those bills are loaded, never as unrecoverable. The case cannot freeze while any day of the window is neither billed nor held. Sources: R-37(c); a2-rules §10.1, §10.2, §11.3 (H2, H7, H10).
+
+**Given** the common facts, except the meter is **fast** and Gulf Plains' bills from before going live on Jan 15, 2026 were not loaded: the platform's first bill on this meter covers Jan 15–31 (**invented**: the cycle restarted at go-live), with an error of $4.50 (**invented**); the bills from February are the common table's. No earlier test.
+
+**When** the correction is evaluated and frozen (a) with no hold; (b) after a "legacy records not loaded" hold for Dec 15, 2025 – Jan 14, 2026; then (c) a supervisor tries to close that hold as unrecoverable.
+
+**Then**
+- The window starts Dec 15, 2025. The bills on the platform give a refund of **$24.10** (Jan 15–31 $4.50, Feb $7.90, Mar $5.10, Apr $3.30, May $2.10, Jun 1–14 $1.20).
+- **(a)** The freeze is refused: 31 days of the window (Dec 15 – Jan 14) are neither billed nor held.
+- **(b)** The hold is accepted (it ends before go-live). The case freezes, and the $24.10 is refunded now. The hold stays on the open-holds list.
+- **(c)** Refused: this kind of hold closes only when the bills for Dec 15 – Jan 14 are loaded; it then completes, and the case is re-evaluated to include them.
+- A hold on any day from Jan 15 is refused: the platform billed those days.
+
+---
+
+### SCN-0040 — A migrated meter's start date doesn't shorten a refund unless an earlier meter corroborates it
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Codex, 2026-11-02). The corroboration test is the build's reading, put to Kyle in the OQ-1 brief and unanswered (a2-rules §16, D9).
+*Rule:* a meter's deployment start bounds its window, since another meter's readings were never this meter's. For a charge, any start on record before the fault was recorded shortens the window. For a refund it shortens it only when corroborated: another meter at the same premise, on record before the fault, served into the window and came out when this one went in. A start that is only the day the meter was loaded onto the platform corroborates nothing. Sources: R-37(a); a2-rules §4.3 (F4, F7c, F9), §7 (the evidence fence).
+
+**Given** the common facts, except this meter's only deployment record starts **Jan 15, 2026**, the day Gulf Plains loaded its meters (the real install was 2019). The seven bills all name this meter. No earlier test.
+
+**When** the correction is evaluated (a) with the test finding the meter fast; (b) fast, and the premise's previous meter is also on record, loaded with the history before the test: installed 2015 and removed Mar 1, 2026, when this meter's deployment record is corrected to begin Mar 1 (**invented**), and the bills to Feb 28 name the previous meter; (c) slow, with only the Jan 15 start.
+
+**Then**
+- **(a)** The Jan 15 start has no predecessor to corroborate it, so it doesn't bound the refund: window Dec 15, 2025, all seven periods, **$34.20**.
+- **(b)** Corroborated: the window starts **Mar 1, 2026**. This meter's periods are March – June 14: **$11.70**. The earlier bills are the previous meter's.
+- **(c)** For a charge any recorded start bounds the window: it starts **Jan 15, 2026**. December lies before it; January straddles it and is given up; February – June 14 are billed, **$19.60**, after a supervisor's approval (the six months reach before go-live, with no earlier test).
+- A deployment or a removal written after the test was recorded is ignored in all three: history written after a finding cannot shorten its refund.
+
+---
+
+### SCN-0041 — Evidence that changes after approval: the approval lapses, and the correction is evaluated again
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Codex, 2026-11-02).
+*Rule:* an evaluation is fixed to the facts it was computed from. If any of them changes before the freeze (the cause, the tests, the deployments, a rule row, the utility's limit, the billed periods), the freeze is refused until the case is evaluated again; an approval is of one evaluation and never carries over to the next. A test entered after a later-dated one still governs, flagged as entered out of order. A frozen case found stale at delivery is refused. Sources: R-38; R-36; R-34, R-35; a2-rules §8, §9.2 (G6), §11.2 (I4–I6), §4.2 (I6).
+
+**Given** SCN-0013: evaluated Jul 6, 2026; approved Jul 7 by a supervisor who neither opened the case nor ran the evaluation. Not yet frozen. On Jul 8 Gulf Plains loads a test of this meter dated **Mar 10, 2026** that found it accurate (**invented**), (a) with its readings; (b) as a date only.
+
+**When** the operator tries to freeze the case on Jul 8, and then evaluates it again.
+
+**Then**
+- The freeze is refused: the governing test has changed since the evaluation.
+- The new evaluation's window starts **Mar 10, 2026**: the result is SCN-0014's, **$6.60** (December – February before the window, March straddling it). The Mar 10 test is flagged as entered out of order.
+- **(a)** No approval is needed: the governing test is on record with its readings.
+- **(b)** The date-only test still sets the window, marked as date-only, so the approval gate stands: Jul 7's approval doesn't count, and a new one is needed before the freeze.
+- Had the case been frozen on Jul 7, delivery would refuse it as stale; it is unfrozen, evaluated again and frozen again. The Jul 6 evaluation stays on record beside the new one.
