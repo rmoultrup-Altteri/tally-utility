@@ -17,3 +17,8 @@ Design sources:
 - The note's observation: 16 TAC §7.45's preamble scopes it to unincorporated areas and has utilities fold the same standards into service rules for incorporated areas — relevant to K10.
 - Audit §3.1 rows (state from the premise; validated state; Inc/Env as Texas place kinds; regulator per state and service; time zone from the place; service type as a stand-in for the regulator).
 - R-26 (A-2): regulatory and tax jurisdiction are separate axes and separate tables.
+
+## Loading places from publishers (v5.4.2-29, 2026-11-04)
+
+- **Texas counties:** US Census Bureau 2020 FIPS county codes, `https://www2.census.gov/geo/docs/reference/codes2020/cou/st48_tx_cou2020.txt`, copied as `census-st48_tx_cou2020.txt` (md5 `e1ea7280eb41b680feb924b3bef2c411`). Loaded by v5.4.2-29.
+- **Time-zone boundaries (49 CFR 71):** the eCFR versioner API returns a section as XML, `https://www.ecfr.gov/api/versioner/v1/full/<date>/title-49.xml?part=71&section=71.7` (send `Accept-Encoding`, e.g. `curl --compressed`). The enhanced-renderer URL returns 404. 71.6(a) makes the side east of the 71.7 line Central; 71.8 makes the west side Mountain; 71.7(e) is the Texas line (Hudspeth County's east line, and the Texas–New Mexico border north of it); 71.7(g) puts a municipality on the line in Mountain time.

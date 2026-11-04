@@ -33,7 +33,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
-| -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only, r1 frozen and in review 2026-11-04. Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
+| -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only, r1: Opus and Fable ready (Codex did not run, usage limit); r2 frozen 2026-11-04, its fixes in, tested on tally with -23. Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
 | -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109). **Mirrored 2026-11-04** (Ryan; ahead of -23/-25/-26). The meter test fee (CI-091) moved to its own patch after dated history |
 
 **Next free: -30.**

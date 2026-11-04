@@ -100,6 +100,10 @@ DO $$ BEGIN
   INSERT INTO b16 SELECT 'tx', id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX';
   INSERT INTO b16 SELECT 'elpaso_cty', id FROM public.places WHERE kind_code = 'county' AND place_code = '48141';
   PERFORM pg_temp.place('zz', 'state', 'ZZ', 'ZZ', NULL, DATE '1900-01-01');
+  -- 'travis', 'harris' and 'bastrop' are planted stand-ins with even codes
+  -- (48990, 48992, 48994), never real Texas counties (those are odd), so
+  -- they do not collide with -29's load; below, "Travis County" etc. mean
+  -- these stand-ins, not the real counties (-29 r2, review r1 Fable S3).
   PERFORM pg_temp.place('travis', 'county', 'TX', '48990', 'tx', DATE '1900-01-01');
   PERFORM pg_temp.fact('travis', 'time_zone', '"America/Chicago"', DATE '1900-01-01');
   PERFORM pg_temp.place('elpaso', 'municipality', 'TX', 'ELPASO', 'tx', DATE '1900-01-01');
@@ -1041,7 +1045,7 @@ END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000016b1';
 SET ROLE tally_app;
 DO $$ DECLARE v text; BEGIN
-  -- L13: El Paso County (Mountain) for rates; Harris County, no zone loaded, for tax
+  -- L13: El Paso County (Mountain) for rates; the planted 'harris' stand-in (48992), no zone loaded, for tax
   PERFORM pg_temp.mem('00000000-0000-4000-8000-0000000016dd', pg_temp.id('elpaso_cty'), 'regulatory', DATE '2020-01-01');
   PERFORM pg_temp.mem('00000000-0000-4000-8000-0000000016dd', pg_temp.id('harris'), 'tax', DATE '2020-01-01');
   v := public.premise_time_zone_as_of('00000000-0000-4000-8000-0000000016dd', DATE '2026-06-01');

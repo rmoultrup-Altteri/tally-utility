@@ -37,10 +37,12 @@ trap 'exit 130' INT TERM HUP
 # patch DROPS (the patch is pending while that table still exists); a marker
 # table.column is a column the patch adds; a '?' before the marker means an SQL
 # condition (no colon in it) that holds while the patch is pending (a data patch)
+# -29 is a data patch: pending while Texas has fewer than 254 open counties.
+P29_PENDING="(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254"
 PENDING=(
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
-  "sql/v5.4.2-29-texas-counties.sql:?(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254"
+  "sql/v5.4.2-29-texas-counties.sql:?$P29_PENDING"
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.
@@ -105,7 +107,11 @@ for entry in ${PENDING[@]+"${PENDING[@]}"}; do
   elif [ "${marker#*.}" != "$marker" ]; then
     test_pending="NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${marker%%.*}' AND column_name = '${marker#*.}')"
   else test_pending="to_regclass('public.$marker') IS NULL"; fi
-  if [ "$(q tally -c "SELECT $test_pending")" = "t" ]; then
+  # A marker that does not answer t or f (an SQL condition with a typo, a
+  # renamed table) stops the run: it must never skip a patch silently.
+  is_pending=$(q tally -c "SELECT $test_pending" 2>&1)
+  case $is_pending in t|f) ;; *) echo "SETUP FAIL: the pending marker of $(basename "$patch") did not answer: $is_pending"; exit 2 ;; esac
+  if [ "$is_pending" = "t" ]; then
     if [ "$(basename "$patch")" = "v5.4.2-25-disputes.sql" ]; then
       clone "$PRE25" "$BASE" || { echo "SETUP FAIL: clone $PRE25"; exit 2; }
     fi
@@ -159,7 +165,7 @@ cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
 step "source check v5.4.2-29" tests/v5.4.2-29/source-check-29.sh
 # The load's rules act when it applies, on a base without the counties: run
 # only while -29 is pending (after the mirror, restore a pre-29 base to run it).
-if [ "$(q tally -c "SELECT (SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254")" = "t" ]; then
+if [ "$(q tally -c "SELECT $P29_PENDING")" = "t" ]; then
   step "load rules v5.4.2-29" tests/v5.4.2-29/reapply-29.sh
 fi
 cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22

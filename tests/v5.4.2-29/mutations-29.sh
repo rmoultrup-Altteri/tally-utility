@@ -7,6 +7,11 @@
 #   SRC:<case>                   source-check-29.sh fails that case
 # A catch elsewhere fails the run. EXTRA: a JSON list of further [old, new]
 # edits, each matching exactly once.
+# The load has two layers: the in-loop comparison names the county that
+# differs (diagnostic), and the postcondition is the guard. A mutation of the
+# in-loop layer alone (N6-N8, N12) is caught by its message: the load still
+# refuses, through the postcondition. N14-N15 remove a comparison from both
+# layers, and the load is then admitted (r2; review r1, Opus S2).
 #   tests/v5.4.2-29/mutations-29.sh [patch]    (uses m29 and r29re; one run at a time)
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -80,7 +85,7 @@ mut "N9 a county not on the list not refused" RE:P4 \
   "AND NOT EXISTS (SELECT 1 FROM p29_counties c WHERE c.fips = p.place_code)" "AND false"
 mut "N10 the isolation check gone" RE:P5 \
   "IF current_setting('transaction_isolation') <> 'read committed' THEN" "IF false THEN"
-mut "N11 a loaded county's zone dated from 1950" "APPLY:does not carry exactly one open time_zone fact" \
+mut "N11 a loaded county's zone dated from 1950" "APPLY:has no time_zone fact of America/Chicago in force on 1900-01-01" \
   "VALUES (v_place.id, 'time_zone', to_jsonb(r.zone), c_from," "VALUES (v_place.id, 'time_zone', to_jsonb(r.zone), DATE '1950-01-01',"
 mut "N12 a present county skipped without a look (always CONTINUE)" RE:P1 \
   "        IF FOUND THEN
@@ -90,6 +95,20 @@ mut "N12 a present county skipped without a look (always CONTINUE)" RE:P1 \
 mut "N13 a present county reloaded rather than skipped" RE:P1 \
   "            CONTINUE;
         END IF;" "        END IF;"
+
+# r2 (review r1, Opus S2; Opus S1, Fable S1)
+EXTRA='[["AND p.name = c.name AND p.parent_place_id = v_tx)", "AND p.parent_place_id = v_tx)"]]' \
+mut "N14 a county's name compared in neither layer" RE:P1 \
+  "IF v_place.name IS DISTINCT FROM r.name OR v_zone" "IF false AND v_place.name IS DISTINCT FROM r.name OR v_zone"
+EXTRA='[["AND f.value = to_jsonb(c.zone))", ")"]]' \
+mut "N15 a county's zone compared in neither layer" RE:P2 \
+  " OR v_zone IS DISTINCT FROM r.zone THEN" " THEN"
+mut "N16 a present county looked up as open today (r1), not as of 1900" RE:P8 \
+  "           AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
+        IF FOUND THEN" "           AND p.effective_to IS NULL;
+        IF FOUND THEN"
+mut "N17 a code with rows but none on 1900-01-01 not refused by the load" RE:P9 \
+  "        IF v_nrows > 0 THEN" "        IF false THEN"
 
 echo "mutations-29: $caught of $n caught"
 [ $fail -eq 0 ] && [ $caught -eq $n ]

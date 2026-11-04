@@ -1,5 +1,5 @@
 -- ============================================================================
--- BATTERY v5.4.2-29 — every Texas county and its time zone (2026-11-04)
+-- BATTERY v5.4.2-29 — every Texas county and its time zone (2026-11-04; r2)
 -- Run: psql -U tally -d <db-with-patch> -v ON_ERROR_STOP=1 -f battery-29.sql
 -- One transaction, rolled back. Fixtures as the owner; the lookups the
 -- application meets are run as tally_app. ok() treats NULL as a fail;
@@ -109,11 +109,11 @@ SELECT pg_temp.ok('C3b Culberson (48109), east of Hudspeth''s east line, is Cent
 SELECT pg_temp.ok('C4 El Paso and Hudspeth are -16''s seeded rows, one each, unchanged',
   (SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND place_code IN ('48141', '48229')) = 2
   AND (SELECT bool_and(source_note = 'Texas county (FIPS ' || place_code || ').') FROM tx_counties WHERE place_code IN ('48141', '48229')));
-SELECT pg_temp.ok('C5 the 252 loaded counties cite the Census file, their facts 49 CFR 71.7(e)',
+SELECT pg_temp.ok('C5 the 252 loaded counties cite the Census file, their (Central) facts 49 CFR 71.6(a) and 71.7(e)',
   (SELECT count(*) FROM tx_counties c
      JOIN public.place_facts f ON f.place_id = c.id AND f.fact_code = 'time_zone'
     WHERE strpos(c.source_note, 'st48_tx_cou2020.txt') > 0 AND strpos(c.source_note, c.place_code) > 0
-      AND strpos(f.source_note, '49 CFR 71.7(e)') > 0) = 252);
+      AND strpos(f.source_note, '49 CFR 71.6(a), 71.7(e)') > 0 AND f.value = '"America/Chicago"') = 252);
 
 SET ROLE tally_app;
 SELECT pg_temp.ok('C6 the application reads all 254 and their zones',

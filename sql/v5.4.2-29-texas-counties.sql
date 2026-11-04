@@ -1,6 +1,6 @@
 -- ============================================================================
 -- PATCH v5.4.2-29 — every Texas county and its time zone, loaded once as
---                    shared place data (r1, 2026-11-04)
+--                    shared place data (r2, 2026-11-04)
 -- ============================================================================
 -- Authority:   Ryan, 2026-11-04 (DECISION-LOG, the -28 r2 entry: "counties
 --              and time zones rarely change; load them once for every
@@ -32,17 +32,26 @@
 --   same range. El Paso and Hudspeth exist already (-16's seed) and are
 --   checked, not reloaded. Data only: no table, function or grant changes.
 --
--- Rules:
---   * A county already present must match: the same name and an open
---     time_zone fact with the same zone. A mismatch refuses the whole load
---     (the load never overwrites a place; a correction is a close and a
---     successor, its own reviewed migration).
---   * After the load, Texas's open counties are exactly the 254, each with
---     exactly one open time_zone fact, Mountain exactly for 48141 and 48229.
---     Anything else refuses.
---   * Re-applying is a no-op.
+-- Rules (r2: everything is judged as of 1900-01-01, the date the load
+-- writes, not as of today — review r1, Opus S1, Fable S1):
+--   * A county already present on 1900-01-01 must match: the same name, and
+--     a time_zone fact in force that day with the same zone. A mismatch
+--     refuses the whole load (the load never overwrites a place; a
+--     correction is a close and a successor, its own reviewed migration).
+--     A code with rows but none in force on 1900-01-01 refuses too.
+--   * After the load, the Texas counties in force on 1900-01-01 are exactly
+--     the 254, each under Texas with a zone fact in force that day of the
+--     list's zone, Mountain exactly for 48141 and 48229. Anything else
+--     refuses.
+--   * Re-applying is a no-op, also after a later migration corrects a
+--     county (closes it or its zone fact and adds a successor) or adds a
+--     county from a later date: what was in force on 1900-01-01 does not
+--     change.
 --   * Runs as the owner (tally_app cannot write places), under READ
 --     COMMITTED.
+--   * The in-loop comparison names the county that differs (the diagnostic
+--     layer); the postcondition is the guard, and catches what the loop
+--     would have (tests/v5.4.2-29/mutations-29.sh shows each layer alone).
 --
 -- KNOWN LIMITS
 --   L1. A premise still needs its county recorded. The lookup reads the
@@ -56,17 +65,27 @@
 --       there bills on local time, that is its own setting, not a place
 --       fact.
 --   L3. 49 CFR 71.7(g) puts a municipality on the line in Mountain time.
---       Cities are not loaded here; a city row's own zone (it outranks its
---       county's) is how such a city would be recorded.
+--       The line runs along Texas's whole western border with New Mexico,
+--       not only past Hudspeth County, so towns on that border (Farwell,
+--       Texline: predicted, not checked against their limits) may be
+--       Mountain by law while keeping Central in practice. Cities are not
+--       loaded here; a city row's own zone (it outranks its county's) is how
+--       such a city would be recorded, settled when cities are loaded.
 --   L4. Counties only. Cities, special districts, transit authorities and
 --       tax jurisdictions (the Comptroller's files) are later loads.
 --   L5. Dated from 1900-01-01 (-16 R2): no bill reads a place before that.
 --       No Texas county has been created or renamed since 1931.
+--   L6. El Paso and Hudspeth keep -16's source notes ("Texas county (FIPS
+--       n).") and -16's citation; the other 252 cite the Census file and
+--       49 CFR 71.6(a). Changing a stored note would take a close and a
+--       successor; the provenance is in this header.
 --
 -- Older tests that planted real county codes as fixtures (battery -16:
 -- Travis 48453, Harris 48201, Bastrop 48021; race place-close-16: Anderson
 -- 48001, Andrews 48003; battery -28: Travis 48453) now use even codes
 -- (48990-48998). Texas county codes are odd, so these can never be real.
+-- (A new fixture must use a code not on the Census list; battery -25's
+-- 48925 is odd but beyond 48507, also never real.)
 -- ============================================================================
 
 DO $patch29$
@@ -75,7 +94,7 @@ DECLARE
     v_tx uuid;
     v_place public.places%ROWTYPE;
     v_zone text;
-    v_nzone integer;
+    v_nrows integer;
     v_bad text;
     v_new integer := 0;
     r record;
@@ -354,20 +373,30 @@ BEGIN
 ;
 
     FOR r IN SELECT * FROM p29_counties ORDER BY fips LOOP
+        -- The row of this code in force on 1900-01-01 (at most one:
+        -- places_no_overlap), closed later or not.
         SELECT * INTO v_place FROM public.places p
-         WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = r.fips AND p.effective_to IS NULL;
+         WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = r.fips
+           AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
         IF FOUND THEN
-            SELECT min(f.value #>> '{}'), count(*) INTO v_zone, v_nzone FROM public.place_facts f
-             WHERE f.place_id = v_place.id AND f.fact_code = 'time_zone' AND f.effective_to IS NULL;
-            -- (its parent is Texas: -16's place trigger admits no other
-            -- parent for a Texas county; the postcondition re-checks it)
-            -- (a missing zone fact reads as NULL here; two open ones cannot
-            -- exist, place_facts_no_overlap)
+            -- its zone fact in force on 1900-01-01 (at most one:
+            -- place_facts_no_overlap); none reads as NULL. Its parent is
+            -- Texas: -16's place trigger admits no other parent for a Texas
+            -- county; the postcondition re-checks it.
+            SELECT f.value #>> '{}' INTO v_zone FROM public.place_facts f
+             WHERE f.place_id = v_place.id AND f.fact_code = 'time_zone'
+               AND daterange(f.effective_from, f.effective_to, '[)') @> c_from;
             IF v_place.name IS DISTINCT FROM r.name OR v_zone IS DISTINCT FROM r.zone THEN
-                RAISE EXCEPTION 'v5.4.2-29: county % is already present as % (% open zone fact(s), zone %), not as the load has it (%, %); the load does not overwrite a place',
-                    r.fips, v_place.name, v_nzone, coalesce(v_zone, 'none'), r.name, r.zone;
+                RAISE EXCEPTION 'v5.4.2-29: county % is already present on % as % (zone %), not as the load has it (%, %); the load does not overwrite a place',
+                    r.fips, c_from, v_place.name, coalesce(v_zone, 'none'), r.name, r.zone;
             END IF;
             CONTINUE;
+        END IF;
+        SELECT count(*) INTO v_nrows FROM public.places p
+         WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = r.fips;
+        IF v_nrows > 0 THEN
+            RAISE EXCEPTION 'v5.4.2-29: county % has % row(s), none in force on %; the load does not overwrite or backdate a place',
+                r.fips, v_nrows, c_from;
         END IF;
         INSERT INTO public.places (kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
         VALUES ('county', 'TX', r.fips, r.name, v_tx, c_from,
@@ -376,34 +405,36 @@ BEGIN
         INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note)
         VALUES (v_place.id, 'time_zone', to_jsonb(r.zone), c_from,
                 CASE r.zone WHEN 'America/Denver'
-                     THEN '49 CFR 71.7(e): west of the east line of Hudspeth County, Texas is Mountain time (v5.4.2-29).'
-                     ELSE '49 CFR 71.7(e): Texas east of the east line of Hudspeth County is Central time (v5.4.2-29).' END);
+                     THEN '49 CFR 71.7(e), 71.8: west of the east line of Hudspeth County, Texas is Mountain time (v5.4.2-29).'
+                     ELSE '49 CFR 71.6(a), 71.7(e): Texas east of the east line of Hudspeth County is Central time (v5.4.2-29).' END);
         v_new := v_new + 1;
     END LOOP;
 
-    -- Postcondition: Texas's open counties are exactly the list, each with
-    -- one open time_zone fact of the list's zone, in force from 1900.
+    -- Postcondition (the guard), as of 1900-01-01: the Texas counties in
+    -- force that day are exactly the list, each under Texas with a zone fact
+    -- in force that day of the list's zone.
     SELECT string_agg(x.what, '; ') INTO v_bad FROM (
         SELECT 'county ' || p.place_code || ' is not on the Census list' AS what
           FROM public.places p
-         WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.effective_to IS NULL
+         WHERE p.kind_code = 'county' AND p.state_code = 'TX'
+           AND daterange(p.effective_from, p.effective_to, '[)') @> c_from
            AND NOT EXISTS (SELECT 1 FROM p29_counties c WHERE c.fips = p.place_code)
         UNION ALL
-        SELECT 'county ' || c.fips || ' (' || c.name || ') is missing, misnamed, misparented or not in force from 1900'
+        SELECT 'county ' || c.fips || ' (' || c.name || ') is missing, misnamed or misparented on 1900-01-01'
           FROM p29_counties c
          WHERE NOT EXISTS (SELECT 1 FROM public.places p
                             WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = c.fips
-                              AND p.effective_to IS NULL AND p.name = c.name AND p.parent_place_id = v_tx
-                              AND p.effective_from <= c_from)
+                              AND daterange(p.effective_from, p.effective_to, '[)') @> c_from
+                              AND p.name = c.name AND p.parent_place_id = v_tx)
         UNION ALL
-        SELECT 'county ' || c.fips || ' does not carry exactly one open time_zone fact of ' || c.zone || ' from 1900'
+        SELECT 'county ' || c.fips || ' has no time_zone fact of ' || c.zone || ' in force on 1900-01-01'
           FROM p29_counties c
-          JOIN public.places p ON p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = c.fips AND p.effective_to IS NULL
-         WHERE (SELECT count(*) FROM public.place_facts f
-                 WHERE f.place_id = p.id AND f.fact_code = 'time_zone' AND f.effective_to IS NULL) <> 1
-            OR NOT EXISTS (SELECT 1 FROM public.place_facts f
-                            WHERE f.place_id = p.id AND f.fact_code = 'time_zone' AND f.effective_to IS NULL
-                              AND f.value = to_jsonb(c.zone) AND f.effective_from <= c_from)
+          JOIN public.places p ON p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = c.fips
+                              AND daterange(p.effective_from, p.effective_to, '[)') @> c_from
+         WHERE NOT EXISTS (SELECT 1 FROM public.place_facts f
+                            WHERE f.place_id = p.id AND f.fact_code = 'time_zone'
+                              AND daterange(f.effective_from, f.effective_to, '[)') @> c_from
+                              AND f.value = to_jsonb(c.zone))
     ) x;
     IF v_bad IS NOT NULL THEN
         RAISE EXCEPTION 'v5.4.2-29 postcondition: %', v_bad;
