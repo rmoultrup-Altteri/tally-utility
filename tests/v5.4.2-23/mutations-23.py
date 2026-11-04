@@ -7,7 +7,7 @@ and runs the script that owns the named check:
 
   battery check (T A M C X LC F I)  battery-23.sql
   b22:<check>                       battery-22.sql (the -22 rows -23 re-reads)
-  CR1-CR25                          races/cash-23.sh
+  CR1-CR28c                         races/cash-23.sh
   APPLY:<phrase>                    the patch itself must refuse (its tail runs
                                     the invariants), with that phrase
 
@@ -692,9 +692,11 @@ def main() -> int:
             print(f"{mid} MISSED (applied cleanly): {what}")
             missed += 1
             continue
-        # The worst statistics for the walks' plans: a vacuumed ledger the
-        # planner believes empty (-22 r4); r8 (Fable S1): and the cash tables
-        # the reissue line's walks read.
+        # Fresh statistics for the walks' plans, as tests/ci.sh gives the
+        # battery: autovacuum can leave "pages present, 0 rows", which slows
+        # the deep lines badly (R21). -22 r4; r8 (Fable S1) added the cash
+        # tables the reissue line's walks read; r10 (Codex S1) corrected this
+        # comment, which called the vacuumed state the worst.
         v = sh(["docker", "exec", "tally-pg", "psql", "-U", "tally", "-d", DB, "-v", "ON_ERROR_STOP=1", "-qc", "VACUUM public.account_ledger, public.payments, public.customer_credits"])
         if v.returncode:
             print(f"{mid} SETUP-ERROR: {v.stderr.strip()[:140]}")

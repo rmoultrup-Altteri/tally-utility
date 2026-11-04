@@ -447,8 +447,8 @@
 --   Still Kyle's: restriction against the floor (A6), and the floor once its
 --   target is paid; the record carries either answer.
 --
--- Tests. battery-23 (390 checks), races/cash-23.sh (CR1-CR26, 40 results),
---   mutations-23.py (225 mutations; r5 retired N145, a lock made
+-- Tests. battery-23 (409 checks), races/cash-23.sh (CR1-CR28c, 51 results),
+--   mutations-23.py (233 mutations; r5 retired N145, a lock made
 --   redundant). assert_cash_guard_invariants() runs
 --   in the tail and in CI.
 --

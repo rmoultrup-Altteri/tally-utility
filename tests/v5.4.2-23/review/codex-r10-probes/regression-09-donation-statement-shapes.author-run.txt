@@ -1,0 +1,3 @@
+-- author run 2026-11-04, owner, fresh clone of tally with frozen r10 strictly applied, TEMP revoked; notices and errors only
+psql:<stdin>:110: NOTICE:  donation multi-row CAUGHT SQLSTATE=23514 MESSAGE=credit 3b9c3c44-f08e-4508-a7bc-7127990bebf0: on 2026-03-15 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)
+psql:<stdin>:110: NOTICE:  donation CTE CAUGHT SQLSTATE=23514 MESSAGE=credit 3b9c3c44-f08e-4508-a7bc-7127990bebf0: on 2026-03-15 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 200.00, more than its 100.00 (R-06 cap, K-10; v5.4.2-23)

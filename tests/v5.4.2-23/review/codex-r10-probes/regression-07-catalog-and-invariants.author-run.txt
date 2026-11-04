@@ -1,0 +1,2 @@
+-- author run 2026-11-04, owner, fresh clone of tally with frozen r10 strictly applied, TEMP revoked; notices and errors only
+psql:<stdin>:25: NOTICE:  baseline invariants ADMITTED SQLSTATE=00000

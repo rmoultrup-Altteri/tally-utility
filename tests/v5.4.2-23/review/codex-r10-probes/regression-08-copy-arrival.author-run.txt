@@ -1,0 +1,4 @@
+-- author run 2026-11-04, owner, fresh clone of tally with frozen r10 strictly applied, TEMP revoked; notices and errors only
+COPY probe: expected native ERROR 23514 (still pending); the following error is the probe result, not LAST_ERROR_SQLSTATE.
+psql:<stdin>:97: ERROR:  23514: account_ledger 527f4cff-5d71-4d79-96fa-ded1425d8a59 posts payment copy-voided, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+psql:<stdin>:98: error: ERROR:  23514: account_ledger 527f4cff-5d71-4d79-96fa-ded1425d8a59 posts payment copy-voided, which is voided: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
