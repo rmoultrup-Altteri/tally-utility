@@ -253,3 +253,47 @@ The customer's ledger:
 
 - The void (−$64.61, naming the Oct 15 charge) and the correction (+$55.90) are dated Dec 3, in December. October's closed figures are unchanged.
 - Not $57.01: rating the whole period at the Oct 14 rates ($12.80 + 5.0 × $2.96 ($14.80) + $26.75 + $2.10 = $56.45, tax $0.56) is not the historical basis: it would change the rate method as well as the usage. A test expecting $57.01 is wrong.
+
+---
+
+### SCN-0033 — A bill voided after its late penalty posted: the penalty follows the corrected amount
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Written against the rulings: the late-penalty rules are dated rule data not yet built (Kyle 10-15, R-11), and penalties belong with collections (v5.4.2-26, not yet built). Reviewer gap (Fable, 2026-11-02, item 6).
+*Rule:* a late penalty is its own charge, naming the bill it was assessed on. When that bill is voided and corrected, the penalty is reversed in full, naming the penalty entry, with the void as its reason, and a new penalty is assessed on the correction for whatever part of it was late. What the customer already owed keeps the original bill's due date; any increase gets a new due date of its own. A penalty is charged once, on the current bill only, never on an earlier penalty. Sources: Kyle 11-03, answer 3 (current bill only, charged once) and answer 10 (what was owed keeps its age; an increase ages from the correction with a new due date); every reversal names what it undoes, capped at it (Kyle 10-15, R-02; CI-017); Bluebonnet's tariff (`cast.md` §2: due 15 days after issue, rolling to the next workday; the late "gross" rate 10% higher).
+
+**Given**
+- The reference November bill: issued and posted Mon Nov 16, **$65.83**, due Tue Dec 1. Unpaid.
+- Bluebonnet's penalty is taken as 10% of the bill's total, tax included (**invented** reading of "the gross rate is 10% higher"). On Wed Dec 2 a penalty posts: 10% × $65.83 = 6.5830 → **$6.58**, naming the November bill.
+- On Fri Dec 4 the read is found keyed wrong, and the operator chooses to void and rebill (Kyle 11-03, answer 7). The true read is (a) 4.5 Mcf, as SCN-0002; (b) 7.5 Mcf.
+
+**When** the operator voids the November bill and issues the correction on Dec 4, rate basis historical.
+
+**Then**
+- **(a)** The correction is SCN-0002's, **$52.61**. It is a decrease, so all of it keeps the Dec 1 due date, and all of it was late.
+
+  | Entry | Amount | Names |
+  |---|---|---|
+  | November bill charge (Nov 16) | +$65.83 | — |
+  | Late penalty (Dec 2) | +$6.58 | the November bill |
+  | Void reversal (Dec 4) | −$65.83 | the November bill's charge |
+  | Penalty reversal (Dec 4) | −$6.58 | the Dec 2 penalty; reason: the bill it was assessed on is void |
+  | Correction charge (Dec 4) | +$52.61 | — (names the voided bill) |
+  | Late penalty on the correction (Dec 4) | +$5.26 | the correction: 10% × $52.61 = 5.2610, late since Dec 1 |
+  | **Balance** | **$57.87** | |
+
+- **(b)** The correction at 7.5 Mcf:
+
+  | Line | Arithmetic | Amount |
+  |---|---|---|
+  | Customer charge | $12.80 | $12.80 |
+  | Distribution | 7.5 Mcf × $2.96 = 22.2000 | $22.20 |
+  | Commodity charge | 7.5 Mcf × $5.35 = 40.1250 | $40.13 (half-up) |
+  | Gas cost adjustment | 7.5 Mcf × $0.42 = 3.1500 | $3.15 |
+  | City sales tax | 1% × $78.28 = 0.7828 | $0.78 |
+  | **Total** | | **$79.06** |
+
+  It passes as an upward correction under Bluebonnet's six-month default (SCN-0028), cause keying error, the operator's choice recorded. $65.83 of it keeps the Dec 1 due date; the increase, **$13.23**, is due 15 days after Dec 4, Sat Dec 19, rolled to **Mon Dec 21**.
+  - The Dec 2 penalty is reversed (−$6.58) and assessed again on the $65.83 that was late: **$6.58**, naming the correction. Balance on Dec 4: $79.06 + $6.58 = **$85.64**.
+  - If the $13.23 is still unpaid at the end of Dec 21, a penalty of 10% × $13.23 = 1.3230 → **$1.32** posts on Dec 22, naming the correction. No penalty is ever charged on the $6.58.
+- In both, the voided bill and the original penalty stay readable as posted; nothing is edited.
+- **Open (Kyle, next batch):** the misread was the utility's mistake. Should the penalty be re-assessed on the corrected amount, as written here, or waived because the customer was sent a wrong bill? The scenario follows answer 10 (what was owed keeps its due date) and answer 3; a waiver would make (a)'s balance $52.61 and (b)'s $79.06.

@@ -38,7 +38,33 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 **Then**
 - (a) refused: September is closed.
-- (b) accepted. The payment counts in October's activity. For on-time questions the customer's date is Sep 27. The September bill was issued Sep 18; fifteen days later is Saturday Oct 3, so it was due Monday Oct 5. It was paid on time and carries no late penalty; a penalty already posted for it would be reversed, naming the penalty.
+- (b) accepted. The payment counts in October's activity. For on-time questions the customer's date is Sep 27. The September bill was issued Sep 18; fifteen days later is Saturday Oct 3, so it was due Monday Oct 5. It was paid on time and carries no late penalty; SCN-0034 is the case where one had already posted.
+
+---
+
+### SCN-0034 — A late penalty already posted is reversed when the payment proves to have been on time
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Written against the rulings: the late-penalty rules are not yet built (R-11); payments belong to the cash family (-23 in review). Reviewer gap (Fable, 2026-11-02, item 7).
+*Rule:* whether a payment was on time is judged by the customer's date, by the method the tariff states, not by the day it was recorded. A penalty posted before an on-time payment was recorded is reversed in full, naming the penalty, with the customer's date as the reason, in the open period. A reversed penalty is not counted as a late penalty afterwards. Sources: SCN-0021; -19 (the customer's date and its method; CI-058); R-02 and CI-017 (a reversal names what it undoes, capped at it); Kyle 11-03, answer 3 (a penalty on the current bill only).
+
+**Given** SCN-0021's facts, plus: the September bill ($54.34, issued Fri Sep 18) was due Mon Oct 5; on Tue Oct 6, with no payment recorded, a penalty posted: 10% × $54.34 = 5.4340 → **$5.43** (the same **invented** reading of Bluebonnet's gross rate as SCN-0033). October is open.
+
+**When** on Wed Oct 14 the clerk records the check dated Oct 14, with the postmark Sep 27 as the customer's date (SCN-0021 b).
+
+**Then**
+
+| Entry | Amount | Names |
+|---|---|---|
+| September bill charge (Sep 18) | +$54.34 | — |
+| Late penalty (Oct 6) | +$5.43 | the September bill |
+| Payment (Oct 14; customer's date Sep 27) | −$54.34 | — |
+| Penalty reversal (Oct 14) | −$5.43 | the Oct 6 penalty; reason: paid on time, postmark Sep 27 |
+| **Balance** | **$0.00** | |
+
+- The reversal is dated Oct 14, in October; it is not dated Oct 6 or Sep 27.
+- A further reversal of the penalty is refused: nothing is left of it.
+- The penalty does not count toward Bluebonnet's limit of two late penalties for a deposit refund (SCN-0007, SCN-0008): it is reversed for being wrongly assessed.
+- Recorded with no customer's date, the same check is late, and the penalty stands.
 
 ---
 
