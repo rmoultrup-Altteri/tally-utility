@@ -615,7 +615,7 @@ MUTATIONS = [
      rep("        IF v_pool_pay IS NOT NULL AND p_purpose NOT IN ('reissue', 'overpayment_credit') THEN", "        IF v_pool_pay IS NOT NULL AND p_purpose NOT IN ('reissue', 'overpayment_credit', 'refund') THEN")),
     ("N229", "a refund leaving a family is not ordered after a take-back under its payment (Opus B1, J)", "CR27",
      rep("        PERFORM public.check_cash_leaving_order(\n            coalesce(OLD.refunds_payment_id,", "        PERFORM pg_catalog.num_nulls(\n            coalesce(OLD.refunds_payment_id,")),
-    ("N230", "a family credit's void is not ordered after a take-back under its payment (Opus B1, the void)", "CR28",
+    ("N230", "a family credit's void is not ordered after a take-back under its payment (Opus B1, the void; r9: Opus V shows the harm)", "CR28c",
      rep("    IF NEW.status = 'voided' THEN\n        PERFORM public.check_cash_leaving_order(", "    IF false THEN\n        PERFORM public.check_cash_leaving_order(")),
     ("N231", "a reissue is sized against its own draws (Opus S1, one statement)", "U2",
      rep("                + NEW.original_amount\n                - coalesce((SELECT s.absorbed FROM public.overpayment_absorbed_as_of(public.overpayment_root(NEW.id), DATE '9999-12-31', pg_catalog.clock_timestamp(), false) s\n                             WHERE s.credit_id = NEW.id), 0);\n",
@@ -624,6 +624,9 @@ MUTATIONS = [
      rep("                        SELECT l.transaction_date, l.amount - coalesce(x.absorbed, 0)\n", "                        SELECT l.transaction_date, l.amount - 2 * coalesce(x.absorbed, 0)\n")),
     ("N233", "the overpayment credit's cap forgets its share of a take-back (Opus mB; the exact cap in agree() sees it first)", "Y7j",
      rep("                         WHERE v_family AND s.credit_id = p_id\n", "                         WHERE v_family AND s.credit_id = p_id AND v_origin = 'refund_reissue'\n")),
+    ("N234", "the recorded-order checks are executable by tally_core (Fable r9 S1)", "APPLY:a recorded-order check is missing",
+     rep("GRANT EXECUTE ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) TO tally_app;",
+         "GRANT EXECUTE ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) TO tally_app, tally_core;")),
 ]
 
 

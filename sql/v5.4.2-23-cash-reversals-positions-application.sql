@@ -4851,10 +4851,24 @@ BEGIN
             MESSAGE = 'check_cash_source is executable beyond tally_app, or not by tally_app (v5.4.2-23)',
             ERRCODE = 'invalid_grant_operation';
     END IF;
+    -- r9 (Fable r9 S1): so are the two recorded-order checks it and the
+    -- leaving moves call, and both exist.
+    SELECT string_agg(f, ', ' ORDER BY f) INTO v_bad
+      FROM unnest(ARRAY['public.check_cash_order(text, uuid, timestamp with time zone, uuid, text)',
+                        'public.check_cash_leaving_order(uuid, timestamp with time zone, text)']) f
+     WHERE CASE WHEN pg_catalog.to_regprocedure(f) IS NULL THEN true
+                ELSE has_function_privilege('public', f, 'EXECUTE')
+                  OR has_function_privilege('tally_core', f, 'EXECUTE')
+                  OR NOT has_function_privilege('tally_app', f, 'EXECUTE') END;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('a recorded-order check is missing, executable beyond tally_app, or not by tally_app: %s (v5.4.2-23)', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
 END;
 $fn$;
 COMMENT ON FUNCTION public.assert_cash_guard_invariants() IS
-    'v5.4.2-23. Raises unless every guard of v5.4.2-23 — the reversal rule, the application and draw caps, the line-class check at issue, the append-only and stamp triggers of applications and approvals, the freeze on applications, the rewritten payment and credit guards, and the money tables'' retention triggers — exists exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; its constraints, the one-credit-per-approval index and (r3) the one-arrival-entry-per-source indexes exist exactly as defined and validated (r3: with the remittance''s freeze and stamp, the refund sign, the credit''s positive amount and the refund''s sign on payments); the counters it derives are not columns; the walks keep their plan settings; tally_app cannot UPDATE (a table or any column), DELETE or TRUNCATE applications or approvals (r2); payments.status defaults to pending; the approvals keep their tenant policy, alone, and forced row security; check_cash_source is tally_app''s alone, and tally_app''s (r3). Checks definitions, not the bodies of the functions they call. Run in the patch tail and in CI.';
+    'v5.4.2-23. Raises unless every guard of v5.4.2-23 — the reversal rule, the application and draw caps, the line-class check at issue, the append-only and stamp triggers of applications and approvals, the freeze on applications, the rewritten payment and credit guards, and the money tables'' retention triggers — exists exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; its constraints, the one-credit-per-approval index and (r3) the one-arrival-entry-per-source indexes exist exactly as defined and validated (r3: with the remittance''s freeze and stamp, the refund sign, the credit''s positive amount and the refund''s sign on payments); the counters it derives are not columns; the walks keep their plan settings; tally_app cannot UPDATE (a table or any column), DELETE or TRUNCATE applications or approvals (r2); payments.status defaults to pending; the approvals keep their tenant policy, alone, and forced row security; check_cash_source is tally_app''s alone, and tally_app''s (r3); r9: so are check_cash_order and check_cash_leaving_order, which exist. Checks definitions, not the bodies of the functions they call. Run in the patch tail and in CI.';
 REVOKE ALL ON FUNCTION public.assert_cash_guard_invariants() FROM PUBLIC, tally_app, tally_core;
 
 DO $$ BEGIN
