@@ -34,7 +34,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
 | -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04; not drafted) |
-| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109); r1 reviewed 2026-11-02 (not yet); r2 built and frozen 2026-11-04, in review; the meter test fee (CI-091) moved to its own patch after dated history |
+| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109). **Mirrored 2026-11-04** (Ryan; ahead of -23/-25/-26). The meter test fee (CI-091) moved to its own patch after dated history |
 
 **Next free: -30.**
 
@@ -43,7 +43,8 @@ Claim the next free number here, commit and push, before creating the file. Numb
 1. -23 (money)
 2. -25 (money)
 3. -26 (money)
-4. -28 (rates; r2 frozen 2026-11-04, in review)
+
+-28 (rates) was mirrored out of turn on 2026-11-04 (Ryan's approval): none of the three redefines an object -28 changes, and they strict-apply cleanly on the new build. **For money:** `tally` now carries -28, so re-run your batteries on it before your next mirror (the rule below); `rate_item_dependencies` is dated (A-1 group 2), and `customer_is_state_agency_as_of` takes a third argument, the zone.
 
 A patch joins the queue when it is frozen for review. Before mirroring, re-run its battery on the current `tally`; a patch reviewed before an earlier mirror is re-tested, and re-reviewed only if the re-test fails.
 

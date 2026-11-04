@@ -1,8 +1,32 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-21, verified 2026-10-14.** After v5.4.2-21: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **479 FKs** / **582 CHECKs** / **22 EXCLUDE** / **455 triggers** / **536 functions** / **717 indexes**. tu.sql **40,652 lines**, md5 `3b1433a315ecc97be284525333185932` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-22 + v5.4.2-28 (mirrored ahead of -23/-25/-26), verified 2026-11-04.** After v5.4.2-28: **137 tables** / **9 views** / **4 matviews** / **107 policies** / **106 FORCE-RLS** / **495 FKs** / **605 CHECKs** / **25 EXCLUDE** / **474 triggers** / **555 functions** / **731 indexes**. tu.sql **42,838 lines**, md5 `adc884faf2f19fe5c68963e750bebc55` (the container init file matches by hash).
 
 **Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-20, verified 2026-10-14.** After v5.4.2-20: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **477 FKs** / **575 CHECKs** / **22 EXCLUDE** / **415 triggers** / **527 functions** / **709 indexes**. tu.sql **39,349 lines**, md5 `e13f0d72ffdcf65782e789a58ed4cb32` (the container init file matches by hash).
+## v5.4.2-28 — rates small fixes: the state-agency day boundary in the bill's own zone (CI-010), rider dependencies dated in place (CI-101), four-decimal rates (CI-109) (Ryan 2026-11-02; mirror approved by Ryan 2026-11-04 "yes, mirror it now", ahead of -23/-25/-26)
+`sql/v5.4.2-28-rates-small-fixes.sql` (662 lines, md5 `a18f1b8f2ab5ef829c04da86ae1339a2`, r2), mirrored into tu.sql (42,310 → **42,838**: a pure append of a blank line, a 4-line banner and the 523-line body; 528 insertions, 0 deletions). The header and BEGIN / COMMIT are omitted, as with every mirror. The body is byte-identical to the patch's lines 139–661. It is the first patch mirrored out of number order: -23, -25 and -26 (money) are not yet ready, and none of them redefines an object -28 changes (checked); they apply cleanly on top of the build.
+
+**What changes** (the patch header lists each item, with known limits L1–L6):
+- **The state-agency check's day boundary (CI-010):** the pipeline safety fee's exemption is judged at midnight in the bill's own zone. `invoice_time_zone_as_of` reads the premise's zone. A consolidated parent reads its live children's zones, and its own premise's too; they must agree. `customer_is_state_agency_as_of` requires the zone; the America/Chicago form is dropped. Until -29 loads every Texas county's zone, a non-zero fee outside El Paso and Hudspeth is refused (L1).
+- **Rider dependencies dated in place (CI-101):** `rate_item_dependencies` joins A-1 group 2. It is dated and frozen; corrected by succession; retracted by a close that needs a reason. The cycle walk counts links in force over overlapping dates, including links another session closed after the writer's transaction began. -21's retire fields are dropped. Read through `rate_item_dependencies_as_of`.
+- **Four-decimal rates (CI-109):** version rates, tier rates and schedule overrides carry at most four decimals, and NaN is refused. A fraction-unit rate has its own check, whose name says to store percentages in percent (AC-45). The tier check is written so that its stored form reparses (a dump restores).
+
+**Review** (`tests/v5.4.2-28/review/`), two rounds:
+- **Round 1:** Opus and Codex "not yet", Fable ready. Blocking: the tier check could not be restored from a dump; a close without a reason passed; a consolidated parent with its own premise skipped its children. The fourth, a summary bill changed after issue, is the money stream's rule (Ryan, option 1: L6).
+- **Round 2:** all three ready, nothing blocking. Codex reviewed source only; the author ran its two probes, and every result matched its prediction. The reviewers' test additions went into the tests after the freeze; the patch is unchanged (`application/rates-build-2026-11-02/v5.4.2-28-r2-review-outcome.md`).
+
+**Method.**
+1. Strict apply twice on a clone of the -22 build, TEMP revoked: clean.
+2. **battery-28: 101 PASS.** R6 reparses all 630 CHECK and exclusion constraints in public from their stored text.
+3. **mutations-28.sh: 28 of 28**, each caught at its named check. The runner fails on a catch at the wrong check, and on a stop at an unlabelled error.
+4. **races/past-cycle-28.sh:** P1–P3 pass. Run against frozen r1, it fails P1 and P2 with the ordering shown. The ported races `cycle-19.sh` and `labels-21.sh` pass.
+5. Dump and restore of a patched clone: 0 errors, identical counts.
+6. Mirror.
+7. Image rebuilt on a fresh container (`tests/ci.sh --build`): no errors during init, and the init file equals tu.sql by md5 (`adc884faf2f19fe5c68963e750bebc55`).
+8. **Schema parity, full identity:** `pg_dump --schema-only` of the build equals that of a clone of the -22 build with frozen r2 applied, with and without privileges (0 differing lines; pg_dump's random `\restrict` token excluded). `tests/v5.4.2-14/parity/catalog-identity.sql` on the build: 11,630 lines, md5 `7c0ef2b21b6798e4f1b315a81f576eab`.
+9. **On the build:** every `ci.sh` step passes (50) except battery -15 case V23. That is the money stream's test, which dates a deposit return due 2026-11-01 against a closure stamped now(); it fails the same way without -28 (board note, 2026-11-02). The patch re-applied over the build twice is clean. TEMP is false for `tally_app`, `tally_core`, `tally_seal`, `tally_void` and `tally_close`.
+10. `PENDING` in `tests/ci.sh` holds -23, -25 and -26.
+
 ## v5.4.2-23 — cash: reversals, positions, payment application, credits from overpayment (drafted 2026-10-17; in review, not mirrored)
 `sql/v5.4.2-23-cash-reversals-positions-application.sql`. This entry is completed at the mirror. Until then it holds what a real database needs before the patch applies, which the patch's precondition refuses and names.
 

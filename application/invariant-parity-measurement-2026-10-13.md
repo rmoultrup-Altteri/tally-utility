@@ -8,6 +8,29 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-04 (after v5.4.2-28)
+
+**How this was graded.** Re-graded by the session, as before. Each CI was read against -28's header (its three sections and known limits L1–L6), its two review rounds (Opus, Fable and Codex ready on r2) and its battery (101 checks). -28 was mirrored ahead of -23, -25 and -26 (Ryan, 2026-11-04), so the money rows stand as of the 2026-10-16 update. Only the four CIs below were re-graded. Three changed; CI-010 stays PARTIAL with a shorter list.
+
+| Class | 2026-10-16 | Now | Change |
+|---|---|---|---|
+| REP+PROT | 54 | **57** | +3 |
+| REP | 24 | **24** | 0 |
+| PARTIAL | 45 | **42** | −3 |
+| GAP | 11 | **11** | 0 |
+| BLOCKED | 0 | **0** | 0 |
+| N/A | 1 | **1** | 0 |
+| **Total** | 135 | 135 | |
+
+**Done for step 1** (REP+PROT + REP): **81 of 135**, plus CI-036 ruled out of platform scope. **Open: 53** (42 PARTIAL, 11 GAP).
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-010 | PARTIAL | PARTIAL | med | -28 section 1 (Ryan 2026-11-02 option 1, 2026-11-04 option 1) | The America/Chicago constant is gone. The state-agency exemption is judged at midnight in the bill's own zone: `invoice_time_zone_as_of` (the premise's zone; a consolidated parent's live children, and its own premise, must agree). `customer_is_state_agency_as_of` requires the zone. No function in public names an `America/` zone (battery Z4b). | The deposit triggers (`enforce_deposit_event`, `enforce_deposit_return_due_evidence`) still take day boundaries in UTC: the money stream's (board note, 2026-11-02). Data: until -29 loads every Texas county's zone, a non-zero fee outside El Paso and Hudspeth is refused (refused, never wrong). |
+| CI-089 | PARTIAL | REP+PROT | med | -28 (no SQL); Kyle K-06 | The only missing element was a prompt-payment discount. K-06 drops it (no early-pay discounts), so nothing in the schema should carry it. Every other element is stored and frozen at issuance. | The completeness check at render and issue is the core's. |
+| CI-101 | PARTIAL | REP+PROT | high | -19 (cycles, tenant), -21 (retention), -28 section 2 (dated; Ryan 2026-11-02 option 1) | `rate_item_dependencies` is bi-temporal in place (A-1 group 2): dated, frozen once written, corrected by succession, retracted by a close with a reason. Cycles are refused among the links in force over overlapping dates, including links another session closed after the writer's transaction began (race `past-cycle-28.sh`). Same tenant, no hard delete, stamped writer and closer. Read through `rate_item_dependencies_as_of`. | The topological evaluation is the core's. L2: the cycle check is conservative across dates. Two successors of one predecessor are admitted (A-1-wide, not -28's). |
+| CI-109 | PARTIAL | REP+PROT | med | -28 section 3 (Kyle K-06; Ryan 2026-11-02 option 2; AC-45) | K-06: one rule (rates and intermediates to four decimals, money to the cent half-up), so no per-tariff rounding value is needed. A rate with more than four decimals, or NaN, is refused where rates are entered: version rates, tier rates, schedule overrides. A percentage is stored in percent (AC-45). `formula_version` pins the engine's rounding per bill. | Bill-line rates (`invoice_line_items.rate`, `gas_commodity_rate`) still take six decimals: the money stream's (board note). Retiring the `decimal` unit is a later rates patch. |
+
 ## Update — 2026-10-16 (after v5.4.2-22)
 
 **How this was graded.** Re-graded by the session, as on 2026-10-15. Each CI was read against -22's header ("what changes" and residuals R1–R12), its nine review rounds and its battery (167 checks). Only the three CIs below changed; -22's source inventory maps no other CI to it (CI-013, 017, 049, 050, 053 and 056 are -23's). Every other row stands as of the 2026-10-15 update.

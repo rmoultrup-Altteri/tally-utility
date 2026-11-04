@@ -40,7 +40,6 @@ PENDING=(
   sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
-  sql/v5.4.2-28-rates-small-fixes.sql:rate_item_dependencies.effective_date
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.
