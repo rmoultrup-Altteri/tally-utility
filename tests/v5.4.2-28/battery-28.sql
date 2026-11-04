@@ -1,5 +1,5 @@
 -- ============================================================================
--- BATTERY v5.4.2-28 — rates small fixes (2026-11-02; r2 2026-11-04)
+-- BATTERY v5.4.2-28 — rates small fixes (2026-11-02; r2 and its review's test additions 2026-11-04)
 -- Run: psql -U tally -d <db-with-patch> -v ON_ERROR_STOP=1 -f battery-28.sql
 -- One transaction, rolled back. Fixtures as the owner; the guard the
 -- application meets is exercised as tally_app too. refuses_at() requires the
@@ -24,8 +24,9 @@
 --      a version's rate, a tier's rate, a schedule's override; negative
 --      rates too; a tier rate that is not a number; columns stay scale 6;
 --      r2: NaN refused, a fraction-unit rate refused under the check that
---      says to store percent, and every CHECK of the four tables reparses
---      from its stored text (a dump can be restored).
+--      says to store percent, and every CHECK and exclusion constraint in
+--      the public schema reparses from its stored text (the form pg_dump
+--      writes; the real dump and restore is a separate verification step).
 --
 -- The fixture's one fact that matters: customer C1 became a state agency at
 -- 2026-07-01 05:30 UTC. That is 00:30 on July 1 in Central time (after the
@@ -64,6 +65,20 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'FAIL %: refused with % (%)', p_label, SQLSTATE, SQLERRM;
 END $$;
+-- zone_is(): the zone lookup answers p_zone; a refusal is a labelled FAIL,
+-- not a bare error (ok() evaluates its argument before it can label it).
+CREATE FUNCTION pg_temp.zone_is(p_label text, p_invoice uuid, p_zone text) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE v text;
+BEGIN
+  BEGIN
+    v := public.invoice_time_zone_as_of(p_invoice, DATE '2026-06-30');
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'FAIL %: refused with % (%)', p_label, SQLSTATE, SQLERRM;
+  END;
+  IF v IS DISTINCT FROM p_zone THEN RAISE EXCEPTION 'FAIL %: % (expected %)', p_label, v, p_zone; END IF;
+  RAISE NOTICE 'PASS %', p_label;
+END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text) TO tally_app;
 
 -- ================================================================= fixtures
@@ -71,6 +86,12 @@ INSERT INTO public.tenants (id, name, slug) VALUES
   ('00000000-0000-4000-8000-0000000028a1', 'T1 City Gas', 'bat28-t1');
 INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
   ('00000000-0000-4000-8000-0000000028b1', '00000000-0000-4000-8000-0000000028a1', 'Op1', 'op1@bat28.test', 'operator');
+-- T2: a second utility (its user forges a changed_by / closed_by in D; its
+-- bills attach to T1's summary bills in Z5q/Z5r).
+INSERT INTO public.tenants (id, name, slug) VALUES
+  ('00000000-0000-4000-8000-0000000028a2', 'T2 Gasco', 'bat28-t2');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
+  ('00000000-0000-4000-8000-0000000028b2', '00000000-0000-4000-8000-0000000028a2', 'Op2', 'op2@bat28.test', 'operator');
 -- C1: a government account, not a state agency from 2020, one from
 -- 2026-07-01 05:30 UTC (the owner writes the history row; the application
 -- cannot, -07's enforce_event_written_by_db).
@@ -189,6 +210,34 @@ SELECT pg_temp.inv(76, '00000000-0000-4000-8000-0000000028d3', 75);
 SELECT pg_temp.inv(77, NULL);                                                         -- parent whose child is consolidated with a premise
 SELECT pg_temp.inv(78, '00000000-0000-4000-8000-0000000028d2', 77, 'draft', true);
 SELECT pg_temp.inv(79, '00000000-0000-4000-8000-0000000028d2', NULL, 'draft', true);  -- consolidated at Austin, no child
+-- Another utility's bills attached to T1's summary bills (r2 review: Opus,
+-- Fable and Codex). The schema admits this today (the parent link is a
+-- single-column key; the cross-tenant link fix, CI-116, closes it later);
+-- the lookup's tenant filters must keep them out even for the owner, who
+-- sees both. T2's premise is in Austin. Parents 87 and 89 are used only
+-- here, so a broken filter is named at Z5q / Z5r and nowhere earlier.
+SELECT pg_temp.inv(87, NULL);                                             -- parent: an El Paso child (88) + T2's Austin bill
+SELECT pg_temp.inv(88, '00000000-0000-4000-8000-0000000028d1', 87);
+SELECT pg_temp.inv(89, NULL);                                             -- parent: an El Paso child (90) + T2's consolidated bill
+SELECT pg_temp.inv(90, '00000000-0000-4000-8000-0000000028d1', 89);
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000028c2', '00000000-0000-4000-8000-0000000028a2', 'B28-C2', 'residential');
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  ('00000000-0000-4000-8000-0000000028d5', '00000000-0000-4000-8000-0000000028a2', '00000000-0000-4000-8000-0000000028c2', 'T2-L', '5 Main', 'Austin', 'TX', '78701');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b2', true);
+INSERT INTO public.premise_place_memberships (tenant_id, service_location_id, place_id, axis, place_kind,
+                                              valid_from, evidence_kind, evidence_reference, evidence_date)
+VALUES ('00000000-0000-4000-8000-0000000028a2', '00000000-0000-4000-8000-0000000028d5', (SELECT id FROM b28 WHERE k = 'travis'), 'regulatory', 'state',
+        DATE '2020-01-01', 'ordinance', 'battery 28', DATE '2019-12-01');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, is_consolidated, parent_invoice_id, is_consolidated_child, status,
+                             invoice_date, billing_period, period_start, period_end, due_date, amount_due) VALUES
+  -- a live Austin bill of T2 under T1's parent 87 (El Paso)
+  ('00000000-0000-4000-8000-000000028985', '00000000-0000-4000-8000-0000000028a2', 'B28-T2-85', '00000000-0000-4000-8000-0000000028c2', '00000000-0000-4000-8000-0000000028d5',
+   false, '00000000-0000-4000-8000-000000028987', true, 'draft', DATE '2026-07-02', '2026-06', DATE '2026-06-01', DATE '2026-06-30', DATE '2026-07-20', 1.00),
+  -- a consolidated bill of T2 under T1's parent 89 (El Paso)
+  ('00000000-0000-4000-8000-000000028986', '00000000-0000-4000-8000-0000000028a2', 'B28-T2-86', '00000000-0000-4000-8000-0000000028c2', '00000000-0000-4000-8000-0000000028d5',
+   true, '00000000-0000-4000-8000-000000028989', true, 'draft', DATE '2026-07-02', '2026-06', DATE '2026-06-01', DATE '2026-06-30', DATE '2026-07-20', 1.00);
 
 -- ======================================================= Z. the time zone
 -- Z1-Z2: the reading itself, one zone each side of the change.
@@ -213,14 +262,14 @@ SELECT pg_temp.ok('Z4b no function in public names an America/ zone',
   NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                WHERE n.nspname = 'public' AND p.prosrc ~ 'America/'));
 -- Z5: the bill's zone.
-SELECT pg_temp.ok('Z5a one premise: El Paso reads Mountain',
-  public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028901', DATE '2026-06-30') = 'America/Denver');
-SELECT pg_temp.ok('Z5b one premise: Austin reads Central',
-  public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028902', DATE '2026-06-30') = 'America/Chicago');
-SELECT pg_temp.ok('Z5c a parent whose children agree reads their zone',
-  public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028910', DATE '2026-06-30') = 'America/Denver');
-SELECT pg_temp.ok('Z5d a void child does not count',
-  public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028940', DATE '2026-06-30') = 'America/Chicago');
+SELECT pg_temp.zone_is('Z5a one premise: El Paso reads Mountain',
+  '00000000-0000-4000-8000-000000028901', 'America/Denver');
+SELECT pg_temp.zone_is('Z5b one premise: Austin reads Central',
+  '00000000-0000-4000-8000-000000028902', 'America/Chicago');
+SELECT pg_temp.zone_is('Z5c a parent whose children agree reads their zone',
+  '00000000-0000-4000-8000-000000028910', 'America/Denver');
+SELECT pg_temp.zone_is('Z5d a void child does not count',
+  '00000000-0000-4000-8000-000000028940', 'America/Chicago');
 SELECT pg_temp.refuses_at('Z5e a parent whose children disagree',
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028920', DATE '2026-06-30')$q$, '21000', 'more than one time zone');
 SELECT pg_temp.refuses_at('Z5f a parent with no child',
@@ -235,8 +284,12 @@ SELECT pg_temp.refuses_at('Z5m a consolidated parent with a premise still reads 
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028970', DATE '2026-06-30')$q$, '21000', 'more than one time zone');
 SELECT pg_temp.refuses_at('Z5n a consolidated parent whose own premise disagrees with its one child (r2)',
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028973', DATE '2026-06-30')$q$, '21000', 'more than one time zone');
-SELECT pg_temp.ok('Z5o a consolidated parent whose own premise and child agree reads that zone (r2)',
-  public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028975', DATE '2026-06-30') = 'America/Denver');
+SELECT pg_temp.zone_is('Z5o a consolidated parent whose own premise and child agree reads that zone (r2)',
+  '00000000-0000-4000-8000-000000028975', 'America/Denver');
+SELECT pg_temp.zone_is('Z5q the owner, who sees both utilities: another utility''s Austin bill under a Mountain parent stays out of the zone (r2 review)',
+  '00000000-0000-4000-8000-000000028987', 'America/Denver');
+SELECT pg_temp.zone_is('Z5r the owner: another utility''s consolidated bill under a parent is not read as a nested parent (r2 review)',
+  '00000000-0000-4000-8000-000000028989', 'America/Denver');
 SELECT pg_temp.refuses_at('Z5p a consolidated parent with a premise but no child (r2)',
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028979', DATE '2026-06-30')$q$, 'P0002', 'has no live child invoice');
 SELECT pg_temp.refuses_at('Z5i a premise with no county (Texas is not one zone)',
@@ -269,7 +322,7 @@ SELECT pg_temp.refuses_at('Z6h parent, no child',
   pg_temp.psf(30, 1, 1.00), 'P0002', 'has no live child invoice');
 SELECT pg_temp.admits('Z6i parent, Austin child live and El Paso child void: Central, the fee stands',
   pg_temp.psf(40, 2, 1.00));
-SELECT pg_temp.refuses_at('Z6j a consolidated parent at Austin over El Paso and Austin children: the fee is refused, not judged at Austin (r2, Codex B3)',
+SELECT pg_temp.refuses_at('Z6j a consolidated parent at El Paso over El Paso and Austin children: the fee is refused, not judged at El Paso (r2, Codex B3)',
   pg_temp.psf(70, 2, 1.00), '21000', 'more than one time zone');
 RESET ROLE;
 
@@ -283,10 +336,6 @@ SELECT pg_temp.ok('Z7 both functions: the application and the core, not PUBLIC',
 -- ============================================ D. rider dependencies, dated
 -- Fixtures: schedule RS28; items A, B, C, D, E of tenant 1; tenant 2 and
 -- its user (a forged changed_by / closed_by). Every write is tally_app's.
-INSERT INTO public.tenants (id, name, slug) VALUES
-  ('00000000-0000-4000-8000-0000000028a2', 'T2 Gasco', 'bat28-t2');
-INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES
-  ('00000000-0000-4000-8000-0000000028b2', '00000000-0000-4000-8000-0000000028a2', 'Op2', 'op2@bat28.test', 'operator');
 INSERT INTO public.rate_schedules (id, tenant_id, code) VALUES
   ('00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-0000000028a1', 'RS28');
 INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
@@ -540,32 +589,36 @@ SELECT pg_temp.refuses_at('R3c a schedule override that is not a number (NaN; r2
      VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-000000002875', 'NaN', DATE '2026-01-01')$q$,
   '23514', 'rate_schedule_items_rate_override_four_decimals_check');
 RESET ROLE;
--- R6: every CHECK on the four tables -28 touches reparses from the text the
--- catalogue prints (r2, Opus B1): pg_dump writes that text, so a CHECK that
--- does not reparse loses its whole table on restore. Each definition is fed
--- back through ALTER TABLE ... ADD CONSTRAINT on an empty scratch copy.
+-- R6: every CHECK and exclusion constraint on a table in the public schema
+-- reparses from the text the catalogue prints (r2, Opus B1; widened by the r2
+-- review, Opus and Fable): pg_dump writes that text, so one that does not
+-- reparse loses its whole table on restore. Each table gets one empty
+-- scratch copy (LIKE: columns only), and each definition is fed back through
+-- ALTER TABLE ... ADD CONSTRAINT. This proves the reparse, not a restore
+-- (ordering, data, functions, ACLs): the real dump and restore is a separate
+-- verification step.
 DO $$
-DECLARE r record; n int := 0;
+DECLARE t record; r record; n int := 0;
 BEGIN
-  FOR r IN SELECT c.conrelid::regclass::text AS tbl, c.conname, pg_get_constraintdef(c.oid) AS def
-             FROM pg_constraint c
-            WHERE c.contype = 'c'
-              AND c.conrelid IN ('public.rate_item_versions'::regclass, 'public.rate_schedule_items'::regclass,
-                                 'public.rate_item_dependencies'::regclass, 'public.invoices'::regclass) LOOP
-    EXECUTE format('CREATE TEMP TABLE b28_reparse (LIKE %s)', r.tbl);
-    BEGIN
-      EXECUTE format('ALTER TABLE pg_temp.b28_reparse ADD CONSTRAINT %I %s', r.conname, r.def);
-    EXCEPTION WHEN OTHERS THEN
-      RAISE EXCEPTION 'FAIL R6: % on % does not reparse from its stored text (%): %', r.conname, r.tbl, SQLERRM, r.def;
-    END;
+  FOR t IN SELECT DISTINCT c.conrelid FROM pg_constraint c JOIN pg_class k ON k.oid = c.conrelid JOIN pg_namespace s ON s.oid = k.relnamespace
+            WHERE s.nspname = 'public' AND c.contype IN ('c', 'x') LOOP
+    EXECUTE format('CREATE TEMP TABLE b28_reparse (LIKE %s)', t.conrelid::regclass);
+    FOR r IN SELECT c.conname, pg_get_constraintdef(c.oid) AS def FROM pg_constraint c
+              WHERE c.conrelid = t.conrelid AND c.contype IN ('c', 'x') LOOP
+      BEGIN
+        EXECUTE format('ALTER TABLE pg_temp.b28_reparse ADD CONSTRAINT %I %s', r.conname, r.def);
+      EXCEPTION WHEN OTHERS THEN
+        RAISE EXCEPTION 'FAIL R6: % on % does not reparse from its stored text (%): %', r.conname, t.conrelid::regclass, SQLERRM, r.def;
+      END;
+      n := n + 1;
+    END LOOP;
     DROP TABLE pg_temp.b28_reparse;
-    n := n + 1;
   END LOOP;
-  IF n < 10 THEN RAISE EXCEPTION 'FAIL R6: only % CHECKs found; the scan is not looking at the right tables', n; END IF;
-  RAISE NOTICE 'PASS R6 every CHECK on the four tables (%) reparses from its stored text', n;
+  IF n < 300 THEN RAISE EXCEPTION 'FAIL R6: only % constraints found; the scan is not looking at the schema', n; END IF;
+  RAISE NOTICE 'PASS R6 every CHECK and exclusion constraint in public (%) reparses from its stored text', n;
 END $$;
 SELECT pg_temp.ok('R6b the tier check is stored in the dump-safe form',
-  (SELECT pg_get_constraintdef(oid) LIKE '%(@ * 10000) % 1 != 0%' FROM pg_constraint WHERE conname = 'rate_item_versions_tier_rates_four_decimals_check'));
+  (SELECT strpos(pg_get_constraintdef(oid), '(@ * 10000) % 1 != 0') > 0 FROM pg_constraint WHERE conname = 'rate_item_versions_tier_rates_four_decimals_check'));
 SELECT pg_temp.ok('R4 the rate columns stay six-decimal (relaxing is dropping a check, no data moves)',
   (SELECT bool_and(numeric_scale = 6) FROM information_schema.columns
     WHERE table_schema = 'public' AND (table_name, column_name) IN (('rate_item_versions', 'rate_value'), ('rate_schedule_items', 'rate_override'))));

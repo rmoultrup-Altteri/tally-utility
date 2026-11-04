@@ -38,8 +38,10 @@ open(sys.argv[4], "w").write(s)' "$P" "$3" "$4" "$TMP/m.sql"; then
   if ! docker exec tally-pg psql -U tally -d m28 -v ON_ERROR_STOP=1 -q -o /dev/null -f /tmp/m28.sql >/dev/null 2>&1; then
     echo "SETUP $1: the mutated patch did not apply"; fail=1; return
   fi
-  got=$(docker exec tally-pg psql -U tally -d m28 -v ON_ERROR_STOP=1 -q -o /dev/null -f /tmp/b28m.sql 2>&1 | grep -m1 -o "FAIL [A-Za-z0-9]*" | cut -d' ' -f2)
-  if [ -z "$got" ]; then echo "MISSED $1: the battery passed"; fail=1
+  bout=$(docker exec tally-pg psql -U tally -d m28 -v ON_ERROR_STOP=1 -q -o /dev/null -f /tmp/b28m.sql 2>&1); bst=$?
+  got=$(echo "$bout" | grep -m1 -o "FAIL [A-Za-z0-9]*" | cut -d' ' -f2)
+  if [ -z "$got" ] && [ "$bst" -ne 0 ]; then echo "UNLABELLED $1: the battery stopped on an error no check named: $(echo "$bout" | grep -m1 ERROR)"; fail=1
+  elif [ -z "$got" ]; then echo "MISSED $1: the battery passed"; fail=1
   elif [ "$got" = "$2" ]; then echo "caught $1 at $got"; caught=$((caught + 1))
   elif [ -n "${5:-}" ] && [ "$got" = "$5" ]; then echo "caught $1 at $got (accepted alternate to $2: $6)"; caught=$((caught + 1))
   else echo "WRONG CHECK $1: caught at $got, named $2"; fail=1; fi
@@ -110,6 +112,24 @@ mut "N22 a fraction-unit rate passes the general check (AC-45)" R5b \
   "    CHECK (rate_unit IS DISTINCT FROM 'decimal' OR rate_value IS NULL" "    CHECK (true OR rate_value IS NULL"
 mut "N23 the tier check back in the form a dump cannot restore (Opus B1)" R6 \
   '|| @ * 10000 % 1 != 0)' '|| @ * 10000 != (@ * 10000).floor())'
+
+# The r2 review's additions (2026-11-04)
+mut "N24 the live-child scan drops its tenant filter (Opus, Fable, Codex)" Z5r \
+  "c.tenant_id = v_inv.tenant_id AND c.status <> 'void';
+    IF v_children" "c.status <> 'void';
+    IF v_children"
+mut "N25 the zone scan drops its tenant filter (Opus, Fable, Codex)" Z5q \
+  "WHERE c.parent_invoice_id = v_inv.id AND c.tenant_id = v_inv.tenant_id AND c.status <> 'void'
+            UNION ALL" "WHERE c.parent_invoice_id = v_inv.id AND c.status <> 'void'
+            UNION ALL"
+mut "N26 the zone scan counts void children (Codex N6)" Z5d \
+  "AND c.tenant_id = v_inv.tenant_id AND c.status <> 'void'
+            UNION ALL" "AND c.tenant_id = v_inv.tenant_id
+            UNION ALL"
+mut "N27 the fraction-unit check at five decimals (Opus)" R5b \
+  "CHECK (rate_unit IS DISTINCT FROM 'decimal' OR rate_value IS NULL OR (rate_value <> 'NaN' AND rate_value = round(rate_value, 4)))" "CHECK (rate_unit IS DISTINCT FROM 'decimal' OR rate_value IS NULL OR (rate_value <> 'NaN' AND rate_value = round(rate_value, 5)))"
+mut "N28 NaN in a fraction-unit rate (Opus)" R5c \
+  "CHECK (rate_unit IS DISTINCT FROM 'decimal' OR rate_value IS NULL OR (rate_value <> 'NaN' AND rate_value = round(rate_value, 4)))" "CHECK (rate_unit IS DISTINCT FROM 'decimal' OR rate_value IS NULL OR rate_value = round(rate_value, 4))"
 
 # Not here: the cycle walk's long-transaction rule (r2, Opus S1) needs two
 # committed sessions; races/past-cycle-28.sh is its test, and is run against

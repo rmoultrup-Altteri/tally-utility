@@ -5,11 +5,15 @@
 #   P1  B on A is committed. Session 1 begins and sleeps. Session 2 retracts
 #       B on A and commits. Session 1 then inserts A on B: refused (a cycle
 #       as known at session 1's recorded_at).
-#   P2  the as-of read shows no instant holding both A on B and B on A.
+#   P2  the as-of read, sampled at 41 instants 100 ms apart from session 1's
+#       start, never holds both A on B and B on A.
 #   P3  control: a transaction that begins after the retraction committed
 #       records A on B (the walk does not over-refuse).
-# Session 1's start is checked to be before session 2's close, so the leg
-# cannot pass by running in order. Setup failures exit 2.
+# Ordering (r2 review, Codex S1): session 1 takes its start, then waits
+# (bounded, polling with fresh snapshots) until it SEES session 2's close
+# committed, and only then inserts; it reports both stages. Its start is
+# checked to be before the close, so the leg can pass neither by running in
+# order nor by inserting before the close. Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
 #   usage: past-cycle-28.sh <db>      (default: r28race)
 set -uo pipefail
@@ -44,7 +48,15 @@ SQL
 BEGIN ISOLATION LEVEL READ COMMITTED;
 $APP
 SELECT 'START ' || to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US');
-SELECT pg_sleep(2.5);
+DO \$w\$ BEGIN
+  FOR i IN 1..200 LOOP   -- up to 10 s; under READ COMMITTED each query takes a fresh snapshot
+    IF EXISTS (SELECT 1 FROM public.rate_item_dependencies WHERE id = '$BA' AND recorded_until IS NOT NULL) THEN
+      RAISE NOTICE 'SAW_CLOSE'; RETURN;
+    END IF;
+    PERFORM pg_sleep(0.05);
+  END LOOP;
+  RAISE EXCEPTION 'NEVER_SAW_CLOSE';
+END \$w\$;
 INSERT INTO public.rate_item_dependencies (tenant_id, rate_schedule_id, dependent_rate_item_id, base_rate_item_id, effective_date)
 VALUES ('$T', '$S', '$A', '$B', '2026-01-01');
 COMMIT;
@@ -63,6 +75,8 @@ OUT=$(cat "$S1_OUT")
 START=$(echo "$OUT" | sed -n 's/^START //p')
 CLOSED=$("${PSQL[@]}" -c "SELECT to_char(recorded_until AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') FROM public.rate_item_dependencies WHERE id = '$BA'")
 if [ "$S2ST" -ne 0 ]; then echo "FAIL P1: session 2's retraction failed: $(cat "$S2_OUT")"; fail=1
+elif ! echo "$OUT" | grep -q "SAW_CLOSE"; then
+  echo "FAIL P1: session 1 never saw the retraction committed before its insert: $OUT"; fail=1
 elif [ -z "$START" ] || [ -z "$CLOSED" ] || [ ! "$START" \< "$CLOSED" ]; then
   echo "FAIL P1: session 1 did not start before the retraction (start '$START', closed '$CLOSED'); the leg ran in order"; fail=1
 elif echo "$OUT" | grep -q "23514" && echo "$OUT" | grep -q "closes a cycle"; then
@@ -76,7 +90,7 @@ N=$("${PSQL[@]}" -c "SELECT count(*) FROM generate_series(0, 40) g,
       LATERAL (SELECT array_agg(d.dependent_rate_item_id::text || '>' || d.base_rate_item_id::text) AS links
                  FROM public.rate_item_dependencies_as_of('$S', DATE '2026-06-01', TIMESTAMPTZ '$START+00' + g * interval '100 milliseconds') d) x
      WHERE x.links @> ARRAY['$A>$B', '$B>$A']")
-if [ "$N" = "0" ]; then echo "PASS P2 no instant from session 1's start on holds both A on B and B on A"; else echo "FAIL P2: $N instants hold a cycle"; fail=1; fi
+if [ "$N" = "0" ]; then echo "PASS P2 none of 41 instants sampled from session 1's start holds both A on B and B on A"; else echo "FAIL P2: $N instants hold a cycle"; fail=1; fi
 
 # P3: control, begun after the retraction: admitted.
 OUT=$("${PSQL[@]}" 2>&1 <<SQL

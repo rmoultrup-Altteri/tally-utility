@@ -1,0 +1,1119 @@
+== 01-regression-and-boundaries.sql (run by the author 2026-11-04 with one fixture fix: see codex-r2.md, Author's run)
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 4
+INSERT 0 4
+CREATE TABLE
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+DO
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b1
+(1 row)
+
+ assert_reference_version 
+--------------------------
+                        2
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:206: NOTICE:  PASS Z1 the end of June 30 in Mountain time is after the change
+psql:/tmp/cx01f.sql:208: NOTICE:  PASS Z2 the end of June 30 in Central time is before it
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:211: NOTICE:  PASS Z2b the day after, both zones read a state agency
+psql:/tmp/cx01f.sql:214: NOTICE:  caught SQLSTATE=22004 MESSAGE=customer_is_state_agency_as_of: a time zone is required (the bill's: invoice_time_zone_as_of); never assume one (v5.4.2-28)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:214: NOTICE:  PASS Z3a no zone: refused by a time zone is required (customer_is_state_agency_as_of: a time zone is required (the bill's: invoice_time_zone_as_of); never assume one (v5.4.2-28))
+psql:/tmp/cx01f.sql:216: NOTICE:  caught SQLSTATE=22023 MESSAGE=time zone "Mars/Olympus" not recognized
+psql:/tmp/cx01f.sql:216: NOTICE:  PASS Z3b a zone the server does not know: refused by Mars/Olympus (time zone "Mars/Olympus" not recognized)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:218: NOTICE:  caught SQLSTATE=P0001 MESSAGE=customer_is_state_agency_as_of: p_on is required (the end of the billed period); never default to today
+psql:/tmp/cx01f.sql:218: NOTICE:  PASS Z3c no date: refused by p_on is required (customer_is_state_agency_as_of: p_on is required (the end of the billed period); never default to today)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:221: NOTICE:  PASS Z4a the two-argument signature is dropped
+psql:/tmp/cx01f.sql:224: NOTICE:  PASS Z4b no function in public names an America/ zone
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:227: NOTICE:  PASS Z5a one premise: El Paso reads Mountain
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:229: NOTICE:  PASS Z5b one premise: Austin reads Central
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:231: NOTICE:  PASS Z5c a parent whose children agree reads their zone
+psql:/tmp/cx01f.sql:233: NOTICE:  PASS Z5d a void child does not count
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:235: NOTICE:  caught SQLSTATE=21000 MESSAGE=invoice B28-20 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuses rather than choose (v5.4.2-28)
+psql:/tmp/cx01f.sql:235: NOTICE:  PASS Z5e a parent whose children disagree: refused by more than one time zone (invoice B28-20 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuse)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:237: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice B28-30 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refuses rather than assume one (v5.4.2-28)
+psql:/tmp/cx01f.sql:237: NOTICE:  PASS Z5f a parent with no child: refused by has no live child invoice (invoice B28-30 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refu)
+psql:/tmp/cx01f.sql:239: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice B28-60 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refuses rather than assume one (v5.4.2-28)
+psql:/tmp/cx01f.sql:239: NOTICE:  PASS Z5g a parent with only a void child: refused by has no live child invoice (invoice B28-60 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refu)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:241: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice B28-50 on 2026-06-30: its child invoice B28-51 is itself a consolidated invoice (or names no premise); a summary bill's members are per-premise bills, and the lookup refuses (v5.4.2-28)
+psql:/tmp/cx01f.sql:241: NOTICE:  PASS Z5h a child that is itself consolidated, with no premise: refused by is itself a consolidated invoice (invoice B28-50 on 2026-06-30: its child invoice B28-51 is itself a consolidated invoice (or names no premise); a summary bill's members are )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:243: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice B28-77 on 2026-06-30: its child invoice B28-78 is itself a consolidated invoice (or names no premise); a summary bill's members are per-premise bills, and the lookup refuses (v5.4.2-28)
+psql:/tmp/cx01f.sql:243: NOTICE:  PASS Z5h2 a child that is itself consolidated, naming a premise (r2, Codex B3): refused by is itself a consolidated invoice (invoice B28-77 on 2026-06-30: its child invoice B28-78 is itself a consolidated invoice (or names no premise); a summary bill's members are )
+psql:/tmp/cx01f.sql:245: NOTICE:  caught SQLSTATE=21000 MESSAGE=invoice B28-70 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuses rather than choose (v5.4.2-28)
+psql:/tmp/cx01f.sql:245: NOTICE:  PASS Z5m a consolidated parent with a premise still reads its children, which disagree (r2, Codex B3): refused by more than one time zone (invoice B28-70 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuse)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:247: NOTICE:  caught SQLSTATE=21000 MESSAGE=invoice B28-73 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuses rather than choose (v5.4.2-28)
+psql:/tmp/cx01f.sql:247: NOTICE:  PASS Z5n a consolidated parent whose own premise disagrees with its one child (r2): refused by more than one time zone (invoice B28-73 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuse)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:249: NOTICE:  PASS Z5o a consolidated parent whose own premise and child agree reads that zone (r2)
+psql:/tmp/cx01f.sql:251: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice B28-79 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refuses rather than assume one (v5.4.2-28)
+psql:/tmp/cx01f.sql:251: NOTICE:  PASS Z5p a consolidated parent with a premise but no child (r2): refused by has no live child invoice (invoice B28-79 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refu)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:253: NOTICE:  caught SQLSTATE=P0002 MESSAGE=no time zone can be read for premise 00000000-0000-4000-8000-0000000028d4 on 2026-06-30: no place it is within carries one, or only its state does and the state is not in one zone (v5.4.2-16)
+psql:/tmp/cx01f.sql:253: NOTICE:  PASS Z5i a premise with no county (Texas is not one zone): refused by no time zone can be read (no time zone can be read for premise 00000000-0000-4000-8000-0000000028d4 on 2026-06-30: no place it is within carries one, or only its stat)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:255: NOTICE:  caught SQLSTATE=22004 MESSAGE=invoice_time_zone_as_of: p_invoice_id and p_on are required; never default to today (v5.4.2-28)
+psql:/tmp/cx01f.sql:255: NOTICE:  PASS Z5j no bill: refused by p_invoice_id and p_on are required (invoice_time_zone_as_of: p_invoice_id and p_on are required; never default to today (v5.4.2-28))
+psql:/tmp/cx01f.sql:257: NOTICE:  caught SQLSTATE=22004 MESSAGE=invoice_time_zone_as_of: p_invoice_id and p_on are required; never default to today (v5.4.2-28)
+psql:/tmp/cx01f.sql:257: NOTICE:  PASS Z5k no date: refused by p_invoice_id and p_on are required (invoice_time_zone_as_of: p_invoice_id and p_on are required; never default to today (v5.4.2-28))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:259: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice_time_zone_as_of: invoice 00000000-0000-4000-8000-0000000289ff is not visible in this tenant (v5.4.2-28)
+psql:/tmp/cx01f.sql:259: NOTICE:  PASS Z5l a bill that is not there: refused by is not visible (invoice_time_zone_as_of: invoice 00000000-0000-4000-8000-0000000289ff is not visible in this tenant (v5.4.2-28))
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:265: NOTICE:  caught SQLSTATE=23514 MESSAGE=invoice B28-1: the customer was a state agency at the end of the billed period (2026-06-30, midnight America/Denver) and is exempt from the pipeline_safety_fee surcharge — line PSF must be 0.00 (CI-038; rule bc41f5ea-a9c1-4294-b1f4-80da06b3b1df)
+psql:/tmp/cx01f.sql:265: NOTICE:  PASS Z6a El Paso: a state agency's bill, a fee is refused: refused by was a state agency at the end of the billed period (invoice B28-1: the customer was a state agency at the end of the billed period (2026-06-30, midnight America/Denver) and is exempt from the )
+psql:/tmp/cx01f.sql:267: NOTICE:  PASS Z6b Austin: not yet a state agency, the fee stands
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:269: NOTICE:  PASS Z6c El Paso: a 0.00 fee line stands
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:271: NOTICE:  PASS Z6d no zone needed for a 0.00 line: a premise with no county
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:273: NOTICE:  caught SQLSTATE=P0002 MESSAGE=no time zone can be read for premise 00000000-0000-4000-8000-0000000028d4 on 2026-06-30: no place it is within carries one, or only its state does and the state is not in one zone (v5.4.2-16)
+psql:/tmp/cx01f.sql:273: NOTICE:  PASS Z6e a premise with no county: a fee refuses, never assumes Central: refused by no time zone can be read (no time zone can be read for premise 00000000-0000-4000-8000-0000000028d4 on 2026-06-30: no place it is within carries one, or only its stat)
+psql:/tmp/cx01f.sql:275: NOTICE:  caught SQLSTATE=23514 MESSAGE=invoice B28-10: the customer was a state agency at the end of the billed period (2026-06-30, midnight America/Denver) and is exempt from the pipeline_safety_fee surcharge — line PSF must be 0.00 (CI-038; rule bc41f5ea-a9c1-4294-b1f4-80da06b3b1df)
+psql:/tmp/cx01f.sql:275: NOTICE:  PASS Z6f parent, children in Mountain: refused as a state agency's bill: refused by was a state agency at the end of the billed period (invoice B28-10: the customer was a state agency at the end of the billed period (2026-06-30, midnight America/Denver) and is exempt from the)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:277: NOTICE:  caught SQLSTATE=21000 MESSAGE=invoice B28-20 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuses rather than choose (v5.4.2-28)
+psql:/tmp/cx01f.sql:277: NOTICE:  PASS Z6g parent, children in two zones: refused by more than one time zone (invoice B28-20 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuse)
+psql:/tmp/cx01f.sql:279: NOTICE:  caught SQLSTATE=P0002 MESSAGE=invoice B28-30 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refuses rather than assume one (v5.4.2-28)
+psql:/tmp/cx01f.sql:279: NOTICE:  PASS Z6h parent, no child: refused by has no live child invoice (invoice B28-30 on 2026-06-30: a consolidated invoice that has no live child invoice has no premise to read a time zone from; the lookup refu)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:281: NOTICE:  PASS Z6i parent, Austin child live and El Paso child void: Central, the fee stands
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:283: NOTICE:  caught SQLSTATE=21000 MESSAGE=invoice B28-70 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuses rather than choose (v5.4.2-28)
+psql:/tmp/cx01f.sql:283: NOTICE:  PASS Z6j a consolidated parent at Austin over El Paso and Austin children: the fee is refused, not judged at Austin (r2, Codex B3): refused by more than one time zone (invoice B28-70 on 2026-06-30: its child invoices' premises span more than one time zone (America/Chicago, America/Denver); the lookup refuse)
+RESET
+psql:/tmp/cx01f.sql:291: NOTICE:  PASS Z7 both functions: the application and the core, not PUBLIC
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 5
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:326: NOTICE:  PASS D0 retired_at, retired_by and retired_reason are dropped; the A-1 columns are there
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:332: NOTICE:  caught SQLSTATE=23502 MESSAGE=null value in column "effective_date" of relation "rate_item_dependencies" violates not-null constraint
+psql:/tmp/cx01f.sql:332: NOTICE:  PASS D1a a dependency with no in-force date: refused by effective_date (null value in column "effective_date" of relation "rate_item_dependencies" violates not-null constraint)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:334: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: expiry_date 2026-02-01 is before effective_date 2026-03-01 (rate_item_dependencies_valid_bracket_check, v5.4.2-28)
+psql:/tmp/cx01f.sql:334: NOTICE:  PASS D1b an expiry before the start: refused by rate_item_dependencies_valid_bracket_check (rate_item_dependencies: expiry_date 2026-02-01 is before effective_date 2026-03-01 (rate_item_dependencies_valid_bracket_check, v5.4.2-28))
+psql:/tmp/cx01f.sql:338: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: a new assertion is born open — recorded_until is set only by the closing UPDATE.
+psql:/tmp/cx01f.sql:338: NOTICE:  PASS D2a born closed: refused by born open (rate_item_dependencies: a new assertion is born open — recorded_until is set only by the closing UPDATE.)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:340: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: change_type = 'backfill' is written only by the v5.4.2-03 migration, before this guard existed; a live insert is initial / succession / correction.
+psql:/tmp/cx01f.sql:340: NOTICE:  PASS D2b born as a backfill: refused by backfill (rate_item_dependencies: change_type = 'backfill' is written only by the v5.4.2-03 migration, before this guard existed; a live insert is ini)
+psql:/tmp/cx01f.sql:342: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_supersedes_check"
+psql:/tmp/cx01f.sql:342: NOTICE:  PASS D2c a successor that names nothing: refused by rate_item_dependencies_supersedes_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_supersedes_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:344: NOTICE:  PASS D2d A on B, January to March, with a forged recorded_at and changed_by
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:347: NOTICE:  PASS D2e recorded_at is the database's, changed_by the session's user
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:350: NOTICE:  caught SQLSTATE=23001 MESSAGE=rate_item_dependencies: an asserted row is never edited in place (CI-001/CI-002). Close it (recorded_until, closed_type, closed_reason) and insert the corrected row with supersedes_id = 00000000-0000-4000-8000-000000002801. Writable in place: .
+psql:/tmp/cx01f.sql:350: NOTICE:  PASS D3a an open row edited in place: refused by never edited in place (rate_item_dependencies: an asserted row is never edited in place (CI-001/CI-002). Close it (recorded_until, closed_type, closed_reason) and )
+psql:/tmp/cx01f.sql:352: NOTICE:  caught SQLSTATE=23001 MESSAGE=rate_item_dependencies: an asserted row is never edited in place (CI-001/CI-002). Close it (recorded_until, closed_type, closed_reason) and insert the corrected row with supersedes_id = 00000000-0000-4000-8000-000000002801. Writable in place: .
+psql:/tmp/cx01f.sql:352: NOTICE:  PASS D3b even its notes: refused by never edited in place (rate_item_dependencies: an asserted row is never edited in place (CI-001/CI-002). Close it (recorded_until, closed_type, closed_reason) and )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:356: NOTICE:  caught SQLSTATE=42501 MESSAGE=permission denied for table rate_item_dependencies
+psql:/tmp/cx01f.sql:356: NOTICE:  PASS D3c the application has no DELETE grant on dependencies: refused by permission denied (permission denied for table rate_item_dependencies)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:359: NOTICE:  caught SQLSTATE=23P01 MESSAGE=conflicting key value violates exclusion constraint "rate_item_dependencies_open_no_overlap_excl"
+psql:/tmp/cx01f.sql:359: NOTICE:  PASS D4a A on B again from March 31 (the last day of the first): refused by rate_item_dependencies_open_no_overlap_excl (conflicting key value violates exclusion constraint "rate_item_dependencies_open_no_overlap_excl")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:361: NOTICE:  PASS D4b A on B again from April 1 (no shared day)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:364: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028bb depending on 00000000-0000-4000-8000-0000000028aa from 2026-03-01 to 2026-03-31 closes a cycle in rate schedule 00000000-0000-4000-8000-000000002841 among the dependencies in force over those dates — rider composition must be a DAG (CI-101, v5.4.2-19, -28)
+psql:/tmp/cx01f.sql:364: NOTICE:  PASS D5a B on A from March: shares March with A on B: refused by closes a cycle (rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028bb depending on 00000000-0000-4000-8000-0000000028aa from 2026-03-01 to )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:366: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028bb depending on 00000000-0000-4000-8000-0000000028aa from 2026-04-01 to open closes a cycle in rate schedule 00000000-0000-4000-8000-000000002841 among the dependencies in force over those dates — rider composition must be a DAG (CI-101, v5.4.2-19, -28)
+psql:/tmp/cx01f.sql:366: NOTICE:  PASS D5b B on A from April: A on B is in force again from April (row 02): refused by closes a cycle (rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028bb depending on 00000000-0000-4000-8000-0000000028aa from 2026-04-01 to )
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:370: NOTICE:  PASS D6-fixture D on E, January to March 2026
+psql:/tmp/cx01f.sql:371: NOTICE:  PASS D6-fixture E on C, from April 2026
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:373: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028cc depending on 00000000-0000-4000-8000-0000000028dd from 2026-01-01 to 2026-12-31 closes a cycle in rate schedule 00000000-0000-4000-8000-000000002841 among the dependencies in force over those dates — rider composition must be a DAG (CI-101, v5.4.2-19, -28)
+psql:/tmp/cx01f.sql:373: NOTICE:  PASS D6 C on D for 2026: no day holds the whole cycle, refused by design (conservative): refused by closes a cycle (rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028cc depending on 00000000-0000-4000-8000-0000000028dd from 2026-01-01 to )
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:375: NOTICE:  PASS D6b C on D from 2027: D on E has ended, no overlap, no cycle
+psql:/tmp/cx01f.sql:382: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:382: NOTICE:  PASS D7a a close with a blank reason: refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:385: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:385: NOTICE:  PASS D7a2 a supersession that gives no reason (the column left out): refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:388: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:388: NOTICE:  PASS D7a3 a supersession with a NULL reason: refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:391: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:391: NOTICE:  PASS D7a4 a supersession whose reason is punctuation: refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:394: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:394: NOTICE:  PASS D7a5 a retraction that gives no reason (the column left out): refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:397: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:397: NOTICE:  PASS D7a6 a retraction with a NULL reason: refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+psql:/tmp/cx01f.sql:400: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:400: NOTICE:  PASS D7a7 a retraction with a blank reason (a tab): refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:403: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check"
+psql:/tmp/cx01f.sql:403: NOTICE:  PASS D7a8 a retraction whose reason is punctuation: refused by rate_item_dependencies_close_consistent_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_close_consistent_check")
+RESET
+SET
+UPDATE 1
+SET
+psql:/tmp/cx01f.sql:410: NOTICE:  PASS D7-fixture the header is back-dated
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b1
+(1 row)
+
+UPDATE 1
+psql:/tmp/cx01f.sql:418: NOTICE:  PASS D7c the close is stamped (recorded_until now, closed_by the session's user) and took the schedule header (checked before the successor's insert bumps it too)
+ ok 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:421: NOTICE:  PASS D7b the successor, C on D January to June 2027
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:423: NOTICE:  PASS D7d C on D has ended, so D on C from July 2027 is no cycle
+psql:/tmp/cx01f.sql:425: NOTICE:  caught SQLSTATE=23001 MESSAGE=rate_item_dependencies: this assertion was closed at 2026-11-04 17:24:27.521769+00 and is immutable (CI-001). Insert a new row (supersedes_id -> the row you meant to change) instead.
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:425: NOTICE:  PASS D7e a closed row is immutable: refused by immutable (rate_item_dependencies: this assertion was closed at 2026-11-04 17:24:27.521769+00 and is immutable (CI-001). Insert a new row (supersedes_i)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:428: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: supersedes_id 00000000-0000-4000-8000-000000002803 belongs to a different entity (dependent_rate_item_id differs: 00000000-0000-4000-8000-0000000028cc vs 00000000-0000-4000-8000-0000000028aa); lineage never crosses entities
+psql:/tmp/cx01f.sql:428: NOTICE:  PASS D7f a successor of another link: refused by different entity (rate_item_dependencies: supersedes_id 00000000-0000-4000-8000-000000002803 belongs to a different entity (dependent_rate_item_id differs: 00)
+psql:/tmp/cx01f.sql:434: NOTICE:  caught SQLSTATE=23000 MESSAGE=rate_item_dependencies: row 00000000-0000-4000-8000-000000002805 was closed as 'superseded' but no ASSERTED, non-retracted row of the same entity supersedes it at commit (a pending draft does not count; a successor retracted in the same transaction does not count — retract the whole chain if the fact never existed). Insert the successor (supersedes_id = this id, same entity) in the same transaction, or close it as 'retracted' (CI-002).
+psql:/tmp/cx01f.sql:434: NOTICE:  PASS D7g closed as superseded with no successor at commit: refused by no ASSERTED (rate_item_dependencies: row 00000000-0000-4000-8000-000000002805 was closed as 'superseded' but no ASSERTED, non-retracted row of the same e)
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET CONSTRAINTS
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:449: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_change_reason_check"
+psql:/tmp/cx01f.sql:449: NOTICE:  PASS D8a a correction with no reason: refused by rate_item_dependencies_change_reason_check (new row for relation "rate_item_dependencies" violates check constraint "rate_item_dependencies_change_reason_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:452: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: row 00000000-0000-4000-8000-000000002802 was closed as retracted, not 'superseded' — a retracted assertion has no successor (CI-002)
+psql:/tmp/cx01f.sql:452: NOTICE:  PASS D8b a successor of a retracted row, with a reason: refused by a retracted assertion has no successor (rate_item_dependencies: row 00000000-0000-4000-8000-000000002802 was closed as retracted, not 'superseded' — a retracted assertion has no su)
+psql:/tmp/cx01f.sql:454: NOTICE:  PASS D8c B on A from April now passes: the retracted A on B is not in the walk
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:461: NOTICE:  PASS D9a in force on 2026-02-10: A on B, D on E
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:467: NOTICE:  PASS D9b in force on 2026-08-01: B on A, E on C
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:476: NOTICE:  PASS D9b2 2027: C on D (the successor) in March, D on C in August
+psql:/tmp/cx01f.sql:478: NOTICE:  PASS D9c as known before any of it was recorded: nothing
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:480: NOTICE:  caught SQLSTATE=22004 MESSAGE=rate_item_dependencies_as_of: the schedule, the day and the recorded-at instant are all required — pass the bill's day and the run's recorded_at; never default to now() (CI-001 / CI-101, v5.4.2-28)
+psql:/tmp/cx01f.sql:480: NOTICE:  PASS D9d the read needs every coordinate: refused by all required (rate_item_dependencies_as_of: the schedule, the day and the recorded-at instant are all required — pass the bill's day and the run's recorde)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:483: NOTICE:  caught SQLSTATE=23001 MESSAGE=rate_item_dependencies: bi-temporal rows are never deleted (CI-001/CI-014); retract by closing the row (recorded_until + closed_type = 'retracted' + closed_reason).
+psql:/tmp/cx01f.sql:483: NOTICE:  PASS D9e the owner deletes a dependency: refused by never (rate_item_dependencies: bi-temporal rows are never deleted (CI-001/CI-014); retract by closing the row (recorded_until + closed_type = 'retr)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:488: NOTICE:  PASS D10 the read: the application and the core, not PUBLIC
+psql:/tmp/cx01f.sql:495: NOTICE:  PASS D11: the wave-1 guard invariant holds with the two A-1 triggers
+DO
+INSERT 0 8
+CREATE FUNCTION
+GRANT
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b1
+(1 row)
+
+ assert_reference_version 
+--------------------------
+                        2
+                        2
+                        2
+                        2
+                        2
+                        2
+                        2
+                        2
+(8 rows)
+
+psql:/tmp/cx01f.sql:513: NOTICE:  PASS R1a a rate of four decimals
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:515: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check"
+psql:/tmp/cx01f.sql:515: NOTICE:  PASS R1b a rate of five decimals: refused by rate_item_versions_rate_four_decimals_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:517: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check"
+psql:/tmp/cx01f.sql:517: NOTICE:  PASS R1c a negative rate of five decimals (a credit rider): refused by rate_item_versions_rate_four_decimals_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check")
+psql:/tmp/cx01f.sql:519: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check"
+psql:/tmp/cx01f.sql:519: NOTICE:  PASS R1e a rate that is not a number (NaN; r2, Fable S2): refused by rate_item_versions_rate_four_decimals_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:521: NOTICE:  PASS R1d a negative rate of four decimals
+psql:/tmp/cx01f.sql:526: NOTICE:  PASS R5a 1.997 percent, stored in percent
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:528: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_fraction_rate_store_as_percent_check"
+psql:/tmp/cx01f.sql:528: NOTICE:  PASS R5b the same rate as a fraction: refused by the check that says to store it in percent: refused by rate_item_versions_fraction_rate_store_as_percent_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_fraction_rate_store_as_percent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:530: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_fraction_rate_store_as_percent_check"
+psql:/tmp/cx01f.sql:530: NOTICE:  PASS R5c a fraction that is not a number: refused by rate_item_versions_fraction_rate_store_as_percent_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_fraction_rate_store_as_percent_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:532: NOTICE:  PASS R5d a fraction of four decimals still passes (the unit is retired later, AC-45)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:534: NOTICE:  PASS R2a tiers at four decimals
+psql:/tmp/cx01f.sql:537: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_tier_rates_four_decimals_check"
+psql:/tmp/cx01f.sql:537: NOTICE:  PASS R2b a tier rate of five decimals: refused by rate_item_versions_tier_rates_four_decimals_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_tier_rates_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:540: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_tier_rates_four_decimals_check"
+psql:/tmp/cx01f.sql:540: NOTICE:  PASS R2c a tier rate that is not a number: refused by rate_item_versions_tier_rates_four_decimals_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_tier_rates_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:545: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_schedule_items" violates check constraint "rate_schedule_items_rate_override_four_decimals_check"
+psql:/tmp/cx01f.sql:545: NOTICE:  PASS R3a a schedule override of five decimals: refused by rate_schedule_items_rate_override_four_decimals_check (new row for relation "rate_schedule_items" violates check constraint "rate_schedule_items_rate_override_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:548: NOTICE:  PASS R3b a schedule override of four decimals
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:552: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_schedule_items" violates check constraint "rate_schedule_items_rate_override_four_decimals_check"
+psql:/tmp/cx01f.sql:552: NOTICE:  PASS R3c a schedule override that is not a number (NaN; r2, Fable S2): refused by rate_schedule_items_rate_override_four_decimals_check (new row for relation "rate_schedule_items" violates check constraint "rate_schedule_items_rate_override_four_decimals_check")
+RESET
+psql:/tmp/cx01f.sql:578: NOTICE:  PASS R6 every CHECK on the four tables (43) reparses from its stored text
+DO
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:580: NOTICE:  PASS R6b the tier check is stored in the dump-safe form
+psql:/tmp/cx01f.sql:583: NOTICE:  PASS R4 the rate columns stay six-decimal (relaxing is dropping a check, no data moves)
+psql:/tmp/cx01f.sql:585: NOTICE:  battery-28: all checks passed
+ ok 
+----
+ 
+(1 row)
+
+DO
+RESET
+ inv 
+-----
+ 
+(1 row)
+
+ inv 
+-----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:594: NOTICE:  caught SQLSTATE=P0002 MESSAGE=no time zone can be read for premise 00000000-0000-4000-8000-0000000028d4 on 2026-06-30: no place it is within carries one, or only its state does and the state is not in one zone (v5.4.2-16)
+psql:/tmp/cx01f.sql:594: NOTICE:  PASS C1 unknown parent zone cannot disappear in UNION/aggregate: refused by no time zone can be read (no time zone can be read for premise 00000000-0000-4000-8000-0000000028d4 on 2026-06-30: no place it is within carries one, or only its stat)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b2
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000028b1
+(1 row)
+
+psql:/tmp/cx01f.sql:610: NOTICE:  PASS C2 owner ignores foreign-tenant Central child of Mountain parent
+ ok 
+----
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/cx01f.sql:614: NOTICE:  PASS C3 owner ignores foreign-tenant nested child
+ ok 
+----
+ 
+(1 row)
+
+GRANT
+SET
+psql:/tmp/cx01f.sql:619: NOTICE:  PASS C4 core calls dependency reader
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:621: NOTICE:  PASS C5 core calls parent-zone reader
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:623: NOTICE:  caught SQLSTATE=42501 MESSAGE=permission denied for table rate_item_dependencies
+psql:/tmp/cx01f.sql:623: NOTICE:  PASS C6 core cannot write dependencies: refused by permission denied (permission denied for table rate_item_dependencies)
+RESET
+INSERT 0 1
+SET
+psql:/tmp/cx01f.sql:630: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check"
+psql:/tmp/cx01f.sql:630: NOTICE:  PASS C7 explicit NULL unit still gets general precision check: refused by rate_item_versions_rate_four_decimals_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_rate_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:633: NOTICE:  caught SQLSTATE=23001 MESSAGE=rate_item_versions: an asserted row is never edited in place (CI-001/CI-002). Close it (recorded_until, closed_type, closed_reason) and insert the corrected row with supersedes_id = 5d244184-7410-4a2e-ab21-3fc618a89dee. Writable in place: .
+psql:/tmp/cx01f.sql:633: NOTICE:  PASS C8 rate unit cannot be changed in place: refused by never edited in place (rate_item_versions: an asserted row is never edited in place (CI-001/CI-002). Close it (recorded_until, closed_type, closed_reason) and inse)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:637: NOTICE:  caught SQLSTATE=23514 MESSAGE=new row for relation "rate_schedule_items" violates check constraint "rate_schedule_items_rate_override_four_decimals_check"
+psql:/tmp/cx01f.sql:637: NOTICE:  PASS C9 decimal override still gets precision check: refused by rate_schedule_items_rate_override_four_decimals_check (new row for relation "rate_schedule_items" violates check constraint "rate_schedule_items_rate_override_four_decimals_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:643: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028cc depending on 00000000-0000-4000-8000-0000000028aa from 2030-01-01 to open closes a cycle in rate schedule 00000000-0000-4000-8000-000000002841 among the dependencies in force over those dates — rider composition must be a DAG (CI-101, v5.4.2-19, -28)
+psql:/tmp/cx01f.sql:643: NOTICE:  PASS C10 multi-row two-cycle: refused by closes a cycle (rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028cc depending on 00000000-0000-4000-8000-0000000028aa from 2030-01-01 to )
+psql:/tmp/cx01f.sql:650: NOTICE:  caught SQLSTATE=23514 MESSAGE=rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028cc depending on 00000000-0000-4000-8000-0000000028aa from 2030-01-01 to open closes a cycle in rate schedule 00000000-0000-4000-8000-000000002841 among the dependencies in force over those dates — rider composition must be a DAG (CI-101, v5.4.2-19, -28)
+psql:/tmp/cx01f.sql:650: NOTICE:  PASS C11 chained writable CTE two-cycle: refused by closes a cycle (rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028cc depending on 00000000-0000-4000-8000-0000000028aa from 2030-01-01 to )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/cx01f.sql:655: NOTICE:  caught SQLSTATE=23503 MESSAGE=rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028ff is not a row of this dependency's tenant (CI-101 / CI-116, v5.4.2-19)
+psql:/tmp/cx01f.sql:655: NOTICE:  PASS C12 application cannot use another tenant item: refused by not a row of this dependency (rate_item_dependencies: rate item 00000000-0000-4000-8000-0000000028ff is not a row of this dependency's tenant (CI-101 / CI-116, v5.4.2-19))
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/cx01f.sql:659: NOTICE:  PASS C13 retained earliest-history fallback before 2020
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK
+
+== 02-temporal-predicate.sql
+BEGIN
+SET
+DO
+psql:/tmp/cx02.sql:32: NOTICE:  PASS open before new: retained=t (SQLSTATE 00000)
+psql:/tmp/cx02.sql:32: NOTICE:  PASS closed after new start: retained=t (SQLSTATE 00000)
+psql:/tmp/cx02.sql:32: NOTICE:  PASS close and successor at same transaction instant: retained=f (SQLSTATE 00000)
+psql:/tmp/cx02.sql:32: NOTICE:  PASS closed before new start: retained=f (SQLSTATE 00000)
+psql:/tmp/cx02.sql:32: NOTICE:  PASS asserted after new start, remains open: retained=t (SQLSTATE 00000)
+psql:/tmp/cx02.sql:32: NOTICE:  PASS asserted and closed after new start: retained=t (SQLSTATE 00000)
+psql:/tmp/cx02.sql:32: NOTICE:  The predicate tests potential overlap with NEW [10,infinity), not strictly known-at-10 membership
+                                                                                                                pg_get_functiondef                                                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION public.enforce_rate_item_dependency()                                                                                                                                                                                 +
+  RETURNS trigger                                                                                                                                                                                                                                 +
+  LANGUAGE plpgsql                                                                                                                                                                                                                                +
+  SET search_path TO 'public', 'pg_temp'                                                                                                                                                                                                          +
+ AS $function$                                                                                                                                                                                                                                    +
+ DECLARE                                                                                                                                                                                                                                          +
+     v_bad    text;                                                                                                                                                                                                                               +
+     v_cycle  boolean;                                                                                                                                                                                                                            +
+ BEGIN                                                                                                                                                                                                                                            +
+     IF TG_OP = 'UPDATE' THEN                                                                                                                                                                                                                     +
+         -- The row guard has already refused every change but a close. A close                                                                                                                                                                   +
+         -- names its closer as the database knows the session's user (-21 r2:                                                                                                                                                                    +
+         -- never a caller-chosen id) and takes the schedule header, as an                                                                                                                                                                        +
+         -- insert does (one lock order); removing a link cannot close a cycle.                                                                                                                                                                   +
+         IF OLD.recorded_until IS NULL AND NEW.recorded_until IS NOT NULL THEN                                                                                                                                                                    +
+             NEW.closed_by := NULLIF(pg_catalog.current_setting('app.user_id', true), '')::uuid;                                                                                                                                                  +
+             UPDATE public.rate_schedules s SET updated_at = now() WHERE s.id = NEW.rate_schedule_id;                                                                                                                                             +
+         END IF;                                                                                                                                                                                                                                  +
+         RETURN NEW;                                                                                                                                                                                                                              +
+     END IF;                                                                                                                                                                                                                                      +
+                                                                                                                                                                                                                                                  +
+     -- The session's user, as the database knows it. An owner write with no                                                                                                                                                                      +
+     -- app.user_id (a migration) stamps NULL, as -21's retired_by did.                                                                                                                                                                           +
+     NEW.changed_by := NULLIF(pg_catalog.current_setting('app.user_id', true), '')::uuid;                                                                                                                                                         +
+                                                                                                                                                                                                                                                  +
+     -- The bracket, before the walk builds a range from it (a reversed one                                                                                                                                                                       +
+     -- would fail there with a bare range error; the CHECK answers later).                                                                                                                                                                       +
+     IF NEW.expiry_date < NEW.effective_date THEN                                                                                                                                                                                                 +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                    +
+             MESSAGE = format('rate_item_dependencies: expiry_date %s is before effective_date %s (rate_item_dependencies_valid_bracket_check, v5.4.2-28)', NEW.expiry_date, NEW.effective_date),                                                 +
+             ERRCODE = 'check_violation';                                                                                                                                                                                                         +
+     END IF;                                                                                                                                                                                                                                      +
+                                                                                                                                                                                                                                                  +
+     -- Same tenant: the schedule and both items. The foreign keys are single-                                                                                                                                                                    +
+     -- column and bypass row-level security, so the check is positive: each                                                                                                                                                                      +
+     -- must be VISIBLE to the writer and of this row's tenant (another                                                                                                                                                                           +
+     -- tenant's row is invisible to tally_app, and a superuser sees its                                                                                                                                                                          +
+     -- tenant_id).                                                                                                                                                                                                                               +
+     SELECT string_agg(x.what, ', ') INTO v_bad FROM (                                                                                                                                                                                            +
+         SELECT 'rate schedule ' || NEW.rate_schedule_id AS what                                                                                                                                                                                  +
+          WHERE NOT EXISTS (SELECT 1 FROM public.rate_schedules s WHERE s.id = NEW.rate_schedule_id AND s.tenant_id = NEW.tenant_id)                                                                                                              +
+         UNION ALL                                                                                                                                                                                                                                +
+         SELECT 'rate item ' || v.item_id                                                                                                                                                                                                         +
+           FROM unnest(ARRAY[NEW.dependent_rate_item_id, NEW.base_rate_item_id]) AS v(item_id)                                                                                                                                                    +
+          WHERE NOT EXISTS (SELECT 1 FROM public.rate_items i WHERE i.id = v.item_id AND i.tenant_id = NEW.tenant_id)                                                                                                                             +
+     ) x;                                                                                                                                                                                                                                         +
+     IF v_bad IS NOT NULL THEN                                                                                                                                                                                                                    +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                    +
+             MESSAGE = format('rate_item_dependencies: %s is not a row of this dependency''s tenant (CI-101 / CI-116, v5.4.2-19)', v_bad),                                                                                                        +
+             ERRCODE = 'foreign_key_violation';                                                                                                                                                                                                   +
+     END IF;                                                                                                                                                                                                                                      +
+                                                                                                                                                                                                                                                  +
+     -- Lock order (AC, -19 r2/r3): a transaction that writes dependencies                                                                                                                                                                        +
+     -- takes the schedule headers first, in schedule-id order (this bump, or                                                                                                                                                                     +
+     -- assert_reference_version), and only then writes dependency rows; a                                                                                                                                                                        +
+     -- close locks the row before this bump, so a transaction holding the                                                                                                                                                                        +
+     -- header that then closes a row, against one closing that row, can                                                                                                                                                                          +
+     -- deadlock. PostgreSQL cancels one; the caller retries the whole                                                                                                                                                                            +
+     -- transaction on deadlock_detected or serialization_failure. A cancelled                                                                                                                                                                    +
+     -- participant never lets a cycle through.                                                                                                                                                                                                   +
+     -- Row-version mutex on the schedule header: every writer of the                                                                                                                                                                             +
+     -- schedule's dependencies bumps the same row, so two halves of a cycle                                                                                                                                                                      +
+     -- written at once serialise (READ COMMITTED: the second waits and its                                                                                                                                                                       +
+     -- check below sees the first; REPEATABLE READ / SERIALIZABLE: the second                                                                                                                                                                    +
+     -- fails with serialization_failure). The header guard admits an                                                                                                                                                                             +
+     -- updated_at-only write.                                                                                                                                                                                                                    +
+     UPDATE public.rate_schedules s SET updated_at = now() WHERE s.id = NEW.rate_schedule_id;                                                                                                                                                     +
+                                                                                                                                                                                                                                                  +
+     -- A dependency dependent -> base closes a cycle when base already reaches                                                                                                                                                                   +
+     -- dependent through the schedule's other dependencies whose valid range                                                                                                                                                                     +
+     -- overlaps this one's (v5.4.2-28). Conservative: the links found each                                                                                                                                                                       +
+     -- overlap this row but need not share one day with each other; a real                                                                                                                                                                       +
+     -- cycle is never missed. A reachable set, not paths (-19 r2: UNION drops                                                                                                                                                                    +
+     -- an item already reached, so the walk is linear).                                                                                                                                                                                          +
+     -- "Other dependencies" are those still known at this row's recorded_at                                                                                                                                                                      +
+     -- (r2, Opus S1): recorded_at is the transaction's start, so a row another                                                                                                                                                                   +
+     -- session closed after that instant was known together with this one,                                                                                                                                                                       +
+     -- and counts. A row this transaction closed carries recorded_until =                                                                                                                                                                        +
+     -- now() = NEW.recorded_at and stays out (close, then a successor).                                                                                                                                                                          +
+     WITH RECURSIVE reach(item_id) AS (                                                                                                                                                                                                           +
+         SELECT NEW.base_rate_item_id                                                                                                                                                                                                             +
+         UNION                                                                                                                                                                                                                                    +
+         SELECT d.base_rate_item_id                                                                                                                                                                                                               +
+           FROM reach r                                                                                                                                                                                                                           +
+           JOIN public.rate_item_dependencies d                                                                                                                                                                                                   +
+             ON d.dependent_rate_item_id = r.item_id                                                                                                                                                                                              +
+            AND d.rate_schedule_id = NEW.rate_schedule_id                                                                                                                                                                                         +
+            AND (d.recorded_until IS NULL OR d.recorded_until > NEW.recorded_at)                                                                                                                                                                  +
+            AND d.id <> NEW.id                                                                                                                                                                                                                    +
+            AND daterange(d.effective_date, d.expiry_date, '[]') && daterange(NEW.effective_date, NEW.expiry_date, '[]')                                                                                                                          +
+     )                                                                                                                                                                                                                                            +
+     SELECT EXISTS (SELECT 1 FROM reach WHERE item_id = NEW.dependent_rate_item_id) INTO v_cycle;                                                                                                                                                 +
+     IF v_cycle THEN                                                                                                                                                                                                                              +
+         RAISE EXCEPTION USING                                                                                                                                                                                                                    +
+             MESSAGE = format('rate_item_dependencies: rate item %s depending on %s from %s to %s closes a cycle in rate schedule %s among the dependencies in force over those dates — rider composition must be a DAG (CI-101, v5.4.2-19, -28)',+
+                              NEW.dependent_rate_item_id, NEW.base_rate_item_id, NEW.effective_date, coalesce(NEW.expiry_date::text, 'open'), NEW.rate_schedule_id),                                                                              +
+             ERRCODE = 'check_violation';                                                                                                                                                                                                         +
+     END IF;                                                                                                                                                                                                                                      +
+     RETURN NEW;                                                                                                                                                                                                                                  +
+ END;                                                                                                                                                                                                                                             +
+ $function$                                                                                                                                                                                                                                       +
+ 
+(1 row)
+
+              tgname              | tgenabled |                                                                                                                         pg_get_triggerdef                                                                                                                          
+----------------------------------+-----------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ a_enforce_bitemporal_assertion   | A         | CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_item_dependencies FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('', 'rate_schedule_id,dependent_rate_item_id,base_rate_item_id')
+ a_enforce_rate_item_dependency   | A         | CREATE TRIGGER a_enforce_rate_item_dependency BEFORE INSERT OR UPDATE ON public.rate_item_dependencies FOR EACH ROW EXECUTE FUNCTION enforce_rate_item_dependency()
+ enforce_superseded_has_successor | A         | CREATE CONSTRAINT TRIGGER enforce_superseded_has_successor AFTER UPDATE ON public.rate_item_dependencies DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_superseded_has_successor('rate_schedule_id,dependent_rate_item_id,base_rate_item_id')
+ no_hard_delete                   | A         | CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.rate_item_dependencies FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()
+ no_truncate                      | A         | CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.rate_item_dependencies FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()
+(5 rows)
+
+ROLLBACK
