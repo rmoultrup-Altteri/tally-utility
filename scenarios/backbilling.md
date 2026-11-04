@@ -334,3 +334,41 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(a)** The window starts **Mar 10, 2026**: the result is SCN-0014's, **$6.60** (December – February before the window, March straddling it). The test is flagged as entered out of order. No approval is needed: the governing test is a recorded one with readings.
 - **(b)** The window starts **Jan 10, 2026**: December lies before it; January straddles it and is given up; February – June 14 are billed, **$19.60**. The date-only test sets the window, marked as date-only, so the approval gate stands: Jul 7's approval doesn't count, and a new one is needed before the freeze.
 - Had the case been frozen on Jul 7, delivery would refuse it as stale; it is unfrozen, evaluated again and frozen again. The Jul 6 evaluation stays on record beside the new one.
+
+---
+
+### SCN-0058 — Which bill a partial payment pays when an older bill holds only a backbilled charge
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Codex 9). Kyle's answer 12 covers the order within one bill; across bills it meets the oldest-bill-first rule (Kyle 10-15, K-05). Both outcomes are written; the scenario is open until he says which wins. Carrying the limit into collections is v5.4.2-26's (not built).
+*Rule:* a payment pays the oldest bill first (K-05), and within a bill the amounts that can ground a disconnection first (answer 12). Aging is balance-forward, newest first (v5.4.2-22). Sources: Kyle 10-15, K-05; Kyle 11-03, answer 12; SCN-0031.
+
+**Given** SCN-0031 (a): the July bill's $40.00 of gas is paid, leaving only its $28.00 backbilling line (never disconnectable). The August bill, issued Sep 5, due Sep 21: **$42.00** of gas, unpaid. On Sep 25 GP-01 pays **$28.00**.
+
+**When** GP-01's account is read on Oct 1.
+
+**Then**
+- Balance **$42.00** either way. The aging, balance-forward and newest first, shows it all in 0–30 days (the August bill, 26 days), whichever bill the payment went to.
+- **Reading A (what can ground a disconnection first, across bills):** the $28.00 pays August's gas. Left: $14.00 of August (disconnectable) and July's $28.00 backbilling line (never). What may ground a disconnection: **$14.00**.
+- **Reading B (oldest bill first):** the $28.00 pays July's backbilling line. Left: August's $42.00, all disconnectable.
+- Under reading A, the aging (all $42.00 at 26 days) and what is actually unpaid ($28.00 at 57 days, $14.00 at 26) disagree; a test must assert each against its own rule.
+- **Open (Kyle, next batch):** across two bills, does a partial payment go first to what can ground a disconnection (A, "protect the customer"), or to the oldest bill (B)?
+
+---
+
+### SCN-0059 — A refund for months a predecessor utility billed is held until its records come, or closed by a supervisor with counsel
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Codex 12). The acquisition is **invented**.
+*Rule:* a stretch of a fast meter's window that a predecessor billed, before the utility acquired the premise, may be held as "predecessor records unavailable". It needs a deployment of this meter covering the whole stretch and a recorded acquisition after it, both on record before the fault. Unlike the legacy hold, it may close as unrecoverable, but only by a supervisor, citing a document and referring the matter to counsel. Sources: R-37(c); a2-rules §10.1, §10.3, §10.4 (H3, H9, H11, H12).
+
+**Given** the common facts, except: the meter is **fast**; its premise was in the Cedar Creek system (**invented**), which Gulf Plains acquired on **Mar 1, 2026**, the acquisition recorded before the Jun 15 test; the meter's deployment there since 2019 is on record from the same load. Gulf Plains' bills on this meter start Mar 1 (Cedar Creek billed it before). No earlier test.
+
+**When** the correction is evaluated; then (a) a hold "predecessor records unavailable" is opened for Dec 15, 2025 – Feb 28, 2026; (b) one is opened for Dec 15, 2025 – Mar 10, 2026; (c) a clerk closes (a)'s hold as unrecoverable; (d) a supervisor closes it as unrecoverable citing the purchase agreement, without a counsel referral; (e) the same with a counsel referral.
+
+**Then**
+- Window Dec 15, 2025. Refunded now from Gulf Plains' own bills, March – June 14: **$11.70**.
+- **(a)** Accepted. The case can freeze with the hold open.
+- **(b)** Refused: Gulf Plains billed the days from Mar 1.
+- **(c)** Refused: not a supervisor.
+- **(d)** Refused: closing as unrecoverable needs a counsel referral.
+- **(e)** Accepted: closed as unrecoverable, citing the agreement and the referral. The Dec 15 – Feb 28 refund (December $6.20, January $8.40, February $7.90: $22.50 on Cedar Creek's bills) is left with counsel, not declined.
+- Without the acquisition on record, (a) is refused.

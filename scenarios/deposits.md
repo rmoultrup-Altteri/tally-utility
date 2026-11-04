@@ -273,3 +273,39 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Then**
 - **(a)** Two penalties now fall in the twelve months. The deposit falls due on **Jan 5, 2027**, not Apr 1; one due record is written that day.
 - **(b)** The Jan 5 due record is withdrawn on Jan 10, with the reason citing the returned check; no credit is given on the Jan 15 bill. The deposit is held until the returned check is more than twelve months old: due **Nov 13, 2027**, on SCN-0045's reading, which is still open with Kyle. Nothing had been settled: the withdrawal comes before the Jan 15 credit. The withdrawn record stays readable beside the new one.
+
+---
+
+### SCN-0056 — Under the Texas rule, only use at twice the estimate brings an extra deposit, and the total stays under the cap
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Opus 12, Fable 7, Codex 8). How the new requirement is computed is **invented** (as for a new applicant, at the new estimate); the deposit rules leave it open (§2.2, #53 OQ5).
+*Rule:* where §7.45 binds, an additional deposit may be required only when actual use is at least twice the estimated billings, payable within two days; the total held is checked against one-sixth of annual billing; a waiver in force when the trigger fires excuses it. Sources: 16 TAC §7.45(5)(C)(ii), (5)(F)(i); Kyle 11-03, answer 15 ("the total is checked against the one-sixth-of-annual-billings cap"; a disconnection cannot trigger one); deposit rules for the core §2.1 (the waiver re-checked when a trigger fires), §2.2 (the cap on the total), §2.3 (`usage_doubled`, ratio 2, two days).
+
+**Given** SCN-0042 (a): GP-05 holds **$160.00**, the cap on an estimated annual billing of $960.00; Gulf Plains' tariff deposit is $200.00 (**invented**).
+
+**When** on Mon Aug 10, 2026 GP-05's use over the summer is found to run at (a) 2.1 times the estimate (**invented**), so a new estimate of $2,016.00 a year; (b) 1.8 times; (c) as (a), with an extra $200.00 demanded; (d) as (a), GP-05 having turned 65 on Aug 1 and owing nothing.
+
+**Then**
+- **(a)** The new cap is $2,016.00 ÷ 6 = $336.00; the requirement is the tariff's $200.00, within it. A top-up of **$40.00** is required, payable by Wed Aug 12, recorded with the usage trigger, the ratio observed and the rule it rests on. GP-05's one deposit balance becomes $200.00.
+- **(b)** No additional deposit: the use is under twice the estimate.
+- **(c)** Refused: $160.00 + $200.00 = $360.00 exceeds the $336.00 cap on the total held.
+- **(d)** No additional deposit: the age-65 waiver is in force when the trigger fires.
+
+---
+
+### SCN-0057 — Under the Texas rule, the deposit falls due on the twelfth clean bill, not the eleventh
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Codex 13). Case (c) follows Kyle's reading of the late-payment count (11-03, flag 1, rolling); the built reading counts every late payment since posting (deposit rules DG4, case B15), the money stream's to revisit. Gulf Plains' bill dates and interest rate are **invented**.
+*Rule:* where §7.45 binds, a deposit is refunded once the customer has paid twelve consecutive residential bills without more than two occasions of a bill being delinquent, and is not currently delinquent. The decision is written once, on the bill that completes the twelve. Sources: §7.45(5)(F)(ii); deposit rules for the core §5.2 and cases B14, B16; Kyle 11-03, flag 1.
+
+**Given** GP-05's $160.00 deposit, posted Mar 1, 2026, at 3% (**invented**, as SCN-0012). Gulf Plains issues bills on the 5th, due 16 days later (**invented**, as SCN-0031); the first is Apr 5, 2026.
+
+**When**
+- (a) every bill is paid on time; the eleventh (Feb 5, 2027) is paid Feb 15; the twelfth (Mar 5, 2027) is paid Mon Mar 15, 2027;
+- (b) as (a), but the Oct 5, 2026 bill is still unpaid on Mar 15, 2027;
+- (c) the Apr, May and Jun 2026 bills are paid late; every bill after is paid on time.
+
+**Then**
+- **(a)** After the eleventh: nothing. On Mar 15, 2027 the due record is written, citing the twelve bills. Refunded that day: $160.00 principal and interest from Mar 1, 2026 to Mar 14, 2027, 379 days: $160.00 × 3% × 379/365 = 4.9841 → **$4.98**, shown separately.
+- **(b)** Not due: a bill is still delinquent.
+- **(c)** The twelve consecutive bills from July 2026 to June 2027 are clean, so on Kyle's reading the deposit falls due when the twelfth of them is paid. On the built reading (every delinquency since posting), it never falls due by this route. The test expects Kyle's reading.

@@ -37,10 +37,10 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 | File | Family | Scenarios |
 |---|---|---|
 | `cast.md` | the utilities, places and customers every scenario uses | — |
-| `billing-pipeline-and-charge-composition.md` | the billing pipeline and charge composition | SCN-0001, 0048 |
+| `billing-pipeline-and-charge-composition.md` | the billing pipeline and charge composition | SCN-0001, 0048, 0053 – 0055 |
 | `cancel-rebill.md` | voiding and rebilling a wrong bill | SCN-0002 – 0006, 0027, 0028, 0030, 0033 |
-| `deposits.md` | taking, refunding and applying deposits | SCN-0007 – 0012, 0029, 0032, 0042 – 0047 |
-| `backbilling.md` | how far back a correction may reach | SCN-0013 – 0019, 0031, 0035 – 0041 |
+| `deposits.md` | taking, refunding and applying deposits | SCN-0007 – 0012, 0029, 0032, 0042 – 0047, 0056, 0057 |
+| `backbilling.md` | how far back a correction may reach | SCN-0013 – 0019, 0031, 0035 – 0041, 0058, 0059 |
 | `periods-and-aging.md` | periods, the close, GL mapping, aging, write-off recovery | SCN-0020 – 0026, 0034, 0049 – 0052 |
 
-**Next free ID: SCN-0053.**
+**Next free ID: SCN-0060.**
