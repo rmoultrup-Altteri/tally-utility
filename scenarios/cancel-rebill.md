@@ -2,7 +2,7 @@
 
 How a wrong bill is undone and replaced. Invariants: CI-007 (the rate basis of a correction is stated), CI-017 (every reversal names what it undoes), CI-110 (a closed period never reopens), CI-016 (line arithmetic). Schema at parity for these; what happens to a payment already applied to the voided bill belongs to the cash family and is written after -23 mirrors.
 
-**Common to every scenario here.** Bluebonnet City Gas (`cast.md` §2), customer BB-01 (homeowner inside the city, schedule R-U). Rates before Oct 1 are $11.80 a month and $2.75 per Mcf (**invented**, as in SCN-0001); from Oct 1, $12.80 and $2.96 (the cast's). Commodity charge $5.35 per Mcf. Gas cost adjustment, a charge per Mcf: $0.30 on the September cycle, $0.42 on the October and November cycles (**invented**). City sales tax on residential gas 1%, inside the city limits, on every gas line, all of which Bluebonnet flags taxable (**invented**; Kyle 11-03, answer 4). Four-decimal working figures, half-up to the cent on each line (Kyle 10-15, K-06).
+**Common to every scenario here.** Bluebonnet City Gas (`cast.md` §2), customer BB-01 (homeowner inside the city, schedule R-U). Rates before Oct 1 are $11.80 a month and $2.75 per Mcf (**invented**, as in SCN-0001); from Oct 1, $12.80 and $2.96 (the cast's). Commodity charge $5.35 per Mcf. Gas cost adjustment, a charge per Mcf, as locked at each month's end for the bills of the next month (the cast's invented mapping): $0.30 on bills issued in September, $0.42 on bills issued in October and November (**invented**). City sales tax on residential gas 1%, inside the city limits, on every gas line, all of which Bluebonnet flags taxable (**invented**; Kyle 11-03, answer 4). Four-decimal working figures, half-up to the cent on each line (Kyle 10-15, K-06).
 
 The reference bill, used below: **the November bill**, period Oct 15 – Nov 13, read 6.0 Mcf:
 
@@ -157,6 +157,8 @@ The customer's ledger:
 - **Current:** refused, because this is a gas correction. (Had it been allowed, the November world would have charged $48.20: $12.80, 4.0 × $2.96 = $11.84, $21.40, 4.0 × $0.42 = $1.68, tax 1% × $47.72 = $0.48, which is $2.35 more than the original period's rates. That difference is what the rule protects against.)
 - The schema records the basis; the refusal of "current" for gas is the core's (Kyle's DE-3 proposed a guard; it is not yet an invariant in GBM's canonical list).
 - Bluebonnet is a city system, which the Commission's customer-service rule does not bind; the guard applies anyway as the platform default (Kyle 11-03, answer 5).
+- **(d) Per-target override:** the run is historical, and this one target is overridden to "current", with its reason recorded: issued at **$48.20**, the override, its reason and who set it on the record (answer 5: "the per-target override stays"; CI-007's run basis with per-target overrides). A per-target "custom" date works the same way at the rates in force on that date.
+- **Open (Kyle, next batch):** who may set a per-target override on a gas correction, and must it give a reason? And with the per-target override kept, is a run-level "current" for gas still refused (DE-3's guard, as written here), or is historical only the default there too?
 
 ---
 
@@ -202,7 +204,8 @@ The customer's ledger:
   - The operator's choice, its maker and its reason are on the record of each path.
 - **(c)** refused: an increase needs its cause.
 - **(d)** refused: it charges more than the voided bill for the same days, and an ordinary bill carries no cause. (The same bill at $33.00 or less would be accepted.)
-- **Open (Kyle, next batch):** (a)'s extra $2.50 may ground a disconnection for six months only. Does the extra 0.5 Mcf in (b2), billed for a keying error, carry the same limit, or none?
+- **Open (Kyle, next batch):** a keying error is not among the backbilling causes the rules know (rate misapplication, meter error, a meter not registering, tampering, a wrong billing constant, crossed meters, an estimate caught up, service never billed), and the Texas rate-misapplication row requires the same usage, so today (b2) is refused. Where §7.45 binds, which rule governs a keying-error increase: how far back it may reach, what cause is recorded, and whether it carries (a)'s six-month limit on disconnection, or none?
+- Not yet written: answer 7's credit-and-rebill path for a bill already paid. It waits for the cash family (v5.4.2-23); it must be tested against the next bill's starting read too (Kyle's flag 3).
 
 ---
 
@@ -258,7 +261,7 @@ The customer's ledger:
 
 ### SCN-0033 — A bill voided after its late penalty posted: the penalty follows the corrected amount
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Written against the rulings: the late-penalty rules are dated rule data not yet built (Kyle 10-15, R-11), and penalties belong with collections (v5.4.2-26, not yet built). Reviewer gap (Fable, 2026-11-02, item 6).
+*Status:* draft (2026-11-04), not yet sent to Kyle. Written against the rulings: the late-penalty rules are dated rule data not yet built (Kyle 10-15, R-11), penalties belong with collections (v5.4.2-26, not yet built), and a correction's own aging date, apart from its posting date, is not built (v5.4.2-22 ages each entry from its own date; the money stream's, board note). Reviewer gap (Fable, 2026-11-02, item 6). The penalty base and the kept due date are readings, open with Kyle (below).
 *Rule:* a late penalty is its own charge, naming the bill it was assessed on. When that bill is voided and corrected, the penalty is reversed in full, naming the penalty entry, with the void as its reason, and a new penalty is assessed on the correction for whatever part of it was late. What the customer already owed keeps the original bill's due date; any increase gets a new due date of its own. A penalty is charged once, on the current bill only, never on an earlier penalty. Sources: Kyle 11-03, answer 3 (current bill only, charged once) and answer 10 (what was owed keeps its age; an increase ages from the correction with a new due date); every reversal names what it undoes, capped at it (Kyle 10-15, R-02; CI-017); Bluebonnet's tariff (`cast.md` §2: due 15 days after issue, rolling to the next workday; the late "gross" rate 10% higher).
 
 **Given**
@@ -292,8 +295,8 @@ The customer's ledger:
   | City sales tax | 1% × $78.28 = 0.7828 | $0.78 |
   | **Total** | | **$79.06** |
 
-  It passes as an upward correction under Bluebonnet's six-month default (SCN-0028), cause keying error, the operator's choice recorded. $65.83 of it keeps the Dec 1 due date; the increase, **$13.23**, is due 15 days after Dec 4, Sat Dec 19, rolled to **Mon Dec 21**.
+  It passes as an upward correction under Bluebonnet's six-month default (SCN-0028), cause keying error, the operator's choice recorded. $65.83 of it keeps the Nov 16 age and the Dec 1 due date; the increase, **$13.23**, ages from Dec 4 and is due 15 days after it, Sat Dec 19, rolled to **Mon Dec 21**.
   - The Dec 2 penalty is reversed (−$6.58) and assessed again on the $65.83 that was late: **$6.58**, naming the correction. Balance on Dec 4: $79.06 + $6.58 = **$85.64**.
   - If the $13.23 is still unpaid at the end of Dec 21, a penalty of 10% × $13.23 = 1.3230 → **$1.32** posts on Dec 22, naming the correction. No penalty is ever charged on the $6.58.
 - In both, the voided bill and the original penalty stay readable as posted; nothing is edited.
-- **Open (Kyle, next batch):** the misread was the utility's mistake. Should the penalty be re-assessed on the corrected amount, as written here, or waived because the customer was sent a wrong bill? The scenario follows answer 10 (what was owed keeps its due date) and answer 3; a waiver would make (a)'s balance $52.61 and (b)'s $79.06.
+- **Open (Kyle, next batch):** (1) The misread was the utility's mistake. Should the penalty be re-assessed on the corrected amount, as written here, or waived because the customer was sent a wrong bill? A waiver would make (a)'s balance $52.61 and (b)'s $79.06. (2) Answer 10 says what was owed keeps its age; this scenario reads that as keeping its due date too, so the penalty is re-assessed from Dec 1. Is that right? (3) Bluebonnet's tariff says only that the late "gross" rate is 10% higher. The figures here take 10% of the whole bill, tax included. Does the 10% apply to the pass-through gas cost lines as well as the city's own rates, and is the city's sales tax charged on the penalty? Here the two readings happen to give the same $6.58 (10% of $65.18 is $6.518, plus 1% tax), but they part whenever a line is untaxed. SCN-0034 and SCN-0048 rest on the same reading.

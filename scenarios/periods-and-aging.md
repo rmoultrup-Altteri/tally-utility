@@ -47,7 +47,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 *Status:* draft (2026-11-04), not yet sent to Kyle. Written against the rulings: the late-penalty rules are not yet built (R-11); payments belong to the cash family (-23 in review). Reviewer gap (Fable, 2026-11-02, item 7).
 *Rule:* whether a payment was on time is judged by the customer's date, by the method the tariff states, not by the day it was recorded. A penalty posted before an on-time payment was recorded is reversed in full, naming the penalty, with the customer's date as the reason, in the open period. A reversed penalty is not counted as a late penalty afterwards. Sources: SCN-0021; -19 (the customer's date and its method; CI-058); R-02 and CI-017 (a reversal names what it undoes, capped at it); Kyle 11-03, answer 3 (a penalty on the current bill only).
 
-**Given** SCN-0021's facts, plus: the September bill ($54.34, issued Fri Sep 18) was due Mon Oct 5; on Tue Oct 6, with no payment recorded, a penalty posted: 10% × $54.34 = 5.4340 → **$5.43** (the same **invented** reading of Bluebonnet's gross rate as SCN-0033). October is open.
+**Given** SCN-0021's facts, plus: the September bill ($54.34, issued Fri Sep 18) was due Mon Oct 5; on Tue Oct 6, with no payment recorded, a penalty posted: 10% × $54.34 = 5.4340 → **$5.43** (the same reading of Bluebonnet's gross rate as SCN-0033, open with Kyle there). October is open.
 
 **When** on Wed Oct 14 the clerk records the check dated Oct 14, with the postmark Sep 27 as the customer's date (SCN-0021 b).
 
@@ -63,8 +63,8 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 - The reversal is dated Oct 14, in October; it is not dated Oct 6 or Sep 27.
 - A further reversal of the penalty is refused: nothing is left of it.
-- The penalty does not count toward Bluebonnet's limit of two late penalties for a deposit refund (SCN-0007, SCN-0008): it is reversed for being wrongly assessed.
-- Recorded with no customer's date, the same check is late, and the penalty stands.
+- The penalty does not count toward Bluebonnet's limit of two late penalties for a deposit refund (SCN-0007, SCN-0008): it is reversed for being wrongly assessed. This is this stream's reading (a penalty nets out with its reversal); SCN-0047 (a) rests on it. **Open (Kyle, next batch)**, with SCN-0045's question.
+- A posted payment must carry the customer's date and the method it was taken by (v5.4.2-19): the check cannot be posted without them, so lateness is never judged from the day it was recorded.
 
 ---
 
@@ -118,7 +118,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0024 — A corrected old bill keeps its age; only an increase ages from the correction
 
-*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; reworked to his answer 10.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; reworked to his answer 10. Written against the ruling: a correction's aging date apart from its posting date is not built; mirrored v5.4.2-22 ages each entry from its own date, which would put the $45.85 in 0–30 days (the money stream's; board note).
 *Rule:* as SCN-0023. A void nets out the entry it names; the correction is a new entry that carries an aging date apart from its posting date. What was already owed keeps its original age; a decrease reduces the old aged amount; any increase ages from the correction's date, with a new due date. Sources: Kyle 11-03, answer 10; as SCN-0023; CI-017 (the correction names the voided bill).
 
 **Given** SCN-0023's ledger, plus SCN-0005's correction: on Nov 20 the September bill is voided (−$54.34, naming the Sep 18 entry) and corrected (+$45.85).

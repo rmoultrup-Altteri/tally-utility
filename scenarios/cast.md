@@ -54,7 +54,8 @@ Modelled on **Brenham** (tariff section 500, effective 10/1/2026). About **5,000
 | Item | Bluebonnet's tariff | Source |
 |---|---|---|
 | Unit | Mcf | Brenham |
-| Gas cost | a fixed **commodity charge of $5.35 per Mcf** on every schedule, plus a monthly **gas cost adjustment** per Mcf that can be a charge or a credit; the adjustment is set at month end and applies to the whole billing month, never split, and is fixed once locked (Kyle 11-03, answer 1) | Brenham sheet 595 |
+| On the platform | live from **Jan 1, 2026 (invented)**; bills before that stay in its old system, and balances from it were loaded before January 2026 closed (SCN-0050) | — |
+| Gas cost | a fixed **commodity charge of $5.35 per Mcf** on every schedule, plus a monthly **gas cost adjustment** per Mcf that can be a charge or a credit; the adjustment is set at month end and applies to the whole billing month, never split, and is fixed once locked (Kyle 11-03, answer 1). **The figure locked at the end of a month applies to bills issued in the next month (invented)** | Brenham sheet 595 |
 | Minimum bill | the customer charge, every month, even while service is off for the summer | Brenham |
 | Due | 15 days after the bill is issued; a weekend or holiday due date moves to the next workday | Brenham |
 | When a payment counts as made | **the postmark for mail, the sent date for electronic payments (invented)**; the source is silent, and the method varies by place (CI-058) | — |

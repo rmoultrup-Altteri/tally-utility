@@ -15,7 +15,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 - Bluebonnet City Gas; customer BB-02, a renter outside the city (schedule R-R).
 - On Jan 5, 2026 BB-02 pays $250.00 designated as a deposit (the only designation a customer can make besides "bill"; Kyle 10-15, K-05). Category "renter", which Bluebonnet's tariff maps to the law's residential class.
 - Bluebonnet's tariff: refund after 12 months with no returned checks, no disconnect notices, no more than two late penalties in a rolling 12 months, and no bill past due. No interest (**invented**; the source is silent, and no state floor binds a city system).
-- Over the next twelve months BB-02 pays every bill; two are paid late and carry the 10% penalty, posted Mar 20 and Jul 20, 2026. No returned check, no disconnect notice, and on Jan 5, 2027 no bill is past due.
+- Over the next twelve months BB-02 pays every bill; two are paid late and carry the 10% penalty, posted Mar 31 and Jul 31, 2026, the day after the March and July bills fell due (bills of the 15th are due the 30th). No returned check, no disconnect notice, and on Jan 5, 2027 no bill is past due.
 
 **When** the deposit reaches twelve months on Jan 5, 2027 (bills are dated the 15th; the twelve counted are Jan 15 – Dec 15, 2026), (a) with no request from BB-02; (b) BB-02 having asked for a check.
 
@@ -30,16 +30,16 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 ### SCN-0008 — A third late penalty holds the deposit until the oldest is a year old
 
-*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; reworked to his answer 14 (rolling twelve months). The reading that it falls due on Jan 5 by a second route is withdrawn (answer 13).
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; reworked to his answer 14 (rolling twelve months). Kyle checked Mar 21, 2027 on penalty dates that did not fit Bluebonnet's due dates; re-dated in review round 2 (all three reviewers), which moves it to Apr 1, 2027. The reading that it falls due on Jan 5 by a second route is withdrawn (answer 13).
 *Rule:* as SCN-0007; the tariff's limit on late penalties disqualifies the refund while more than two fall in the last twelve months. Sources: as SCN-0007.
 
-**Given** SCN-0007, except that the November 2026 bill is also paid late: a third penalty, posted Nov 20, 2026. The check runs daily.
+**Given** SCN-0007, except that the November 2026 bill is also paid late: a third penalty, posted Dec 1, 2026 (the November bill fell due Nov 30). The check runs daily.
 
 **When** the deposit reaches twelve months on Jan 5, 2027, and the check runs daily after it. BB-02 pays every bill after November on time, so no bill is past due (**invented**).
 
 **Then**
-- On Jan 5, 2027 no due record is written: three penalties fall in the last twelve months (Mar 20, Jul 20, Nov 20, 2026). The deposit stays held: $250.00.
-- On **Mar 21, 2027**, the first day the Mar 20, 2026 penalty is more than twelve months old, two remain, and the due record is written that day, citing the two counted. The next bill carries the $250.00 credit.
+- On Jan 5, 2027 no due record is written: three penalties fall in the last twelve months (Mar 31, Jul 31, Dec 1, 2026). The deposit stays held: $250.00.
+- On **Apr 1, 2027**, the first day the Mar 31, 2026 penalty is more than twelve months old, two remain, and the due record is written that day, citing the two counted. The next bill carries the $250.00 credit.
 - Exactly one due record, however many daily checks ran before it.
 - For contrast: the build's reading of the Texas rule counts every late payment since the deposit was posted (deposit rules DG4, case B15). Kyle reads §7.45(5)(F)(ii) as rolling too (11-03, flag 1); revisiting the build is the money stream's (board note).
 
@@ -85,7 +85,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 - A top-up of **$125.00** is required, recorded as the "second disconnection for nonpayment" trigger, citing Pecan Flat's tariff record and the two disconnections, both within the last twelve months.
 - PF-01's one deposit balance after it is paid: **$225.00**.
 - Reconnection goes ahead whether or not the top-up has been paid: Pecan Flat's tariff doesn't make it a condition.
-- Had the first cut-off been on Jul 15, 2025 (more than twelve months before Aug 10, 2026), no top-up is required: only one disconnection falls in the window.
+- Had the first cut-off been on Jul 10, 2025 (more than twelve months before Aug 10, 2026), no top-up is required: only one disconnection falls in the window.
 - The same two cut-offs at Gulf Plains, where §7.45 binds: no additional deposit may be demanded for them.
 
 ---
@@ -103,7 +103,8 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 **Then**
 - **(a)** The deposit is **$40.00**, category senior, law class residential, citing Pecan Flat's tariff record.
-- **(b)** The deposit is **$100.00**, category residential. Once PF-02 provides a date of birth, the senior category applies and $60.00 is owed back to PF-02 (how it is paid back is not ruled).
+- **(b)** The deposit is **$100.00**, category residential. Once PF-02 provides a date of birth, the senior category applies to the deposit from then on.
+- **Open (Kyle, next batch):** when the date of birth arrives after a $100.00 deposit was paid, is $60.00 returned, and when? Pecan Flat's tariff makes no refund while service continues (`cast.md` §1, invented), and answer 16 rules only the amount at the start.
 
 ---
 
@@ -173,7 +174,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 ### SCN-0042 — Under the Texas rule, a deposit is capped at a sixth of the year's bills, and a waiver in force excuses it
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Gulf Plains' tariff is not drafted; its deposit amount and the customer's estimated annual billing are **invented**. Reviewer gap (Codex, Opus, 2026-11-02).
+*Status:* draft (2026-11-04), not yet sent to Kyle. Gulf Plains' tariff is not drafted; its deposit amount and the customer's estimated annual billing are **invented**. Reviewer gap (Codex, Opus, 2026-11-02). Case (c)'s fail-open rests on GBM's decision table #53 (rank 4), carried into the deposit rules as DG3, not on a Kyle ruling.
 *Rule:* where §7.45 binds, a deposit may not exceed one-sixth of the customer's estimated annual billing; the deposit records the cap, where it came from, and that it reduced the amount, so the customer can be told. A waiver in force on the posting date (both ends of its dates included) excuses the deposit it reaches. Where an input the waiver needs is missing, such as a date of birth, no deposit is taken. Sources: deposit rules for the core §2.1 (waivers; #53 rank 4, fail open: DG3), §2.2 (the cap); cases B11; CI-129.
 
 **Given**
@@ -252,10 +253,11 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **When** the January bill is issued, and then the February bill of $58.20 (**invented**).
 
 **Then**
+- The return fell due on Jan 5 (the decision); it is settled by the credit on the Jan 15 bill (the movement).
 - The January bill is paid by the deposit credit: $250.00 − $61.40 leaves a credit of **$188.60**, shown to BB-02 as one figure.
 - The February bill is paid from it: the credit is then **$130.40**.
-- If BB-02 asks for a check at any point, what is left is paid out by check.
-- The deposit itself shows $250.00 returned on Jan 5, 2027; it does not reappear as held.
+- The deposit shows $250.00 returned on Jan 15, 2027, by bill credit; it does not reappear as held.
+- **Open (Kyle, next batch):** (1) Answer 13 offers a bill credit or, if the customer asks, a check. Once the $250.00 is credited, can BB-02 later ask for what is left by check, and is that still a deposit refund (no minimum refund amount) or an ordinary credit refund? (2) If a bill falls past due between the Jan 5 decision and the Jan 15 credit, does the return still stand (deposit rules K6)?
 
 ---
 
@@ -265,9 +267,9 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 *Rule:* the record that a deposit's return fell due is written once, citing what it rests on. If those facts later prove wrong, it is withdrawn with a reason, and its history is kept; if corrected facts make a return due that wasn't, it is written then. Neither the original decision nor the penalties it counted are edited. Sources: deposit rules for the core §5.4; v5.4.2-15 (withdrawal and supersession); SCN-0034 (a penalty reversed for being wrongly assessed).
 
 **When**
-- (a) SCN-0008: on Dec 3, 2026 the Nov 20, 2026 penalty is found wrongly assessed (BB-02's check was postmarked on time) and reversed, as SCN-0034;
+- (a) SCN-0008: on Dec 3, 2026 the Dec 1, 2026 penalty is found wrongly assessed (BB-02's check was postmarked on time) and reversed, as SCN-0034;
 - (b) SCN-0007 (a): the due record was written Jan 5, 2027. On Jan 10 a returned check of Nov 12, 2026, posted by mistake to another customer, is moved to BB-02's account (**invented**).
 
 **Then**
-- **(a)** Two penalties now fall in the twelve months. The deposit falls due on **Jan 5, 2027**, not Mar 21; one due record is written that day.
-- **(b)** The Jan 5 due record is withdrawn on Jan 10, with the reason citing the returned check; no credit is given on the Jan 15 bill. The deposit is held until the returned check is more than twelve months old (SCN-0045's reading): due **Nov 13, 2027**. The withdrawn record stays readable beside the new one.
+- **(a)** Two penalties now fall in the twelve months. The deposit falls due on **Jan 5, 2027**, not Apr 1; one due record is written that day.
+- **(b)** The Jan 5 due record is withdrawn on Jan 10, with the reason citing the returned check; no credit is given on the Jan 15 bill. The deposit is held until the returned check is more than twelve months old: due **Nov 13, 2027**, on SCN-0045's reading, which is still open with Kyle. Nothing had been settled: the withdrawal comes before the Jan 15 credit. The withdrawn record stays readable beside the new one.
