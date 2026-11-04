@@ -8,6 +8,29 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-04 (after v5.4.2-23)
+
+**How this was graded.** Re-graded by the session, as before. Each CI was read against -23's header (its sections X, M, A and C, and residuals R1–R24), its design, its ten review rounds (Opus and Fable ready on r9, Codex ready on r10) and its battery (409 checks). -23's design maps four CIs to it; only those were re-graded, and all four change. CI-053 and CI-056 (unmatched cash, pledges) are -24's and stand as before.
+
+| Class | After -28 | Now | Change |
+|---|---|---|---|
+| REP+PROT | 57 | **61** | +4 |
+| REP | 24 | **24** | 0 |
+| PARTIAL | 42 | **38** | −4 |
+| GAP | 11 | **11** | 0 |
+| BLOCKED | 0 | **0** | 0 |
+| N/A | 1 | **1** | 0 |
+| **Total** | 135 | 135 | |
+
+**Done for step 1** (REP+PROT + REP): **85 of 135**, plus CI-036 ruled out of platform scope. **Open: 49** (38 PARTIAL, 11 GAP).
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-013 | PARTIAL | REP+PROT | high | -23 M (R-05; Q1 (a)) | The stored counters are gone: payments' and credits' applied and remaining amounts, and invoices' `amount_paid` and `balance`. Each is read as a position as of a recorded instant. Amounts and identity are write-once from insert for payments, credits and adhoc charges. A status moves forward only, and each move names the row behind it (`status_cause_id`). `credit_aging_statistics` is rebuilt on the derived amount. | Invoice `paid` and `partial` stay app-written lifecycle and can disagree with the derived position (-23 R3). |
+| CI-017 | PARTIAL | REP+PROT | high | -23 X (R-02; K-10) | A ledger row is a reversal if and only if it names an entry. The reversal types must name one, within the same tenant and customer. A reversal has the opposite sign, and every entry's tree stays between 0 and minus the entry at every date and recorded instant, under one lock per tree. The void reverses what is left, not the amount due (closing -21 R1). A payment's status move to nsf or reversed names its ledger reversal. | Reversal reasons are free text. R1: the depth bound (1,000) is a cost bound, not a rule. |
+| CI-049 | PARTIAL | REP+PROT | med | -23 A (R-06, K-05, D7-1) | Each application records its basis: oldest first, operator override (with its reason and user), restriction, floor over restriction, or undo. An oldest-first or restriction row names the allocation tariff row in force. An agency payment's earmark is write-once columns on the payment. An application's source is a posted payment or an active credit, capped and locked, with an add-only approval for an overpayment credit. The dead tenant-wide strategy enum is dropped (K-05). | Choosing the lines and applying the floor are the core's (-23 R7). |
+| CI-050 | PARTIAL | REP+PROT | med | -23 A1, A1b, A5 | Applications are per bill line (a composite FK proves the line is on the bill), and each line carries its regulatory class, NOT NULL and frozen with the bill, matched to its charge or rate item version. The class order in the allocation tariff is a fixed term: regulated first, and the schema admits no other. A floor-over-restriction application may land only on a regulated line. | The order is evaluated by the core. The schema records each choice; it does not refuse an out-of-order sequence of applications. |
+
 ## Update — 2026-11-04 (after v5.4.2-28)
 
 **How this was graded.** Re-graded by the session, as before. Each CI was read against -28's header (its three sections and known limits L1–L6), its two review rounds (Opus, Fable and Codex ready on r2) and its battery (101 checks). -28 was mirrored ahead of -23, -25 and -26 (Ryan, 2026-11-04), so the money rows stand as of the 2026-10-16 update. Only the four CIs below were re-graded. Three changed; CI-010 stays PARTIAL with a shorter list.

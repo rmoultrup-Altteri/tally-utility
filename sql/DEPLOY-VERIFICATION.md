@@ -1,8 +1,69 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-22 + v5.4.2-28 (mirrored ahead of -23/-25/-26), verified 2026-11-04.** After v5.4.2-28: **137 tables** / **9 views** / **4 matviews** / **107 policies** / **106 FORCE-RLS** / **495 FKs** / **605 CHECKs** / **25 EXCLUDE** / **474 triggers** / **555 functions** / **731 indexes**. tu.sql **42,838 lines**, md5 `adc884faf2f19fe5c68963e750bebc55` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-23 + v5.4.2-28, verified 2026-11-04.** After v5.4.2-23: **140 tables** / **9 views** / **4 matviews** / **109 policies** / **108 FORCE-RLS** / **512 FKs** / **625 CHECKs** / **27 EXCLUDE** / **496 triggers** / **594 functions** / **750 indexes**. tu.sql **47,265 lines**, md5 `891000175b491278ed95878fb181b6a2` (the container init file matches by hash).
 
-**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-20, verified 2026-10-14.** After v5.4.2-20: **132 tables** / **9 views** / **4 matviews** / **102 policies** / **101 FORCE-RLS** / **477 FKs** / **575 CHECKs** / **22 EXCLUDE** / **415 triggers** / **527 functions** / **709 indexes**. tu.sql **39,349 lines**, md5 `e13f0d72ffdcf65782e789a58ed4cb32` (the container init file matches by hash).
+**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-22 + v5.4.2-28 (mirrored ahead of -23/-25/-26), verified 2026-11-04.** After v5.4.2-28: **137 tables** / **9 views** / **4 matviews** / **107 policies** / **106 FORCE-RLS** / **495 FKs** / **605 CHECKs** / **25 EXCLUDE** / **474 triggers** / **555 functions** / **731 indexes**. tu.sql **42,838 lines**, md5 `adc884faf2f19fe5c68963e750bebc55` (the container init file matches by hash).
+## v5.4.2-23 — cash: reversals, positions, payment application, credits from overpayment (Ryan 2026-10-16 "split it, go with the default"; mirror approved by Ryan 2026-11-04 "Yes, go ahead and mirror it")
+`sql/v5.4.2-23-cash-reversals-positions-application.sql` (4,890 lines, md5 `5256aeceba4ae9f38f46f2a109a4518b`), mirrored into tu.sql (42,838 → **47,265**: a pure append of a blank line, a 4-line banner and the 4,422-line body; 4,427 insertions, 0 deletions). The header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted, as with every mirror. The body is byte-identical to the patch's lines 467–4888. It applies over -28, which was mirrored first.
+
+**What changes** (the patch header lists each item, with residuals R1–R24; the design is `application/wave2-build-2026-10-15/v5.4.2-23-design.md`):
+- **Reversals (X; R-02, K-10):** a ledger row is a reversal if and only if it names an entry, of its own tenant and customer, with the opposite sign. Every entry's tree stays between 0 and minus the entry at every date and recorded instant, under one lock per tree. The void reverses what is left.
+- **Add-only money (M; R-05):** the stored counters on payments, credits and invoices are gone, read instead as positions as of a recorded instant. Amounts are write-once from insert. A status moves forward only, naming the row behind it.
+- **Payment application (A; R-06, K-05, D7-1):** applications are per bill line, add-only (a mistake is undone by a row naming it), capped at the source, the line and the family of a payment and its credits, and record how each was chosen. The order within a bill is a tariff row, regulated first.
+- **Credits from overpayment (C):** an add-only approval per credit. One live overpayment credit per payment. A returned refund of an escheated credit is carried to a reissue (Ryan 2026-10-21), and a family can be over its payment without blocking that carry (Ryan 2026-11-04, option 1).
+
+**Review** (`tests/v5.4.2-23/review/`), ten rounds; each round's merged list is `application/wave2-build-2026-10-15/v5.4.2-23-rN-plan.md`. Round 9: Opus and Fable ready. Codex was rate-limited, so r9 plus their two should-fixes (the invariant checks the order functions' grants; race CR28c) was frozen as r10 and reviewed by Codex alone: ready, no blocking items. All eight of Codex's probes were run by the author and matched their predictions (`codex-r10-probes/*.author-run.txt`). After the freeze, Codex's S1 (stale test counts in comments) was fixed in comment lines only. Checked: the patch less its comment lines equals frozen r10 (md5 `9529d1f0a416f12ab7f49199b1ec3742`).
+
+**Method.**
+1. Strict apply twice on a clone of `tally` as it stood after -28, TEMP revoked: clean (the second skips: "already applied").
+2. **battery-23: 409 PASS** on that clone after VACUUM (36 s). **races/cash-23.sh: 51 PASS** (CR1–CR28c).
+3. **mutations-23.py: 233**, each caught at its named check (the r9 full run and reruns, and the changed legs and every apply-stage one after r10's changes; `v5.4.2-23-r9-plan.md`).
+4. Before the mirror, `pg_dump --schema-only` (with and without privileges) and `tests/v5.4.2-14/parity/catalog-identity.sql` taken of that clone with the patch applied.
+5. Mirror.
+6. Image rebuilt on a fresh container (`tests/ci.sh --build`): no errors during init, and the init file equals tu.sql by md5 (`891000175b491278ed95878fb181b6a2`).
+7. **Schema parity, full identity:** the build's `pg_dump --schema-only` equals step 4's, with and without privileges (0 differing lines; pg_dump's random `\restrict` token excluded). Catalog identity on the build: 11,962 lines, md5 `d2455140a176d91207156a2621448bc2`, equal to step 4's.
+8. **On the build:** every `ci.sh` step passes (48) except battery -15 case V23 (its fixture's due date, 2026-11-01, has passed; the money stream's test-only fix, next). The -23 battery, races and `assert_cash_guard_invariants` run on the build as CI steps. -23's two pending strict-apply steps are gone, because the build now carries it. TEMP is false for `tally_app`, `tally_core`, `tally_seal`, `tally_void` and `tally_close`.
+9. `PENDING` in `tests/ci.sh` holds -25 and -26.
+10. Counts: tables and partitioned tables, views, matviews, policies, FORCE-RLS tables, FK, CHECK and EXCLUDE constraints, non-internal triggers, functions and indexes in `public`, by catalog query. +3 tables over -28: `customer_credit_approvals`, `payment_allocation_rules`, `payment_allocation_tariffs`.
+
+
+**Before applying, on a database that holds data** (the build has none):
+- **Cash rows.** The patch refuses while any payment, customer credit or invoice application exists. The counters become derived positions and applications move to bill lines, so each row has to be migrated first:
+  - an application needs its bill line, money date, basis and cited tariff;
+  - an overpayment credit needs its customer's approval row;
+  - a status needs the row that caused it (`status_cause_id`).
+- **Bill lines.** The patch refuses while any `invoice_line_items` row exists, because `regulatory_class` is added NOT NULL with no default (K-07). Classify each line first, from its one-off charge or rate item where it has one.
+- **Tenants.** The patch refuses while any tenant has `overpayment_handling = 'apply_to_specific_invoices'` (retired by K-05).
+- **Cross-customer reversals.** The new reversal FK is validated as it is added, so the patch fails if a ledger row names another customer's entry.
+
+**At deployment, run these; each must return 0.** An INSERT trigger does not inspect rows already present. On the build each returns 0, because the ledger is empty.
+```sql
+-- every ledger row recorded at a finite time already reached (X2)
+SELECT count(*) FROM public.account_ledger l WHERE NOT isfinite(l.created_at) OR l.created_at > clock_timestamp();
+-- every reversal: the opposite sign, dated on or after its entry (X2)
+SELECT count(*) FROM public.account_ledger l JOIN public.account_ledger p ON p.id = l.reverses_ledger_entry_id
+ WHERE NOT ((l.amount > 0 AND p.amount < 0) OR (l.amount < 0 AND p.amount > 0)) OR l.transaction_date < p.transaction_date;
+-- every entry's tree within its cap at every date (X2): what is left lies between 0 and the entry
+SELECT count(*) FROM public.account_ledger e
+ WHERE EXISTS (SELECT 1 FROM public.account_ledger l WHERE l.reverses_ledger_entry_id = e.id)
+   AND (sign(e.amount) * public.ledger_entry_remaining(e.id) < 0 OR abs(public.ledger_entry_remaining(e.id)) > abs(e.amount));
+```
+The third query checks each tree as it stands today. The fourth checks it at every date, as the guard does (rows of one date net together). Tested 2026-11-04 on the battery's 118 trees: 0, and 1 after a planted over-reversal with the triggers off.
+```sql
+-- every entry's tree within its cap at every date (X2)
+SELECT count(*) FROM public.account_ledger e
+ CROSS JOIN LATERAL (
+   SELECT t.transaction_date AS on_date, sum(sum(t.amount)) OVER (ORDER BY t.transaction_date) AS net
+     FROM public.account_ledger t WHERE t.id = ANY (public.ledger_tree_ids(e.id))
+    GROUP BY t.transaction_date) n
+ WHERE n.net < least(0, -e.amount) OR n.net > greatest(0, -e.amount);
+```
+
+**At deployment, set a statement timeout for the application role** (patch residual R11). A reversal chain posted in one statement holds its tree's lock and the tenant's close head for as long as it runs: about 2 s at 200 deep, about 7 s at 300 deep, and minutes near the 1,000 bound. A timeout ends such a statement, and the chain is posted one row per statement instead. The value is the deployment's choice.
+```sql
+ALTER ROLE tally_app SET statement_timeout = '30s';
+```
+
 ## v5.4.2-28 — rates small fixes: the state-agency day boundary in the bill's own zone (CI-010), rider dependencies dated in place (CI-101), four-decimal rates (CI-109) (Ryan 2026-11-02; mirror approved by Ryan 2026-11-04 "yes, mirror it now", ahead of -23/-25/-26)
 `sql/v5.4.2-28-rates-small-fixes.sql` (662 lines, md5 `a18f1b8f2ab5ef829c04da86ae1339a2`, r2), mirrored into tu.sql (42,310 → **42,838**: a pure append of a blank line, a 4-line banner and the 523-line body; 528 insertions, 0 deletions). The header and BEGIN / COMMIT are omitted, as with every mirror. The body is byte-identical to the patch's lines 139–661. It is the first patch mirrored out of number order: -23, -25 and -26 (money) are not yet ready, and none of them redefines an object -28 changes (checked); they apply cleanly on top of the build.
 
@@ -26,37 +87,6 @@
 8. **Schema parity, full identity:** `pg_dump --schema-only` of the build equals that of a clone of the -22 build with frozen r2 applied, with and without privileges (0 differing lines; pg_dump's random `\restrict` token excluded). `tests/v5.4.2-14/parity/catalog-identity.sql` on the build: 11,630 lines, md5 `7c0ef2b21b6798e4f1b315a81f576eab`.
 9. **On the build:** every `ci.sh` step passes (50) except battery -15 case V23. That is the money stream's test, which dates a deposit return due 2026-11-01 against a closure stamped now(); it fails the same way without -28 (board note, 2026-11-02). The patch re-applied over the build twice is clean. TEMP is false for `tally_app`, `tally_core`, `tally_seal`, `tally_void` and `tally_close`.
 10. `PENDING` in `tests/ci.sh` holds -23, -25 and -26.
-
-## v5.4.2-23 — cash: reversals, positions, payment application, credits from overpayment (drafted 2026-10-17; in review, not mirrored)
-`sql/v5.4.2-23-cash-reversals-positions-application.sql`. This entry is completed at the mirror. Until then it holds what a real database needs before the patch applies, which the patch's precondition refuses and names.
-
-**Before applying, on a database that holds data** (the build has none):
-- **Cash rows.** The patch refuses while any payment, customer credit or invoice application exists. The counters become derived positions and applications move to bill lines, so each row has to be migrated first:
-  - an application needs its bill line, money date, basis and cited tariff;
-  - an overpayment credit needs its customer's approval row;
-  - a status needs the row that caused it (`status_cause_id`).
-- **Bill lines.** The patch refuses while any `invoice_line_items` row exists, because `regulatory_class` is added NOT NULL with no default (K-07). Classify each line first, from its one-off charge or rate item where it has one.
-- **Tenants.** The patch refuses while any tenant has `overpayment_handling = 'apply_to_specific_invoices'` (retired by K-05).
-- **Cross-customer reversals.** The new reversal FK is validated as it is added, so the patch fails if a ledger row names another customer's entry.
-
-**At deployment, run these; each must return 0.** An INSERT trigger does not inspect rows already present. On the build each returns 0, because the ledger is empty.
-```sql
--- every ledger row recorded at a finite time already reached (X2)
-SELECT count(*) FROM public.account_ledger l WHERE NOT isfinite(l.created_at) OR l.created_at > clock_timestamp();
--- every reversal: the opposite sign, dated on or after its entry (X2)
-SELECT count(*) FROM public.account_ledger l JOIN public.account_ledger p ON p.id = l.reverses_ledger_entry_id
- WHERE NOT ((l.amount > 0 AND p.amount < 0) OR (l.amount < 0 AND p.amount > 0)) OR l.transaction_date < p.transaction_date;
--- every entry's tree within its cap at every date (X2): what is left lies between 0 and the entry
-SELECT count(*) FROM public.account_ledger e
- WHERE EXISTS (SELECT 1 FROM public.account_ledger l WHERE l.reverses_ledger_entry_id = e.id)
-   AND (sign(e.amount) * public.ledger_entry_remaining(e.id) < 0 OR abs(public.ledger_entry_remaining(e.id)) > abs(e.amount));
-```
-The third query checks each tree as it stands today, not at every earlier date. The date-by-date audit will be written with the mirror entry.
-
-**At deployment, set a statement timeout for the application role** (patch residual R11). A reversal chain posted in one statement holds its tree's lock and the tenant's close head for as long as it runs: about 2 s at 200 deep, about 7 s at 300 deep, and minutes near the 1,000 bound. A timeout ends such a statement, and the chain is posted one row per statement instead. The value is the deployment's choice.
-```sql
-ALTER ROLE tally_app SET statement_timeout = '30s';
-```
 
 ## v5.4.2-22 — wave 2, part 1: accounting periods as freeze boundaries, the close snapshot, GL code mapping, receivables aging, write-off recovery (D-2, D-3, R-02; Ryan 2026-10-15 "yes, start wave 2"; mirror approved by Ryan 2026-10-16 "yes, mirror it")
 `sql/v5.4.2-22-periods-snapshot-gl-aging.sql` (2,001 lines, md5 `d3422f3d9301e115893ec556929d44fb`, r9), mirrored into tu.sql (40,652 → **42,310**: a pure append of a blank line, a 4-line banner and the 1,653-line body; 1,658 insertions, 0 deletions). As with every mirror, the header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted. The body is byte-identical to the patch's lines 347–1999.

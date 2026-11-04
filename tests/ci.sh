@@ -38,7 +38,6 @@ trap 'exit 130' INT TERM HUP
 # table.column is a column the patch adds; a '?' before the marker means an SQL
 # condition (no colon in it) that holds while the patch is pending (a data patch)
 PENDING=(
-  sql/v5.4.2-23-cash-reversals-positions-application.sql:customer_credit_approvals
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
   "sql/v5.4.2-29-texas-counties.sql:?(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254"

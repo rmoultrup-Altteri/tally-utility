@@ -28,7 +28,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 
 | Number | Stream | What |
 |---|---|---|
-| -23 | money | cash: reversals, positions, application, overpayment credits (reviewed 2026-11-04: Opus and Fable ready on r9, Codex ready on r10 (r9 plus their fixes); awaiting Ryan's mirror approval) |
+| -23 | money | cash: reversals, positions, application, overpayment credits. **Mirrored 2026-11-04** (Ryan; Opus and Fable ready on r9, Codex on r10) |
 | -24 | money | unmatched cash, agency pledges (not drafted) |
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
@@ -40,11 +40,12 @@ Claim the next free number here, commit and push, before creating the file. Numb
 
 ## Mirror queue
 
-1. -23 (money)
-2. -25 (money)
-3. -26 (money)
+1. -25 (money)
+2. -26 (money)
 
 -28 (rates) was mirrored out of turn on 2026-11-04 (Ryan's approval): none of the three redefines an object -28 changes, and they strict-apply cleanly on the new build. **For money:** `tally` now carries -28, so re-run your batteries on it before your next mirror (the rule below); `rate_item_dependencies` is dated (A-1 group 2), and `customer_is_state_agency_as_of` takes a third argument, the zone.
+
+-23 (money) was mirrored on 2026-11-04 (Ryan's approval), after -28. **For rates:** `tally` now carries -23, so re-run -29's battery on it before -29's mirror. -23 adds `regulatory_class` (NOT NULL, frozen) to `invoice_line_items`, matched to its rate item as of the bill's coordinates (`rate_item_as_of`), and its invariant lists the rate-version triggers, so a rates patch that changes `rate_item_as_of` or those triggers meets -23's checks.
 
 A patch joins the queue when it is frozen for review. Before mirroring, re-run its battery on the current `tally`; a patch reviewed before an earlier mirror is re-tested, and re-reviewed only if the re-test fails.
 
