@@ -181,3 +181,73 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 - (b) refused: it would recover $130.00 of a $120.00 write-off.
 - (c) after the reversal, the full $120.00 is written off again, and a recovery of up to $120.00 may be entered. The $50.00 payment still stands, so BB-02 now shows a **$50.00 credit** until the recovery is re-entered correctly or the payment is dealt with.
 - A recovery naming no write-off, or another customer's, is refused.
+
+---
+
+### SCN-0049 — An account in credit ages as one row with no bucket
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A10).
+*Rule:* the aging shows each customer's balance; a debit balance is spread over the age buckets, newest first, and a credit balance is one row with no bucket. A zero balance is left out. Sources: v5.4.2-22 W1 (`receivables_aging_as_of`); Kyle 10-30 (one credit balance).
+
+**Given** SCN-0046: after the February 2027 bill, BB-02 holds a credit of $130.40. BB-01 owes $65.83 on a bill dated Jan 15, 2027 (**invented**). A third customer, **BB-05 (invented)**, owes nothing.
+
+**When** the aging is read as of Feb 28, 2027.
+
+**Then**
+- BB-02: one row, balance **−$130.40**, no bucket.
+- BB-01: $65.83 in the 31–60 bucket (44 days).
+- BB-05: no row.
+- The bucket totals are BB-01's alone; the credit is not netted into them.
+
+---
+
+### SCN-0050 — Balances from before the first period load while it is open, and not after it closes
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A10).
+*Rule:* a date on or before the latest closed period's last day is frozen, so balances carried over from the utility's old system are loaded before its first period closes; they keep their own dates and age from them. Sources: v5.4.2-22 P2 ("inside a closed period, or before the first period once it is closed: onboarding history is loaded before the first close").
+
+**Given** Bluebonnet's first accounting period is January 2026, open. Its old system shows BB-01 owing $54.10 on a bill dated Dec 15, 2025 (**invented**).
+
+**When** the balance is loaded with its Dec 15, 2025 date (a) on Jan 20, 2026, while January is open; (b) on Feb 10, 2026, after January closed on Feb 5.
+
+**Then**
+- **(a)** Accepted. Read as of Jan 31, 2026, it is $54.10 in the 31–60 bucket (47 days).
+- **(b)** Refused: the books are closed through Jan 31, 2026, and Dec 15, 2025 is before that.
+
+---
+
+### SCN-0051 — A mistyped period is withdrawn, kept on record, and created again
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A10).
+*Rule:* periods follow each other with no gap and no overlap, and are never deleted. The utility's latest period may be withdrawn while it is open; it stays on record, stamped, and its dates are free for a correct one. A closed period, or one with a later period after it, cannot be withdrawn. Sources: v5.4.2-22 P1 and r2 (withdrawal).
+
+**Given** Bluebonnet's periods run to Oct 31, 2026, all closed. On Nov 2 a supervisor creates November, mistyped as Nov 1 – Dec 30.
+
+**When** (a) December is created starting Dec 1; (b) the mistyped period is withdrawn; (c) November is created as Nov 1 – Nov 30; (d) someone tries to withdraw October; (e) someone tries to delete the withdrawn period.
+
+**Then**
+- **(a)** Refused: it overlaps the mistyped period, and a period must start the day after the latest.
+- **(b)** Accepted: it is the latest and open. It stays on record as withdrawn, with when and by whom.
+- **(c)** Accepted: the withdrawn period takes part in neither the no-gap nor the no-overlap rule.
+- **(d)** Refused: October is closed, and it is not the latest.
+- **(e)** Refused: periods are never deleted.
+
+---
+
+### SCN-0052 — An unpaid final bill reaches the write-off age, and the write-off is dated in an open period
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Fable, 2026-11-02, item 16). Whether a write-off needs a supervisor is not stated in the rulings.
+*Rule:* the core proposes writing off a receivable when its age reaches the utility's threshold; with no threshold set, none is proposed. The write-off is a ledger entry, and like any entry it may not be dated in a closed period. A former customer appears in the aging as a former occupant. Sources: v5.4.2-22 W3 (`write_off_threshold_days`; no assumed default, K-07), P2 (the freeze), D-3; CI-076.
+
+**Given**
+- **BB-06 (invented)**, residential, moved out in September 2026; the final bill, dated Sep 15, 2026, left **$120.00** unpaid (**invented**). No deposit remains.
+- Bluebonnet's write-off threshold: 120 days (**invented**). December 2026 is closed on Jan 8, 2027; January is open.
+
+**When** the aging is read on (a) Jan 12, 2027; (b) Jan 13, 2027; and (c) the write-off is entered dated Dec 31, 2026; (d) dated Jan 13, 2027. And (e) the same on Jan 13 with no threshold set.
+
+**Then**
+- **(a)** 119 days old, in the 91–120 bucket. Nothing is proposed.
+- **(b)** 120 days old: the threshold is reached, and the core proposes the write-off, citing the aging and the threshold. BB-06 shows as a former occupant.
+- **(c)** Refused: December is closed.
+- **(d)** Accepted: a write-off of −$120.00 dated Jan 13, 2027, naming the final bill. BB-06's balance is $0.00. A later recovery names it, as in SCN-0026.
+- **(e)** Nothing is proposed; an operator may still write it off.
