@@ -1,5 +1,5 @@
 -- ============================================================================
--- BATTERY v5.4.2-28 — rates small fixes (2026-11-02)
+-- BATTERY v5.4.2-28 — rates small fixes (2026-11-02; r2 2026-11-04)
 -- Run: psql -U tally -d <db-with-patch> -v ON_ERROR_STOP=1 -f battery-28.sql
 -- One transaction, rolled back. Fixtures as the owner; the guard the
 -- application meets is exercised as tally_app too. refuses_at() requires the
@@ -8,7 +8,9 @@
 --
 --   Z  the state-agency check reads the bill's premise's time zone (CI-010;
 --      Ryan 2026-11-02, option 1): one premise, a consolidated parent's
---      children (agree / disagree / none / void excluded / nested), the
+--      children (agree / disagree / none / void excluded / nested; r2: a
+--      consolidated parent that names a premise of its own still reads its
+--      children, a consolidated child is refused whatever its premise), the
 --      refusal when no zone can be read, no lookup for a 0.00 line, the old
 --      Chicago signature gone, no zone constant left in any function.
 --   D  rider dependencies dated in place (CI-101; Ryan 2026-11-02, option
@@ -20,7 +22,10 @@
 --      labels-21.sh, ported to the dated shape.
 --   R  rates carry at most four decimals (K-06; Ryan 2026-11-02, option 2):
 --      a version's rate, a tier's rate, a schedule's override; negative
---      rates too; a tier rate that is not a number; columns stay scale 6.
+--      rates too; a tier rate that is not a number; columns stay scale 6;
+--      r2: NaN refused, a fraction-unit rate refused under the check that
+--      says to store percent, and every CHECK of the four tables reparses
+--      from its stored text (a dump can be restored).
 --
 -- The fixture's one fact that matters: customer C1 became a state agency at
 -- 2026-07-01 05:30 UTC. That is 00:30 on July 1 in Central time (after the
@@ -128,13 +133,14 @@ INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, servi
 INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies) VALUES
   ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'pipeline_safety_fee', DATE '2026-01-01', DATE '2026-12-31', 50, true, true);
 
--- inv(): a June bill of C1. p_loc NULL makes a consolidated parent; p_parent
--- makes a child; p_status 'void' plants a voided child (the owner).
-CREATE FUNCTION pg_temp.inv(p_n int, p_loc uuid, p_parent int DEFAULT NULL, p_status text DEFAULT 'draft') RETURNS void LANGUAGE sql AS $$
+-- inv(): a June bill of C1. p_loc NULL makes a consolidated parent (p_cons
+-- true makes one that also names a premise); p_parent makes a child;
+-- p_status 'void' plants a voided child (the owner).
+CREATE FUNCTION pg_temp.inv(p_n int, p_loc uuid, p_parent int DEFAULT NULL, p_status text DEFAULT 'draft', p_cons boolean DEFAULT NULL) RETURNS void LANGUAGE sql AS $$
   INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, is_consolidated, parent_invoice_id, is_consolidated_child, status,
                                invoice_date, billing_period, period_start, period_end, due_date, amount_due)
   VALUES (('00000000-0000-4000-8000-0000000289' || lpad(p_n::text, 2, '0'))::uuid, '00000000-0000-4000-8000-0000000028a1', 'B28-' || p_n,
-          '00000000-0000-4000-8000-0000000028c1', p_loc, p_loc IS NULL,
+          '00000000-0000-4000-8000-0000000028c1', p_loc, coalesce(p_cons, p_loc IS NULL),
           CASE WHEN p_parent IS NOT NULL THEN ('00000000-0000-4000-8000-0000000289' || lpad(p_parent::text, 2, '0'))::uuid END,
           p_parent IS NOT NULL, p_status,
           DATE '2026-07-02', '2026-06', DATE '2026-06-01', DATE '2026-06-30', DATE '2026-07-20', 1.00);
@@ -172,6 +178,17 @@ SELECT pg_temp.inv(50, NULL);                                             -- par
 SELECT pg_temp.inv(51, NULL, 50);
 SELECT pg_temp.inv(60, NULL);                                             -- parent: only a void child
 SELECT pg_temp.inv(61, '00000000-0000-4000-8000-0000000028d2', 60, 'void');
+-- r2 (Codex B3): consolidated invoices that name a premise of their own.
+SELECT pg_temp.inv(70, '00000000-0000-4000-8000-0000000028d1', NULL, 'draft', true);  -- parent at El Paso: El Paso + Austin children
+SELECT pg_temp.inv(71, '00000000-0000-4000-8000-0000000028d1', 70);
+SELECT pg_temp.inv(72, '00000000-0000-4000-8000-0000000028d2', 70);
+SELECT pg_temp.inv(73, '00000000-0000-4000-8000-0000000028d2', NULL, 'draft', true);  -- parent at Austin: an El Paso child
+SELECT pg_temp.inv(74, '00000000-0000-4000-8000-0000000028d1', 73);
+SELECT pg_temp.inv(75, '00000000-0000-4000-8000-0000000028d1', NULL, 'draft', true);  -- parent at El Paso: a Hudspeth child
+SELECT pg_temp.inv(76, '00000000-0000-4000-8000-0000000028d3', 75);
+SELECT pg_temp.inv(77, NULL);                                                         -- parent whose child is consolidated with a premise
+SELECT pg_temp.inv(78, '00000000-0000-4000-8000-0000000028d2', 77, 'draft', true);
+SELECT pg_temp.inv(79, '00000000-0000-4000-8000-0000000028d2', NULL, 'draft', true);  -- consolidated at Austin, no child
 
 -- ======================================================= Z. the time zone
 -- Z1-Z2: the reading itself, one zone each side of the change.
@@ -210,8 +227,18 @@ SELECT pg_temp.refuses_at('Z5f a parent with no child',
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028930', DATE '2026-06-30')$q$, 'P0002', 'has no live child invoice');
 SELECT pg_temp.refuses_at('Z5g a parent with only a void child',
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028960', DATE '2026-06-30')$q$, 'P0002', 'has no live child invoice');
-SELECT pg_temp.refuses_at('Z5h a child that names no premise',
-  $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028950', DATE '2026-06-30')$q$, 'P0002', 'names no premise');
+SELECT pg_temp.refuses_at('Z5h a child that is itself consolidated, with no premise',
+  $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028950', DATE '2026-06-30')$q$, 'P0002', 'is itself a consolidated invoice');
+SELECT pg_temp.refuses_at('Z5h2 a child that is itself consolidated, naming a premise (r2, Codex B3)',
+  $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028977', DATE '2026-06-30')$q$, 'P0002', 'is itself a consolidated invoice');
+SELECT pg_temp.refuses_at('Z5m a consolidated parent with a premise still reads its children, which disagree (r2, Codex B3)',
+  $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028970', DATE '2026-06-30')$q$, '21000', 'more than one time zone');
+SELECT pg_temp.refuses_at('Z5n a consolidated parent whose own premise disagrees with its one child (r2)',
+  $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028973', DATE '2026-06-30')$q$, '21000', 'more than one time zone');
+SELECT pg_temp.ok('Z5o a consolidated parent whose own premise and child agree reads that zone (r2)',
+  public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028975', DATE '2026-06-30') = 'America/Denver');
+SELECT pg_temp.refuses_at('Z5p a consolidated parent with a premise but no child (r2)',
+  $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028979', DATE '2026-06-30')$q$, 'P0002', 'has no live child invoice');
 SELECT pg_temp.refuses_at('Z5i a premise with no county (Texas is not one zone)',
   $q$SELECT public.invoice_time_zone_as_of('00000000-0000-4000-8000-000000028903', DATE '2026-06-30')$q$, 'P0002', 'no time zone can be read');
 SELECT pg_temp.refuses_at('Z5j no bill',
@@ -242,6 +269,8 @@ SELECT pg_temp.refuses_at('Z6h parent, no child',
   pg_temp.psf(30, 1, 1.00), 'P0002', 'has no live child invoice');
 SELECT pg_temp.admits('Z6i parent, Austin child live and El Paso child void: Central, the fee stands',
   pg_temp.psf(40, 2, 1.00));
+SELECT pg_temp.refuses_at('Z6j a consolidated parent at Austin over El Paso and Austin children: the fee is refused, not judged at Austin (r2, Codex B3)',
+  pg_temp.psf(70, 2, 1.00), '21000', 'more than one time zone');
 RESET ROLE;
 
 -- Z7: who may call the two functions (as premise_time_zone_as_of: not PUBLIC).
@@ -286,11 +315,6 @@ SELECT pg_temp.ok('D0 retired_at, retired_by and retired_reason are dropped; the
         AND column_name IN ('effective_date', 'expiry_date', 'recorded_at', 'recorded_until', 'change_type', 'change_reason',
                             'changed_by', 'supersedes_id', 'closed_type', 'closed_reason', 'closed_by')) = 11);
 
--- (Back-date the header past its own updated_at trigger, so D7c can see the bump.)
-SET LOCAL session_replication_role = replica;
-UPDATE public.rate_schedules SET updated_at = '2000-01-01' WHERE id = '00000000-0000-4000-8000-000000002841';
-SET LOCAL session_replication_role = origin;
-
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
 -- D1: an in-force date is required, and the bracket is ordered.
@@ -316,7 +340,9 @@ SELECT pg_temp.refuses_at('D3a an open row edited in place',
   $q$UPDATE public.rate_item_dependencies SET expiry_date = '2026-06-30' WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '23001', 'never edited in place');
 SELECT pg_temp.refuses_at('D3b even its notes',
   $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '23001', 'never edited in place');
-SELECT pg_temp.refuses_at('D3c the application deletes a dependency',
+-- D3c proves only that tally_app holds no DELETE grant; D9e covers the
+-- guard itself, for the owner.
+SELECT pg_temp.refuses_at('D3c the application has no DELETE grant on dependencies',
   $q$DELETE FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002801'$q$, '42501', 'permission denied');
 -- D4: one open row per link per day; the bracket is inclusive.
 SELECT pg_temp.refuses_at('D4a A on B again from March 31 (the last day of the first)',
@@ -339,18 +365,50 @@ SELECT pg_temp.admits('D6b C on D from 2027: D on E has ended, no overlap, no cy
   pg_temp.dep('C', 'D', '2027-01-01', NULL, '03'));
 -- D7: the dependency stopped applying on a date: close as superseded, add
 -- the successor with that expiry (same transaction).
+-- D7a: a close says why (r2, Codex B1: a NULL reason passed a bare
+-- pattern test). Each kind of close, each way of saying nothing.
 SELECT pg_temp.refuses_at('D7a a close with a blank reason',
   $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded', closed_reason = ' ' WHERE id = '00000000-0000-4000-8000-000000002803'$q$,
   '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a2 a supersession that gives no reason (the column left out)',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded' WHERE id = '00000000-0000-4000-8000-000000002803'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a3 a supersession with a NULL reason',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded', closed_reason = NULL WHERE id = '00000000-0000-4000-8000-000000002803'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a4 a supersession whose reason is punctuation',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'superseded', closed_reason = '--.' WHERE id = '00000000-0000-4000-8000-000000002803'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a5 a retraction that gives no reason (the column left out)',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted' WHERE id = '00000000-0000-4000-8000-000000002805'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a6 a retraction with a NULL reason',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = NULL WHERE id = '00000000-0000-4000-8000-000000002805'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a7 a retraction with a blank reason (a tab)',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = E'\t' WHERE id = '00000000-0000-4000-8000-000000002805'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+SELECT pg_temp.refuses_at('D7a8 a retraction whose reason is punctuation',
+  $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = '...' WHERE id = '00000000-0000-4000-8000-000000002805'$q$,
+  '23514', 'rate_item_dependencies_close_consistent_check');
+-- (Back-date the header past its own updated_at trigger directly before the
+-- close, so D7c sees the close's own bump and nothing else's: r2, Fable S1.)
+RESET ROLE;
+SET LOCAL session_replication_role = replica;
+UPDATE public.rate_schedules SET updated_at = '2000-01-01' WHERE id = '00000000-0000-4000-8000-000000002841';
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.ok('D7-fixture the header is back-dated', (SELECT updated_at < now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002841'));
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
 UPDATE public.rate_item_dependencies SET recorded_until = '2001-01-01', closed_type = 'superseded', closed_reason = 'C on D ends 2027-06-30',
                                          closed_by = '00000000-0000-4000-8000-0000000028b2'
  WHERE id = pg_temp.did('03');
+SELECT pg_temp.ok('D7c the close is stamped (recorded_until now, closed_by the session''s user) and took the schedule header (checked before the successor''s insert bumps it too)',
+  (SELECT recorded_until = now() AND closed_by = '00000000-0000-4000-8000-0000000028b1' FROM public.rate_item_dependencies WHERE id = pg_temp.did('03'))
+  AND (SELECT updated_at = now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002841'));
 SELECT pg_temp.admits('D7b the successor, C on D January to June 2027',
   pg_temp.dep('C', 'D', '2027-01-01', '2027-06-30', '06', ', change_type, change_reason, supersedes_id',
               $v$, 'succession', 'tariff sheet 7 withdrawn', '00000000-0000-4000-8000-000000002803'$v$));
-SELECT pg_temp.ok('D7c the close is stamped (recorded_until now, closed_by the session''s user) and took the schedule header',
-  (SELECT recorded_until = now() AND closed_by = '00000000-0000-4000-8000-0000000028b1' FROM public.rate_item_dependencies WHERE id = pg_temp.did('03'))
-  AND (SELECT updated_at = now() FROM public.rate_schedules WHERE id = '00000000-0000-4000-8000-000000002841'));
 SELECT pg_temp.admits('D7d C on D has ended, so D on C from July 2027 is no cycle',
   pg_temp.dep('D', 'C', '2027-07-01', NULL, '07'));
 SELECT pg_temp.refuses_at('D7e a closed row is immutable',
@@ -418,14 +476,18 @@ SELECT pg_temp.ok('D10 the read: the application and the core, not PUBLIC',
   AND has_function_privilege('tally_core', 'public.rate_item_dependencies_as_of(uuid,date,timestamptz)', 'EXECUTE')
   AND NOT (SELECT coalesce(aclcontains(proacl, makeaclitem(0, proowner, 'EXECUTE', false)), true)
              FROM pg_proc WHERE oid = 'public.rate_item_dependencies_as_of(uuid,date,timestamptz)'::regprocedure));
-SELECT public.assert_wave1_guard_invariants();
-DO $$ BEGIN RAISE NOTICE 'PASS D11: the wave-1 guard invariant holds with the two A-1 triggers'; END $$;
+DO $$ BEGIN
+  PERFORM public.assert_wave1_guard_invariants();
+  RAISE NOTICE 'PASS D11: the wave-1 guard invariant holds with the two A-1 triggers';
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'FAIL D11: %', SQLERRM;
+END $$;
 
 -- ========================================= R. rates carry four decimals
--- Kyle K-06; Ryan 2026-11-02, option 2. Items R1..R6 of tenant 1; each
+-- Kyle K-06; Ryan 2026-11-02, option 2. Items R1..R8 of tenant 1; each
 -- admitted version gets its own item (versions of one item may not overlap).
 INSERT INTO public.rate_items (id, tenant_id, item_code)
-SELECT ('00000000-0000-4000-8000-00000000287' || g)::uuid, '00000000-0000-4000-8000-0000000028a1', 'R' || g FROM generate_series(1, 6) g;
+SELECT ('00000000-0000-4000-8000-00000000287' || g)::uuid, '00000000-0000-4000-8000-0000000028a1', 'R' || g FROM generate_series(1, 8) g;
 -- riv(): the SQL of one version of item R<n> with p_cols / p_vals added.
 CREATE FUNCTION pg_temp.riv(p_n int, p_kind text, p_cols text, p_vals text) RETURNS text LANGUAGE sql AS $$
   SELECT format($f$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type%s)
@@ -435,15 +497,28 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.riv(int, text, text, text) TO tally_app;
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
-SELECT public.assert_reference_version('rate_items', ('00000000-0000-4000-8000-00000000287' || g)::uuid, 1) FROM generate_series(1, 6) g;
+SELECT public.assert_reference_version('rate_items', ('00000000-0000-4000-8000-00000000287' || g)::uuid, 1) FROM generate_series(1, 8) g;
 SELECT pg_temp.admits('R1a a rate of four decimals',
   pg_temp.riv(1, 'per_unit_usage', ', rate_value', ', 0.4321'));
 SELECT pg_temp.refuses_at('R1b a rate of five decimals',
   pg_temp.riv(2, 'per_unit_usage', ', rate_value', ', 0.43215'), '23514', 'rate_item_versions_rate_four_decimals_check');
 SELECT pg_temp.refuses_at('R1c a negative rate of five decimals (a credit rider)',
   pg_temp.riv(2, 'per_unit_usage', ', rate_value', ', -0.00001'), '23514', 'rate_item_versions_rate_four_decimals_check');
+SELECT pg_temp.refuses_at('R1e a rate that is not a number (NaN; r2, Fable S2)',
+  pg_temp.riv(2, 'per_unit_usage', ', rate_value', $v$, 'NaN'$v$), '23514', 'rate_item_versions_rate_four_decimals_check');
 SELECT pg_temp.admits('R1d a negative rate of four decimals',
   pg_temp.riv(2, 'per_unit_usage', ', rate_value', ', -12.0001'));
+-- R5: a percentage (Ryan 2026-11-02, AC-45): 1.997% stored in percent is
+-- accepted; the same rate as a fraction is refused by the check whose name
+-- says to store it in percent; a fraction of four decimals still passes.
+SELECT pg_temp.admits('R5a 1.997 percent, stored in percent',
+  pg_temp.riv(7, 'percentage_of_charges', ', rate_value, rate_unit', $v$, 1.997, 'percent'$v$));
+SELECT pg_temp.refuses_at('R5b the same rate as a fraction: refused by the check that says to store it in percent',
+  pg_temp.riv(8, 'percentage_of_charges', ', rate_value, rate_unit', $v$, 0.01997, 'decimal'$v$), '23514', 'rate_item_versions_fraction_rate_store_as_percent_check');
+SELECT pg_temp.refuses_at('R5c a fraction that is not a number',
+  pg_temp.riv(8, 'percentage_of_charges', ', rate_value, rate_unit', $v$, 'NaN', 'decimal'$v$), '23514', 'rate_item_versions_fraction_rate_store_as_percent_check');
+SELECT pg_temp.admits('R5d a fraction of four decimals still passes (the unit is retired later, AC-45)',
+  pg_temp.riv(8, 'percentage_of_charges', ', rate_value, rate_unit', $v$, 0.0825, 'decimal'$v$));
 SELECT pg_temp.admits('R2a tiers at four decimals',
   pg_temp.riv(3, 'tiered_usage', ', tier_config', $v$, '{"tiers": [{"label": "1", "floor": 0, "ceiling": 10.123456, "rate": 0.5}, {"label": "2", "floor": 10.123456, "ceiling": null, "rate": 0.4321}]}'$v$));
 SELECT pg_temp.refuses_at('R2b a tier rate of five decimals',
@@ -460,7 +535,37 @@ SELECT pg_temp.refuses_at('R3a a schedule override of five decimals',
 SELECT pg_temp.admits('R3b a schedule override of four decimals',
   $q$INSERT INTO public.rate_schedule_items (tenant_id, rate_schedule_id, rate_item_id, rate_override, effective_date)
      VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-000000002876', 1.2345, DATE '2026-01-01')$q$);
+SELECT pg_temp.refuses_at('R3c a schedule override that is not a number (NaN; r2, Fable S2)',
+  $q$INSERT INTO public.rate_schedule_items (tenant_id, rate_schedule_id, rate_item_id, rate_override, effective_date)
+     VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-000000002841', '00000000-0000-4000-8000-000000002875', 'NaN', DATE '2026-01-01')$q$,
+  '23514', 'rate_schedule_items_rate_override_four_decimals_check');
 RESET ROLE;
+-- R6: every CHECK on the four tables -28 touches reparses from the text the
+-- catalogue prints (r2, Opus B1): pg_dump writes that text, so a CHECK that
+-- does not reparse loses its whole table on restore. Each definition is fed
+-- back through ALTER TABLE ... ADD CONSTRAINT on an empty scratch copy.
+DO $$
+DECLARE r record; n int := 0;
+BEGIN
+  FOR r IN SELECT c.conrelid::regclass::text AS tbl, c.conname, pg_get_constraintdef(c.oid) AS def
+             FROM pg_constraint c
+            WHERE c.contype = 'c'
+              AND c.conrelid IN ('public.rate_item_versions'::regclass, 'public.rate_schedule_items'::regclass,
+                                 'public.rate_item_dependencies'::regclass, 'public.invoices'::regclass) LOOP
+    EXECUTE format('CREATE TEMP TABLE b28_reparse (LIKE %s)', r.tbl);
+    BEGIN
+      EXECUTE format('ALTER TABLE pg_temp.b28_reparse ADD CONSTRAINT %I %s', r.conname, r.def);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE EXCEPTION 'FAIL R6: % on % does not reparse from its stored text (%): %', r.conname, r.tbl, SQLERRM, r.def;
+    END;
+    DROP TABLE pg_temp.b28_reparse;
+    n := n + 1;
+  END LOOP;
+  IF n < 10 THEN RAISE EXCEPTION 'FAIL R6: only % CHECKs found; the scan is not looking at the right tables', n; END IF;
+  RAISE NOTICE 'PASS R6 every CHECK on the four tables (%) reparses from its stored text', n;
+END $$;
+SELECT pg_temp.ok('R6b the tier check is stored in the dump-safe form',
+  (SELECT pg_get_constraintdef(oid) LIKE '%(@ * 10000) % 1 != 0%' FROM pg_constraint WHERE conname = 'rate_item_versions_tier_rates_four_decimals_check'));
 SELECT pg_temp.ok('R4 the rate columns stay six-decimal (relaxing is dropping a check, no data moves)',
   (SELECT bool_and(numeric_scale = 6) FROM information_schema.columns
     WHERE table_schema = 'public' AND (table_name, column_name) IN (('rate_item_versions', 'rate_value'), ('rate_schedule_items', 'rate_override'))));

@@ -320,11 +320,14 @@ SELECT pg_temp.refuses_at('K3a2 an edit carried inside a retirement',
   $q$UPDATE public.rate_item_dependencies SET notes = 'edited', recorded_until = now(), closed_type = 'retracted', closed_reason = 'and retired' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'never edited in place');
 SELECT pg_temp.refuses_at('K3a a live dependency edited',
   $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'never edited in place');
-SELECT pg_temp.refuses_at('K3b an update that is not a retirement (a closer with no close)',
+-- (since -28: refused by the close-consistency CHECK, before any trigger can)
+SELECT pg_temp.refuses_at('K3b a closer set without a close: the close-consistency CHECK refuses it',
   $q$UPDATE public.rate_item_dependencies SET closed_by = '00000000-0000-4000-8000-0000000021b1' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_close_consistent_check');
 SELECT pg_temp.refuses_at('K1 a retirement with a blank reason',
   $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = '   ' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_close_consistent_check');
-SELECT pg_temp.refuses_at('K-del the application deletes a dependency',
+-- (proves only that tally_app holds no DELETE grant; -28's D9e covers the
+-- guard itself, for the owner)
+SELECT pg_temp.refuses_at('K-del the application has no DELETE grant on dependencies',
   $q$DELETE FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '42501', 'permission denied');
 RESET ROLE;
 -- (Back-date the header past its own updated_at trigger, so K5a can see the bump.)

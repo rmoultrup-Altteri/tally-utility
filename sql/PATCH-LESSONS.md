@@ -25,6 +25,8 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [guards-must-act-not-record](#guards-must-act-not-record) — a guard that writes its own enforcement to a log without performing it is worse than no guard
 - [two-fields-both-the-money](#two-fields-both-the-money) — invoices.amount_due and the line-item sum are both "the money" and nothing ties them; measure over both
 - [blank-checks-whitelist-alnum](#blank-checks-whitelist-alnum) — Never use btrim() as a blank/evidence check — it strips ASCII space only (a tab or NBSP passes); require >= 1 :alnum: char instead, and coalesce the NULL leg
+- [jsonpath-check-must-reparse](#jsonpath-check-must-reparse) — A CHECK must reparse from the text the catalogue prints (pg_dump writes that text): PG 16 prints `(@ * 10000).floor()` as `@ * 10000.floor()`, which does not parse, and the whole table is lost on restore; test with a reparse round-trip and a real dump/restore
+- [check-passes-null](#check-passes-null) — A CHECK accepts a NULL result, so `reason ~ '[[:alnum:]]'` admits a NULL reason; name the NULL leg (`reason IS NOT NULL AND ...`); NaN likewise equals its own `round()` in numeric
 - [early-return-branches-skip-fences](#early-return-branches-skip-fences) — A trigger's status-transition branches that RETURN NEW early skip every fence below them; fence derived columns first and compare the whole row
 - [rules-bind-every-displacing-path](#rules-bind-every-displacing-path) — A rule about what may replace a fact must bind every path that can displace it — the linked correction AND a parallel row the readers rank above it
 - [projection-checks-lag-in-one-statement](#projection-checks-lag-in-one-statement) — A BEFORE ROW check reading a column an AFTER trigger writes (deposits.status) is stale inside a multi-row/WITH statement; read the events, and judge cross-table facts in an AFTER trigger
@@ -219,6 +221,22 @@ A "field must be non-blank" guard built on `btrim(x) = ''` is bypassable with a 
 
 **Why:** blacklisting invisible characters is an open-ended family (NBSP variants, zero-width, combining marks). Whitelisting content closes it in one move: `coalesce(x ~ ':alnum:', false)` — requires one alphanumeric character, also refuses punctuation-only placeholders, and handles unicode sanely under en_US.utf8 (non-Latin letters pass; circled digits and lone combining marks refuse).
 **How to apply:** use the coalesce form inside trigger IFs — `NULL ~ pattern` is NULL, and an IF landing NULL silently does not fire (a bypass, not an error). Keep the expression byte-identical between a gate and its deploy precondition (comment each pointing at the other). See [freeze-hash-before-reviews](#freeze-hash-before-reviews).
+
+<a id="jsonpath-check-must-reparse"></a>
+### jsonpath-check-must-reparse
+
+v5.4.2-28 r1 (Opus B1): the tier-rate CHECK used `(@ * 10000).floor()`. PostgreSQL 16 stores it fine, but prints it back as `@ * 10000.floor()`, and that text fails to parse ("trailing junk after numeric literal"). `pg_dump` writes the CHECK inside `CREATE TABLE`, so a restore loses the table and everything built on it (33 errors, 136 of 137 tables). The `pg_dump --schema-only` comparisons still "matched", because only reading the dump back fails.
+
+**Why:** a CHECK's stored form is the deparsed text, not what you wrote. jsonpath's printer drops the parentheses around a method's receiver. Other deparsers may have similar gaps.
+**How to apply:** don't call a jsonpath method on a parenthesised expression (`@ * 10000 % 1 != 0` reparses). In the battery, feed every CHECK's `pg_get_constraintdef` back through `ALTER TABLE <scratch copy> ADD CONSTRAINT` (battery-28 R6). For any patch that adds a CHECK or an expression index, `pg_dump -Fc` a clone and `pg_restore` it into a fresh database, then compare object counts.
+
+<a id="check-passes-null"></a>
+### check-passes-null
+
+v5.4.2-28 r1 (Codex B1): `closed_reason ~ '[[:alnum:]]'` inside a CHECK let a close with no reason through. The pattern test on NULL is NULL, and a CHECK refuses only on false. -21's trigger had required a reason; the move to a CHECK lost it. Fable S2 in the same round found the numeric version: `'NaN' = round('NaN', 4)` is true, so NaN passed the four-decimal check.
+
+**Why:** the [blank-checks-whitelist-alnum](#blank-checks-whitelist-alnum) coalesce rule is written for trigger IFs. A CHECK has the same hole in the other direction: NULL means pass, not "don't fire".
+**How to apply:** in a CHECK, name the NULL leg wherever a value is required (`x IS NOT NULL AND x ~ '[[:alnum:]]'`) and `x <> 'NaN'` wherever a numeric is compared to its own rounding. Test with the column left out, an explicit NULL, a blank, a tab and punctuation, once for each branch that requires the value.
 
 <a id="early-return-branches-skip-fences"></a>
 ### early-return-branches-skip-fences

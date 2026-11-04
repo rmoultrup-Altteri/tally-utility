@@ -1,6 +1,6 @@
 -- ============================================================================
 -- PATCH v5.4.2-28 — rates small fixes: the state-agency time zone, dated rider
---                    dependencies, four-decimal rates (r1, frozen for review 2026-11-02)
+--                    dependencies, four-decimal rates (r2, 2026-11-04)
 -- ============================================================================
 -- Authority:   the rates stream's first patch (HANDOFF.md board, claimed
 --              2026-11-02). Spec: application/invariant-parity-measurement-
@@ -93,6 +93,12 @@
 --                               the zone is an argument, required; the
 --                               two-argument Chicago signature is dropped.
 --
+--   The branch is the bill's is_consolidated flag, never whether it has a
+--   premise (r2, Codex B3): invoices_check lets a consolidated invoice carry
+--   a premise, so a parent with one still reads its children, and its own
+--   premise's zone must agree with theirs; a child that is itself
+--   consolidated is refused, whatever its premise.
+--
 --   The zone is read only for an exempting rule and a non-zero line, so a
 --   0.00 line on an unplaced premise still writes.
 --
@@ -100,7 +106,29 @@
 --   false), and only El Paso and Hudspeth counties are seeded with a zone
 --   (-16). A non-zero fee line on a premise whose county is not loaded with
 --   its time_zone fact is now refused (no_data_found) where -07 assumed
---   Central. Loading a county for a tenant's premises means loading its zone.
+--   Central. Ryan, 2026-11-04 (DECISION-LOG): the check stays as it is, and
+--   every Texas county is loaded once with its zone as shared place data, in
+--   a patch of its own (-29). What stays each utility's is recording the
+--   county a premise is in.
+--
+-- KNOWN LIMITS (r2)
+--   L1  until -29 loads the counties, a non-zero fee outside El Paso and
+--       Hudspeth is refused (above).
+--   L2  the cycle check is conservative across dates (section 2).
+--   L3  the battery reads transaction time only at now() and just before;
+--       a transaction that started before a concurrent close is tested by
+--       the race tests/v5.4.2-28/races/past-cycle-28.sh (r2, Opus S1).
+--   L4  not covered by the four-decimal check: invoice_line_items.rate and
+--       gas_commodity_rate (the money stream's), deposit interest rates,
+--       rate_item_history (retired, read-only).
+--   L5  customer_is_state_agency_as_of keeps -07's fallback: a date before
+--       the account's first recorded value answers with that first value.
+--   L6  a consolidated bill's members can change after it is issued (a
+--       draft child's premise moved, a child attached late), and its issued
+--       fee is not re-judged (r1, Codex B2). Ryan, 2026-11-02 (option 1): a
+--       summary bill goes out only when every member is final and nothing
+--       attaches after; that rule is the money stream's (invoices), closed by
+--       its patch (board note). No rates-side change.
 --
 -- PRECONDITION. Applied by a superuser after v5.4.2-16 (premise_time_zone_
 --   as_of). Every statement re-applies cleanly (CREATE OR REPLACE, DROP ...
@@ -117,7 +145,7 @@ CREATE OR REPLACE FUNCTION public.invoice_time_zone_as_of(p_invoice_id uuid, p_o
 DECLARE
     v_inv      public.invoices%ROWTYPE;
     v_children integer;
-    v_orphan   text;
+    v_nested   text;
     v_zones    text[];
 BEGIN
     IF p_invoice_id IS NULL OR p_on IS NULL THEN
@@ -131,13 +159,16 @@ BEGIN
             MESSAGE = format('invoice_time_zone_as_of: invoice %s is not visible in this tenant (v5.4.2-28)', p_invoice_id),
             ERRCODE = 'no_data_found';
     END IF;
-    IF v_inv.location_id IS NOT NULL THEN
+    -- The branch is the flag, not the premise (r2, Codex B3): invoices_check
+    -- requires a premise OR the flag, so a consolidated invoice may carry a
+    -- premise too, and it must not answer by that premise alone.
+    IF NOT v_inv.is_consolidated THEN
         RETURN public.premise_time_zone_as_of(v_inv.location_id, p_on);
     END IF;
-    -- A consolidated parent (invoices_check: no premise only when
-    -- consolidated): its live children's premises decide, and must agree.
-    SELECT count(*), string_agg(c.invoice_number, ', ') FILTER (WHERE c.location_id IS NULL)
-      INTO v_children, v_orphan
+    -- A consolidated parent: its live children's premises decide, and must
+    -- agree (with its own premise's zone too, if it has one).
+    SELECT count(*), string_agg(c.invoice_number, ', ') FILTER (WHERE c.is_consolidated OR c.location_id IS NULL)
+      INTO v_children, v_nested
       FROM public.invoices c
      WHERE c.parent_invoice_id = v_inv.id AND c.tenant_id = v_inv.tenant_id AND c.status <> 'void';
     IF v_children = 0 THEN
@@ -146,15 +177,19 @@ BEGIN
             ERRCODE = 'no_data_found',
             HINT = 'Attach the per-location child invoices before writing a line that needs the time zone.';
     END IF;
-    IF v_orphan IS NOT NULL THEN
+    IF v_nested IS NOT NULL THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('invoice %s on %s: its child invoice %s names no premise (a consolidated invoice under a consolidated invoice); the lookup refuses (v5.4.2-28)', v_inv.invoice_number, p_on, v_orphan),
+            MESSAGE = format('invoice %s on %s: its child invoice %s is itself a consolidated invoice (or names no premise); a summary bill''s members are per-premise bills, and the lookup refuses (v5.4.2-28)', v_inv.invoice_number, p_on, v_nested),
             ERRCODE = 'no_data_found';
     END IF;
-    SELECT array_agg(DISTINCT public.premise_time_zone_as_of(c.location_id, p_on))
+    SELECT array_agg(DISTINCT z.zone)
       INTO v_zones
-      FROM public.invoices c
-     WHERE c.parent_invoice_id = v_inv.id AND c.tenant_id = v_inv.tenant_id AND c.status <> 'void';
+      FROM (SELECT public.premise_time_zone_as_of(c.location_id, p_on) AS zone
+              FROM public.invoices c
+             WHERE c.parent_invoice_id = v_inv.id AND c.tenant_id = v_inv.tenant_id AND c.status <> 'void'
+            UNION ALL
+            SELECT public.premise_time_zone_as_of(v_inv.location_id, p_on)
+             WHERE v_inv.location_id IS NOT NULL) z;
     IF cardinality(v_zones) > 1 THEN
         RAISE EXCEPTION USING
             MESSAGE = format('invoice %s on %s: its child invoices'' premises span more than one time zone (%s); the lookup refuses rather than choose (v5.4.2-28)', v_inv.invoice_number, p_on, array_to_string(v_zones, ', ')),
@@ -167,7 +202,7 @@ $$;
 REVOKE ALL ON FUNCTION public.invoice_time_zone_as_of(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.invoice_time_zone_as_of(uuid, date) TO tally_app, tally_core;
 COMMENT ON FUNCTION public.invoice_time_zone_as_of(uuid, date) IS
-    'v5.4.2-28 (CI-010; Ryan 2026-11-02, option 1). The IANA time zone that sets a bill''s day boundary on a date: its premise''s (premise_time_zone_as_of); for a consolidated parent, the one zone all its live (non-void) children''s premises share. Refuses — never assumes — when a premise has no answerable zone, the parent has no live child, a child names no premise, or the children span two zones. Invoker rights: RLS applies.';
+    'v5.4.2-28 (CI-010; Ryan 2026-11-02, option 1). The IANA time zone that sets a bill''s day boundary on a date: a bill that is not consolidated, its premise''s (premise_time_zone_as_of); a consolidated parent (is_consolidated, whether or not it names a premise), the one zone all its live (non-void) children''s premises share, and its own premise''s too if it has one. Refuses — never assumes — when a premise has no answerable zone, the parent has no live child, a child is itself consolidated, or the zones disagree. Invoker rights: RLS applies.';
 
 -- 1.2 The state-agency reading takes the zone ---------------------------------
 DROP FUNCTION IF EXISTS public.customer_is_state_agency_as_of(uuid, date);
@@ -353,7 +388,8 @@ ALTER TABLE public.rate_item_dependencies DROP CONSTRAINT IF EXISTS rate_item_de
 ALTER TABLE public.rate_item_dependencies ADD CONSTRAINT rate_item_dependencies_change_type_check
     CHECK (change_type = ANY (ARRAY['initial'::text, 'succession'::text, 'correction'::text]));
 -- A reason, where one is given or required, says something (PATCH-LESSONS
--- blank-checks-whitelist-alnum).
+-- blank-checks-whitelist-alnum). A close requires one: the NULL leg is
+-- named, since a CHECK passes a NULL (r2, Codex B1).
 ALTER TABLE public.rate_item_dependencies DROP CONSTRAINT IF EXISTS rate_item_dependencies_change_reason_check;
 ALTER TABLE public.rate_item_dependencies ADD CONSTRAINT rate_item_dependencies_change_reason_check
     CHECK ((change_reason IS NULL OR change_reason ~ '[[:alnum:]]') AND (change_type <> 'correction' OR change_reason IS NOT NULL));
@@ -366,7 +402,7 @@ ALTER TABLE public.rate_item_dependencies ADD CONSTRAINT rate_item_dependencies_
 ALTER TABLE public.rate_item_dependencies DROP CONSTRAINT IF EXISTS rate_item_dependencies_close_consistent_check;
 ALTER TABLE public.rate_item_dependencies ADD CONSTRAINT rate_item_dependencies_close_consistent_check
     CHECK (((recorded_until IS NULL) AND (closed_type IS NULL) AND (closed_reason IS NULL) AND (closed_by IS NULL))
-        OR ((recorded_until IS NOT NULL) AND (closed_type IS NOT NULL) AND (closed_reason ~ '[[:alnum:]]') AND (recorded_until >= recorded_at)));
+        OR ((recorded_until IS NOT NULL) AND (closed_type IS NOT NULL) AND (closed_reason IS NOT NULL) AND (closed_reason ~ '[[:alnum:]]') AND (recorded_until >= recorded_at)));
 ALTER TABLE public.rate_item_dependencies DROP CONSTRAINT IF EXISTS rate_item_dependencies_valid_bracket_check;
 ALTER TABLE public.rate_item_dependencies ADD CONSTRAINT rate_item_dependencies_valid_bracket_check
     CHECK (expiry_date IS NULL OR expiry_date >= effective_date);
@@ -423,6 +459,8 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- The session's user, as the database knows it. An owner write with no
+    -- app.user_id (a migration) stamps NULL, as -21's retired_by did.
     NEW.changed_by := NULLIF(pg_catalog.current_setting('app.user_id', true), '')::uuid;
 
     -- The bracket, before the walk builds a range from it (a reversed one
@@ -469,11 +507,16 @@ BEGIN
     UPDATE public.rate_schedules s SET updated_at = now() WHERE s.id = NEW.rate_schedule_id;
 
     -- A dependency dependent -> base closes a cycle when base already reaches
-    -- dependent through the schedule's other OPEN dependencies whose valid
-    -- range overlaps this one's (v5.4.2-28). Conservative: the links found
-    -- each overlap this row but need not share one day with each other; a
-    -- real cycle is never missed. A reachable set, not paths (-19 r2: UNION
-    -- drops an item already reached, so the walk is linear).
+    -- dependent through the schedule's other dependencies whose valid range
+    -- overlaps this one's (v5.4.2-28). Conservative: the links found each
+    -- overlap this row but need not share one day with each other; a real
+    -- cycle is never missed. A reachable set, not paths (-19 r2: UNION drops
+    -- an item already reached, so the walk is linear).
+    -- "Other dependencies" are those still known at this row's recorded_at
+    -- (r2, Opus S1): recorded_at is the transaction's start, so a row another
+    -- session closed after that instant was known together with this one,
+    -- and counts. A row this transaction closed carries recorded_until =
+    -- now() = NEW.recorded_at and stays out (close, then a successor).
     WITH RECURSIVE reach(item_id) AS (
         SELECT NEW.base_rate_item_id
         UNION
@@ -482,7 +525,7 @@ BEGIN
           JOIN public.rate_item_dependencies d
             ON d.dependent_rate_item_id = r.item_id
            AND d.rate_schedule_id = NEW.rate_schedule_id
-           AND d.recorded_until IS NULL
+           AND (d.recorded_until IS NULL OR d.recorded_until > NEW.recorded_at)
            AND d.id <> NEW.id
            AND daterange(d.effective_date, d.expiry_date, '[]') && daterange(NEW.effective_date, NEW.expiry_date, '[]')
     )
@@ -497,7 +540,7 @@ BEGIN
 END;
 $fn$;
 COMMENT ON FUNCTION public.enforce_rate_item_dependency() IS
-    'v5.4.2-19 (CI-101), -21 (CI-014), -28 (CI-101 dated). BEFORE INSERT OR UPDATE on rate_item_dependencies, after the shared A-1 row guard (enforce_bitemporal_assertion), which leaves an UPDATE only the close. INSERT: changed_by is the session''s user; refuses a schedule or item of another tenant, and a dependency that closes a cycle among the schedule''s open dependencies whose valid range overlaps its own (any length; conservative across dates). UPDATE (a close): closed_by is the session''s user. Both serialise on the schedule header (a row-version mutex: rate_schedules.updated_at), so concurrent halves of a cycle cannot both pass at any isolation level.';
+    'v5.4.2-19 (CI-101), -21 (CI-014), -28 (CI-101 dated). BEFORE INSERT OR UPDATE on rate_item_dependencies, after the shared A-1 row guard (enforce_bitemporal_assertion), which leaves an UPDATE only the close. INSERT: changed_by is the session''s user; refuses a schedule or item of another tenant, and a dependency that closes a cycle among the schedule''s dependencies known at its recorded_at (open, or closed after it) whose valid range overlaps its own (any length; conservative across dates). UPDATE (a close): closed_by is the session''s user. Both serialise on the schedule header (a row-version mutex: rate_schedules.updated_at), so concurrent halves of a cycle cannot both pass at any isolation level.';
 DROP TRIGGER IF EXISTS a_enforce_rate_item_dependency ON public.rate_item_dependencies;
 CREATE TRIGGER a_enforce_rate_item_dependency BEFORE INSERT OR UPDATE ON public.rate_item_dependencies
     FOR EACH ROW EXECUTE FUNCTION public.enforce_rate_item_dependency();
@@ -579,24 +622,38 @@ END $$;
 -- tables are empty in every database built from tu.sql; on one with rows a
 -- non-conforming rate fails the patch rather than be rounded.
 ALTER TABLE public.rate_item_versions DROP CONSTRAINT IF EXISTS rate_item_versions_rate_four_decimals_check;
+-- NaN equals its own rounding in numeric, so it is named (r2, Fable S2);
+-- numeric(14,6) already refuses infinity. A rate in the fraction unit
+-- ('decimal') is checked under its own name, so the refusal tells the clerk's
+-- application what to do: store a percentage in percent (Ryan 2026-11-02;
+-- APPLICATION-CONTRACTS AC-45). The two checks never both apply to a row.
 ALTER TABLE public.rate_item_versions ADD CONSTRAINT rate_item_versions_rate_four_decimals_check
-    CHECK (rate_value IS NULL OR rate_value = round(rate_value, 4));
+    CHECK (rate_unit IS NOT DISTINCT FROM 'decimal' OR rate_value IS NULL OR (rate_value <> 'NaN' AND rate_value = round(rate_value, 4)));
+ALTER TABLE public.rate_item_versions DROP CONSTRAINT IF EXISTS rate_item_versions_fraction_rate_store_as_percent_check;
+ALTER TABLE public.rate_item_versions ADD CONSTRAINT rate_item_versions_fraction_rate_store_as_percent_check
+    CHECK (rate_unit IS DISTINCT FROM 'decimal' OR rate_value IS NULL OR (rate_value <> 'NaN' AND rate_value = round(rate_value, 4)));
 -- Each tier's rate: a number with at most four decimals (jsonb numbers are
--- numeric, so the test is exact). Bracket floors and ceilings are usage,
--- not rates, and are not checked.
+-- numeric, so the test is exact; jsonb has no NaN). Bracket floors and
+-- ceilings are usage, not rates, and are not checked. Written as
+-- `@ * 10000 % 1 != 0`, never with a method on a parenthesised expression:
+-- PostgreSQL 16 prints `(@ * 10000).floor()` back without its parentheses,
+-- the text does not reparse, and a dump of the table cannot be restored (r2,
+-- Opus B1; PATCH-LESSONS jsonpath-check-must-reparse).
 ALTER TABLE public.rate_item_versions DROP CONSTRAINT IF EXISTS rate_item_versions_tier_rates_four_decimals_check;
 ALTER TABLE public.rate_item_versions ADD CONSTRAINT rate_item_versions_tier_rates_four_decimals_check
     CHECK (tier_config IS NULL
-           OR NOT jsonb_path_exists(tier_config, '$.tiers[*] ? (exists (@.rate)) .rate ? (@.type() != "number" || @ * 10000 != (@ * 10000).floor())'));
+           OR NOT jsonb_path_exists(tier_config, '$.tiers[*] ? (exists (@.rate)) .rate ? (@.type() != "number" || @ * 10000 % 1 != 0)'));
 ALTER TABLE public.rate_schedule_items DROP CONSTRAINT IF EXISTS rate_schedule_items_rate_override_four_decimals_check;
 ALTER TABLE public.rate_schedule_items ADD CONSTRAINT rate_schedule_items_rate_override_four_decimals_check
-    CHECK (rate_override IS NULL OR rate_override = round(rate_override, 4));
+    CHECK (rate_override IS NULL OR (rate_override <> 'NaN' AND rate_override = round(rate_override, 4)));
 COMMENT ON CONSTRAINT rate_item_versions_rate_four_decimals_check ON public.rate_item_versions IS
-    'v5.4.2-28 (CI-109; Kyle K-06; Ryan 2026-11-02, option 2): a rate carries at most four decimals. The column stays numeric(14,6): relaxing the rule is dropping this check. Rounding money (to the cent, half-up) and intermediates (four decimals) is the core''s, pinned per bill by the snapshot''s formula_version.';
+    'v5.4.2-28 (CI-109; Kyle K-06; Ryan 2026-11-02, option 2): a rate carries at most four decimals, and is a number (NaN refused). The column stays numeric(14,6): relaxing the rule is dropping this check. Rounding money (to the cent, half-up) and intermediates (four decimals) is the core''s, pinned per bill by the snapshot''s formula_version. A rate in the fraction unit (''decimal'') is checked by rate_item_versions_fraction_rate_store_as_percent_check instead.';
+COMMENT ON CONSTRAINT rate_item_versions_fraction_rate_store_as_percent_check ON public.rate_item_versions IS
+    'v5.4.2-28 (CI-109; K-06; Ryan 2026-11-02; AC-45): a rate in the fraction unit (''decimal'') carries at most four decimals, like every rate, which a percentage written as a fraction often cannot (1.997% is 0.01997). Store a percentage in percent: rate_unit ''percent'', rate_value 1.997. The application converts what the clerk types; it never rounds.';
 COMMENT ON CONSTRAINT rate_item_versions_tier_rates_four_decimals_check ON public.rate_item_versions IS
-    'v5.4.2-28 (CI-109; K-06): every tier''s rate is a number with at most four decimals.';
+    'v5.4.2-28 (CI-109; K-06): every tier''s rate, at $.tiers[*].rate (the documented shape, rate_items.tier_config), is a number with at most four decimals. Scope (r2, S3): it judges the rates that are there; whether every tier carries a rate, or the shape is otherwise sound, is the tier-shape check''s (rate_item_versions_tier_config_required_for_tiered), not this one.';
 COMMENT ON CONSTRAINT rate_schedule_items_rate_override_four_decimals_check ON public.rate_schedule_items IS
-    'v5.4.2-28 (CI-109; K-06): a schedule''s rate override carries at most four decimals.';
+    'v5.4.2-28 (CI-109; K-06): a schedule''s rate override carries at most four decimals, and is a number (NaN refused). A percentage override is stored in percent (AC-45).';
 
 -- ============================================================================
 -- END PATCH v5.4.2-28

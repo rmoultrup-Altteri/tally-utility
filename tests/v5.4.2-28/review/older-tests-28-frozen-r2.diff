@@ -1,0 +1,33 @@
+diff --git a/tests/ci.sh b/tests/ci.sh
+index fff5780..6c0db2c 100755
+--- a/tests/ci.sh
++++ b/tests/ci.sh
+@@ -149,6 +149,7 @@ cstep ci_r16 "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
+ cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
+ cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
+ cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
++cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
+ cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22
+ cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
+ cstep ci_r25 "races v5.4.2-25" bash tests/v5.4.2-25/races/disputes-25.sh ci_r25
+diff --git a/tests/v5.4.2-21/battery-21.sql b/tests/v5.4.2-21/battery-21.sql
+index 7ccdb3a..5b1d4f8 100644
+--- a/tests/v5.4.2-21/battery-21.sql
++++ b/tests/v5.4.2-21/battery-21.sql
+@@ -320,11 +320,14 @@ SELECT pg_temp.refuses_at('K3a2 an edit carried inside a retirement',
+   $q$UPDATE public.rate_item_dependencies SET notes = 'edited', recorded_until = now(), closed_type = 'retracted', closed_reason = 'and retired' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'never edited in place');
+ SELECT pg_temp.refuses_at('K3a a live dependency edited',
+   $q$UPDATE public.rate_item_dependencies SET notes = 'edited' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23001', 'never edited in place');
+-SELECT pg_temp.refuses_at('K3b an update that is not a retirement (a closer with no close)',
++-- (since -28: refused by the close-consistency CHECK, before any trigger can)
++SELECT pg_temp.refuses_at('K3b a closer set without a close: the close-consistency CHECK refuses it',
+   $q$UPDATE public.rate_item_dependencies SET closed_by = '00000000-0000-4000-8000-0000000021b1' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_close_consistent_check');
+ SELECT pg_temp.refuses_at('K1 a retirement with a blank reason',
+   $q$UPDATE public.rate_item_dependencies SET recorded_until = now(), closed_type = 'retracted', closed_reason = '   ' WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '23514', 'rate_item_dependencies_close_consistent_check');
+-SELECT pg_temp.refuses_at('K-del the application deletes a dependency',
++-- (proves only that tally_app holds no DELETE grant; -28's D9e covers the
++-- guard itself, for the owner)
++SELECT pg_temp.refuses_at('K-del the application has no DELETE grant on dependencies',
+   $q$DELETE FROM public.rate_item_dependencies WHERE id = '00000000-0000-4000-8000-000000002191'$q$, '42501', 'permission denied');
+ RESET ROLE;
+ -- (Back-date the header past its own updated_at trigger, so K5a can see the bump.)

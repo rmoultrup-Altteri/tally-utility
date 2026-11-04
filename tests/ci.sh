@@ -149,6 +149,7 @@ cstep ci_r16 "races v5.4.2-16" tests/v5.4.2-16/races/place-close-16.sh ci_r16
 cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
 cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
 cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
+cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
 cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22
 cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
 cstep ci_r25 "races v5.4.2-25" bash tests/v5.4.2-25/races/disputes-25.sh ci_r25
