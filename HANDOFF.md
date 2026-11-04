@@ -33,9 +33,10 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting; not drafted; next after -23, ahead of -24) |
-| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109); r1 reviewed 2026-11-02 (not yet), r2 fix list written, waits on one Ryan call; the meter test fee (CI-091) moved to its own patch after dated history |
+| -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04; not drafted) |
+| -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109); r1 reviewed 2026-11-02 (not yet), r2 fix list written, Ryan's last call answered 2026-11-04, r2 building; the meter test fee (CI-091) moved to its own patch after dated history |
 
-**Next free: -29.**
+**Next free: -30.**
 
 ## Mirror queue
 
