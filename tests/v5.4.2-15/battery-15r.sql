@@ -1229,11 +1229,15 @@ SELECT pg_temp.refuses('V14: … and on or before the day the return fell due: t
 
 -- The database stamps a change of state now (this battery is run on a day long after the March bills), so a closure is
 -- evidence of a return due on or after that day.
+-- The due date of V15-V28 and H13-H15 is therefore today's UTC date, the closure's own day, and the days around it
+-- (the money stream, 2026-11-04: a fixed 2026-11-01 expired once the closure, stamped now, fell after it).
+SELECT (now() AT TIME ZONE 'UTC')::date AS due, (now() AT TIME ZONE 'UTC')::date + 1 AS due_next,
+       (now() AT TIME ZONE 'UTC')::date - 2 AS due_before \gset
 SELECT pg_temp.refuses('V15: closure evidence is a change to a status the reason names: becoming active is no closure',
-  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-11-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), :'due', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
      'event', pg_temp.stev(:'c9', 'active')))), '23514', 'is not a change of the deposit''s customer to', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V16: … and is the deposit''s own customer''s: c6''s closure on c2''s deposit',
-  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-11-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+  pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), :'due', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
      'event', pg_temp.stev(:'c6', 'final_billed')))), '23514', 'is not a change of the deposit''s customer to', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V17: … dated on or before the due date: a closure stamped today is no evidence of a return due last April',
   pg_temp.wd_sql(:'d2', pg_temp.did('rtar'), '2026-04-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
@@ -1255,56 +1259,56 @@ SELECT pg_temp.refuses('V22: a corrected answer may supersede only a withdrawn r
   '23514', 'may supersede only a withdrawn due row of the same deposit', 'tally_app', :'u2');
 -- the corrected answer: c2 has closed, and the bills are clean: one row, two reasons, each naming its own return rule
 SELECT pg_temp.does_as('V23: the corrected answer names the row it supersedes and carries both reasons at once', :'t2',
-  pg_temp.wd_sql(:'d3', pg_temp.did('rr'), '2026-11-01', jsonb_build_object('supersedes', :'d1'),
+  pg_temp.wd_sql(:'d3', pg_temp.did('rr'), :'due', jsonb_build_object('supersedes', :'d1'),
     jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2', 'event', pg_temp.stev(:'c9', 'final_billed')), pg_temp.bill(:'i1'))));
 SELECT pg_temp.ok('V23b: it is owed with both reasons',
   (SELECT reasons = ARRAY['account_closed', 'clean_bill_history'] AND deposit_status = 'held' FROM public.deposits_return_owed WHERE due_id = :'d3'));
 -- a withdrawn row is superseded once (rtar is c2's too: x1 is withdrawn, x2 supersedes it and is withdrawn, x3 would supersede x1 again)
-SELECT pg_temp.run(pg_temp.wd_sql(:'x1', pg_temp.did('rtar'), '2026-11-01', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
+SELECT pg_temp.run(pg_temp.wd_sql(:'x1', pg_temp.did('rtar'), :'due', '{}', jsonb_build_array(jsonb_build_object('reason', 'account_closed', 'component', 'r2',
    'event', pg_temp.stev(:'c9', 'final_billed')))), 'tally_app', :'u2');
 SELECT pg_temp.run(format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, 'battery: x1 wrong')$q$, :'t2', :'x1'), 'tally_app', :'u2');
-SELECT pg_temp.run(pg_temp.wd_sql(:'x2', pg_temp.did('rtar'), '2026-11-01', jsonb_build_object('supersedes', :'x1'), jsonb_build_array(jsonb_build_object('reason', 'account_closed',
+SELECT pg_temp.run(pg_temp.wd_sql(:'x2', pg_temp.did('rtar'), :'due', jsonb_build_object('supersedes', :'x1'), jsonb_build_array(jsonb_build_object('reason', 'account_closed',
    'component', 'r2', 'event', pg_temp.stev(:'c9', 'final_billed')))), 'tally_app', :'u2');
 SELECT pg_temp.run(format($q$INSERT INTO public.deposit_return_due_withdrawals (tenant_id, due_id, reason) VALUES (%L, %L, 'battery: x2 wrong too')$q$, :'t2', :'x2'), 'tally_app', :'u2');
 SELECT pg_temp.refuses('V24: a withdrawn row is superseded once: x1 already is',
-  pg_temp.wd_sql(:'x3', pg_temp.did('rtar'), '2026-11-01', jsonb_build_object('supersedes', :'x1'), jsonb_build_array(jsonb_build_object('reason', 'account_closed',
+  pg_temp.wd_sql(:'x3', pg_temp.did('rtar'), :'due', jsonb_build_object('supersedes', :'x1'), jsonb_build_array(jsonb_build_object('reason', 'account_closed',
      'component', 'r2', 'event', pg_temp.stev(:'c9', 'final_billed')))), '23505', NULL, 'tally_app', :'u2');
 
 SELECT pg_temp.refuses('V25: a return cites only its own deposit''s due row',
-  pg_temp.ev_sql(pg_temp.did('rtar'), 'refund_initiated', 60, DATE '2026-11-02', :'d3'), '23514', 'own deposit', 'tally_app', :'u2');
+  pg_temp.ev_sql(pg_temp.did('rtar'), 'refund_initiated', 60, DATE :'due_next', :'d3'), '23514', 'own deposit', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V26: a refund settling a due row cannot be dated before it fell due',
-  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE '2026-10-30', :'d3'), '23514', 'fell due', 'tally_app', :'u2');
+  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE :'due_before', :'d3'), '23514', 'fell due', 'tally_app', :'u2');
 SELECT pg_temp.does_as('V27: … on or after it, it settles the row: the list drops it', :'t2',
-  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE '2026-11-01', :'d3'));
+  pg_temp.ev_sql(pg_temp.did('rr'), 'refund_initiated', 100, DATE :'due', :'d3'));
 SELECT pg_temp.ok('V27b: it is no longer owed', NOT EXISTS (SELECT 1 FROM public.deposits_return_owed WHERE deposit_id = pg_temp.did('rr')));
 SELECT pg_temp.refuses('V28: no due row follows a return that has started',
-  pg_temp.wd_sql(:'d4', pg_temp.did('rr'), '2026-11-02', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'return has started', 'tally_app', :'u2');
+  pg_temp.wd_sql(:'d4', pg_temp.did('rr'), :'due_next', '{}', jsonb_build_array(pg_temp.bill(:'i1'))), '23514', 'return has started', 'tally_app', :'u2');
 
 -- A due row and a refund notice written in ONE statement (a writable WITH): the status has not caught up, and which part runs
 -- first is not fixed; the record is judged when the statement ends.
 SELECT pg_temp.mk('rcte', :'t2', jsonb_build_object('customer', :'c9', 'basis', 'tariff', 'principal', '60.00'));
 SELECT pg_temp.refuses('V28b: a refund notice and, in the same statement, a due row beside it (the notice is written first)',
   format($q$WITH e AS (INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
-                       SELECT d.tenant_id, d.id, 'refund_initiated', 60, DATE '2026-11-02' FROM public.deposits d WHERE d.id = %L RETURNING deposit_id),
+                       SELECT d.tenant_id, d.id, 'refund_initiated', 60, ((now() AT TIME ZONE 'UTC')::date + 1) FROM public.deposits d WHERE d.id = %L RETURNING deposit_id),
                 r AS (INSERT INTO public.deposit_return_due (tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
-                       SELECT d.tenant_id, d.id, d.rule_id, DATE '2026-11-02', '{"bills": 12}', 'fp-cte1', 'core-battery-1' FROM public.deposits d JOIN e ON e.deposit_id = d.id RETURNING id, tenant_id)
+                       SELECT d.tenant_id, d.id, d.rule_id, ((now() AT TIME ZONE 'UTC')::date + 1), '{"bills": 12}', 'fp-cte1', 'core-battery-1' FROM public.deposits d JOIN e ON e.deposit_id = d.id RETURNING id, tenant_id)
            INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, rests_on_deposit)
            SELECT r.tenant_id, r.id, 'clean_bill_history', 'r1', %L::uuid, 'clean', false FROM r$q$, pg_temp.did('rcte'), :'i1'), '23514', 'return has started', 'tally_app', :'u2');
 SELECT pg_temp.refuses('V28c: … and with the due row written first and the notice by the main statement',
   format($q$WITH r AS (INSERT INTO public.deposit_return_due (tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
-                        SELECT d.tenant_id, d.id, d.rule_id, DATE '2026-11-02', '{"bills": 12}', 'fp-cte2', 'core-battery-1' FROM public.deposits d WHERE d.id = %L RETURNING id, tenant_id, deposit_id),
+                        SELECT d.tenant_id, d.id, d.rule_id, ((now() AT TIME ZONE 'UTC')::date + 1), '{"bills": 12}', 'fp-cte2', 'core-battery-1' FROM public.deposits d WHERE d.id = %L RETURNING id, tenant_id, deposit_id),
                 ev AS (INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, rests_on_deposit)
                         SELECT r.tenant_id, r.id, 'clean_bill_history', 'r1', %L::uuid, 'clean', false FROM r RETURNING due_id)
            INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on)
-           SELECT d.tenant_id, d.id, 'refund_initiated', 60, DATE '2026-11-02' FROM public.deposits d JOIN r ON r.deposit_id = d.id$q$, pg_temp.did('rcte'), :'i1'), '23514', 'return has started', 'tally_app', :'u2');
+           SELECT d.tenant_id, d.id, 'refund_initiated', 60, ((now() AT TIME ZONE 'UTC')::date + 1) FROM public.deposits d JOIN r ON r.deposit_id = d.id$q$, pg_temp.did('rcte'), :'i1'), '23514', 'return has started', 'tally_app', :'u2');
 
 SELECT pg_temp.does_as('V28d: … but a refund notice that CITES the due row written in the same statement is the legitimate path, accepted', :'t2',
   format($q$WITH r AS (INSERT INTO public.deposit_return_due (tenant_id, deposit_id, rule_id, due_on, inputs, inputs_fingerprint, calculated_by)
-                        SELECT d.tenant_id, d.id, d.rule_id, DATE '2026-11-02', '{"bills": 12}', 'fp-cte4', 'core-battery-1' FROM public.deposits d WHERE d.id = %L RETURNING id, tenant_id, deposit_id),
+                        SELECT d.tenant_id, d.id, d.rule_id, ((now() AT TIME ZONE 'UTC')::date + 1), '{"bills": 12}', 'fp-cte4', 'core-battery-1' FROM public.deposits d WHERE d.id = %L RETURNING id, tenant_id, deposit_id),
                 ev AS (INSERT INTO public.deposit_return_due_evidence (tenant_id, due_id, reason_code, return_component, invoice_id, classification, rests_on_deposit)
                         SELECT r.tenant_id, r.id, 'clean_bill_history', 'r1', %L::uuid, 'clean', false FROM r RETURNING due_id)
            INSERT INTO public.deposit_events (tenant_id, deposit_id, event_type, amount, effective_on, return_due_id)
-           SELECT d.tenant_id, d.id, 'refund_initiated', 60, DATE '2026-11-02', r.id FROM public.deposits d JOIN r ON r.deposit_id = d.id$q$, pg_temp.did('rcte'), :'i1'));
+           SELECT d.tenant_id, d.id, 'refund_initiated', 60, ((now() AT TIME ZONE 'UTC')::date + 1), r.id FROM public.deposits d JOIN r ON r.deposit_id = d.id$q$, pg_temp.did('rcte'), :'i1'));
 
 SELECT pg_temp.refuses('V29: the application cannot edit a due row',
   format($q$UPDATE public.deposit_return_due SET due_on = DATE '2026-06-01' WHERE id = %L$q$, :'d3'), '42501', NULL, 'tally_app', :'u2');
@@ -1692,14 +1696,14 @@ SELECT pg_temp.ok('H11: tally_app and tally_core read the law, the vocabularies 
                        'public.deposit_waiver_classes', 'public.deposit_return_reasons', 'public.deposit_refund_disqualifiers']) t));
 SELECT pg_temp.ok('H12: the close floor of a law row nothing cites is nothing',
   public.deposit_rule_close_floor((SELECT id FROM public.deposit_rules WHERE state_code = 'ZZ' AND customer_class = 'wholesale')) IS NULL);
--- rr''s law row is cited by its posting (2026-01-15), the accrual of A1, its two due rows (2026-04-01, 2026-11-01) and its refund (2026-11-01)
+-- rr''s law row is cited by its posting (2026-01-15), the accrual of A1, its two due rows (2026-04-01, the due date of V23) and its refund (the due date of V23)
 SELECT pg_temp.ok('H13: a law row is held in force through the latest date a record cites it for: a deposit''s posting, an accrual''s period end, a due row''s day, a return''s day',
-  public.deposit_rule_close_floor(pg_temp.law('residential', 'credit_evaluation', 'investor_owned')) = DATE '2026-11-01');
+  public.deposit_rule_close_floor(pg_temp.law('residential', 'credit_evaluation', 'investor_owned')) = DATE :'due');
 SELECT pg_temp.refuses('H14: a close on that day is refused, naming the date a citing record needs',
-  format($q$UPDATE public.deposit_rules SET effective_to = DATE '2026-11-01' WHERE id = %L$q$, pg_temp.law('residential', 'credit_evaluation', 'investor_owned')),
-  '23514', 'a citing record needs it in force on 2026-11-01');
+  format($q$UPDATE public.deposit_rules SET effective_to = (now() AT TIME ZONE 'UTC')::date WHERE id = %L$q$, pg_temp.law('residential', 'credit_evaluation', 'investor_owned')),
+  '23514', 'a citing record needs it in force on ' || :'due');
 SELECT pg_temp.does('H15: the day after is fine',
-  format($q$UPDATE public.deposit_rules SET effective_to = DATE '2026-11-02' WHERE id = %L$q$, pg_temp.law('residential', 'credit_evaluation', 'investor_owned')));
+  format($q$UPDATE public.deposit_rules SET effective_to = ((now() AT TIME ZONE 'UTC')::date + 1) WHERE id = %L$q$, pg_temp.law('residential', 'credit_evaluation', 'investor_owned')));
 -- the utility's tariff
 SELECT pg_temp.refuses('H16: a tariff row is never edited, by its utility or the owner',
   $q$UPDATE public.deposit_tariffs SET tariff_reference = 'edited' WHERE tariff_category = 'homeowner'$q$, '23001', 'never edited');
