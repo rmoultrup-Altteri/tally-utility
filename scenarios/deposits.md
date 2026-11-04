@@ -168,3 +168,106 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 - **(b)** Prairie Line's tariff record is refused when entered: 1% is below the floor of the law row it maps to.
 - **(c)** $200.00 × 3% × 30/365 = 0.4932 → **$0.49**, citing the tariff record and the law row.
 - Nothing in the calculation names Texas or Fremont: the same steps read a different row.
+
+---
+
+### SCN-0042 — Under the Texas rule, a deposit is capped at a sixth of the year's bills, and a waiver in force excuses it
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Gulf Plains' tariff is not drafted; its deposit amount and the customer's estimated annual billing are **invented**. Reviewer gap (Codex, Opus, 2026-11-02).
+*Rule:* where §7.45 binds, a deposit may not exceed one-sixth of the customer's estimated annual billing; the deposit records the cap, where it came from, and that it reduced the amount, so the customer can be told. A waiver in force on the posting date (both ends of its dates included) excuses the deposit it reaches. Where an input the waiver needs is missing, such as a date of birth, no deposit is taken. Sources: deposit rules for the core §2.1 (waivers; #53 rank 4, fail open: DG3), §2.2 (the cap); cases B11; CI-129.
+
+**Given**
+- Gulf Plains (`cast.md` §3), where the Texas rule binds. Its tariff deposit for a residential customer is $200.00 (**invented**).
+- A new residential applicant, **GP-05 (invented)**, whose estimated annual billing is $960.00 (**invented**; how it is estimated for a new applicant is not yet specified, deposit rules §2.2, #53 OQ5). The deposit is set on Mar 1, 2026.
+
+**When** the deposit is set for GP-05 (a) with no waiver; (b) aged 66 and owing nothing to Gulf Plains; (c) with no date of birth on file; (d) with a family-violence certification that expires on Mar 1, 2026.
+
+**Then**
+- **(a)** The cap is $960.00 ÷ 6 = **$160.00**, less than the tariff's $200.00. The deposit is **$160.00**, recording the cap, its source (the Texas rule), its basis ($960.00) and that it reduced the amount.
+- **(b)** No deposit: the age-65 waiver is in force and reaches the rule.
+- **(c)** No deposit: the waiver can't be evaluated, and the Texas rule fails toward the customer. (Pecan Flat, a city system, charges $100.00 in the same case, because its own tariff governs: SCN-0011 b.)
+- **(d)** No deposit: the certification is in force through the posting date.
+
+---
+
+### SCN-0043 — Deposit interest splits at a rate change and at a partial application
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Gulf Plains' interest rates are **invented**. Reviewer gap (Opus, 2026-11-02).
+*Rule:* as SCN-0012, and an accrual period never spans a change of the interest rate or a part of the deposit applied to the balance: it splits at that day, and each part runs at its own rate on the principal then held. A period with no rate in force is refused, never filled from the nearest rate. Sources: deposit rules for the core §3.3–3.5 and cases B4, B5, B6.
+
+**Given** Gulf Plains; $200.00 cash deposits; interest simple, actual days over 365, rounded per period.
+
+**When**
+- (a) a deposit posted Dec 1, 2026, the rate 3% to Dec 31 and 2.5% from Jan 1, 2027 (**invented**), is refunded on Feb 1, 2027;
+- (b) a deposit posted Jan 1, 2026 at 3%, of which $50.00 is applied to the customer's balance on Feb 15, 2026, is refunded on Apr 1, 2026;
+- (c) as (a), but the first rate on record starts Dec 15, 2026.
+
+**Then**
+- **(a)** Two periods: Dec 1–31 at 3%, $200.00 × 3% × 31/365 = 0.5096 → **$0.51**; Jan 1–31 at 2.5%, $200.00 × 2.5% × 31/365 = 0.4247 → **$0.42**. Interest $0.93; refund $200.00 principal and $0.93 interest, shown separately. One period across Jan 1 is refused.
+- **(b)** Jan 1 – Feb 14 on $200.00: × 3% × 45/365 = 0.7397 → **$0.74**; Feb 15 – Mar 31 on $150.00: × 3% × 45/365 = 0.5548 → **$0.55**. Refund $150.00 principal and **$1.29** interest. One period across Feb 15 is refused.
+- **(c)** The accrual is refused: no rate is in force on Dec 1.
+
+---
+
+### SCN-0044 — A final bill that uses up the whole deposit: the refund is zero, and it is still recorded
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02).
+*Rule:* at close the deposit pays what is owed first. A deposit used up entirely is settled by a refund of zero, recorded and disclosed; until it is, the account cannot close. Where interest is owed, it runs on the whole deposit up to the day it was applied, and is paid out separately. Sources: deposit rules for the core §4.2–4.4 and cases B7, B18; Kyle 11-03, answer 13 (route b, at disconnection).
+
+**When**
+- (a) at Gulf Plains, a $200.00 cash deposit posted Jan 1, 2026 at 3% (**invented**) is applied in full on Mar 2, 2026 to a final bill of exactly $200.00 (**invented**);
+- (b) at Bluebonnet, BB-01's $150.00 deposit (no interest) is applied in full to a final bill of exactly $150.00 (**invented**).
+
+**Then**
+- **(a)** Interest through Mar 1 (60 days): $200.00 × 3% × 60/365 = 0.9863 → **$0.99**, credited before the refund. The refund is **$0.00** principal, with $0.99 interest paid to the customer.
+- **(b)** The refund is **$0.00**, with no interest line.
+- In both, the account can close only once the zero refund is recorded.
+- Had (a)'s deposit been used up within 30 days of posting, no interest would be owed at all, and the zero refund carries none (case B8).
+
+---
+
+### SCN-0045 — A returned check holds the deposit until it is a year old
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A9). The rolling window is this stream's reading of Kyle's answers 13 and 14 for returned checks (he ruled it for late penalties); confirming it goes to Kyle.
+*Rule:* Bluebonnet refunds a deposit after twelve consecutive months of good payment; a returned check breaks that run. Sources: Bluebonnet's tariff (`cast.md` §2: no returned checks); Kyle 11-03, answers 13 and 14.
+
+**Given** SCN-0007 (a), except that BB-02's check for the July bill comes back unpaid on **Aug 10, 2026** (**invented**), and is made good on Aug 12. No other returned check; two late penalties, as SCN-0007; no bill past due from then on.
+
+**When** the deposit reaches twelve months on Jan 5, 2027, and the check runs daily after it.
+
+**Then**
+- On Jan 5, 2027 no due record is written: a returned check falls in the last twelve months.
+- On **Aug 11, 2027**, the first day the returned check is more than twelve months old, the due record is written, citing the clean months. The next bill carries the $250.00 credit, unless BB-02 asks for a check.
+- **Open (Kyle, next batch):** is a returned check counted over the same rolling twelve months as the late penalties, or does it disqualify the refund for the whole time the deposit is held?
+
+---
+
+### SCN-0046 — A deposit credit larger than the next bill joins the customer's one credit balance
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A9). How credits are tracked belongs to the cash family (v5.4.2-23, in review).
+*Rule:* a deposit returned as a bill credit pays the next bill, and what is left joins the customer's credit, which is shown as one balance and applied to later bills; the customer may ask for a check instead. Sources: Kyle 11-03, answer 13; a customer's credits are one pot, shown as one net balance (Kyle 10-30).
+
+**Given** SCN-0007 (a): the $250.00 return falls due on Jan 5, 2027. BB-02's next bill, issued Jan 15, 2027, is **$61.40** (**invented**).
+
+**When** the January bill is issued, and then the February bill of $58.20 (**invented**).
+
+**Then**
+- The January bill is paid by the deposit credit: $250.00 − $61.40 leaves a credit of **$188.60**, shown to BB-02 as one figure.
+- The February bill is paid from it: the credit is then **$130.40**.
+- If BB-02 asks for a check at any point, what is left is paid out by check.
+- The deposit itself shows $250.00 returned on Jan 5, 2027; it does not reappear as held.
+
+---
+
+### SCN-0047 — The facts behind a refund decision change: the decision is withdrawn or made, never edited
+
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Codex, 2026-11-02, item 18).
+*Rule:* the record that a deposit's return fell due is written once, citing what it rests on. If those facts later prove wrong, it is withdrawn with a reason, and its history is kept; if corrected facts make a return due that wasn't, it is written then. Neither the original decision nor the penalties it counted are edited. Sources: deposit rules for the core §5.4; v5.4.2-15 (withdrawal and supersession); SCN-0034 (a penalty reversed for being wrongly assessed).
+
+**When**
+- (a) SCN-0008: on Dec 3, 2026 the Nov 20, 2026 penalty is found wrongly assessed (BB-02's check was postmarked on time) and reversed, as SCN-0034;
+- (b) SCN-0007 (a): the due record was written Jan 5, 2027. On Jan 10 a returned check of Nov 12, 2026, posted by mistake to another customer, is moved to BB-02's account (**invented**).
+
+**Then**
+- **(a)** Two penalties now fall in the twelve months. The deposit falls due on **Jan 5, 2027**, not Mar 21; one due record is written that day.
+- **(b)** The Jan 5 due record is withdrawn on Jan 10, with the reason citing the returned check; no credit is given on the Jan 15 bill. The deposit is held until the returned check is more than twelve months old (SCN-0045's reading): due **Nov 13, 2027**. The withdrawn record stays readable beside the new one.
