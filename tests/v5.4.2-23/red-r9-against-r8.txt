@@ -1,0 +1,22 @@
+# v5.4.2-23 r9 tests against frozen r8 (patch-23-frozen-r8.sql, md5 25e0a9212a348dfabab4f3fa22c65822), 2026-11-04
+
+## battery-23.sql (r9) on r8: stops at the first failure
+psql:<stdin>:2769: ERROR:  FAIL U1b carried to a reissue of 20, though the family is over its payment: refused with 23514 (payment 00000000-0000-4000-8000-000000003501 and its overpayment credit: on 2026-11-04 what they gave and what was taken back on the ledger would come to 110.00, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23))
+
+## the same battery without U1 (to reach U2)
+psql:<stdin>:2788: ERROR:  FAIL U2 Opus P1: one statement, a reissue of 15 and a refund of 5 from it, is refused (it carries all 20): accepted
+
+## races/cash-23.sh (r9) on r8
+FAIL CR27: A (0): 2026-11-04 17:01:49.584996+00 / B: 
+FAIL CR27a: ERROR:  23505: duplicate key value violates unique constraint "account_ledger_pkey"
+SCHEMA NAME:  public
+TABLE NAME:  account_ledger
+CONSTRAINT NAME:  account_ledger_pkey
+LOCATION:  _bt_check_unique, nbtinsert.c:666
+FAIL CR27b the share stays on R: payment 0, K 20, R 0 (escheated, holding nothing of its own): got [0.00 10.00 10.00 10.00], expected [0.00 20.00 0.00 0.00]
+FAIL CR28: A (3): 2026-11-04 17:01:54.471699+00
+ERROR:  23001: customer credit 00000000-0000-4000-8000-0000000025c4 cannot be voided while it carries 10.00 of what was taken back under its payment: refund or apply what it holds, or give the take-back back first (Opus B3; K-10; v5.4.2-23)
+CONTEXT:  PL/pgSQL function enforce_customer_credit_immutable() line 174 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897 / B: 
+
+PASS lines: 43 of 47

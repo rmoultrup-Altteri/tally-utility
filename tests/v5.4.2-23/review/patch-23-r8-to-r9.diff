@@ -1,0 +1,220 @@
+--- tests/v5.4.2-23/review/patch-23-frozen-r8.sql	2026-11-02 12:29:23
++++ tests/v5.4.2-23/review/patch-23-frozen-r9.sql	2026-11-04 12:25:19
+@@ -128,9 +128,9 @@
+ --     decided when a position is read: the split fixes what each side held
+ --     when a take-back was recorded; if one side then reads a deficit while
+ --     the other holds money, the side holding money covers it as far as it
+---     can (overpayment_absorbed_as_of). Each position then equals what its
+---     cap admits (its own side, with the cap on the two together), and the
+---     two add up to the ledger. A draw uses only its own side's money.
++--     can (overpayment_absorbed_as_of). The two add up to the ledger. A
++--     draw uses only its own side's money. (r6 also said each position
++--     equals what its cap admits; r8's option A withdrew that: see below.)
+ --   * r6 (Opus B2, Fable B1): a row under a payment's posting entry is not
+ --     recorded before a draw already counted on the payment or its credits,
+ --     the credit itself, or a draw that has since left (check_cash_order,
+@@ -181,6 +181,19 @@
+ --   * r8 (Fable S1): the reissue line's walks and the draws' read pin their
+ --     plans (sequential scans, hash and merge joins off), as every walk of
+ --     -23.
++--   * r9 (Codex B1; Ryan, 2026-11-04, option 1): the cap on a payment and
++--     its credits together is not applied to a reissue or an overpayment
++--     credit, the two moves within the family (the sum leaves both out): a
++--     family over its payment by what was paid out (K-10) can still carry a
++--     returned refund to its required reissue.
++--   * r9 (Opus B1): money leaving a family (a refund of the payment or a
++--     family credit cancelled or returned, a family credit voided) is not
++--     recorded before a take-back or give-back under the payment
++--     (check_cash_leaving_order: 40001, 23514 for a chosen time), so each
++--     take-back's shares as recorded stay fixed once recorded.
++--   * r9 (Opus S1): a reissue is sized on the credit's own side before it,
++--     the reissue counted at its amount less its share, not less its draws
++--     (a statement that makes a reissue and draws on it is sized right).
+ --   * Payments and customer credits are stamped created_at by the database
+ --     (a superuser's history load keeps its own), as the ledger is. r6
+ --     (Opus S1): a superuser's own created_at on a payment, credit,
+@@ -353,9 +366,12 @@
+ --       refund cap holds for any reading. Post each act in a transaction of
+ --       its own. r7 (Fable N1): a draw's return whose transaction began
+ --       before a take-back and commits after it is stamped at its start, so
+---       the split re-reads the take-back with the money already back; both
+---       readings are consistent and neither side reads more than its cap
+---       admits (-22's model; r8: a position is an attribution, R20).
++--       the split re-reads the take-back with the money already back. r9
++--       (Opus B1): that is not consistent once something is decided between
++--       the two readings (a reissue escheated holding the share the return
++--       later moves), so such a return is retried, not stamped back
++--       (check_cash_leaving_order; a void likewise): the shares as recorded
++--       are fixed once recorded.
+ --   R18. r6 (Fable N3): a refund's return keyed in error (the check had
+ --       cleared) has no correction once the refund is nsf: the status is
+ --       terminal and nothing more goes under its posting row. A new refund
+@@ -388,9 +404,16 @@
+ --       S1): on a 999-deep line a position reads in 0.4-0.5 s and a refund
+ --       of the 999th reissue takes 22-27 s, holding the payment's lock. Real
+ --       lines are 1-3 deep; the bound is a safety bound, not a working
+---       depth. r8: with the walks' plans pinned the depth no longer depends
+---       on the statistics (unpinned, under a vacuumed table the planner
+---       believes empty, the 999th reissue's make ran over 11 minutes).
++--       depth. r8: with the walks' plans pinned, the 999th reissue's make
++--       and a refund of it run in seconds after a VACUUM (0 pages, 0 rows);
++--       unpinned it ran over 11 minutes. r9 (Opus S2): the pins do not make
++--       depth independent of the statistics: with pages present and 0 rows
++--       estimated (what autovacuum leaves on an emptied table), the 999th
++--       make took 23 minutes in r8; in r9, with customer_credit_draws_as_of
++--       pinned as well, 28 minutes (2026-11-04, beside a mutation run: the
++--       battery to Z6 113 s, then Z6), so that pin was not kept. The test
++--       runners and ci.sh vacuum right before each run; real tables hold
++--       rows and real lines are 1-3 deep.
+ --   R22. r7 (Opus B3; Ryan, 2026-10-29): a reissue carrying a share of a
+ --       take-back is not voided until the share is given back. A reissue
+ --       made by mistake after a take-back stays, its money on that line,
+@@ -995,7 +1018,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.enforce_ledger_reversal() IS
+-    'v5.4.2-23 (X; R-02), replacing -22''s enforce_write_off_recovery. AFTER INSERT on account_ledger, every row, after the lineage walk (trigger name order). Every row is recorded at a finite time already reached (23514). r3: a posting row referencing a payment names it under reference_type payment, on its account, of its kind, at minus its amount; a credit_issued row referencing a credit is on its account at minus its amount, and an overpayment credit posts none; a donation of a credit is more than 0, on its account, and a draw on it (check_cash_source). A row undoing a payment''s posting entry waits while the payment is applied or has a refund pending, or its overpayment credit is applied or has a refund pending (K-10: a credit merely held does not hold it up; r6: nor while a reissue of that credit is applied or has a refund pending); one undoing a credit''s credit_issued entry while the credit is drawn on. r6: a row under a payment''s posting entry is not recorded before a draw already counted on the payment or its credits (check_cash_order); a give-back under it is refused as far as it would leave an escheated credit holding money. A row naming an entry: the entry is of its tenant and customer; a write_off_recovery names a write_off, and only a recovery names a write_off; the opposite sign, neither zero; dated on or after the entry. Then, at READ COMMITTED behind the advisory lock of the tree''s root: not recorded before a row already in the tree (40001; 23514 for a chosen time); and for every entry on the path up to the root, the net of that entry''s tree stays between 0 and minus its amount at every date. The walks run with sequential scans, hash and merge joins off.';
++    'v5.4.2-23 (X; R-02), replacing -22''s enforce_write_off_recovery. AFTER INSERT on account_ledger, every row, after the lineage walk (trigger name order). Every row is recorded at a finite time already reached (23514). r3: a posting row referencing a payment names it under reference_type payment, on its account, of its kind, at minus its amount; a credit_issued row referencing a credit is on its account at minus its amount, and an overpayment credit posts none; a donation of a credit is more than 0, on its account, and a draw on it (check_cash_source). A row undoing a payment''s posting entry waits while the payment is applied or has a refund pending, or its overpayment credit is applied or has a refund pending (K-10: a credit merely held does not hold it up; r6: a reissue descended from that credit holds it up the same way, while applied or with a refund pending); one undoing a credit''s credit_issued entry while the credit is drawn on. r6: a row under a payment''s posting entry is not recorded before a draw already counted on the payment or its credits (check_cash_order); a give-back under it is refused as far as it would leave an escheated credit holding money. A row naming an entry: the entry is of its tenant and customer; a write_off_recovery names a write_off, and only a recovery names a write_off; the opposite sign, neither zero; dated on or after the entry. Then, at READ COMMITTED behind the advisory lock of the tree''s root: not recorded before a row already in the tree (40001; 23514 for a chosen time); and for every entry on the path up to the root, the net of that entry''s tree stays between 0 and minus its amount at every date. The walks run with sequential scans, hash and merge joins off.';
+ CREATE TRIGGER enforce_ledger_reversal AFTER INSERT ON public.account_ledger
+     FOR EACH ROW EXECUTE FUNCTION public.enforce_ledger_reversal();
+ ALTER TABLE public.account_ledger ENABLE ALWAYS TRIGGER enforce_ledger_reversal;
+@@ -2476,6 +2499,12 @@
+                FROM public.customer_credits k WHERE k.id = public.overpayment_root(OLD.refunds_customer_credit_id);
+             PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', OLD.refunds_customer_credit_id));
+         END IF;
++        -- r9 (Opus B1): not recorded before a take-back or give-back under
++        -- the family's payment (check_cash_leaving_order), under its lock.
++        PERFORM public.check_cash_leaving_order(
++            coalesce(OLD.refunds_payment_id,
++                     (SELECT k.source_payment_id FROM public.customer_credits k WHERE k.id = public.overpayment_root(OLD.refunds_customer_credit_id))),
++            NEW.status_recorded_at, format('refund %s''s move to %s', OLD.payment_number, NEW.status));
+     END IF;
+     -- r6 (Codex B4): a history load's chosen status time is not before a row
+     -- already recorded on the payment's lineage (or, for a refund, on its
+@@ -2495,7 +2524,7 @@
+ END;
+ $fn$;
+ COMMENT ON FUNCTION public.enforce_payment_immutable() IS
+-    'CI-013 guard for payments (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Identity, amount, designation, payer class, restriction and lineage are fixed from insert; the references that arrive later are write-once. Status moves forward only (pending to posted or voided; posted to nsf or reversed; r3: refunded is not a status), under the payment''s source lock, and names its row in status_cause_id: posted its posting ledger entry (with nothing under it), nsf the nsf row reversing it, reversed a ledger reversal of it, voided nothing (and no ledger row references it). nsf, reversed and voided require its applications, and its overpayment credit''s, to net to 0 and no refund of the credit pending (r4: what the credit paid out stands). A refund that leaves (voided, nsf, reversed) takes its source''s lock (r3; r6, Fable S1: a credit''s refund takes the lock of the payment whose money the credit holds first). r6 (Codex B1, B4): nsf, reversed and voided also wait on a reissue descended from the overpayment credit; status_cause_id and status_recorded_at change only with the status, for every role; a superuser''s chosen status time is not before a row already recorded on the lineage (cash_lineage_recorded).';
++    'CI-013 guard for payments (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Identity, amount, designation, payer class, restriction and lineage are fixed from insert; the references that arrive later are write-once. Status moves forward only (pending to posted or voided; posted to nsf or reversed; r3: refunded is not a status), under the payment''s source lock, and names its row in status_cause_id: posted its posting ledger entry (with nothing under it), nsf the nsf row reversing it, reversed a ledger reversal of it, voided nothing (and no ledger row references it). nsf, reversed and voided require its applications, and its overpayment credit''s, to net to 0 and no refund of the credit pending (r4: what the credit paid out stands). A refund that leaves (voided, nsf, reversed) takes its source''s lock (r3; r6, Fable S1: a credit''s refund takes the lock of the payment whose money the credit holds first); r9 (Opus B1): and, where its source''s payment has an overpayment family, is not recorded before a take-back or give-back under that payment (check_cash_leaving_order). r6 (Codex B1, B4): nsf, reversed and voided also wait on a reissue descended from the overpayment credit; status_cause_id and status_recorded_at change only with the status, for every role; a superuser''s chosen status time is not before a row already recorded on the lineage (cash_lineage_recorded).';
+ 
+ CREATE OR REPLACE FUNCTION public.enforce_customer_credit_immutable()
+  RETURNS trigger
+@@ -2595,6 +2624,15 @@
+            FROM public.customer_credits c WHERE c.id = public.overpayment_root(OLD.id);
+     END IF;
+     PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', OLD.id));
++    -- r9 (Opus B1): a family credit's void gives its money back (to its
++    -- payment, or to the credit its refund came from) at its stamp, so it is
++    -- not recorded before a take-back or give-back under the payment
++    -- (check_cash_leaving_order), under the payment's lock taken above.
++    IF NEW.status = 'voided' THEN
++        PERFORM public.check_cash_leaving_order(
++            (SELECT k.source_payment_id FROM public.customer_credits k WHERE k.id = public.overpayment_root(OLD.id)),
++            NEW.status_recorded_at, format('credit %s''s void', OLD.id));
++    END IF;
+     v_ok := CASE NEW.status
+         -- r2: an overpayment credit's money is its payment's and posts no
+         -- ledger row (a credit_issued row would count it twice), so its void
+@@ -2693,7 +2731,7 @@
+ END;
+ $fn$;
+ COMMENT ON FUNCTION public.enforce_customer_credit_immutable() IS
+-    'CI-013 guard for customer credits (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Origin, amount, dates, lineage and approval are fixed from insert; escheated_at is write-once. Status moves from active to escheated or voided (r3: refunded and donated are not statuses), and no further, under the credit''s source lock (an overpayment credit''s void also under its payment''s, r3), naming its row in status_cause_id: voided a ledger reversal of its issuing entry (an overpayment credit: none) and nothing drawn on it, escheated its escheatment event and nothing left of what stands on the ledger (r6: its position at the last date and now, with a shortfall placed at that reading). r6 (Codex B4): status_cause_id and status_recorded_at change only with the status, for every role; a superuser''s chosen status time is not before a row already recorded on the lineage (cash_lineage_recorded). r7: a reissue holding a payment''s money takes the payment''s lock first on its void (Fable S1), and is not voided while it carries a share of what was taken back under the payment (Opus B3); a credit holding a payment''s money is not escheated while its own side, without the cover, holds money (Opus B1).';
++    'CI-013 guard for customer credits (v5.4.2-01), rewritten in v5.4.2-23 (R-05; Q1 (a)). Origin, amount, dates, lineage and approval are fixed from insert; escheated_at is write-once. Status moves from active to escheated or voided (r3: refunded and donated are not statuses), and no further, under the credit''s source lock (an overpayment credit''s void also under its payment''s, r3; r8, Opus S1: so is the move to escheated of any credit holding a payment''s money), naming its row in status_cause_id: voided a ledger reversal of its issuing entry (an overpayment credit: none) and nothing drawn on it, escheated its escheatment event and nothing left of what stands on the ledger (r6: its position at the last date and now, with a shortfall placed at that reading). r6 (Codex B4): status_cause_id and status_recorded_at change only with the status, for every role; a superuser''s chosen status time is not before a row already recorded on the lineage (cash_lineage_recorded). r7: a reissue holding a payment''s money takes the payment''s lock first on its void (Fable S1), and is not voided while it carries a share of what was taken back under the payment (Opus B3); a credit holding a payment''s money is not escheated while its own side, without the cover, holds money (Opus B1). r9 (Opus B1): a family credit''s void is not recorded before a take-back or give-back under its payment (check_cash_leaving_order).';
+ 
+ 
+ -- r2 (Fable S3; Opus B2 O1): births. A payment is born pending and a credit
+@@ -3086,6 +3124,57 @@
+     'v5.4.2-23 r6 (Opus B2, Fable B1; -22''s recorded order). Refuses a row recorded before a row already drawing on a payment or credit (cash_source_draws), before a draw that has since left it (a refund no longer pending or posted, an overpayment or reissued credit voided: by its status_recorded_at), or, given p_entry, before a row under the source''s arrival entry: 40001 for a row stamped at its transaction''s start, 23514 for a chosen time. The caller holds the source''s lock. Called by check_cash_source for every draw and by enforce_ledger_reversal for a row under a payment''s posting entry (the payment and each credit of its overpayment family).';
+ REVOKE ALL ON FUNCTION public.check_cash_order(text, uuid, timestamp with time zone, uuid, text) FROM PUBLIC;
+ GRANT EXECUTE ON FUNCTION public.check_cash_order(text, uuid, timestamp with time zone, uuid, text) TO tally_app;
++
++-- r9 (Opus B1): the recorded-order rule for money leaving a family (a
++-- refund of the payment or of one of its credits cancelled or returned, a
++-- family credit voided). What leaves goes back to its source at the move's
++-- stamp, and overpayment_shares places each take-back under the payment by
++-- what each credit held at the take-back's instant: a move stamped before a
++-- take-back already recorded would move that take-back's share between the
++-- credits after the fact, onto or off one since escheated. So the move is
++-- not recorded before a row under the payment's posting entry: 40001 for a
++-- move stamped at its transaction's start (the retry lands after the row;
++-- the bank's return is still recorded, only its stamp moves), 23514 for a
++-- time chosen for it. Only for a payment with an overpayment family; the
++-- caller holds the payment's lock, which every row under the entry takes
++-- (enforce_ledger_reversal), so a committed one is seen here.
++CREATE OR REPLACE FUNCTION public.check_cash_leaving_order(p_payment_id uuid, p_at timestamp with time zone, p_what text)
++    RETURNS void
++    LANGUAGE plpgsql STABLE
++    SET search_path = public, pg_temp
++    AS $$
++DECLARE
++    v_entry    uuid;
++    v_later_id uuid;
++    v_later_at timestamptz;
++BEGIN
++    IF p_payment_id IS NULL OR NOT EXISTS (SELECT 1 FROM public.customer_credits c WHERE c.source_payment_id = p_payment_id AND c.status <> 'voided') THEN
++        RETURN;
++    END IF;
++    v_entry := public.cash_arrival_entry('payment', p_payment_id);
++    IF v_entry IS NULL THEN
++        RETURN;
++    END IF;
++    SELECT l.id, l.created_at INTO v_later_id, v_later_at
++      FROM public.account_ledger l
++     WHERE l.id = ANY (public.ledger_tree_ids(v_entry)) AND l.created_at > p_at
++     ORDER BY l.created_at DESC LIMIT 1;
++    IF FOUND AND p_at <> pg_catalog.now() THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('payment %s: %s is recorded at %s, a time chosen for it, before %s was recorded under the payment''s posting entry (money taken back or given back, at %s) — a history move is recorded after every row it follows (Opus B1, v5.4.2-23)', p_payment_id, p_what, p_at, v_later_id, v_later_at),
++            ERRCODE = 'check_violation';
++    END IF;
++    IF FOUND THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('payment %s: %s is recorded at %s, before %s was recorded under the payment''s posting entry (money taken back or given back, at %s) — a transaction that began earlier is writing later; retry it (Opus B1, v5.4.2-23)', p_payment_id, p_what, p_at, v_later_id, v_later_at),
++            ERRCODE = 'serialization_failure';
++    END IF;
++END;
++$$;
++COMMENT ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) IS
++    'v5.4.2-23 r9 (Opus B1). For a payment with a live overpayment credit: refuses money leaving its family (a refund of the payment or a family credit moving to voided, nsf or reversed; a family credit''s void) recorded before a row under the payment''s posting entry: 40001 for a move stamped at its transaction''s start, 23514 for a chosen time. Keeps each take-back''s shares as recorded fixed once recorded. The caller holds the payment''s lock. Called by enforce_payment_immutable and enforce_customer_credit_immutable.';
++REVOKE ALL ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) FROM PUBLIC;
++GRANT EXECUTE ON FUNCTION public.check_cash_leaving_order(uuid, timestamp with time zone, text) TO tally_app;
+ 
+ -- r6 (Codex B4): the last instant recorded on a source's lineage: the source
+ -- itself, its arrival entry and every row under it, every row drawing on it
+@@ -3323,7 +3412,14 @@
+         -- split read for rows of one instant. r6 (Codex B1): the credit's
+         -- reissues are in it, by their own draws, not their amounts (a
+         -- reissue moves the money within the family).
+-        IF v_pool_pay IS NOT NULL THEN
++        -- r9 (Codex B1; Ryan, 2026-11-04, option 1): not for the two moves
++        -- within the family, a reissue and an overpayment credit. The sum
++        -- leaves both out, so neither changes it; but a family can be over
++        -- its payment by what was already paid out (K-10), and then the
++        -- reissue a returned refund must be carried to (Ryan, 2026-10-21)
++        -- would be refused though it moves nothing out. Every other check
++        -- on them stays.
++        IF v_pool_pay IS NOT NULL AND p_purpose NOT IN ('reissue', 'overpayment_credit') THEN
+             SELECT x.on_date, x.used, pp.amount INTO v_on, v_drawn, v_amount
+               FROM public.payments pp
+               CROSS JOIN LATERAL (
+@@ -3576,11 +3672,17 @@
+         -- B2): both on their own side, as the draws' caps read them: a
+         -- credit's money covering a deficit beside it is still its own, and
+         -- carried with it.
++        -- r9 (Opus S1): the reissue's side is what it was issued with, its
++        -- amount less its share as recorded, not less its draws: in one
++        -- statement that makes it and draws on it, this AFTER trigger fires
++        -- at the statement's end and would see the draw.
+         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('payment', c.source_payment_id))
+            FROM public.customer_credits c WHERE c.id = public.overpayment_root(v_refund.refunds_customer_credit_id);
+         PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('credit', v_refund.refunds_customer_credit_id));
+         v_left := public.customer_credit_own_remaining_as_of(v_refund.refunds_customer_credit_id, DATE '9999-12-31', pg_catalog.clock_timestamp())
+-                + public.customer_credit_own_remaining_as_of(NEW.id, DATE '9999-12-31', pg_catalog.clock_timestamp());
++                + NEW.original_amount
++                - coalesce((SELECT s.absorbed FROM public.overpayment_absorbed_as_of(public.overpayment_root(NEW.id), DATE '9999-12-31', pg_catalog.clock_timestamp(), false) s
++                             WHERE s.credit_id = NEW.id), 0);
+         IF NEW.original_amount <> least(-v_refund.amount, v_left) THEN
+             RAISE EXCEPTION USING
+                 MESSAGE = format('credit %s reissues %s for %s: it carries what came back (%s) as far as it is what is left on the credit (%s before it) (Ryan, 2026-10-21; K-10; v5.4.2-23)', NEW.id, v_refund.payment_number, NEW.original_amount, -v_refund.amount, v_left),

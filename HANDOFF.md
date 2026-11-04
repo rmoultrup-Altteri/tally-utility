@@ -28,7 +28,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 
 | Number | Stream | What |
 |---|---|---|
-| -23 | money | cash: reversals, positions, application, overpayment credits (round 8 reviewed 2026-11-02: Fable ready, Codex and Opus not yet; round 9 next) |
+| -23 | money | cash: reversals, positions, application, overpayment credits (round 9 frozen 2026-11-04, in review) |
 | -24 | money | unmatched cash, agency pledges (not drafted) |
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |

@@ -97,6 +97,20 @@
 #        from its payment; B gives money back under the payment. A's move
 #        takes the payment's lock first, so B waits on A: no deadlock, both
 #        admitted (Opus D2: on r7, A's refund deadlocked, 40P01).
+# r9 (Opus B1):
+#   CR27 Opus J. A's transaction begins (to record a refund of an
+#        overpayment credit K coming back); B takes 10 back under the
+#        payment (K holds nothing, so it falls on K's reissue R), then R
+#        remits its 5 and is escheated; A writes the return: refused for
+#        retry (40001: recorded before the take-back); the retry is admitted,
+#        the take-back's share stays on R, and the escheated R holds nothing.
+#   CR28 The void variant. A's transaction begins (to void a reissue R); B
+#        takes 10 back under the payment (falling on R); A's void: refused
+#        for retry (40001); the retry is refused (R carries a share, Opus r7
+#        B3). On r8 this void was already refused, by r7's share rule at its
+#        early stamp (23001): in this shape the new order check changes the
+#        refusal to a retry, not the outcome. It keeps a void from reading
+#        the shares before a take-back already recorded.
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds). CR4 orders its sessions by
 # barriers (application_name, polled with pg_stat_clear_snapshot()).
@@ -202,6 +216,34 @@ AP26=00000000-0000-4000-8000-0000000025a2
 K26=00000000-0000-4000-8000-0000000025a3
 EV26=00000000-0000-4000-8000-0000000025a4
 E26T=00000000-0000-4000-8000-0000000025a5
+P27=00000000-0000-4000-8000-0000000025b0
+E27=00000000-0000-4000-8000-0000000025b1
+AP27=00000000-0000-4000-8000-0000000025b2
+K27=00000000-0000-4000-8000-0000000025b3
+R27=00000000-0000-4000-8000-0000000025b4
+RP27=00000000-0000-4000-8000-0000000025b5
+RA27=00000000-0000-4000-8000-0000000025b6
+RB27=00000000-0000-4000-8000-0000000025b7
+RC27=00000000-0000-4000-8000-0000000025b8
+EP27=00000000-0000-4000-8000-0000000025b9
+EA27=00000000-0000-4000-8000-0000000025ba
+EB27=00000000-0000-4000-8000-0000000025bb
+EBN27=00000000-0000-4000-8000-0000000025bc
+EC27=00000000-0000-4000-8000-0000000025bd
+EAN27=00000000-0000-4000-8000-0000000025be
+EV27=00000000-0000-4000-8000-0000000025bf
+P28=00000000-0000-4000-8000-0000000025c0
+E28=00000000-0000-4000-8000-0000000025c1
+AP28=00000000-0000-4000-8000-0000000025c2
+K28=00000000-0000-4000-8000-0000000025c3
+R28=00000000-0000-4000-8000-0000000025c4
+RP28=00000000-0000-4000-8000-0000000025c5
+RB28=00000000-0000-4000-8000-0000000025c7
+RC28=00000000-0000-4000-8000-0000000025c8
+EP28=00000000-0000-4000-8000-0000000025c9
+EB28=00000000-0000-4000-8000-0000000025cb
+EBN28=00000000-0000-4000-8000-0000000025cc
+EC28=00000000-0000-4000-8000-0000000025cd
 I4=00000000-0000-4000-8000-000000002404
 L41=00000000-0000-4000-8000-000000002441
 L42=00000000-0000-4000-8000-000000002442
@@ -862,5 +904,119 @@ OUT=$(cat "$B_OUT")
 if grep -q "40P01" "$A_OUT" "$B_OUT"; then echo "FAIL CR26: a deadlock: A: $(cat "$A_OUT") / B: $OUT"; fail=1
 else verdict "CR26 an escheat move, then a draw on the payment, against a give-back under it: B waits on A, no deadlock, both admitted (Opus S1)" 0
 fi
+
+# CR27, CR28 (Opus B1): money leaving a family, begun before a take-back
+# under its payment, is retried after it. refund_out: a refund ($1) of
+# payment $2 or credit $3, of $4, posted by entry $5, on $6.
+refund_out() {
+cat <<SQL
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id, refunds_customer_credit_id)
+VALUES ('$1', '$T', 'R23-$1', '$C', DATE '$6', -$4, 'refund', $2, $3);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES ('$5', '$T', '$C', DATE '$6', 'refund', 'refund out', $4, 'payment', '$1');
+UPDATE public.payments SET status = 'posted', status_cause_id = '$5', effective_date = DATE '$6', effective_date_method = 'other' WHERE id = '$1';
+SQL
+}
+came_back() {  # $1 refund, $2 its posting entry, $3 the nsf row, $4 amount
+cat <<SQL
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES ('$3', '$T', '$C', DATE '2026-03-07', 'nsf', 'refund check returned', -$4, '$2');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-07', status_cause_id = '$3' WHERE id = '$1';
+SQL
+}
+# Setup, one act per transaction: payment 100; K 50; the payment's own 50
+# refunded; K's refund A of 20 posted; K's refund B of 15 came back and was
+# reissued as R; K refunded its last 15. Payment 0, K 0, R 15.
+"${PSQL[@]}" >/tmp/r23setup27.out 2>&1 <<SQL || { echo "CR27 setup failed"; cat /tmp/r23setup27.out; exit 2; }
+BEGIN; $AS_OP
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES $(pay "$P27" R23-P27 100);
+$(post "$P27" "$E27" 100)
+COMMIT;
+BEGIN; $AS_OP
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP27', '$T', '$C', '$P27', 50, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K27', '$T', '$C', 'overpayment', 50, DATE '2026-03-05', '$P27', '$AP27');
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RP27" "'$P27'" NULL 50 "$EP27" 2026-03-06)
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RA27" NULL "'$K27'" 20 "$EA27" 2026-03-06)
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RB27" NULL "'$K27'" 15 "$EB27" 2026-03-06)
+COMMIT;
+BEGIN; $AS_OP
+$(came_back "$RB27" "$EB27" "$EBN27" 15)
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
+VALUES ('$R27', '$T', '$C', 'refund_reissue', 15, DATE '2026-03-07', '$RB27');
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RC27" NULL "'$K27'" 15 "$EC27" 2026-03-07)
+COMMIT;
+SQL
+expect "CR27s the setup reads payment 0, K 0, R 15" \
+  "$("${PSQL[@]}" -c "SELECT (SELECT remaining FROM public.payment_position_as_of('$P27', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$K27', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$R27', DATE '2026-12-31', clock_timestamp()))")" "0.00 0.00 15.00"
+RETURN27="$(came_back "$RA27" "$EA27" "$EAN27" 20)"
+begun 27 "$RETURN27" "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-08', 'adjustment', 'taken back', 10, '$E27');
+COMMIT;
+BEGIN; $AS_OP
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related) VALUES ('$EV27', '$T', '$R27', '$C', 'escheated_to_state', 5);
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '$EV27' WHERE id = '$R27';"
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "under the payment's posting entry" "$A_OUT"; then echo "PASS CR27 Opus J: a refund's return begun before a take-back under its payment is refused for retry (Opus B1)"
+else echo "FAIL CR27: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$RETURN27
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS CR27a the retry is admitted"; else echo "FAIL CR27a: $OUT"; fail=1; fi
+expect "CR27b the share stays on R: payment 0, K 20, R 0 (escheated, holding nothing of its own)" \
+  "$("${PSQL[@]}" -c "SELECT (SELECT remaining FROM public.payment_position_as_of('$P27', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$K27', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$R27', DATE '2026-12-31', clock_timestamp())) || ' ' || public.customer_credit_own_remaining_as_of('$R27', DATE '2026-12-31', clock_timestamp())")" "0.00 20.00 0.00 0.00"
+
+# CR28 setup: payment 100; K 50; the payment's own 50 refunded; K's refund
+# B of 20 came back and was reissued as R; K refunded its last 30.
+# Payment 0, K 0, R 20.
+"${PSQL[@]}" >/tmp/r23setup28.out 2>&1 <<SQL || { echo "CR28 setup failed"; cat /tmp/r23setup28.out; exit 2; }
+BEGIN; $AS_OP
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method) VALUES $(pay "$P28" R23-P28 100);
+$(post "$P28" "$E28" 100)
+COMMIT;
+BEGIN; $AS_OP
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('$AP28', '$T', '$C', '$P28', 50, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES ('$K28', '$T', '$C', 'overpayment', 50, DATE '2026-03-05', '$P28', '$AP28');
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RP28" "'$P28'" NULL 50 "$EP28" 2026-03-06)
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RB28" NULL "'$K28'" 20 "$EB28" 2026-03-06)
+COMMIT;
+BEGIN; $AS_OP
+$(came_back "$RB28" "$EB28" "$EBN28" 20)
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
+VALUES ('$R28', '$T', '$C', 'refund_reissue', 20, DATE '2026-03-07', '$RB28');
+COMMIT;
+BEGIN; $AS_OP
+$(refund_out "$RC28" NULL "'$K28'" 30 "$EC28" 2026-03-07)
+COMMIT;
+SQL
+VOID28="UPDATE public.customer_credits SET status = 'voided' WHERE id = '$R28';"
+begun 28 "$VOID28" "INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('$T', '$C', DATE '2026-03-08', 'adjustment', 'taken back', 10, '$E28');"
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT" && grep -q "under the payment's posting entry" "$A_OUT"; then echo "PASS CR28 a reissue's void begun before a take-back under its payment is refused for retry (Opus B1)"
+else echo "FAIL CR28: A ($AST): $(cat "$A_OUT") / B: $(cat "$B_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$VOID28
+COMMIT;
+SQL
+)
+if [ $? -ne 0 ] && echo "$OUT" | grep -q "carries"; then echo "PASS CR28a the retry is refused: R carries the take-back's share"; else echo "FAIL CR28a: $OUT"; fail=1; fi
+expect "CR28b payment 0, K 0, R 10" \
+  "$("${PSQL[@]}" -c "SELECT (SELECT remaining FROM public.payment_position_as_of('$P28', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$K28', DATE '2026-12-31', clock_timestamp())) || ' ' || (SELECT remaining FROM public.customer_credit_position_as_of('$R28', DATE '2026-12-31', clock_timestamp()))")" "0.00 0.00 10.00"
 
 exit $fail

@@ -120,6 +120,11 @@ for entry in ${PENDING[@]+"${PENDING[@]}"}; do
 done
 
 battery() {  # $1 file
+  # -23 r9 (Opus S2): the cash walks' plans depend on the statistics of the
+  # emptied cash tables; autovacuum can leave them "pages present, 0 rows",
+  # under which -23's 999-deep check takes over 20 minutes. VACUUM right
+  # before each battery gives the state the timings were measured in.
+  q "$BASE" -qc "VACUUM public.account_ledger, public.payments, public.customer_credits" &&
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
 for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 28; do
