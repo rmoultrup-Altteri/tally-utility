@@ -6,6 +6,21 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-04 (scenarios) — Kyle's 17 answers folded in; the Mcf bill-line rule settled; 27 new scenarios (SCN-0033–0059), reviewed by all three
+
+**What was done:**
+- **Kyle's answers (Nov 3, GBM `kyle-decisions-2026-11-03-scenario-batch-1.md`)** folded into 15 scenarios and the cast: courtesy carries to the correction (SCN-0004 $42.61); a decrease keeps its age (0024); keying errors routed by the operator, catch-up or rebill, both $68.95 (0027); a silent city's six-month default (0019, 0028); rolling twelve months for deposit penalties (0008); deposit top-up (0010); $100 without a birth date (0011); deposit refund (0029); gas first (0031). Logged in GBM (manifest BV) and the DECISION-LOG; K-12 answered.
+- **R-19 settled (Ryan):** the gas conversion figures are required only on energy-billed lines; units Ccf, Mcf, therm, dekatherm, MMBtu; a multiplier stored with its raw quantity. Board note to money.
+- **27 new scenarios** for round 1's gaps and round 2's: late penalties on a voided bill and an on-time check; backbilling (stopped meter, large-volume class, two occupants, crossed meters, legacy and predecessor holds, migrated start, evidence changed after approval, payment order across bills); deposits (Texas cap and waivers, interest splits, zero refund, returned check, pooled credit, withdrawn decision, usage-doubled top-up, twelve clean bills); the 60-or-over due date (Util. Code ch. 182, read from the statute); Pecan Flat's whole-amount penalty; the pipeline safety fee; outside-city tax, gas cost credit, pressure factor; periods (credit in aging, pre-period history, withdrawn period, write-off age).
+- **Review round 2** (Opus, Fable, Codex; `scenarios/review/2026-11-04/`): no arithmetic errors; must-fixes verified and applied: the unprotected class is refused without a tariff record (-18 R10); a silent city's refund needs a start (Bluebonnet live Jan 1, 2026); penalty dates re-dated to the due dates (SCN-0008 now Apr 1, 2027); a migrated test must predate go-live; corroboration is on-or-before; the per-target override; the locked gas cost mapping; the unbuilt aging date marked; stream readings marked Open.
+- Board notes to money and rates; roadmap R-20 (Ryan) and K-13 (Kyle) added; dashboard's decision queue refreshed.
+
+**Decisions:** DECISION-LOG 2026-11-04 (scenarios): Kyle's answers folded in; Ryan's gas bill-line rule.
+
+**Failed approaches:** writing a scenario from an older patch's comments instead of the mirrored one (SCN-0036 read -13's "uncapped" where -18 delegates); a date-only migrated test dated after go-live (SCN-0041); penalty dates that didn't follow the cast's due-date rule.
+
+**Next:** Ryan on R-20 (confirm -18's refusal for the unprotected class; recommended yes); draft Kyle's second batch (K-13); fix SCN-0026's customer; date-tracking, weather normalization and tenant isolation.
+
 ## 2026-11-01 to 11-02 (money) — -23 round 7 reviewed, round 8 built and reviewed (Fable ready; Codex and Opus not yet); AC-44 settled; -27 claimed
 
 **What was done:**

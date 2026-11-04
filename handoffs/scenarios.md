@@ -2,9 +2,9 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 # Handoff: scenarios and test strategy (roadmap P2, gate step 2)
 
-**Generated**: 2026-11-02, end of the first scenarios session.
-**Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers.
-**Status**: 32 scenarios drafted (SCN-0001 – 0032) in six families, reviewed once by all three reviewers (figures all correct; must-fix rule errors applied). 17 questions sent to Kyle on Slack, Nov 2. One schema decision is waiting for Ryan.
+**Generated**: 2026-11-04, end of the second scenarios session.
+**Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (he also posts in his Slack DM, D0B0GRDQYLR).
+**Status**: 59 scenarios (SCN-0001 – 0059) in six families. Kyle's 17 answers (Nov 3) folded in; the 27 written this session (0033 – 0059) reviewed once by Opus, Fable and Codex, findings applied. One decision waits on Ryan; a second batch of Kyle questions is collecting, not yet sent.
 
 ## Goal
 
@@ -12,46 +12,47 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Where things are
 
-- `scenarios/README.md`: the shape of one scenario, the conventions, the file index, **next free ID SCN-0033**.
-- `scenarios/cast.md`: the invented utilities on real small-city tariffs (Pecan Flat on Stinnett's, Bluebonnet on Brenham's), Gulf Plains (investor-owned, Texas rule binds; tariff not drafted, rates invented per scenario), the State of Fremont with Prairie Line Gas (first law row: deposit interest), the customers, and the tariff questions. Research: `scenarios/cast-sources/`.
-- Family files: `billing-pipeline-and-charge-composition.md` (0001), `cancel-rebill.md` (0002–0006, 0027, 0028, 0030), `deposits.md` (0007–0012, 0029, 0032), `backbilling.md` (0013–0019, 0031), `periods-and-aging.md` (0020–0026).
-- `scenarios/review/2026-11-02/`: the three reviews and their brief.
-- `application/scenarios-source-inventory-2026-11-02/`: the source inventory (GBM's older material is axes-only and largely predates the October rulings).
+- `scenarios/README.md`: shape, conventions, file index, **next free ID SCN-0060**.
+- `scenarios/cast.md`: Pecan Flat (Stinnett's tariff), Bluebonnet (Brenham's; **live on the platform Jan 1, 2026**, invented), Gulf Plains (investor-owned, Texas binds; live Jan 15, 2026; tariff not drafted), Fremont / Prairie Line. Tariff questions 1–4, 6, 7 answered; question 5 (combined city bill) waits for collections.
+- Families: `billing-pipeline-and-charge-composition.md` (0001, 0048, 0053–0055), `cancel-rebill.md` (0002–0006, 0027, 0028, 0030, 0033), `deposits.md` (0007–0012, 0029, 0032, 0042–0047, 0056, 0057), `backbilling.md` (0013–0019, 0031, 0035–0041, 0058, 0059), `periods-and-aging.md` (0020–0026, 0034, 0049–0052).
+- Reviews: `scenarios/review/2026-11-02/` (round 1), `scenarios/review/2026-11-04/` (round 2: brief, codex.md, opus.md, fable.md; Opus and Fable condensed from their messages).
 
 ## Waiting on Ryan (start here next session)
 
-1. **The Mcf bill-line question (roadmap R-19).** The bill-line rule (Ryan 10-14, CI-016; -21's `invoice_line_arithmetic_gap`) requires meter factor, Ccf, therms and commodity rate on every gas per-unit line. All four researched city tariffs bill per Mcf or Ccf with no therm conversion, so every cast bill would be refused at issue. Presented to Ryan on Nov 2 with four options; recommended: require the gas figures only on therm-billed lines, make a gas line's unit a fixed list (therm, Ccf, Mcf), and record a multiplier only with the raw quantity it multiplied. Open question asked: does therm/Ccf/Mcf cover it, or MMBtu or heat-adjusted Mcf too? It is the money stream's patch: if settled, log the decision and leave a board note for that stream.
-2. **Cast question 5** (the combined city bill: gas paid, water not): raise when collections scenarios start, after -26 mirrors.
+1. **Roadmap R-20: confirm -18's delegation reading.** v5.4.2-18 (mirrored) made the eight unprotected-class Texas backbilling rows delegations: for a large customer outside §7.45's protected class, the law row claims no window, and with no utility tariff record the case is refused (residual R10, "Ryan to confirm"; no DECISION-LOG entry confirms it). The alternative, the older -13 reading, is "uncapped": a utility could bill a large customer back without limit on the platform's say-so. Recommended at session end: confirm (fails toward protection; costs only that a utility with large customers states its rule at onboarding). SCN-0036 is written to the refusal, with an Open (Ryan). If confirmed: DECISION-LOG entry, remove SCN-0036's Open (Ryan), mark R-20 answered; it's the rates stream's table (board note only if something changes for them).
 
-## Waiting on Kyle (sent Nov 2 by Slack, Kyle's DM; roadmap K-12)
+## Waiting on Kyle
 
-17 questions: cast questions 1–4 and 6; and the Opens on SCN-0004, 0006, 0008, 0010, 0011, 0016, 0019 + 0028 (merged), 0024, 0027, 0029, 0030, 0031. Each scenario carries its own **Open (Kyle)** line; `grep -n "Open (Kyle)" scenarios/*.md`. When he answers: record the ruling in GBM (with `wiki-ingestion-pending.md`), in the DECISION-LOG, and on each scenario's Status line; then rework the scenarios his answers change.
+- **K-12 (17 questions): answered Nov 3**, recorded in GBM (manifest Section BV), the DECISION-LOG and each scenario's Status line.
+- **K-13, the second batch: not yet sent.** `grep -n "Open (Kyle" scenarios/*.md` (14 lines, several with sub-questions). Main ones: whether a penalty is re-assessed or waived when the utility sent a wrong bill, and what Bluebonnet's 10% is charged on (SCN-0033); the returned-check window (0045) and whether a reversed penalty counts (0034); a stopped meter's anchor (0035); a silent city's refund reach and default anchor (0019); limitations law for the unprotected class (0036); keying-error increases where §7.45 binds (0027); per-target override (0006); chapter 182 at city systems (0048); payment order across bills (0058); Pecan Flat penalty on a penalty (0053); county vs state agency (0054); late DOB refund (0011); later check from a pooled deposit credit (0046). Draft it for Ryan to send (Slack drafts only), one line per question, like the Nov 2 message.
 
 ## Not yet done (in order)
 
-1. [ ] The remaining reviewer gaps, not yet written (merged list from the three reviews):
-   - late penalties already posted when a bill is voided or a late check is found;
-   - backbilling: a meter that stopped registering (three months; the test-date versus discovery-date anchor question), a large-volume customer outside the protected class, crossed meters, two customers inside the window, migrated meter history and deployment corroboration, a legacy hold, evidence that changes after approval;
-   - deposits: the Texas cap and waivers, interest across a rate change or a partial application, a final bill that uses up the whole deposit (zero refund), a returned check that disqualifies the refund, a refund credit larger than the next bill, a due record withdrawn when its facts prove wrong;
-   - the 60-or-over due-date delay (Utilities Code §182.002; pending whether it binds city systems) for PF-02;
-   - periods: an account in credit in the aging, history before the first period, a withdrawn period, when an account becomes eligible for write-off.
-2. [ ] Remaining families at parity: date-tracking and immutability, weather normalization, tenant isolation.
-3. [ ] State machines, exception paths, the persona matrix.
-4. [ ] Families after their patches mirror: cash (-23), disputes (-25), collections (-26), the rates stream's tax, gas cost, zones and reads.
-5. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15).
+1. [ ] Ryan's R-20; then draft K-13 for Kyle.
+2. [ ] Fix SCN-0026's customer: it writes off BB-02 in Dec 2026 while SCN-0007/0046/0049 keep BB-02 paying into 2027 (each scenario stands alone, but it will confuse Kyle). Give it its own customer.
+3. [ ] Remaining families at parity: date-tracking and immutability, weather normalization, tenant isolation.
+4. [ ] State machines, exception paths, the persona matrix.
+5. [ ] Families after their patches mirror: cash (-23; includes answer 7's credit-and-rebill on a paid bill), disputes (-25), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
+6. [ ] Deferred gap: one meter across premises with different rules (needs city-level rules and an unprotected-class tariff record).
+7. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15).
 
-## Decisions this session (DECISION-LOG 2026-11-02)
+## Decisions this session (DECISION-LOG 2026-11-04, scenarios)
 
-- Scenarios live in this repo's `scenarios/`, not GBM (GBM docs carry "superseded for scenario writing" notes; GBM manifest section BU).
-- A scenario's shape: Status, Rule with sources, Given (each fact sourced or marked invented), When (one event), Then (a worked bill and the refusals), Open (for whom).
-- The cast is invented names on real small-city tariffs.
-- Questions for Kyle were held until the first batch of worked bills, then sent (Nov 2).
+- Kyle's 17 answers folded into the scenarios (his standing rule: follow the tariff; defaults only where silent).
+- Ryan: a gas bill line carries the conversion figures only when billed in an energy unit; units Ccf, Mcf, therm, dekatherm, MMBtu; a multiplier is stored with its raw quantity (R-19; board note to money).
+
+## Board notes left this session
+
+- scenarios → money: Kyle's answers that touch money's tables (payment order, a correction's aging date, courtesy carry-over, one deposit balance topped up, rolling late-payment count for §7.45 (flag 1), left-over credit is a deposit refund, keying-error rebill); and the gas bill-line rule (R-19).
+- scenarios → rates: rate-change method stated at entry and the locked monthly gas cost figure; a silent city's backbilling default; the keying-error law row; forfeit-whole at a utility's own limit.
 
 ## Warnings
 
-- **Scenarios describe rules and rulings, not tables.** Where a family's schema is still being built, write against the ruling and say so on the Status line.
-- **A Texas state rule appears only where it binds.** §7.45 and 16 TAC ch. 7 do not bind city-owned systems; their policy is their tariff row or nothing. SCN-0006 applies Kyle's 06-12 "historical rates only" ruling to a city system; it is asked of Kyle (question 5), not changed.
-- **Invented facts are marked "invented"** in every scenario; keep it so Kyle knows what to check against reality.
-- Verify a reviewer's must-fix against the source before applying it; all of this round's held up.
-- Slack: Kyle's DM is a Slack Connect channel, so messages can only be **drafted** (`slack_send_message_draft`, channel `D0B0GRDQYLR`); Ryan sends them. The user search does not find him.
+- **Scenarios describe rules and rulings, not tables.** Where something isn't built (a correction's aging date, the backbilling tariff table, late-penalty rules), say so on the Status line; check the mirrored patch before saying a schema behaviour exists (round 2 caught SCN-0024 and 0036 on this).
+- **A Texas state rule appears only where it binds.** §7.45 doesn't bind city systems; their policy is their tariff, or Kyle's platform default where it is silent.
+- **Mark the stream's own readings** as readings, with an Open; don't present them as rulings (round 2's most common note).
+- **Keep facts consistent with the cast** (due dates, go-live dates, which customer is where): round 2 found penalties dated before their bills fell due.
+- Invented facts are marked "invented". Verify a reviewer's must-fix against the source before applying it (all of round 2's held up).
+- Reviewers: Codex via `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C <repo> -o <file> "<prompt>" < /dev/null` (about 4 minutes); Opus and Fable as background agents told to SendMessage the report in parts under 3 KB.
+- Slack: Kyle's DM is Slack Connect: draft only (`slack_send_message_draft`, D0B0GRDQYLR); Ryan sends.
 - Don't edit the money or rates streams' handoffs; leave notes on the board.
