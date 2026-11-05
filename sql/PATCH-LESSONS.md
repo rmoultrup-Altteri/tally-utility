@@ -49,6 +49,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [test-the-boundary-not-the-formula](#test-the-boundary-not-the-formula) — When an off-by-one is flagged, fix the comparison, not the displayed value; a battery check asserting a column equals its own formula proves nothing — pin boundaries to concrete dates on both sides
 - [every-branch-and-stated-default-tested](#every-branch-and-stated-default-tested) — a guard's exempt branch and any behaviour a header states need a fixture that takes them; -23 r2's refund exemption and K2 default had none
 - [rule-table-fixture-notes](#rule-table-fixture-notes) — Notes from building -25: facets and owner types stored sorted; flush deferred checks as the owner; drop guard pieces another check always beats
+- [rule-table-keys-are-text-codes](#rule-table-keys-are-text-codes) — a rule-template area key must be a text code (no uuid); key a place by kind and code, which also survives the place's succession; terms numbers canonical (1, not 1.0)
 
 **Review process**
 - [freeze-hash-before-reviews](#freeze-hash-before-reviews) — Do not edit the patch file while the two reviewers are testing it — freeze the hash at launch, batch all fixes into the next round
@@ -433,3 +434,12 @@ In the v5.4.2-11 review (2026-09-09) every reviewer FINDING was real, but three 
 **Why:** a reviewer testing a hole is exercising it; a reviewer proposing a fix is often reasoning. Folding a fix unmeasured ships a change that looks reviewed and is not.
 
 **How to apply:** reproduce the finding yourself, then measure the fix — both branches where they differ. State the corrected mechanism in the patch header so nobody "fixes" it back. When two independent reviewers converge on the same miss (three times in that session: matviews, tables never checked, the WITH CHECK hole), treat it as near-certain and act. Related: [checks-narrower-than-their-claim](#checks-narrower-than-their-claim), [freeze-hash-before-reviews](#freeze-hash-before-reviews).
+
+<a id="rule-table-keys-are-text-codes"></a>
+### rule-table-keys-are-text-codes
+
+Found drafting v5.4.2-30 (2026-11-05): `rule_table_register` requires each area-key column to be `text NOT NULL`, so a row id (uuid) cannot key a rule row. The template's terms validator also refuses a number written with trailing fractional zeros (`1.0`).
+
+**Why:** the template keys rows by codes (state, service, system kind) so a rule row means the same thing across the life of the thing it names. A place's row id changes when the place is closed and succeeded (the -29 Texas succession defect); its kind and code do not.
+**How to apply:** key a rule row that names a place by `place_kind` and `place_code` within its `state_code`, and resolve the place in force over the row's dates in the insert check (its successive rows may cover them together). Write terms numbers canonically in fixtures and seeds.
+

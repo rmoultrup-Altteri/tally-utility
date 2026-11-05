@@ -6,6 +6,19 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-05 (rates) — v5.4.2-29 reviewed by Codex, fixed, reviewed ready by all three and mirrored; tax work inventoried, triaged and designed; v5.4.2-30 claimed, tested first and drafted
+
+**What was done:**
+- **-29 (every Texas county and its time zone):** Codex ran on round 2 (Ryan: "run Codex on round 2") and said not yet: re-applying refused after Texas itself was closed and succeeded (the state was still looked up as open today). All five of its probes executed; every prediction held. Round 3 looks Texas up as in force on 1900-01-01; tests: re-apply P10/P10b (fail on r2), failures say how they failed and mutations require that outcome, P7/P8/P10 compare every row before and after, `ci.sh` checks the second marker read. Opus, Fable and Codex all ready on r3 (two test-only items folded: P7's fingerprints checked, the marker counts counties in force on 1900-01-01). Mirrored on Ryan's approval: schema dumps, catalog identity and place data identical to `tally` + frozen r3; init md5 matches; `ci.sh --build` 55/55; re-applied twice over the build, 0 loaded. DEPLOY-VERIFICATION, parity update (no class change; CI-010's data clause closed; 85 of 135), GBM Section BX.
+- **Tax work:** `application/rates-build-2026-11-05/`: inventory (17 gaps, 18 open points; agent-built), triage (16 settled by rule or statute; the franchise base to Kyle by Ryan's choice, Slack draft, K-15), design (split into -30, -31, -32; -30's interface). Kyle's batch 2 folded in (a per-charge late-penalty base; a state agency's documented basis).
+- **-30 claimed** and built tests-first: `tests/v5.4.2-30/battery-30.sql` (80 checks; failed at its first -30 check on `tally`), then `sql/v5.4.2-30-tax-levies-and-taxability.sql` r0: `tax_kinds`, `tax_levies` (rule-terms tariff keyed by place kind and code), `tax_levy_as_of` (date and recorded instant), `tax_levy_reference_gaps`, no defaults on rate item versions' tax columns and customer types, `in_late_penalty_base`, exemptions per service, `sales_tax_rate` in percent (a platform repair), `premise_places_as_of` with a recorded instant, `customers.state_agency_basis`. Strict apply twice clean; battery 80/80. A CI run with -30 pending: 51 pass, 7 older tests to port (listed in the handoff); -30 taken back out of `PENDING` until then.
+
+**Decisions:** DECISION-LOG 2026-11-05 (rates, -29) and (rates, tax).
+
+**Failed approaches:** a uuid place id as a rule-template key (keys must be text: use the place's kind and code); editing a fact-kind row directly (immutable vocabulary: a reviewed repair); non-canonical JSON numbers in terms (`1.0`); expecting "as known before the build" to read empty (it refuses: the state was not yet recorded).
+
+**Next:** port the seven older tests, put -30 in `ci.sh`, the board note to money, the mutation runner, freeze r1 and review with all three; -31 after Kyle's K-15.
+
 ## 2026-11-05 (scenarios) — four rulings from Ryan; Kyle's batch 2 folded in; tenant isolation and date-tracking families (SCN-0060 – 0079), reviewed by Opus and Fable
 
 **What was done:**

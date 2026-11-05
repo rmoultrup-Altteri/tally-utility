@@ -68,15 +68,15 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text) TO tally_app;
 
--- A levy row as the tests write it: $1 id or NULL, $2 tenant, $3 state, $4 place, $5 kind, $6 from, $7 to, $8 terms (JSON text).
-CREATE FUNCTION pg_temp.levy_sql(p_id uuid, p_tenant uuid, p_state text, p_place uuid, p_kind text, p_from date, p_to date, p_terms text) RETURNS text
+-- A levy row as the tests write it: id or NULL, tenant, state, the place by its kind and code, the tax kind, dates, terms (JSON text).
+CREATE FUNCTION pg_temp.levy_sql(p_id uuid, p_tenant uuid, p_state text, p_pkind text, p_pcode text, p_kind text, p_from date, p_to date, p_terms text) RETURNS text
 LANGUAGE sql AS $$
-  SELECT format($f$INSERT INTO public.tax_levies (id, tenant_id, state_code, service_type, system_kind, place_id, tax_kind, effective_from, effective_to,
+  SELECT format($f$INSERT INTO public.tax_levies (id, tenant_id, state_code, service_type, system_kind, place_kind, place_code, tax_kind, effective_from, effective_to,
                     tariff_reference, terms_kind, terms_version, terms_source)
-                  VALUES (%L, %L, %L, 'gas', 'distribution', %L, %L, %L, %L, 'City tariff 30', 'tax_levy', 1, %L)$f$,
-                coalesce(p_id, public.uuid_generate_v4()), p_tenant, p_state, p_place, p_kind, p_from, p_to, p_terms)
+                  VALUES (%L, %L, %L, 'gas', 'distribution', %L, %L, %L, %L, %L, 'City tariff 30', 'tax_levy', 1, %L)$f$,
+                coalesce(p_id, public.uuid_generate_v4()), p_tenant, p_state, p_pkind, p_pcode, p_kind, p_from, p_to, p_terms)
 $$;
-GRANT EXECUTE ON FUNCTION pg_temp.levy_sql(uuid, uuid, text, uuid, text, date, date, text) TO tally_app;
+GRANT EXECUTE ON FUNCTION pg_temp.levy_sql(uuid, uuid, text, text, text, text, date, date, text) TO tally_app;
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -117,8 +117,8 @@ SELECT pg_temp.ok('L0 tax_kinds holds sales_tax, levied by the state, a county, 
   (SELECT place_kinds @> ARRAY['state', 'county', 'municipality', 'transit_authority', 'special_purpose_district']
           AND NOT place_kinds && ARRAY['limited_purpose_area', 'extraterritorial_area', 'unincorporated_area']
      FROM public.tax_kinds WHERE tax_kind = 'sales_tax'));
-SELECT pg_temp.ok('L0b tax_levies is a tariff table on the rule-terms template, keyed by place and tax kind',
-  (SELECT rule_role = 'tariff' AND terms_kind = 'tax_levy' AND area_key = ARRAY['place_id', 'tax_kind']
+SELECT pg_temp.ok('L0b tax_levies is a tariff table on the rule-terms template, keyed by the place''s kind and code (in the row''s state) and the tax kind',
+  (SELECT rule_role = 'tariff' AND terms_kind = 'tax_levy' AND area_key = ARRAY['place_kind', 'place_code', 'tax_kind']
      FROM public.rule_tables WHERE table_name = 'public.tax_levies'::regclass));
 SELECT pg_temp.ok('L0c tally_app reads tax kinds and writes none',
   has_table_privilege('tally_app', 'public.tax_kinds', 'SELECT') AND NOT has_table_privilege('tally_app', 'public.tax_kinds', 'INSERT')
@@ -128,11 +128,11 @@ SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000030b1', true);
 
 SELECT pg_temp.admits('L1 the city''s sales tax, 1.0000 percent, reaching residential gas, from 2026-01-01',
-  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f1', '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e1', 'sales_tax',
+  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f1', '00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax',
     DATE '2026-01-01', NULL,
-    '{"rate_percent": 1.0, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Battery City Ord. 30-1", "reaches_residential": true}'));
+    '{"rate_percent": 1, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Battery City Ord. 30-1", "reaches_residential": true}'));
 SELECT pg_temp.admits('L2 the state''s sales tax, 6.25 percent, not reaching residential gas (Tax Code 151.317)',
-  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f2', '00000000-0000-4000-8000-0000000030a1', 'TX', (SELECT id FROM b30 WHERE k = 'tx'), 'sales_tax',
+  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f2', '00000000-0000-4000-8000-0000000030a1', 'TX', 'state', 'TX', 'sales_tax',
     DATE '2026-01-01', NULL,
     '{"rate_percent": 6.25, "stacking_position": 1, "computed_on": [], "source_kind": "statute", "citation": "Tex. Tax Code 151.051", "reaches_residential": false}'));
 SELECT pg_temp.ok('L1b the stored row names the operator who approved it, and its document',
@@ -140,88 +140,90 @@ SELECT pg_temp.ok('L1b the stored row names the operator who approved it, and it
      FROM public.tax_levies WHERE id = '00000000-0000-4000-8000-0000000030f1'));
 
 SELECT pg_temp.refuses_at('L3 a limited-purpose area levies no sales tax',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e2', 'sales_tax', DATE '2026-01-01', NULL,
-    '{"rate_percent": 1.0, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'limited_purpose_area', 'TX-B30-LPA', 'sales_tax', DATE '2026-01-01', NULL,
+    '{"rate_percent": 1, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'does not levy');
-SELECT pg_temp.refuses_at('L4 a Texas place under another state''s row',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'OK', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
-    '{"rate_percent": 1.0, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
-  '23514', 'the row is for OK');
+SELECT pg_temp.refuses_at('L4 a county code with no place in the row''s state (48994: even, never real, not planted)',
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48994', 'sales_tax', DATE '2026-01-01', NULL,
+    '{"rate_percent": 1, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
+  '23514', 'in force over the whole');
 SELECT pg_temp.refuses_at('L5 a levy dated before its place exists (the city is in force from 2000)',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e1', 'sales_tax', DATE '1990-01-01', DATE '2000-06-01',
-    '{"rate_percent": 1.0, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
-  '23514', 'not over the row');
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax', DATE '1990-01-01', DATE '2000-06-01',
+    '{"rate_percent": 1, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
+  '23514', 'in force over the whole');
 SELECT pg_temp.refuses_at('L6 a rate with five decimals (four at most, K-06)',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.50005, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'at most four decimals');
 SELECT pg_temp.refuses_at('L7 a rate over 100 percent',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 100.5, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L7b a negative rate',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": -0.5, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L8 a rate given as a fraction-looking string, not a number',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": "0.5", "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L9 tax on tax naming an unknown kind',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 3, "computed_on": ["franchise_fee"], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'computed_on names');
 SELECT pg_temp.refuses_at('L10 tax on tax naming the levy''s own kind',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 3, "computed_on": ["sales_tax"], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'its own kind');
 SELECT pg_temp.refuses_at('L11 no computed_on at all (empty is the stated "none"; absent is not a choice)',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 3, "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L12 a stacking position of 0',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 0, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L13 a source kind that is not statute, ordinance or tariff',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 3, "computed_on": [], "source_kind": "custom", "citation": "x1", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L14 a citation that is only a tab',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     E'{"rate_percent": 0.5, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "\\t", "reaches_residential": true}'),
   '23514', 'citation');
 SELECT pg_temp.refuses_at('L14b no citation',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "reaches_residential": true}'),
   '23514', 'tax_levy');
 SELECT pg_temp.refuses_at('L15 a second city sales tax overlapping the first',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e1', 'sales_tax', DATE '2026-06-01', NULL,
-    '{"rate_percent": 2.0, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Battery City Ord. 30-2", "reaches_residential": true}'),
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax', DATE '2026-06-01', NULL,
+    '{"rate_percent": 2, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Battery City Ord. 30-2", "reaches_residential": true}'),
   '23P01', 'tax_levies_rule_no_overlap');
 SELECT pg_temp.refuses_at('L16 a levy is never edited in place',
   $q$UPDATE public.tax_levies SET tariff_reference = 'City tariff 31' WHERE id = '00000000-0000-4000-8000-0000000030f1'$q$,
-  '55000', 'v5.4.2-17');
+  '23001', 'rows are never edited');
 SELECT pg_temp.refuses_at('L17 a levy is never deleted',
   $q$DELETE FROM public.tax_levies WHERE id = '00000000-0000-4000-8000-0000000030f1'$q$,
   '42501', 'tax_levies');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000030b2', true);
 SELECT pg_temp.refuses_at('L18 another utility writes no levy for T1',
-  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax', DATE '2026-01-01', NULL,
+  pg_temp.levy_sql(NULL, '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax', DATE '2026-01-01', NULL,
     '{"rate_percent": 0.5, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "x1", "reaches_residential": true}'),
   '42501', 'its own');
 SELECT pg_temp.ok('L18b and sees none of T1''s', (SELECT count(*) = 0 FROM public.tax_levies));
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000030b1', true);
 SELECT pg_temp.admits('L19 the county''s rate in force from 2026-01-01 to 2026-07-01 (closed in the row)',
-  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f3', '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e3', 'sales_tax',
+  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f3', '00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996', 'sales_tax',
     DATE '2026-01-01', DATE '2026-07-01',
     '{"rate_percent": 0.5, "stacking_position": 3, "computed_on": [], "source_kind": "ordinance", "citation": "Battery County Order 30", "reaches_residential": true}'));
 SELECT pg_temp.admits('L20 the city''s rate closed at 2026-07-01, once',
   $q$UPDATE public.tax_levies SET effective_to = DATE '2026-07-01' WHERE id = '00000000-0000-4000-8000-0000000030f1'$q$);
 SELECT pg_temp.admits('L21 and its successor from 2026-07-01 at 2.0 percent',
-  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f4', '00000000-0000-4000-8000-0000000030a1', 'TX', '00000000-0000-4000-8000-0000000030e1', 'sales_tax',
+  pg_temp.levy_sql('00000000-0000-4000-8000-0000000030f4', '00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax',
     DATE '2026-07-01', NULL,
-    '{"rate_percent": 2.0, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Battery City Ord. 30-2", "reaches_residential": true}'));
+    '{"rate_percent": 2, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Battery City Ord. 30-2", "reaches_residential": true}'));
+SELECT pg_temp.ok('L21b the row names its place by kind and code, so a successor row of the same place keeps it',
+  (SELECT place_kind = 'municipality' AND place_code = 'TX-B30-CITY' FROM public.tax_levies WHERE id = '00000000-0000-4000-8000-0000000030f4'));
 SELECT pg_temp.ok('L20b the close is stamped with its time and its operator',
   (SELECT closed_at = now() AND closed_by = '00000000-0000-4000-8000-0000000030b1' FROM public.tax_levies WHERE id = '00000000-0000-4000-8000-0000000030f1'));
 RESET ROLE;
@@ -237,31 +239,31 @@ UPDATE public.tax_levies SET created_at = now() - interval '2 days' WHERE id IN 
 ALTER TABLE public.tax_levies ENABLE ALWAYS TRIGGER rule_row_history;
 
 SELECT pg_temp.ok('Q1 on 2026-03-01, now: the city''s first rate',
-  (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e1',
+  (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
      'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now())));
 SELECT pg_temp.ok('Q2 on 2026-08-01, now: the successor',
-  (SELECT id = '00000000-0000-4000-8000-0000000030f4' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e1',
+  (SELECT id = '00000000-0000-4000-8000-0000000030f4' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
      'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now())));
 SELECT pg_temp.ok('Q3 on 2026-08-01, as known a day ago: the first rate, then still open (its close came later)',
-  (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e1',
+  (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
      'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now() - interval '1 day')));
 SELECT pg_temp.ok('Q4 as known three days ago: nothing (no row was recorded yet)',
-  NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e1',
+  NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
      'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now() - interval '3 days')));
 SELECT pg_temp.ok('Q5 the county on 2026-08-01: nothing (its row ends 2026-07-01, known from the start)',
-  NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e3',
+  NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996',
      'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now() - interval '1 day')));
 SELECT pg_temp.refuses_at('Q6 no recorded instant',
-  $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e1', 'sales_tax', 'gas', 'distribution', DATE '2026-03-01', NULL)$q$,
+  $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax', 'gas', 'distribution', DATE '2026-03-01', NULL)$q$,
   '22004', 'every argument is required');
 SELECT pg_temp.refuses_at('Q6b no date',
-  $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030e1', 'sales_tax', 'gas', 'distribution', NULL, now())$q$,
+  $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax', 'gas', 'distribution', NULL, now())$q$,
   '22004', 'every argument is required');
-SELECT pg_temp.refuses_at('Q6c no place',
-  $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', NULL, 'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now())$q$,
+SELECT pg_temp.refuses_at('Q6c no place code',
+  $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', NULL, 'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now())$q$,
   '22004', 'every argument is required');
 SELECT pg_temp.ok('Q7 the lookup has no defaulted argument',
-  (SELECT pronargdefaults = 0 FROM pg_proc WHERE oid = 'public.tax_levy_as_of(uuid, uuid, text, text, text, date, timestamp with time zone)'::regprocedure));
+  (SELECT pronargdefaults = 0 FROM pg_proc WHERE oid = 'public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone)'::regprocedure));
 
 -- ---------------------------------------------------------------------------
 -- G  the reference compare, F  the published rate in percent
@@ -356,8 +358,8 @@ SELECT pg_temp.refuses_at('P4 a new version of the fee put into the penalty base
      VALUES ('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-000000003012', 'PSF', 'gas', 'fixed_monthly', 'regulated', DATE '2026-03-01', 'rate_change',
              false, false, true, '{residential}')$q$,
   '23514', 'late-penalty base');
-SELECT pg_temp.admits('P5 weather normalization in the penalty base',
-  pg_temp.version_sql('00000000-0000-4000-8000-000000003014', ', is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types', $v$, true, false, true, '{residential}'$v$));
+SELECT pg_temp.admits('P5 a rider in the penalty base but not taxable (so only the penalty-base rule speaks in P6)',
+  pg_temp.version_sql('00000000-0000-4000-8000-000000003014', ', is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types', $v$, false, false, true, '{residential}'$v$));
 SELECT pg_temp.refuses_at('P6 the other order: an excluded-from-tax-bases rule for a rider whose open version is in the penalty base',
   $q$INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies)
      VALUES ('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-000000003014', 'pipeline_safety_fee', DATE '2026-01-01', DATE '2026-12-31', 50, true, true)$q$,
@@ -403,9 +405,15 @@ INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id
    'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01');
 -- Both recorded two days ago (planted); then, now, the city membership is
 -- closed at 2026-04-01 and the county membership voided (with every guard on).
+-- The battery's own places (the city, its area, the county) are planted as
+-- recorded two days ago too. Texas itself was recorded when tally was built,
+-- so "a moment ago" (one second) is after it and "three days ago" before it.
 ALTER TABLE public.premise_place_memberships DISABLE TRIGGER a_enforce_premise_place_membership;
 UPDATE public.premise_place_memberships SET created_at = now() - interval '2 days' WHERE id IN ('00000000-0000-4000-8000-0000000030a7', '00000000-0000-4000-8000-0000000030a8');
 ALTER TABLE public.premise_place_memberships ENABLE ALWAYS TRIGGER a_enforce_premise_place_membership;
+ALTER TABLE public.places DISABLE TRIGGER a_enforce_place;
+UPDATE public.places SET created_at = now() - interval '2 days' WHERE id IN ('00000000-0000-4000-8000-0000000030e1', '00000000-0000-4000-8000-0000000030e2', '00000000-0000-4000-8000-0000000030e3');
+ALTER TABLE public.places ENABLE ALWAYS TRIGGER a_enforce_place;
 UPDATE public.premise_place_memberships SET valid_to = DATE '2026-04-01' WHERE id = '00000000-0000-4000-8000-0000000030a7';
 UPDATE public.premise_place_memberships SET void_reason = 'wrong county keyed' WHERE id = '00000000-0000-4000-8000-0000000030a8';
 -- A third, recorded now: the limited-purpose area from 2026-04-01.
@@ -413,17 +421,18 @@ INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id
   ('00000000-0000-4000-8000-0000000030a9', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d1', '00000000-0000-4000-8000-0000000030e2',
    'tax', 'limited_purpose_area', DATE '2026-04-01', 'ordinance', 'Battery City Ord. 30-3 (disannexation to limited purpose)', DATE '2026-03-01');
 
-SELECT pg_temp.ok('M1 on 2026-06-01, as known now: the limited-purpose area only',
+SELECT pg_temp.ok('M1 on 2026-06-01, as known now: below the state, the limited-purpose area only',
   (SELECT array_agg(place_id ORDER BY place_id) = ARRAY['00000000-0000-4000-8000-0000000030e2'::uuid]
-     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now())));
-SELECT pg_temp.ok('M2 on 2026-06-01, as known a day ago: the city (not yet closed) and the county (not yet voided)',
+     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now()) WHERE kind_code <> 'state'));
+SELECT pg_temp.ok('M2 on 2026-06-01, as known a moment ago: the city (not yet closed) and the county (not yet voided), not the area (not yet recorded)',
   (SELECT array_agg(place_id ORDER BY place_id) = ARRAY['00000000-0000-4000-8000-0000000030e1'::uuid, '00000000-0000-4000-8000-0000000030e3'::uuid]
-     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now() - interval '1 day')));
-SELECT pg_temp.ok('M3 as known three days ago: nothing',
-  NOT EXISTS (SELECT 1 FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now() - interval '3 days')));
+     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now() - interval '1 second') WHERE kind_code <> 'state'));
+SELECT pg_temp.refuses_at('M3 as known three days ago, before Texas was recorded: the premise''s places cannot be read',
+  $q$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now() - interval '3 days')$q$,
+  'P0002', 'is no state known');
 SELECT pg_temp.ok('M4 the three-argument form still reads as known now',
   (SELECT array_agg(place_id) = ARRAY['00000000-0000-4000-8000-0000000030e2'::uuid]
-     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax')));
+     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax') WHERE kind_code <> 'state'));
 SELECT pg_temp.refuses_at('M5 no recorded instant',
   $q$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', NULL)$q$,
   '22004', 'a recorded-at instant is required');
