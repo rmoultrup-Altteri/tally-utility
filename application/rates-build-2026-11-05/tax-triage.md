@@ -6,6 +6,8 @@
 
 **Points 5 and 6: what puts a bill line in or out of the franchise fee's base.** Kyle (2026-10-14, answer 3) asks for a base type per jurisdiction from a short fixed list, no default, and one mechanism in place of today's overlap (the rule's "applies to" against each line's taxable flag). Which mechanism, and what is on the list, are drafting calls inside his ruling (DECISION-LOG 2026-10-14). Asked separately.
 
+**Sent to Kyle (Ryan, 2026-11-05):** Ryan chose to ask Kyle rather than decide. The question (Slack draft in Kyle's DM, Ryan sends): is a fixed list ("gas sales": customer charge, usage, gas cost and riders, not fees, penalties or deposits; "all billed lines") with per-rider exclusions per base enough? Or do some ordinances exclude a charge for certain customer classes only (the knowledge base's example: weather normalization excluded for some classes), so that each charge needs its own required franchise yes/no? The author recommended the fixed list. Waiting on Kyle; the rest of the tax design does not wait on this.
+
 ## Settled
 
 1. **No separate tax-jurisdictions table.** A jurisdiction is a place; its taxes are dated rows keyed to the place, like the deposit and backbilling law rows. Kyle's "this is the `tax_jurisdictions` table" names the gap (A-8) the rows close, not a second table. [Kyle answer 1; rule-terms convention, 2026-10-06: typed key, validated terms, facets]
