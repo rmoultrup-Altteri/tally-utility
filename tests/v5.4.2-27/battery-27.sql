@@ -12,6 +12,8 @@
 --   F  within one family (-23's R24) and into a family whose deficit sits
 --      on its credit
 --   B  a source applied to a shortfall holds up its own bounce (R15)
+--   T  targets (r2)       C  a later repayment hides no earlier one (r2)
+--   E  the carry after an escheat (r2)
 --   D  the freeze          I  invariants
 -- What one transaction cannot show (READ COMMITTED, recorded order across
 -- transactions, two writers) is in races/shortfall-27.sh.
@@ -219,9 +221,10 @@ SELECT pg_temp.admits('K12 with nothing applied, P2 bounces as usual',
 SELECT pg_temp.refuses_at('K12b a bounced payment gives nothing (P2 to P1)',
   $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('61'), pg_temp.k('63'), NULL, 1, DATE '2026-03-15')$q$,
   '23514', 'money is drawn from a posted payment');
-SELECT pg_temp.refuses_at('K13 a shortfall is repaid on a payment that bounced or was reversed: not on a posted one (D)',
-  $q$SELECT pg_temp.credit(pg_temp.k('72'), pg_temp.k('88'), '00000000-0000-4000-8000-0000000027c1', 10);
-     SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('64'), NULL, pg_temp.k('72'), 1, DATE '2026-03-15')$q$,
+SELECT pg_temp.refuses_at('K13 a shortfall is repaid on a payment that bounced or was reversed: not on a posted one (10)',
+  $q$SELECT pg_temp.pay(pg_temp.k('10'), pg_temp.k('11'), '00000000-0000-4000-8000-0000000027c1', 10, DATE '2026-03-10');
+     SELECT pg_temp.credit(pg_temp.k('72'), pg_temp.k('88'), '00000000-0000-4000-8000-0000000027c1', 10);
+     SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('10'), NULL, pg_temp.k('72'), 1, DATE '2026-03-15')$q$,
   '23514', 'a shortfall is repaid on a payment that bounced or was reversed');
 SELECT pg_temp.refuses_at('K13b nor on a pending one',
   $q$SELECT pg_temp.credit(pg_temp.k('72'), pg_temp.k('88'), '00000000-0000-4000-8000-0000000027c1', 10);
@@ -501,6 +504,211 @@ SELECT pg_temp.admits('H2b 10 dated 03-13 is admitted (30 repaid of the 40 owed 
   $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c6', pg_temp.k('6f'), NULL, pg_temp.k('7e'), 10, DATE '2026-03-13')$q$);
 RESET ROLE;
 
+-- ============================================================== T targets (r2, Opus S1, S2; Fable N1)
+-- C1: a bounced deposit (12) and a refund that came back (17) are not
+-- targets; a reversed payment (1a) is.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.k('12'), pg_temp.k('13'), :c1, 40, DATE '2026-03-10', true);
+SELECT pg_temp.bounce(pg_temp.k('12'), pg_temp.k('13'), pg_temp.k('14'), DATE '2026-03-12');
+SELECT pg_temp.pay(pg_temp.k('15'), pg_temp.k('16'), :c1, 40, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.k('17'), pg_temp.k('18'), :c1, pg_temp.k('15'), NULL, 10, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.k('17'), pg_temp.k('18'), pg_temp.k('19'), DATE '2026-03-12');
+SELECT pg_temp.pay(pg_temp.k('1a'), pg_temp.k('1b'), :c1, 40, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.k('1c'), pg_temp.k('1d'), :c1, pg_temp.k('1a'), NULL, 40, DATE '2026-03-11');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+VALUES (pg_temp.k('1e'), '00000000-0000-4000-8000-0000000027a1', :c1, DATE '2026-03-12', 'adjustment', 'keyed to the wrong customer', 40, 'payment', pg_temp.k('1a'), pg_temp.k('1b'));
+UPDATE public.payments SET status = 'reversed', status_cause_id = pg_temp.k('1e') WHERE id = pg_temp.k('1a');
+SELECT pg_temp.credit(pg_temp.k('2e'), pg_temp.k('2f'), :c1, 50);
+SELECT pg_temp.refuses_at('T1 a bounced deposit is not a target: a deposit is kept out of the pot (K-05)',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('12'), NULL, pg_temp.k('2e'), 1, DATE '2026-03-15')$q$,
+  '23514', 'is a deposit');
+SELECT pg_temp.refuses_at('T2 a refund that came back is not a target: it leaves no shortfall',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('17'), NULL, pg_temp.k('2e'), 1, DATE '2026-03-15')$q$,
+  '23514', 'is a refund');
+SELECT pg_temp.admits('T3 a reversed payment''s shortfall is repaid (40)',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('1a'), NULL, pg_temp.k('2e'), 40, DATE '2026-03-13')$q$);
+SELECT pg_temp.ok('T3b the reversed payment reads 0 left, 40 repaid',
+  pg_temp.pos(pg_temp.k('1a')) = '0.00/40.00');
+RESET ROLE;
+
+-- ============================================================== C a later repayment hides no earlier one (r2, Codex B1, Opus B1)
+-- C7: P (20) pays 50 on 03-10; refunds of 10 (22, 03-11) and 30 (24, 03-18);
+-- bounces on 03-12: 10 short to 03-17, then 40. G (27), 30, repays 20 dated
+-- 03-18 (29), then 10 dated 03-13 (2a). The 03-11 refund comes back: P
+-- would hold 10 from 03-13 to 03-17. r1 checked from 03-18 and admitted it.
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000027c7', '00000000-0000-4000-8000-0000000027a1', 'B27-C7', 'residential'),
+  ('00000000-0000-4000-8000-0000000027c8', '00000000-0000-4000-8000-0000000027a1', 'B27-C8', 'residential');
+\set c7 '''00000000-0000-4000-8000-0000000027c7'''
+\set c8 '''00000000-0000-4000-8000-0000000027c8'''
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.k('20'), pg_temp.k('21'), :c7, 50, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.k('22'), pg_temp.k('23'), :c7, pg_temp.k('20'), NULL, 10, DATE '2026-03-11');
+SELECT pg_temp.refund(pg_temp.k('24'), pg_temp.k('25'), :c7, pg_temp.k('20'), NULL, 30, DATE '2026-03-18');
+SELECT pg_temp.bounce(pg_temp.k('20'), pg_temp.k('21'), pg_temp.k('26'), DATE '2026-03-12');
+SELECT pg_temp.credit(pg_temp.k('27'), pg_temp.k('28'), :c7, 30);
+SELECT pg_temp.sa(pg_temp.k('29'), :c7, pg_temp.k('20'), NULL, pg_temp.k('27'), 20, DATE '2026-03-18');
+SELECT pg_temp.sa(pg_temp.k('2a'), :c7, pg_temp.k('20'), NULL, pg_temp.k('27'), 10, DATE '2026-03-13');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.k('2b'), '00000000-0000-4000-8000-0000000027a1', :c7, DATE '2026-03-19', 'nsf', 'refund check returned', -10, pg_temp.k('23'));
+SELECT pg_temp.refuses_at('C1 the 03-11 refund''s return waits: P would hold 10 from 03-13 to 03-17, though the latest repayment (03-18) still fits',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('2b') WHERE id = pg_temp.k('22')$q$,
+  '23514', 'undo the shortfall application first');
+SELECT pg_temp.refuses_at('C2 undoing the later repayment (20) does not settle the earlier one',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c7', pg_temp.k('20'), NULL, pg_temp.k('27'), -20, DATE '2026-03-19', 'undo', pg_temp.k('29'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('2b') WHERE id = pg_temp.k('22')$q$,
+  '23514', 'undo the shortfall application first');
+SELECT pg_temp.admits('C3 undoing the earlier one (10), dated 03-19, settles it from 03-13: the return is recorded',
+  $q$SELECT pg_temp.sa(pg_temp.k('2c'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('20'), NULL, pg_temp.k('27'), -10, DATE '2026-03-19', 'undo', pg_temp.k('2a'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('2b') WHERE id = pg_temp.k('22')$q$);
+SELECT pg_temp.ok('C3b P reads 10 short, 20 repaid; G 10 left',
+  pg_temp.pos(pg_temp.k('20')) = '-10.00/20.00' AND pg_temp.crem(pg_temp.k('27')) = 10);
+SELECT pg_temp.refuses_at('C4 a repayment is still read with every row at its own date: another credit''s 10 dated 03-18 is refused (the undo of 03-13''s, dated 03-19, does not count on 03-18 for it)',
+  $q$SELECT pg_temp.credit(pg_temp.k('2d'), pg_temp.k('1f'), '00000000-0000-4000-8000-0000000027c7', 10);
+     SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c7', pg_temp.k('20'), NULL, pg_temp.k('2d'), 10, DATE '2026-03-18')$q$,
+  '23514', 'a payment that has ended holds no money');
+-- C8, the same through a family credit's refund (Fable S2): PQ (30) pays 50,
+-- held whole as its overpayment credit KQ (32); KQ refunds 10 (34, 03-11)
+-- and 30 (36, 03-18); PQ bounces 03-12. G8 (39) repays 20 dated 03-18 (3b),
+-- then 10 dated 03-13 (3c). KQ's 03-11 refund comes back.
+SELECT pg_temp.pay(pg_temp.k('30'), pg_temp.k('31'), :c8, 50, DATE '2026-03-10');
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+VALUES (pg_temp.k('33'), '00000000-0000-4000-8000-0000000027a1', :c8, pg_temp.k('30'), 50, '00000000-0000-4000-8000-0000000027b1');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES (pg_temp.k('32'), '00000000-0000-4000-8000-0000000027a1', :c8, 'overpayment', 50, DATE '2026-03-10', pg_temp.k('30'), pg_temp.k('33'));
+SELECT pg_temp.refund(pg_temp.k('34'), pg_temp.k('35'), :c8, NULL, pg_temp.k('32'), 10, DATE '2026-03-11');
+SELECT pg_temp.refund(pg_temp.k('36'), pg_temp.k('37'), :c8, NULL, pg_temp.k('32'), 30, DATE '2026-03-18');
+SELECT pg_temp.bounce(pg_temp.k('30'), pg_temp.k('31'), pg_temp.k('38'), DATE '2026-03-12');
+SELECT pg_temp.credit(pg_temp.k('39'), pg_temp.k('3a'), :c8, 30);
+SELECT pg_temp.admits('C5 G8 repays the family 20 dated 03-18, then 10 dated 03-13',
+  $q$SELECT pg_temp.sa(pg_temp.k('3b'), '00000000-0000-4000-8000-0000000027c8', pg_temp.k('30'), NULL, pg_temp.k('39'), 20, DATE '2026-03-18');
+     SELECT pg_temp.sa(pg_temp.k('3c'), '00000000-0000-4000-8000-0000000027c8', pg_temp.k('30'), NULL, pg_temp.k('39'), 10, DATE '2026-03-13')$q$);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.k('3d'), '00000000-0000-4000-8000-0000000027a1', :c8, DATE '2026-03-19', 'nsf', 'refund check returned', -10, pg_temp.k('35'));
+SELECT pg_temp.refuses_at('C6 KQ''s returned refund waits too: the family would hold 10 from 03-13 (a family credit''s refund leaving, Fable S2)',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('3d') WHERE id = pg_temp.k('34')$q$,
+  '23514', 'undo the shortfall application first');
+SELECT pg_temp.admits('C7 undoing the 03-13 repayment settles it',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c8', pg_temp.k('30'), NULL, pg_temp.k('39'), -10, DATE '2026-03-19', 'undo', pg_temp.k('3c'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('3d') WHERE id = pg_temp.k('34')$q$);
+RESET ROLE;
+
+-- ============================================================== E the carry (r2; Ryan, 2026-11-05, option 1; Opus B2, Fable S1)
+-- C7: P7 (40) pays 50, is refunded 30 (42, posted by 43) and bounces: 30
+-- short. Credit CE (45), 50, repays the 30 (47); its other 20 is sent to
+-- the state (48) and CE is escheated. Then P7's refund check comes back
+-- (49): the repayment is undone, and the 30 it gives back to CE, which has
+-- ended, is carried into a new credit naming the undo.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.k('40'), pg_temp.k('41'), :c7, 50, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.k('42'), pg_temp.k('43'), :c7, pg_temp.k('40'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.k('40'), pg_temp.k('41'), pg_temp.k('44'), DATE '2026-03-12');
+SELECT pg_temp.credit(pg_temp.k('45'), pg_temp.k('46'), :c7, 50);
+SELECT pg_temp.sa(pg_temp.k('47'), :c7, pg_temp.k('40'), NULL, pg_temp.k('45'), 30, DATE '2026-03-13');
+SELECT pg_temp.admits('E1 CE''s other 20 is sent to the state and CE is escheated',
+  $q$INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+     VALUES (pg_temp.k('48'), '00000000-0000-4000-8000-0000000027a1', pg_temp.k('45'), '00000000-0000-4000-8000-0000000027c7', 'escheated_to_state', 20, '2026-03-14 12:00+00');
+     UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.k('48'), escheated_at = now() WHERE id = pg_temp.k('45')$q$);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.k('49'), '00000000-0000-4000-8000-0000000027a1', :c7, DATE '2026-03-15', 'nsf', 'refund check returned', -30, pg_temp.k('43'));
+SELECT pg_temp.refuses_at('E2 P7''s refund''s return waits for the undo (option 1)',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.k('49') WHERE id = pg_temp.k('42')$q$,
+  '23514', 'undo the shortfall application first');
+SELECT pg_temp.refuses_at('E3 the undo onto the escheated credit, with nothing carried, is refused at commit',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.k('49') WHERE id = pg_temp.k('42');
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE$q$,
+  '23514', 'carry it to a new credit');
+SELECT pg_temp.refuses_at('E4 the new credit carries what the undo gave back (30), not 29',
+  $q$SELECT pg_temp.sa(pg_temp.k('4a'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
+     INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 29, DATE '2026-03-15', pg_temp.k('4a'))$q$,
+  '23514', 'it carries what the undo gave back');
+SELECT pg_temp.refuses_at('E5 nor is it dated before the undo',
+  $q$SELECT pg_temp.sa(pg_temp.k('4a'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
+     INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 30, DATE '2026-03-14', pg_temp.k('4a'))$q$,
+  '23514', 'dated on or after the undo');
+SELECT pg_temp.refuses_at('E6 it names an undo, not a repayment',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 30, DATE '2026-03-15', pg_temp.k('47'))$q$,
+  '23514', 'it is not an undo');
+SELECT pg_temp.refuses_at('E6b and only a shortfall_reissue names one',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'goodwill', 30, DATE '2026-03-15', pg_temp.k('47'))$q$,
+  '23514', 'customer_credits_shortfall_reissue_check');
+SELECT pg_temp.admits('E7 the undo, the refund''s return and the new credit (KE, 30), together; checked at commit',
+  $q$SELECT pg_temp.sa(pg_temp.k('4a'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.k('49') WHERE id = pg_temp.k('42');
+     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES (pg_temp.k('4b'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 30, DATE '2026-03-15', pg_temp.k('4a'));
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE;
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried DEFERRED$q$);
+SELECT pg_temp.ok('E7b P7 owes nothing and holds nothing; CE reads nothing left; KE 30',
+  pg_temp.pos(pg_temp.k('40')) = '0.00/0.00' AND pg_temp.crem(pg_temp.k('45')) = 0 AND pg_temp.crem(pg_temp.k('4b')) = 30
+  AND (SELECT carried = 30 FROM public.customer_credit_position_as_of(pg_temp.k('45'), DATE '2026-12-31', clock_timestamp())));
+SELECT pg_temp.ok('E7c KE posts no ledger row: the customer''s balance is unchanged by the carry',
+  NOT EXISTS (SELECT 1 FROM public.account_ledger WHERE reference_type = 'customer_credit' AND reference_id = pg_temp.k('4b')));
+SELECT pg_temp.refuses_at('E8 one carry per undo',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 0.01, DATE '2026-03-15', pg_temp.k('4a'))$q$,
+  '23505', 'customer_credits_one_per_shortfall_undo');
+SELECT pg_temp.refuses_at('E10 KE is never voided, even with nothing drawn on it: its money would go back to an escheated credit',
+  $q$UPDATE public.customer_credits SET status = 'voided' WHERE id = pg_temp.k('4b')$q$,
+  '23001', 'nothing goes back to that credit');
+SELECT pg_temp.admits('E9 KE is money like any credit: it is refunded 5 (no credit_issued entry needed)',
+  $q$SELECT pg_temp.refund(pg_temp.k('4c'), pg_temp.k('4d'), '00000000-0000-4000-8000-0000000027c7', NULL, pg_temp.k('4b'), 5, DATE '2026-03-16')$q$);
+RESET ROLE;
+SELECT pg_temp.refuses_at('E11 KE posts no credit_issued row',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', DATE '2026-03-16', 'credit_issued', 'E11', -30, 'customer_credit', pg_temp.k('4b'))$q$,
+  '23514', 'posts no ledger row');
+SELECT pg_temp.refuses_at('E12 KE''s undo is fixed from insert',
+  $q$UPDATE public.customer_credits SET reissues_shortfall_application_id = pg_temp.k('47') WHERE id = pg_temp.k('4b')$q$,
+  '23001', 'is fixed from insert');
+-- In an overpayment line: Q (50) pays 40, held whole as OQ7 (52); P (54)
+-- pays 30, refunded 30 (56), bounces: OQ7 repays its 30 (59), its other 10
+-- reaches the state (5a); P's refund comes back (5b); the undo (5c) is
+-- carried into KQ (5d), which holds Q's money: in OQ7's family, and Q's
+-- bounce takes it back from KQ.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.k('50'), pg_temp.k('51'), :c7, 40, DATE '2026-03-10');
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+VALUES (pg_temp.k('53'), '00000000-0000-4000-8000-0000000027a1', :c7, pg_temp.k('50'), 40, '00000000-0000-4000-8000-0000000027b1');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES (pg_temp.k('52'), '00000000-0000-4000-8000-0000000027a1', :c7, 'overpayment', 40, DATE '2026-03-11', pg_temp.k('50'), pg_temp.k('53'));
+SELECT pg_temp.pay(pg_temp.k('54'), pg_temp.k('55'), :c7, 30, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.k('56'), pg_temp.k('57'), :c7, pg_temp.k('54'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.k('54'), pg_temp.k('55'), pg_temp.k('58'), DATE '2026-03-12');
+SELECT pg_temp.sa(pg_temp.k('59'), :c7, pg_temp.k('54'), NULL, pg_temp.k('52'), 30, DATE '2026-03-13');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+VALUES (pg_temp.k('5a'), '00000000-0000-4000-8000-0000000027a1', pg_temp.k('52'), :c7, 'escheated_to_state', 10, '2026-03-14 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.k('5a'), escheated_at = now() WHERE id = pg_temp.k('52');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.k('5b'), '00000000-0000-4000-8000-0000000027a1', :c7, DATE '2026-03-15', 'nsf', 'refund check returned', -30, pg_temp.k('57'));
+SELECT pg_temp.admits('E13 the undo onto OQ7 (escheated), the return and the carry into KQ (30)',
+  $q$SELECT pg_temp.sa(pg_temp.k('5c'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('54'), NULL, pg_temp.k('52'), -30, DATE '2026-03-15', 'undo', pg_temp.k('59'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.k('5b') WHERE id = pg_temp.k('56');
+     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES (pg_temp.k('5d'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 30, DATE '2026-03-15', pg_temp.k('5c'));
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE;
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried DEFERRED$q$);
+SELECT pg_temp.ok('E13b KQ is in OQ7''s line: its root is OQ7, it is one reissue down, and it is in the family',
+  public.overpayment_root(pg_temp.k('5d')) = pg_temp.k('52') AND public.reissue_generation(pg_temp.k('5d')) = 1
+  AND EXISTS (SELECT 1 FROM public.overpayment_family(pg_temp.k('52')) f WHERE f.id = pg_temp.k('5d'))
+  AND pg_temp.crem(pg_temp.k('5d')) = 30);
+SELECT pg_temp.admits('E14 Q bounces (nothing of its family is applied to a shortfall now)',
+  $q$SELECT pg_temp.bounce(pg_temp.k('50'), pg_temp.k('51'), pg_temp.k('5e'), DATE '2026-03-16')$q$);
+SELECT pg_temp.ok('E14b the take-back reaches KQ: it holds nothing of Q''s money',
+  pg_temp.crem(pg_temp.k('5d')) = 0);
+SELECT pg_temp.ok('E14c and as recorded, before the cover: KQ held all 30 of the family''s money at the take-back (OQ7, escheated, held none), so it took 30',
+  (SELECT coalesce(sum(x.absorbed), 0) FROM public.overpayment_shares(pg_temp.k('52')) x WHERE x.credit_id = pg_temp.k('5d')) = 30);
+RESET ROLE;
+
 -- ============================================================== D the freeze
 -- G2 (72), 10, issued before the close.
 SET ROLE tally_app;
@@ -548,5 +756,22 @@ SELECT pg_temp.refuses_at('I3c and a second policy',
   $q$CREATE POLICY wide ON public.shortfall_applications USING (true);
      SELECT public.assert_shortfall_guard_invariants()$q$,
   '0LP01', 'another policy beside it');
+-- r2 (Codex S1): each privilege is asked alone.
+SELECT pg_temp.refuses_at('I3d and the app''s INSERT taken away (SELECT left)',
+  $q$REVOKE INSERT ON public.shortfall_applications FROM tally_app;
+     SELECT public.assert_shortfall_guard_invariants()$q$,
+  '0LP01', 'tally_app may only SELECT and INSERT');
+SELECT pg_temp.refuses_at('I3e and the core''s SELECT taken away',
+  $q$REVOKE SELECT ON public.shortfall_applications FROM tally_core;
+     SELECT public.assert_shortfall_guard_invariants()$q$,
+  '0LP01', 'tally_core only read it');
+SELECT pg_temp.refuses_at('I3f and REFERENCES granted to the core',
+  $q$GRANT REFERENCES ON public.shortfall_applications TO tally_core;
+     SELECT public.assert_shortfall_guard_invariants()$q$,
+  '0LP01', 'tally_core only read it');
+SELECT pg_temp.refuses_at('I3g and the carry''s commit check switched off (r2)',
+  $q$ALTER TABLE public.shortfall_applications DISABLE TRIGGER enforce_shortfall_undo_carried;
+     SELECT public.assert_shortfall_guard_invariants()$q$,
+  '0LP01', 'enforce_shortfall_undo_carried');
 
 ROLLBACK;

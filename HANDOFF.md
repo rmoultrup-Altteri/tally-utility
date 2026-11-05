@@ -32,7 +32,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -24 | money | unmatched cash, agency pledges (not drafted) |
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
-| -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting): drafted r1 2026-11-05 (design settled, Ryan's call option 1), tested (battery 80, races 14, mutations 35/35; -23's 409 and 51 pass with it); in `ci.sh` PENDING after -26; not yet frozen for review |
+| -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting): r1 reviewed 2026-11-05 (Codex, Opus not yet; Fable ready); **r2 frozen 2026-11-05, under review** (Opus, Fable, Codex): the return check reads from the first repayment, Ryan's carry of an undo off an escheated credit (`shortfall_reissue`), deposit and refund targets refused; battery 116, races 16, mutations 58/58; -23's 409 and 51 pass with it; ci.sh 55/55; in `ci.sh` PENDING after -26 |
 | -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only. **Mirrored 2026-11-05** (Ryan; Opus, Fable and Codex ready on r3). Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
 | -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109). **Mirrored 2026-11-04** (Ryan; ahead of -23/-25/-26). The meter test fee (CI-091) moved to its own patch after dated history |
 

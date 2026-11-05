@@ -1,0 +1,71 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+psql:<stdin>:144: NOTICE:  B1 return rejected: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 10.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+DO
+     d      | remaining | repaid 
+------------+-----------+--------
+ 2026-03-13 |      0.00 |  10.00
+ 2026-03-17 |      0.00 |  10.00
+ 2026-03-18 |    -10.00 |  30.00
+ 2026-03-19 |    -10.00 |  30.00
+(4 rows)
+
+ undo_rows 
+-----------
+         0
+(1 row)
+
+psql:<stdin>:157: NOTICE:  B1 explicit early boundary accepted: SQLSTATE=00000
+DO
+SET CONSTRAINTS
+ROLLBACK

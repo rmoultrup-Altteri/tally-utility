@@ -26,12 +26,19 @@
 #        check coming back (K8 has its 60 again) and commits; A repays X8:
 #        refused for retry (40001: recorded before a draw that has left
 #        K8); the retry is refused (X8 now owes nothing).
+#   SR9  (r2, Opus S3, Fable S2) X9 pays 100, held whole as credit K9, which
+#        refunds 60; X9 bounces (60 short, on K9). A repays 10 of X9's
+#        shortfall and holds; B moves K9's returned refund to nsf: waits on
+#        X9's lock, then is refused (the family would hold the 10).
+# r2 (Codex S2): every session runs under a statement timeout, every
+# handshake has a deadline, B's exit is checked before A is waited for, and
+# A is ended and reaped when anything fails.
 # Every two() leg checks that session B was SEEN BLOCKED BY SESSION A.
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
 #   usage: shortfall-27.sh <db>      (default: r27)
 set -uo pipefail
 DB="${1:-r27}"
-PSQL=(docker exec -i tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -q -At)
+PSQL=(docker exec -i -e PGOPTIONS=-c\ statement_timeout=30s tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -q -At)
 P=00000000-0000-4000-8000-0000000028
 T=${P}f0; OP=${P}f1; C=${P}f2
 A_OUT=$(mktemp); B_OUT=$(mktemp)
@@ -107,6 +114,18 @@ UPDATE public.payments SET status = 'posted', status_cause_id = '${P}48', effect
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES ('${P}88', '$T', '$C', DATE '2026-03-12', 'nsf', 'returned', 100, 'payment', '${P}08', '${P}68');
 UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-12', status_cause_id = '${P}88' WHERE id = '${P}08';
 $(credit ${P}aa ${P}ba 10)
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method) VALUES ('${P}09', '$T', 'R27-X9', '$C', DATE '2026-03-10', 100, 'check');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}69', '$T', '$C', DATE '2026-03-10', 'payment', 'posted', -100, 'payment', '${P}09');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}69', effective_date = payment_date, effective_date_method = 'other' WHERE id = '${P}09';
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by) VALUES ('${P}d9', '$T', '$C', '${P}09', 100, '$OP');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id) VALUES ('${P}e9', '$T', '$C', 'overpayment', 100, DATE '2026-03-11', '${P}09', '${P}d9');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_customer_credit_id) VALUES ('${P}29', '$T', 'R27-X9R', '$C', DATE '2026-03-11', -60, 'refund', '${P}e9');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}49', '$T', '$C', DATE '2026-03-11', 'refund', 'refund out', 60, 'payment', '${P}29');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}49', effective_date = payment_date, effective_date_method = 'other' WHERE id = '${P}29';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id) VALUES ('${P}89', '$T', '$C', DATE '2026-03-12', 'nsf', 'returned', 100, 'payment', '${P}09', '${P}69');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-12', status_cause_id = '${P}89' WHERE id = '${P}09';
+$(credit ${P}ab ${P}bb 10)
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('${P}c9', '$T', '$C', DATE '2026-03-14', 'nsf', 'refund check returned', -60, '${P}49');
 -- X5's refund check comes back (its row, recorded ahead; the move is the race).
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('${P}c5', '$T', '$C', DATE '2026-03-14', 'nsf', 'refund check returned', -30, '${P}45');
 COMMIT;
@@ -143,8 +162,8 @@ SQL
 BPID=$!
 sleep 1
 WAITED=$(waiting)
-wait $APID; AST=$?
 wait $BPID; BST=$?
+wait $APID; AST=$?
 OUT=$(cat "$B_OUT")
 }
 verdict() {  # $1 label, $2 want B to fail (1) or pass (0), $3 expected fragment when it fails
@@ -165,10 +184,11 @@ SET application_name = 'race27_a_begun$1';
 BEGIN;
 $AS_OP
 SELECT now();
-DO \$\$ BEGIN
+DO \$\$ DECLARE v_until timestamptz := clock_timestamp() + interval '20 seconds'; BEGIN
   LOOP
     PERFORM pg_stat_clear_snapshot();
     EXIT WHEN EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = 'race27_b_done$1');
+    IF clock_timestamp() > v_until THEN RAISE EXCEPTION 'race27 handshake: B never reported done within 20s'; END IF;
     PERFORM pg_sleep(0.1);
   END LOOP;
 END \$\$;
@@ -176,18 +196,33 @@ $2
 COMMIT;
 SQL
 APID=$!
+local seen=0
 for _ in $(seq 1 100); do
-  [ "$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'")" = "1" ] && break; sleep 0.1
+  [ "$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'")" = "1" ] && { seen=1; break; }; sleep 0.1
 done
+if [ "$seen" -ne 1 ]; then reap "$1"; AST=99; echo "session A never began" >"$A_OUT"; return; fi
+# B stays marked done until A has finished (or 20s), so A cannot miss it.
 "${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL
 BEGIN;
 $AS_OP
 $3
 COMMIT;
 SET application_name = 'race27_b_done$1';
-SELECT pg_sleep(2);
+DO \$\$ DECLARE v_until timestamptz := clock_timestamp() + interval '20 seconds'; BEGIN
+  LOOP
+    PERFORM pg_stat_clear_snapshot();
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1') OR clock_timestamp() > v_until;
+    PERFORM pg_sleep(0.1);
+  END LOOP;
+END \$\$;
 SQL
+BST=$?
+if [ "$BST" -ne 0 ]; then reap "$1"; AST=98; echo "session B failed: $(cat "$B_OUT")" >>"$A_OUT"; return; fi
 wait $APID; AST=$?
+}
+reap() {  # end session A of begun() $1 and reap its client
+docker exec -i tally-pg psql -U tally -d "$DB" -Atq -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'" >/dev/null 2>&1
+wait $APID 2>/dev/null
 }
 retry() {  # $1 label, $2 statement
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
@@ -261,5 +296,11 @@ COMMIT;
 SQL
 )
 if [ $? -ne 0 ] && echo "$OUT" | grep -q "a payment that has ended holds no money"; then echo "PASS SR8a the retry is refused: X8 owes nothing now"; else echo "FAIL SR8a: $OUT"; fail=1; fi
+
+# SR9 (r2)
+two "$(sa ${P}09 NULL "'${P}ab'" 10)" \
+    "UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = '${P}c9' WHERE id = '${P}29';"
+verdict "SR9 a family credit's returned refund recorded while the family's shortfall is being repaid: the move waits on the payment, then is refused (undo first)" 1 "undo the shortfall application first"
+expect "SR9b X9 reads 0 of its own (the deficit is on K9), 10 repaid; K9's refund still posted" "$(pos ${P}09)/$("${PSQL[@]}" -c "SELECT status FROM public.payments WHERE id = '${P}29'")" "0.00/10.00/posted"
 
 exit $fail
