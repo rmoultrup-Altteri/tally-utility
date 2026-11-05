@@ -64,6 +64,7 @@ Two session slots free up. The platform work (P4: AWS environments, CI/CD, the .
 - R-03 scoping: which setup tables lose DELETE (part money, part rates; settle with the final pair above).
 - The GitHub Actions bump.
 - A second look at the low-confidence rows of the parity measurement.
+- Tally's access to a utility's records (Ryan 2026-11-05, DECISION-LOG; roadmap R-21): impersonation of a utility user, recorded by the database (session record with a required reason; every change marked with it; the impersonated user's permissions only; no impersonating a platform administrator), and a platform administrator's own access made read-only (today the isolation policies let it write). Touches `users` and every tenant table's policy; no stream owns `users` yet. Scenarios: `scenarios/tenant-isolation.md` SCN-0065, SCN-0068.
 
 ## Notes between streams
 

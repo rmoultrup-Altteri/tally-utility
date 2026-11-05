@@ -121,18 +121,20 @@ One utility never sees or changes another's records; shared platform data is rea
 
 ---
 
-### SCN-0065 — A platform administrator reads across utilities
+### SCN-0065 — A Tally employee reads across utilities, and changes nothing without impersonating
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. Built for reads (the isolation check lets a platform administrator through, Q-11).
-*Rule:* the platform's own staff, as platform administrators, may read every utility's records, for support. Sources: Q-11 (2026-05-29); v5.4.2-21 (only an active platform administrator).
+*Status:* draft (2026-11-05), not yet sent to Kyle. Reads built (the isolation check lets a platform administrator through, Q-11). **The read-only rule is not built:** today the same check also lets an active platform administrator write any utility's rows (case b is accepted today). Ruled by Ryan 2026-11-05 (DECISION-LOG; roadmap R-21).
+*Rule:* Tally's own staff (platform administrators) may read every utility's records, for support; acting as themselves, they change no utility's records. A change goes through the utility's own users, or through impersonation (SCN-0068). Sources: Ryan 11-05; Q-11 (2026-05-29); v5.4.2-21 (only an active platform administrator).
 
 **Given** PL-admin, active; a support request from Bluebonnet about BB-01's November bill.
 
-**When** PL-admin (a) opens BB-01 and the bill; (b) lists unpaid balances; (c) is switched off by another platform administrator, then tries (a) again.
+**When** PL-admin, not impersonating, (a) opens BB-01 and the bill, and lists unpaid balances across utilities; (b) tries to void the bill, or to change BB-01's address; (c) is switched off by another platform administrator, then tries (a) again.
 
 **Then**
-- (a) Opened. (b) Every utility's balances, each row showing its utility. (c) Nothing: a switched-off administrator passes no check.
-- **Open (Ryan):** (1) the isolation check lets an active platform administrator write any utility's records too, not only read them. Should a platform administrator's writes to a utility's records be allowed, refused, or allowed only with a recorded reason (and the utility told)? (2) Is a platform administrator's reading of a utility's records itself recorded, for the utility's audit trail (the outline's axis A16)? Neither is ruled; nothing in the schema records it today.
+- (a) Opened; the balances of every utility, each row showing its utility.
+- (b) Refused: a Tally employee acting as themselves changes nothing in a utility's records. The refusal says to impersonate a user of the utility.
+- (c) Nothing: a switched-off administrator passes no check.
+- **Open (Ryan):** whether a Tally employee's reading of a utility's records (not impersonating) is itself recorded for the utility to see (the outline's axis A16). Ruled for impersonation (SCN-0068), not for plain reading.
 
 ---
 
@@ -179,3 +181,32 @@ One utility never sees or changes another's records; shared platform data is rea
 - (c) BR-12 is a new run, with its own outcomes; BR-11 and its outcomes stay as they were.
 - (d) One bill only: the read, once billed, is locked to that bill, so the other run can't bill it.
 - While a run is in progress, a meter not yet reached shows as not yet processed, which reads differently from "skipped" (the run's status says which).
+
+---
+
+### SCN-0068 — A Tally employee impersonates a utility's user: the record says both who acted and as whom
+
+*Status:* draft (2026-11-05), not yet sent to Kyle. Ruled by Ryan 2026-11-05 (DECISION-LOG; roadmap R-21); **not built** (no impersonation record exists; the schema owner is unassigned, board).
+*Rule:* a Tally employee may impersonate a user of a utility and act on their behalf, on Tally's own decision, without the utility's permission. The database records each session (which Tally employee, which utility user, start, end, a required reason) and marks every change made in it, so the utility's history shows the change as the user's, made by the named Tally employee under that session; the utility can see every session and its changes. The session has exactly the impersonated user's permissions; a platform administrator cannot be impersonated; a supervisor's act needs the utility's supervisor to be the one impersonated. Sources: Ryan 11-05; AC-43 (the acting user comes from the verified login); memory rule "an app-written log is not a guard".
+
+**Given** PL-admin; Bluebonnet's BB-clerk (a clerk) and BB-admin (its supervisor); support ticket **T-5521 (invented)**: BB-clerk can't void BB-01's misread November bill (SCN-0002).
+
+**When**
+- (a) PL-admin starts a session as BB-clerk with no reason;
+- (b) PL-admin starts a session as BB-clerk, reason "T-5521", voids the November bill and issues the correction, then ends the session;
+- (c) within that session PL-admin tries to close Bluebonnet's October period, or to switch BB-clerk2 on;
+- (d) PL-admin starts a session as BB-admin, reason "T-5521: close October", and closes the period;
+- (e) PL-admin tries to impersonate another platform administrator;
+- (f) during (b), PL-admin opens a Pecan Flat customer;
+- (g) BB-admin reviews the utility's history the next day.
+
+**Then**
+- (a) Refused: a session needs a reason.
+- (b) Accepted. The void and the correction are BB-clerk's acts in every respect the rules check (Bluebonnet's tenant, a clerk's permissions, BB-clerk named as who did it), and each is marked by the database with the session: PL-admin, as BB-clerk, for T-5521, started and ended when.
+- (c) Refused, as for BB-clerk: closing a period and switching a user on are a supervisor's acts (SCN-0020, SCN-0062).
+- (d) Accepted, recorded as BB-admin's close, by PL-admin under the session.
+- (e) Refused.
+- (f) Nothing found: the session sees only what BB-clerk sees (SCN-0061).
+- (g) BB-admin sees both sessions, who opened them, their reasons, and every change made in them, beside BB-clerk's own changes and told apart from them.
+- Every link the session writes names a Bluebonnet user, so every link between tables can be tied to the utility (SCN-0064, R-12).
+
