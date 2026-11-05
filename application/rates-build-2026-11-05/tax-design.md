@@ -10,7 +10,7 @@ Three patches on the rates side, plus one board note to the money stream. Number
 
 | Patch | What | Waits on |
 |---|---|---|
-| **-30** | Tax rows keyed to places (the utility's levies, with the published rates as reference); required taxability; each charge's base memberships (sales tax and the late-penalty base); exemptions strictly per service type; tax rates in percent; reading places and memberships as known at a past instant; the size-tier defect on rate items; the old customer exempt flag retired; a state-agency setting carries its documented basis | nothing |
+| **-30** | Tax rows keyed to places (the utility's levies, with the published rates as reference); required taxability; each charge's base memberships (sales tax and the late-penalty base); exemptions strictly per service type; tax rates in percent; reading places and memberships as known at a past instant; the size-tier defect on rate items; a state-agency setting carries its documented basis | nothing |
 | **-31** | Franchise fees rebuilt: keyed to the city as a place, rate in percent, base type, customer types checked, reference date, the street-use ceiling as a reference value | Kyle's answer on the franchise base |
 | **-32** | Data: Texas cities, transit authorities and special districts as places, with the Comptroller's published rates as reference facts (like -29) | the Comptroller's files pulled and checked; -30 |
 | board note | The money side: each tax or franchise line names its rule row and its place; no tax on tax unless the levy declares it; an exempt $0.00 line keeps its would-be base and names the exemption; the silent defaults on one-off charges and bill lines; a one-off charge's service type required; snapshots may cite places, memberships and levies; the liability by jurisdiction and accounting period | money's own patch |
@@ -72,6 +72,27 @@ Kyle 2026-11-05 (batch 2, answer 20): counties, school districts and private col
 ### 2.7 The old customer exempt flag retired (schema; removes unread columns)
 
 `customers.is_tax_exempt` and its five companion columns are read by no tax path; two reports read them. The reports switch to the exemption table, and the columns go. `customers` is claimed on the board for these columns only.
+
+## 2.8 -30's interface (fixed before the tests; 2026-11-05)
+
+Two drafting calls changed while fixing it, both toward less machinery:
+- **No draft levy rows (replaces the staging paragraph of 2.1).** The rule-terms template's tariff rows have no draft state, and a proposed rate bills nothing, so it need not be a schema row. The Comptroller job's proposal lives in the application; the operator's approval is the insert of the utility's row, which records who approved it (`created_by`). The reference compare (below) is what catches a published change nobody approved.
+- **One column per base, not a kind table (replaces the kind table of 2.2a).** `is_taxable_default` already is the sales-tax membership; the late-penalty base is a second required column beside it; a franchise column follows only if Kyle answers per-charge. A column with NOT NULL and no default is required by itself; a kind table would need a deferred check that every version answers every kind.
+
+**Objects.**
+- `tax_kinds` (platform-held: `tally_app` reads only): `tax_kind` (key), `description`, `source_note`. Seeded: `sales_tax`.
+- `tax_levies` (tariff, on the rule-terms template; area key `place_id`, `tax_kind`; terms kind `tax_levy` v1): template columns plus `place_id uuid NOT NULL` (FK `places`) and `tax_kind text NOT NULL` (FK `tax_kinds`). Terms: `rate_percent` (number, 0 to 100), `stacking_position` (integer, 1 or more), `computed_on` (array of tax kinds this levy is charged on top of; required, empty means none), `source_kind` (`statute`, `ordinance` or `tariff`), `citation` (text), `reaches_residential` (boolean). Insert check (refuses): another utility's row; a place whose kind is not on the tax axis; a place of another state than the row's; a place not in force over the row's dates; a rate with more than four decimals; `computed_on` naming an unknown kind or the levy's own; a blank citation (at least one letter or digit).
+- `tax_levy_as_of(p_tenant_id, p_place_id, p_tax_kind, p_service_type, p_system_kind, p_on date, p_recorded_at timestamptz)`: the row in force on the date as recorded at the instant (created by then, not closed by then), or NULL; any NULL argument raises.
+- `tax_levy_reference_gaps(p_tenant_id, p_on date)`: one row per `sales_tax` levy in force whose place carries a `sales_tax_rate` reference fact in force that differs, with both values and the fact's source.
+- `rate_item_versions`: `is_taxable_default` and `is_a_tax` lose their defaults; new `in_late_penalty_base boolean NOT NULL` (no default); `applies_to_customer_types` loses its default and must be a non-empty subset of the customer types the `customers` check allows. Refused: a version in the late-penalty base that is a tax (`is_a_tax`), or whose rate item has an open surcharge rule excluded from tax bases (both directions, as -07's guard).
+- `customer_tax_exemptions`: `service_types` must be a non-empty list. `should_charge_tax` raises on a NULL service type.
+- `place_fact_kinds.sales_tax_rate`: percent, 0 to 100.
+- `premise_places_as_of(p_service_location_id, p_on, p_axis, p_recorded_at)`: a membership created after the instant is not seen; one voided or closed after it is seen as it stood. The three-argument form stays.
+- `customers.state_agency_basis text`: required (a letter or digit) while `is_state_agency` is true; changes logged in the attribute history (attribute `state_agency_basis`).
+
+**Moved out of -30:** retiring the old customer exempt columns (2.7). It needs the `compliance_statistics` materialized view rebuilt under -11's isolation checks, which is more risk than an unread column is worth inside this patch; it becomes its own small item.
+
+**Older tests ported in the same change** (they insert rate item versions without the columns that lose their defaults, or exemptions with no service types): batteries -09, -20, -21, -23 (the money stream's: board note), -28, -29 and race `labels-21.sh`.
 
 ## 3. -31: franchise fees (after Kyle answers)
 
