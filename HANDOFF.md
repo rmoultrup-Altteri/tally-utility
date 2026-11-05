@@ -33,7 +33,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting): drafted r1 2026-11-05 (design settled, Ryan's call option 1), tested (battery 80, races 14, mutations 35/35; -23's 409 and 51 pass with it); in `ci.sh` PENDING after -26; not yet frozen for review |
-| -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only, r1: Opus and Fable ready (Codex did not run, usage limit); r2: Codex not yet (re-applying refused after Texas itself is succeeded; three test gaps), every probe confirmed; r3 frozen 2026-11-05 with the fixes, tested on tally with -23 (ci.sh 54/54). Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
+| -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only. **Mirrored 2026-11-05** (Ryan; Opus, Fable and Codex ready on r3). Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
 | -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109). **Mirrored 2026-11-04** (Ryan; ahead of -23/-25/-26). The meter test fee (CI-091) moved to its own patch after dated history |
 
 **Next free: -30.**
@@ -44,6 +44,8 @@ Claim the next free number here, commit and push, before creating the file. Numb
 2. -26 (money)
 
 -28 (rates) was mirrored out of turn on 2026-11-04 (Ryan's approval): none of the three redefines an object -28 changes, and they strict-apply cleanly on the new build. **For money:** `tally` now carries -28, so re-run your batteries on it before your next mirror (the rule below); `rate_item_dependencies` is dated (A-1 group 2), and `customer_is_state_agency_as_of` takes a third argument, the zone.
+
+-29 (rates) was mirrored on 2026-11-05 (Ryan's approval), after -23. **For money:** `tally` now holds every Texas county with its time zone (data only; no object changed), so a test that plants a county must use a code not on the Census list (the even codes 48990-48998 are free), and a non-zero pipeline safety fee is no longer refused outside El Paso and Hudspeth once the premise's county is recorded. Re-run your batteries on the rebuilt `tally` before your next mirror. `ci.sh`'s re-apply step for -29 now skips (it needs a base without the counties).
 
 -23 (money) was mirrored on 2026-11-04 (Ryan's approval), after -28. **For rates:** `tally` now carries -23, so re-run -29's battery on it before -29's mirror. -23 adds `regulatory_class` (NOT NULL, frozen) to `invoice_line_items`, matched to its rate item as of the bill's coordinates (`rate_item_as_of`), and its invariant lists the rate-version triggers, so a rates patch that changes `rate_item_as_of` or those triggers meets -23's checks.
 

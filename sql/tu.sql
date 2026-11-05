@@ -47263,3 +47263,372 @@ END $$;
 -- END PATCH v5.4.2-23
 -- ============================================================================
 
+
+-- ============================================================================
+-- MIRROR: PATCH v5.4.2-29 — every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04; mirrored on Ryan's approval 2026-11-05 after three review rounds: Opus and Fable ready on r1, Codex not yet on r2, all three ready on r3).
+-- Appended 2026-11-05; source of truth: sql/v5.4.2-29-texas-counties.sql (md5 a3030b836fce0eeb6609a2464a797362,      452 lines; header omitted here as for every mirror; the patch has no BEGIN / COMMIT of its own). Data only: no object is created or changed.
+-- ============================================================================
+
+DO $patch29$
+DECLARE
+    c_from CONSTANT date := DATE '1900-01-01';
+    v_tx uuid;
+    v_place public.places%ROWTYPE;
+    v_zone text;
+    v_nrows integer;
+    v_bad text;
+    v_new integer := 0;
+    r record;
+BEGIN
+    IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION 'v5.4.2-29: run under READ COMMITTED (got %)', current_setting('transaction_isolation');
+    END IF;
+    SELECT p.id INTO v_tx FROM public.places p
+     WHERE p.kind_code = 'state' AND p.state_code = 'TX' AND p.place_code = 'TX'
+       AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
+    IF v_tx IS NULL THEN
+        RAISE EXCEPTION 'v5.4.2-29 precondition: no Texas state place in force on %', c_from;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.place_kinds WHERE kind_code = 'county' AND code_pattern = '^[0-9]{5}$')
+       OR NOT EXISTS (SELECT 1 FROM public.place_fact_kinds WHERE fact_code = 'time_zone' AND 'county' = ANY (place_kinds)) THEN
+        RAISE EXCEPTION 'v5.4.2-29 precondition: the county kind or the time_zone fact kind is not as -16 built it';
+    END IF;
+
+    CREATE TEMP TABLE IF NOT EXISTS p29_counties (fips text PRIMARY KEY, name text NOT NULL, zone text NOT NULL) ON COMMIT DROP;
+    TRUNCATE p29_counties;
+    INSERT INTO p29_counties (fips, name, zone) VALUES
+    ('48001', 'Anderson County', 'America/Chicago'),
+    ('48003', 'Andrews County', 'America/Chicago'),
+    ('48005', 'Angelina County', 'America/Chicago'),
+    ('48007', 'Aransas County', 'America/Chicago'),
+    ('48009', 'Archer County', 'America/Chicago'),
+    ('48011', 'Armstrong County', 'America/Chicago'),
+    ('48013', 'Atascosa County', 'America/Chicago'),
+    ('48015', 'Austin County', 'America/Chicago'),
+    ('48017', 'Bailey County', 'America/Chicago'),
+    ('48019', 'Bandera County', 'America/Chicago'),
+    ('48021', 'Bastrop County', 'America/Chicago'),
+    ('48023', 'Baylor County', 'America/Chicago'),
+    ('48025', 'Bee County', 'America/Chicago'),
+    ('48027', 'Bell County', 'America/Chicago'),
+    ('48029', 'Bexar County', 'America/Chicago'),
+    ('48031', 'Blanco County', 'America/Chicago'),
+    ('48033', 'Borden County', 'America/Chicago'),
+    ('48035', 'Bosque County', 'America/Chicago'),
+    ('48037', 'Bowie County', 'America/Chicago'),
+    ('48039', 'Brazoria County', 'America/Chicago'),
+    ('48041', 'Brazos County', 'America/Chicago'),
+    ('48043', 'Brewster County', 'America/Chicago'),
+    ('48045', 'Briscoe County', 'America/Chicago'),
+    ('48047', 'Brooks County', 'America/Chicago'),
+    ('48049', 'Brown County', 'America/Chicago'),
+    ('48051', 'Burleson County', 'America/Chicago'),
+    ('48053', 'Burnet County', 'America/Chicago'),
+    ('48055', 'Caldwell County', 'America/Chicago'),
+    ('48057', 'Calhoun County', 'America/Chicago'),
+    ('48059', 'Callahan County', 'America/Chicago'),
+    ('48061', 'Cameron County', 'America/Chicago'),
+    ('48063', 'Camp County', 'America/Chicago'),
+    ('48065', 'Carson County', 'America/Chicago'),
+    ('48067', 'Cass County', 'America/Chicago'),
+    ('48069', 'Castro County', 'America/Chicago'),
+    ('48071', 'Chambers County', 'America/Chicago'),
+    ('48073', 'Cherokee County', 'America/Chicago'),
+    ('48075', 'Childress County', 'America/Chicago'),
+    ('48077', 'Clay County', 'America/Chicago'),
+    ('48079', 'Cochran County', 'America/Chicago'),
+    ('48081', 'Coke County', 'America/Chicago'),
+    ('48083', 'Coleman County', 'America/Chicago'),
+    ('48085', 'Collin County', 'America/Chicago'),
+    ('48087', 'Collingsworth County', 'America/Chicago'),
+    ('48089', 'Colorado County', 'America/Chicago'),
+    ('48091', 'Comal County', 'America/Chicago'),
+    ('48093', 'Comanche County', 'America/Chicago'),
+    ('48095', 'Concho County', 'America/Chicago'),
+    ('48097', 'Cooke County', 'America/Chicago'),
+    ('48099', 'Coryell County', 'America/Chicago'),
+    ('48101', 'Cottle County', 'America/Chicago'),
+    ('48103', 'Crane County', 'America/Chicago'),
+    ('48105', 'Crockett County', 'America/Chicago'),
+    ('48107', 'Crosby County', 'America/Chicago'),
+    ('48109', 'Culberson County', 'America/Chicago'),
+    ('48111', 'Dallam County', 'America/Chicago'),
+    ('48113', 'Dallas County', 'America/Chicago'),
+    ('48115', 'Dawson County', 'America/Chicago'),
+    ('48117', 'Deaf Smith County', 'America/Chicago'),
+    ('48119', 'Delta County', 'America/Chicago'),
+    ('48121', 'Denton County', 'America/Chicago'),
+    ('48123', 'DeWitt County', 'America/Chicago'),
+    ('48125', 'Dickens County', 'America/Chicago'),
+    ('48127', 'Dimmit County', 'America/Chicago'),
+    ('48129', 'Donley County', 'America/Chicago'),
+    ('48131', 'Duval County', 'America/Chicago'),
+    ('48133', 'Eastland County', 'America/Chicago'),
+    ('48135', 'Ector County', 'America/Chicago'),
+    ('48137', 'Edwards County', 'America/Chicago'),
+    ('48139', 'Ellis County', 'America/Chicago'),
+    ('48141', 'El Paso County', 'America/Denver'),
+    ('48143', 'Erath County', 'America/Chicago'),
+    ('48145', 'Falls County', 'America/Chicago'),
+    ('48147', 'Fannin County', 'America/Chicago'),
+    ('48149', 'Fayette County', 'America/Chicago'),
+    ('48151', 'Fisher County', 'America/Chicago'),
+    ('48153', 'Floyd County', 'America/Chicago'),
+    ('48155', 'Foard County', 'America/Chicago'),
+    ('48157', 'Fort Bend County', 'America/Chicago'),
+    ('48159', 'Franklin County', 'America/Chicago'),
+    ('48161', 'Freestone County', 'America/Chicago'),
+    ('48163', 'Frio County', 'America/Chicago'),
+    ('48165', 'Gaines County', 'America/Chicago'),
+    ('48167', 'Galveston County', 'America/Chicago'),
+    ('48169', 'Garza County', 'America/Chicago'),
+    ('48171', 'Gillespie County', 'America/Chicago'),
+    ('48173', 'Glasscock County', 'America/Chicago'),
+    ('48175', 'Goliad County', 'America/Chicago'),
+    ('48177', 'Gonzales County', 'America/Chicago'),
+    ('48179', 'Gray County', 'America/Chicago'),
+    ('48181', 'Grayson County', 'America/Chicago'),
+    ('48183', 'Gregg County', 'America/Chicago'),
+    ('48185', 'Grimes County', 'America/Chicago'),
+    ('48187', 'Guadalupe County', 'America/Chicago'),
+    ('48189', 'Hale County', 'America/Chicago'),
+    ('48191', 'Hall County', 'America/Chicago'),
+    ('48193', 'Hamilton County', 'America/Chicago'),
+    ('48195', 'Hansford County', 'America/Chicago'),
+    ('48197', 'Hardeman County', 'America/Chicago'),
+    ('48199', 'Hardin County', 'America/Chicago'),
+    ('48201', 'Harris County', 'America/Chicago'),
+    ('48203', 'Harrison County', 'America/Chicago'),
+    ('48205', 'Hartley County', 'America/Chicago'),
+    ('48207', 'Haskell County', 'America/Chicago'),
+    ('48209', 'Hays County', 'America/Chicago'),
+    ('48211', 'Hemphill County', 'America/Chicago'),
+    ('48213', 'Henderson County', 'America/Chicago'),
+    ('48215', 'Hidalgo County', 'America/Chicago'),
+    ('48217', 'Hill County', 'America/Chicago'),
+    ('48219', 'Hockley County', 'America/Chicago'),
+    ('48221', 'Hood County', 'America/Chicago'),
+    ('48223', 'Hopkins County', 'America/Chicago'),
+    ('48225', 'Houston County', 'America/Chicago'),
+    ('48227', 'Howard County', 'America/Chicago'),
+    ('48229', 'Hudspeth County', 'America/Denver'),
+    ('48231', 'Hunt County', 'America/Chicago'),
+    ('48233', 'Hutchinson County', 'America/Chicago'),
+    ('48235', 'Irion County', 'America/Chicago'),
+    ('48237', 'Jack County', 'America/Chicago'),
+    ('48239', 'Jackson County', 'America/Chicago'),
+    ('48241', 'Jasper County', 'America/Chicago'),
+    ('48243', 'Jeff Davis County', 'America/Chicago'),
+    ('48245', 'Jefferson County', 'America/Chicago'),
+    ('48247', 'Jim Hogg County', 'America/Chicago'),
+    ('48249', 'Jim Wells County', 'America/Chicago'),
+    ('48251', 'Johnson County', 'America/Chicago'),
+    ('48253', 'Jones County', 'America/Chicago'),
+    ('48255', 'Karnes County', 'America/Chicago'),
+    ('48257', 'Kaufman County', 'America/Chicago'),
+    ('48259', 'Kendall County', 'America/Chicago'),
+    ('48261', 'Kenedy County', 'America/Chicago'),
+    ('48263', 'Kent County', 'America/Chicago'),
+    ('48265', 'Kerr County', 'America/Chicago'),
+    ('48267', 'Kimble County', 'America/Chicago'),
+    ('48269', 'King County', 'America/Chicago'),
+    ('48271', 'Kinney County', 'America/Chicago'),
+    ('48273', 'Kleberg County', 'America/Chicago'),
+    ('48275', 'Knox County', 'America/Chicago'),
+    ('48277', 'Lamar County', 'America/Chicago'),
+    ('48279', 'Lamb County', 'America/Chicago'),
+    ('48281', 'Lampasas County', 'America/Chicago'),
+    ('48283', 'La Salle County', 'America/Chicago'),
+    ('48285', 'Lavaca County', 'America/Chicago'),
+    ('48287', 'Lee County', 'America/Chicago'),
+    ('48289', 'Leon County', 'America/Chicago'),
+    ('48291', 'Liberty County', 'America/Chicago'),
+    ('48293', 'Limestone County', 'America/Chicago'),
+    ('48295', 'Lipscomb County', 'America/Chicago'),
+    ('48297', 'Live Oak County', 'America/Chicago'),
+    ('48299', 'Llano County', 'America/Chicago'),
+    ('48301', 'Loving County', 'America/Chicago'),
+    ('48303', 'Lubbock County', 'America/Chicago'),
+    ('48305', 'Lynn County', 'America/Chicago'),
+    ('48307', 'McCulloch County', 'America/Chicago'),
+    ('48309', 'McLennan County', 'America/Chicago'),
+    ('48311', 'McMullen County', 'America/Chicago'),
+    ('48313', 'Madison County', 'America/Chicago'),
+    ('48315', 'Marion County', 'America/Chicago'),
+    ('48317', 'Martin County', 'America/Chicago'),
+    ('48319', 'Mason County', 'America/Chicago'),
+    ('48321', 'Matagorda County', 'America/Chicago'),
+    ('48323', 'Maverick County', 'America/Chicago'),
+    ('48325', 'Medina County', 'America/Chicago'),
+    ('48327', 'Menard County', 'America/Chicago'),
+    ('48329', 'Midland County', 'America/Chicago'),
+    ('48331', 'Milam County', 'America/Chicago'),
+    ('48333', 'Mills County', 'America/Chicago'),
+    ('48335', 'Mitchell County', 'America/Chicago'),
+    ('48337', 'Montague County', 'America/Chicago'),
+    ('48339', 'Montgomery County', 'America/Chicago'),
+    ('48341', 'Moore County', 'America/Chicago'),
+    ('48343', 'Morris County', 'America/Chicago'),
+    ('48345', 'Motley County', 'America/Chicago'),
+    ('48347', 'Nacogdoches County', 'America/Chicago'),
+    ('48349', 'Navarro County', 'America/Chicago'),
+    ('48351', 'Newton County', 'America/Chicago'),
+    ('48353', 'Nolan County', 'America/Chicago'),
+    ('48355', 'Nueces County', 'America/Chicago'),
+    ('48357', 'Ochiltree County', 'America/Chicago'),
+    ('48359', 'Oldham County', 'America/Chicago'),
+    ('48361', 'Orange County', 'America/Chicago'),
+    ('48363', 'Palo Pinto County', 'America/Chicago'),
+    ('48365', 'Panola County', 'America/Chicago'),
+    ('48367', 'Parker County', 'America/Chicago'),
+    ('48369', 'Parmer County', 'America/Chicago'),
+    ('48371', 'Pecos County', 'America/Chicago'),
+    ('48373', 'Polk County', 'America/Chicago'),
+    ('48375', 'Potter County', 'America/Chicago'),
+    ('48377', 'Presidio County', 'America/Chicago'),
+    ('48379', 'Rains County', 'America/Chicago'),
+    ('48381', 'Randall County', 'America/Chicago'),
+    ('48383', 'Reagan County', 'America/Chicago'),
+    ('48385', 'Real County', 'America/Chicago'),
+    ('48387', 'Red River County', 'America/Chicago'),
+    ('48389', 'Reeves County', 'America/Chicago'),
+    ('48391', 'Refugio County', 'America/Chicago'),
+    ('48393', 'Roberts County', 'America/Chicago'),
+    ('48395', 'Robertson County', 'America/Chicago'),
+    ('48397', 'Rockwall County', 'America/Chicago'),
+    ('48399', 'Runnels County', 'America/Chicago'),
+    ('48401', 'Rusk County', 'America/Chicago'),
+    ('48403', 'Sabine County', 'America/Chicago'),
+    ('48405', 'San Augustine County', 'America/Chicago'),
+    ('48407', 'San Jacinto County', 'America/Chicago'),
+    ('48409', 'San Patricio County', 'America/Chicago'),
+    ('48411', 'San Saba County', 'America/Chicago'),
+    ('48413', 'Schleicher County', 'America/Chicago'),
+    ('48415', 'Scurry County', 'America/Chicago'),
+    ('48417', 'Shackelford County', 'America/Chicago'),
+    ('48419', 'Shelby County', 'America/Chicago'),
+    ('48421', 'Sherman County', 'America/Chicago'),
+    ('48423', 'Smith County', 'America/Chicago'),
+    ('48425', 'Somervell County', 'America/Chicago'),
+    ('48427', 'Starr County', 'America/Chicago'),
+    ('48429', 'Stephens County', 'America/Chicago'),
+    ('48431', 'Sterling County', 'America/Chicago'),
+    ('48433', 'Stonewall County', 'America/Chicago'),
+    ('48435', 'Sutton County', 'America/Chicago'),
+    ('48437', 'Swisher County', 'America/Chicago'),
+    ('48439', 'Tarrant County', 'America/Chicago'),
+    ('48441', 'Taylor County', 'America/Chicago'),
+    ('48443', 'Terrell County', 'America/Chicago'),
+    ('48445', 'Terry County', 'America/Chicago'),
+    ('48447', 'Throckmorton County', 'America/Chicago'),
+    ('48449', 'Titus County', 'America/Chicago'),
+    ('48451', 'Tom Green County', 'America/Chicago'),
+    ('48453', 'Travis County', 'America/Chicago'),
+    ('48455', 'Trinity County', 'America/Chicago'),
+    ('48457', 'Tyler County', 'America/Chicago'),
+    ('48459', 'Upshur County', 'America/Chicago'),
+    ('48461', 'Upton County', 'America/Chicago'),
+    ('48463', 'Uvalde County', 'America/Chicago'),
+    ('48465', 'Val Verde County', 'America/Chicago'),
+    ('48467', 'Van Zandt County', 'America/Chicago'),
+    ('48469', 'Victoria County', 'America/Chicago'),
+    ('48471', 'Walker County', 'America/Chicago'),
+    ('48473', 'Waller County', 'America/Chicago'),
+    ('48475', 'Ward County', 'America/Chicago'),
+    ('48477', 'Washington County', 'America/Chicago'),
+    ('48479', 'Webb County', 'America/Chicago'),
+    ('48481', 'Wharton County', 'America/Chicago'),
+    ('48483', 'Wheeler County', 'America/Chicago'),
+    ('48485', 'Wichita County', 'America/Chicago'),
+    ('48487', 'Wilbarger County', 'America/Chicago'),
+    ('48489', 'Willacy County', 'America/Chicago'),
+    ('48491', 'Williamson County', 'America/Chicago'),
+    ('48493', 'Wilson County', 'America/Chicago'),
+    ('48495', 'Winkler County', 'America/Chicago'),
+    ('48497', 'Wise County', 'America/Chicago'),
+    ('48499', 'Wood County', 'America/Chicago'),
+    ('48501', 'Yoakum County', 'America/Chicago'),
+    ('48503', 'Young County', 'America/Chicago'),
+    ('48505', 'Zapata County', 'America/Chicago'),
+    ('48507', 'Zavala County', 'America/Chicago')
+;
+
+    FOR r IN SELECT * FROM p29_counties ORDER BY fips LOOP
+        -- The row of this code in force on 1900-01-01 (at most one:
+        -- places_no_overlap), closed later or not.
+        SELECT * INTO v_place FROM public.places p
+         WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = r.fips
+           AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
+        IF FOUND THEN
+            -- its zone fact in force on 1900-01-01 (at most one:
+            -- place_facts_no_overlap); none reads as NULL. Its parent is
+            -- Texas: -16's place trigger admits no other parent for a Texas
+            -- county; the postcondition re-checks it.
+            SELECT f.value #>> '{}' INTO v_zone FROM public.place_facts f
+             WHERE f.place_id = v_place.id AND f.fact_code = 'time_zone'
+               AND daterange(f.effective_from, f.effective_to, '[)') @> c_from;
+            IF v_place.name IS DISTINCT FROM r.name OR v_zone IS DISTINCT FROM r.zone THEN
+                RAISE EXCEPTION 'v5.4.2-29: county % is already present on % as % (zone %), not as the load has it (%, %); the load does not overwrite a place',
+                    r.fips, c_from, v_place.name, coalesce(v_zone, 'none'), r.name, r.zone;
+            END IF;
+            CONTINUE;
+        END IF;
+        SELECT count(*) INTO v_nrows FROM public.places p
+         WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = r.fips;
+        IF v_nrows > 0 THEN
+            RAISE EXCEPTION 'v5.4.2-29: county % has % row(s), none in force on %; the load does not overwrite or backdate a place',
+                r.fips, v_nrows, c_from;
+        END IF;
+        INSERT INTO public.places (kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+        VALUES ('county', 'TX', r.fips, r.name, v_tx, c_from,
+                format('US Census Bureau 2020 FIPS county codes for Texas (st48_tx_cou2020.txt): %s, FIPS %s (v5.4.2-29).', r.name, r.fips))
+        RETURNING * INTO v_place;
+        INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note)
+        VALUES (v_place.id, 'time_zone', to_jsonb(r.zone), c_from,
+                CASE r.zone WHEN 'America/Denver'
+                     THEN '49 CFR 71.7(e), 71.8: west of the east line of Hudspeth County, Texas is Mountain time (v5.4.2-29).'
+                     ELSE '49 CFR 71.6(a), 71.7(e): Texas east of the east line of Hudspeth County is Central time (v5.4.2-29).' END);
+        v_new := v_new + 1;
+    END LOOP;
+
+    -- Postcondition (the guard), as of 1900-01-01: the Texas counties in
+    -- force that day are exactly the list, each under Texas with a zone fact
+    -- in force that day of the list's zone.
+    SELECT string_agg(x.what, '; ') INTO v_bad FROM (
+        SELECT 'county ' || p.place_code || ' is not on the Census list' AS what
+          FROM public.places p
+         WHERE p.kind_code = 'county' AND p.state_code = 'TX'
+           AND daterange(p.effective_from, p.effective_to, '[)') @> c_from
+           AND NOT EXISTS (SELECT 1 FROM p29_counties c WHERE c.fips = p.place_code)
+        UNION ALL
+        SELECT 'county ' || c.fips || ' (' || c.name || ') is missing, misnamed or misparented on 1900-01-01'
+          FROM p29_counties c
+         WHERE NOT EXISTS (SELECT 1 FROM public.places p
+                            WHERE p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = c.fips
+                              AND daterange(p.effective_from, p.effective_to, '[)') @> c_from
+                              AND p.name = c.name AND p.parent_place_id = v_tx)
+        UNION ALL
+        SELECT 'county ' || c.fips || ' has no time_zone fact of ' || c.zone || ' in force on 1900-01-01'
+          FROM p29_counties c
+          JOIN public.places p ON p.kind_code = 'county' AND p.state_code = 'TX' AND p.place_code = c.fips
+                              AND daterange(p.effective_from, p.effective_to, '[)') @> c_from
+         WHERE NOT EXISTS (SELECT 1 FROM public.place_facts f
+                            WHERE f.place_id = p.id AND f.fact_code = 'time_zone'
+                              AND daterange(f.effective_from, f.effective_to, '[)') @> c_from
+                              AND f.value = to_jsonb(c.zone))
+    ) x;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION 'v5.4.2-29 postcondition: %', v_bad;
+    END IF;
+    IF (SELECT count(*) FROM p29_counties) <> 254
+       OR (SELECT array_agg(fips ORDER BY fips) FROM p29_counties WHERE zone = 'America/Denver') IS DISTINCT FROM ARRAY['48141', '48229'] THEN
+        RAISE EXCEPTION 'v5.4.2-29 postcondition: the list is not 254 counties with Mountain exactly at 48141 and 48229';
+    END IF;
+    RAISE NOTICE 'v5.4.2-29: % counties loaded, % already present', v_new, 254 - v_new;
+END;
+$patch29$;
+
+-- ============================================================================
+-- END PATCH v5.4.2-29
+-- ============================================================================
+

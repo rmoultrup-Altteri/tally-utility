@@ -45,7 +45,6 @@ PENDING=(
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
   sql/v5.4.2-27-shortfall-applications.sql:shortfall_applications
-  "sql/v5.4.2-29-texas-counties.sql:?$P29_PENDING"
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.

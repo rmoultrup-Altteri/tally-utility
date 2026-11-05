@@ -8,6 +8,14 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-05 (after v5.4.2-29)
+
+**How this was graded.** -29 is data only: it loads every Texas county with its time zone (252 new, El Paso and Hudspeth checked). It maps to no invariant of its own; the one row it touches is CI-010, whose "what is left" named the county data. No class changes: **85 of 135** done, as after -23.
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-010 | PARTIAL | PARTIAL | med | -29 (Ryan 2026-11-04) | As after -28, and the data clause is closed: every Texas county carries a dated, cited `time_zone` fact (Central by 49 CFR 71.6(a); El Paso and Hudspeth Mountain), so the state-agency check reads a premise's zone wherever its county is recorded, and a non-zero fee is no longer refused outside the two Mountain counties. | The deposit triggers (`enforce_deposit_event`, `enforce_deposit_return_due_evidence`) still take day boundaries in UTC: the money stream's (board note, 2026-11-02). A premise still needs its county membership recorded (-29 L1, the utility's data). |
+
 ## Update — 2026-11-04 (after v5.4.2-23)
 
 **How this was graded.** Re-graded by the session, as before. Each CI was read against -23's header (its sections X, M, A and C, and residuals R1–R24), its design, its ten review rounds (Opus and Fable ready on r9, Codex ready on r10) and its battery (409 checks). -23's design maps four CIs to it; only those were re-graded, and all four change. CI-053 and CI-056 (unmatched cash, pledges) are -24's and stand as before.
