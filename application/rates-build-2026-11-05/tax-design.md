@@ -1,6 +1,6 @@
 # Tax, tax stacking and franchise fees — design (2026-11-05)
 
-**Inputs:** `tax-inventory.md` (what exists, 17 gaps), `tax-triage.md` (18 open points: 16 settled, the franchise base sent to Kyle). **Invariants:** the franchise fee traces to its city (CI-044); each tax on its own base, in its order (CI-045); tax rules dated and replayable (the tax half of CI-001 and CI-004). Kyle's rulings of 2026-10-14 (answers 1–5) and 2026-11-03 (answer 4) govern; Ryan's rules on utility-owned values, percent storage and storage-not-entry apply throughout.
+**Inputs:** `tax-inventory.md` (what exists, 17 gaps), `tax-triage.md` (18 open points: 16 settled, the franchise base sent to Kyle). **Invariants:** the franchise fee traces to its city (CI-044); each tax on its own base, in its order (CI-045); tax rules dated and replayable (the tax half of CI-001 and CI-004). Kyle's rulings of 2026-10-14 (answers 1–5), 2026-11-03 (answer 4) and 2026-11-05 (batch 2, answers 3a, 3b and 20; GBM `application/kyle-decisions-2026-11-05-scenario-batch-2.md`) govern; Ryan's rules on utility-owned values, percent storage and storage-not-entry apply throughout.
 
 Each shape below says whether it is a schema change or only the core's, and whether it adds or changes meaning (cost of changing it later).
 
@@ -10,7 +10,7 @@ Three patches on the rates side, plus one board note to the money stream. Number
 
 | Patch | What | Waits on |
 |---|---|---|
-| **-30** | Tax rows keyed to places (the utility's levies, with the published rates as reference); required taxability; exemptions strictly per service type; tax rates in percent; reading places and memberships as known at a past instant; the size-tier defect on rate items; the old customer exempt flag retired | nothing |
+| **-30** | Tax rows keyed to places (the utility's levies, with the published rates as reference); required taxability; each charge's base memberships (sales tax and the late-penalty base); exemptions strictly per service type; tax rates in percent; reading places and memberships as known at a past instant; the size-tier defect on rate items; the old customer exempt flag retired; a state-agency setting carries its documented basis | nothing |
 | **-31** | Franchise fees rebuilt: keyed to the city as a place, rate in percent, base type, customer types checked, reference date, the street-use ceiling as a reference value | Kyle's answer on the franchise base |
 | **-32** | Data: Texas cities, transit authorities and special districts as places, with the Comptroller's published rates as reference facts (like -29) | the Comptroller's files pulled and checked; -30 |
 | board note | The money side: each tax or franchise line names its rule row and its place; no tax on tax unless the levy declares it; an exempt $0.00 line keeps its would-be base and names the exemption; the silent defaults on one-off charges and bill lines; a one-off charge's service type required; snapshots may cite places, memberships and levies; the liability by jurisdiction and accounting period | money's own patch |
@@ -37,6 +37,14 @@ A new tariff table on the rule-terms template, `tax_levies`: the utility's own r
 - The comment on the column stops calling the default an open question.
 - The one-off charge and bill-line defaults are the money stream's (board note).
 
+### 2.2a Each charge states which bases it is in (schema; one mechanism for every base)
+
+Kyle 2026-11-05 (batch 2, answer 3a) rules a late penalty is computed on "every line priced by the tariff" (customer charge, volume charge, gas cost adjustment), "never on taxes or state fees such as the pipeline safety fee", delivered as a **tenant-controlled per-charge "penalty base" setting**. That is a second base whose membership each charge states. With the sales-tax flag (2.2) it makes two; the franchise base may be a third (Kyle's answer pending, section 3).
+
+So the mechanism is one, shared by every base: each rate item version states, for each base kind that applies, whether its lines are in that base, required, with no default. The base kinds are rows of a kind table (`sales_tax`, `late_penalty` now; `franchise` if Kyle answers per-charge), not a CHECK edited per base. The sales-tax flag of 2.2 becomes the `sales_tax` membership, so there are not two ways to say it. A rider whose surcharge rule excludes it from tax bases (the pipeline safety fee) can state "in" for none of them, as today's guard does for the taxable flag.
+- **Why now:** a second per-charge base setting arrives with -30's work on the first; building them as one mechanism costs little now, and two parallel flags would be the overlap Kyle asked to remove (2026-10-14 answer 3). If Kyle answers the franchise base with a fixed list instead, the franchise base is computed from the list and the kind table simply has no `franchise` row: nothing built here changes meaning.
+- **Who reads it:** the penalty engine is the money stream's (the late-charge type, Kyle answer 3b, decides the penalty line's own taxability: a forfeited prompt-payment discount on a gross/net tariff is taxed like the gas, a true penalty is not; a tax advisor confirms before a gross/net city goes live). The setting lives on rate item versions, this stream's table; a board note tells money it exists.
+
 ### 2.3 Exemptions strictly per service type (schema; tightens a function)
 
 - `should_charge_tax` refuses a NULL service type instead of letting it match any exemption.
@@ -55,6 +63,12 @@ A rebill must see the tax jurisdictions the original bill saw (CI-001, CI-004). 
 
 `rate_item_versions.applies_to_customer_types` loses the default that leaves out small and large commercial accounts, and its values are checked against the customer-type list (Kyle 2026-09-02). The franchise rule's copy is fixed in -31.
 
+### 2.6a A state-agency setting carries its documented basis (schema; tightens a write)
+
+Kyle 2026-11-05 (batch 2, answer 20): counties, school districts and private colleges pay the pipeline safety fee by default; a public college or university may be an exempt state agency (Utilities Code §101.003(15), Government Code §572.002, limited by Natural Resources Code §31.401(a) on the Attorney General's reading). Any customer may carry an operator-set exemption flag "with documented basis"; setting up a public college prompts the operator to verify; when unsure, lean toward exempting.
+- Today the fee check (-07, re-issued by -28: `customer_is_state_agency_as_of`) reads the dated customer setting `is_state_agency` from `customer_attribute_history`, with no basis recorded.
+- -30 requires a basis (a citation or document reference, and who set it) on every change of that setting to true. The prompt for a public college is the application's. The definition of "state agency" is on the tariff-counsel list.
+
 ### 2.7 The old customer exempt flag retired (schema; removes unread columns)
 
 `customers.is_tax_exempt` and its five companion columns are read by no tax path; two reports read them. The reports switch to the exemption table, and the columns go. `customers` is claimed on the board for these columns only.
@@ -63,13 +77,15 @@ A rebill must see the tax jurisdictions the original bill saw (CI-001, CI-004). 
 
 - **Keyed to the city as a place** (`place_id`, a municipality, replacing `city_name`), and read from the premise's city membership dated by the boundary, not the sales-tax quarter (triage 3, 4).
 - **Rate in percent**, four decimals.
-- **Base:** per Kyle's answer: either the base type from a fixed list ("gas sales", "all billed lines") with a rider's exclusion recorded per base, or a required franchise yes/no on each charge.
+- **Base:** per Kyle's answer: either the base type from a fixed list ("gas sales", "all billed lines") with a rider's exclusion recorded per base, or a required franchise yes/no on each charge. If per-charge, it is the `franchise` row of -30's base kinds (2.2a), not a new column.
 - **Customer types:** no default; values checked.
 - **Reference date** for a mid-period rate change: stored on the rule, with no default (the app offers period end, Kyle D6-1).
 - **The street-use ceiling** (Tax Code §182.025, 2% of gross receipts) as a reference value with a discrepancy report, not a refusal: franchise contracts may pay more (§182.026(b)(2)), and a city system does not pay it to its own city (§182.026(a)).
 - No rows exist, so the rebuild is a replacement, not a migration.
 
 ## 4. Known limits carried forward
+
+- Kyle's batch 2 answers outside the tax work but in this stream's tables go to their own items, not to -30: the silent city's backbilling default and pre-go-live approvals (answers 10–14) to the backbilling tariff table; the keying-error cause and its borrowed six-month limits (answer 15) to the backbilling law rows; gas corrections at historical rates with no per-customer override (answer 17), once its table's owner is checked.
 
 - Matching addresses to jurisdictions from the Comptroller's address file is the application's job; a proposed membership is written with its evidence (`address_lookup`), as today. Whether proposed memberships also need a draft state is settled with -32.
 - The gross receipts tax is not a law-row line (triage 15).
