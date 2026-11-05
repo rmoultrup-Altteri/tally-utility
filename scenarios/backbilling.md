@@ -219,7 +219,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0036 — A large-volume customer outside the protected class: the law delegates to the utility's tariff, and without one the case is refused
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Reworked in review round 2 (all three reviewers): the unprotected Texas rows are delegations, not permissions (v5.4.2-18, residual R10, "Ryan to confirm"). Gulf Plains' backbilling tariff record is **invented**; the tariff table is not built (the rates stream's).
+*Status:* draft (2026-11-04), not yet sent to Kyle. Reworked in review round 2 (all three reviewers): the unprotected Texas rows are delegations, not permissions (v5.4.2-18, residual R10; confirmed by Ryan 2026-11-05, DECISION-LOG). Gulf Plains' backbilling tariff record is **invented**; the tariff table is not built (the rates stream's).
 *Rule:* Texas's backbilling limits protect residential and small commercial customers only. Whether a customer is protected follows the utility's class mode: by default every customer is protected; under the explicit-class mode, a class outside the protected list is not. For an unprotected customer, Texas law delegates to the utility's filed tariff and ordinary limitations law: the law row claims no window and no collection scope of its own, and with no tariff record the case is refused (fail toward protection). The period set starts at the widest window of the rules that could apply. Sources: v5.4.2-18 (the unprotected rows as delegations, "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table"; residual R10); a2-rules §13.1 (class modes), §13.3 and §5.1 (the set start), §4.1 (`claimed_start`), §9.1 (the gate needs a last-test term).
 
 **Given** the common facts, except the customer is **GP-02 (invented)**, a large industrial plant on its own meter, customer class industrial. The Jun 15 test finds the meter **slow**; no earlier test. A field report shows the meter's register gear damaged at the Oct 1, 2025 read (**invented**). The error in each bill (**invented**):
@@ -244,7 +244,6 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(b)** Refused: the law sends the unprotected class to Gulf Plains' tariff, and no tariff record states a rule. The refusal names what is missing.
 - **(c)** The window is the claimed start, Oct 1, 2025, earlier than the protected class's Dec 15, so the period set starts there. Every period from October is billed, December whole: **$4,350.00**. No approval: the rule has no last-test term for a weak history to move. The record cites Gulf Plains' tariff record, the delegating row and the field report.
 - As (c) with no claimed start: refused, since the tariff's only bound is the claimed start.
-- **Open (Ryan):** confirm -18's reading that an unprotected-class case is refused until the utility's tariff states a rule (R10).
 - **Open (Kyle, next batch):** in (c), does ordinary limitations law cap how far back the charge reaches, and how far may collection (disconnection) pursue it? The delegating row claims nothing on either.
 
 ---
