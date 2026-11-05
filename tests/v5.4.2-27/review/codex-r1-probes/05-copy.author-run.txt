@@ -1,0 +1,53 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+psql:<stdin>:141: ERROR:  23514: payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 2.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+CONTEXT:  PL/pgSQL function check_shortfall_repaid(uuid,date) line 42 at RAISE
+SQL statement "SELECT public.check_shortfall_repaid(NEW.target_payment_id, NEW.applied_on)"
+PL/pgSQL function enforce_shortfall_application() line 84 at PERFORM
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:142: error: ERROR:  23514: payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 2.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+CONTEXT:  PL/pgSQL function check_shortfall_repaid(uuid,date) line 42 at RAISE
+SQL statement "SELECT public.check_shortfall_repaid(NEW.target_payment_id, NEW.applied_on)"
+PL/pgSQL function enforce_shortfall_application() line 84 at PERFORM
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK

@@ -1,0 +1,20 @@
+BEGIN
+SAVEPOINT
+REVOKE
+DO
+psql:<stdin>:17: NOTICE:  00000: S1 missing INSERT undetected: SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK
+SAVEPOINT
+REVOKE
+psql:<stdin>:28: NOTICE:  00000: S1 missing core SELECT undetected: SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ROLLBACK
+SAVEPOINT
+GRANT
+DO
+ROLLBACK
+psql:<stdin>:39: NOTICE:  00000: S1 core REFERENCES undetected: SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK

@@ -1,0 +1,932 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:162: NOTICE:  00000: PASS K0 Kyle's example: P1 reads 30 short, nothing repaid
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:165: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-11 what was applied to its shortfall would leave it and its overpayment credits holding 40.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:165: NOTICE:  00000: PASS K1 a repayment dated before the bounce (03-11) would leave the payment holding money that day: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-11 what was applied to its shortfall would leave it and its overpayment credits holding 40.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=a payment that has ended holds no money
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:167: NOTICE:  00000: PASS K2 G1's 20 is applied to P1's shortfall (customer_pot, AC-44)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:170: NOTICE:  00000: PASS K3 G1 reads 20 applied, nothing left; P1 10 short, 20 repaid
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:173: NOTICE:  00000: PASS K3b the customer's balance is unchanged: no ledger row (the debt and the credit already net there)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:175: NOTICE:  00000: PASS K3c as of 03-12 (before the row's date) nothing was repaid: the position is dated by applied_on
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:179: NOTICE:  00000: caught: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002771: on 2026-03-14 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:179: NOTICE:  00000: PASS K4 G1 cannot be refunded now: its money paid the debt: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002771: on 2026-03-14 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23) guard=R-06 cap
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:182: NOTICE:  00000: caught: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002771: on 2026-03-13 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:182: NOTICE:  00000: PASS K4b nor applied to the shortfall again: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002771: on 2026-03-13 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23) guard=R-06 cap
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:185: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 0.01, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:185: NOTICE:  00000: PASS K5 P2 repays 10.01 of the 10 left: past what the payment owes: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 0.01, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=a payment that has ended holds no money
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:187: NOTICE:  00000: PASS K6 P2 repays the 10 left (an operator's choice, with reason and user)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:190: NOTICE:  00000: PASS K6b P1 is repaid in full (0 left, 30 repaid); P2 reads 10 applied, 20 left
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:193: NOTICE:  00000: caught: SQLSTATE=23001 message=account_ledger 7ecb27e1-e2df-441e-a772-3ac6eb4968ed takes back payment 00000000-0000-4000-8000-000000002763's money while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (guard the act; R15, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:193: NOTICE:  00000: PASS K7 P2 cannot bounce while its money pays P1's shortfall (R15): SQLSTATE=23001 message=account_ledger 7ecb27e1-e2df-441e-a772-3ac6eb4968ed takes back payment 00000000-0000-4000-8000-000000002763's money while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (guard the act; R15, v5.4.2-27) guard=takes back payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:197: NOTICE:  00000: caught: SQLSTATE=23001 message=account_ledger be81fae3-970e-491c-9626-e887345fa657 takes back payment 00000000-0000-4000-8000-000000002763's money while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (guard the act; R15, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:197: NOTICE:  00000: PASS K7b nor have any of it taken back: SQLSTATE=23001 message=account_ledger be81fae3-970e-491c-9626-e887345fa657 takes back payment 00000000-0000-4000-8000-000000002763's money while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (guard the act; R15, v5.4.2-27) guard=takes back payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:201: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_operator_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:201: NOTICE:  00000: PASS K8 an undo says why and who: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_operator_check" guard=shortfall_applications_operator_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:205: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_operator_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:205: NOTICE:  00000: PASS K8b so does an operator's choice: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_operator_check" guard=shortfall_applications_operator_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:208: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application eaa2811b-dda2-4b0d-b47f-e325551ec4e8 is dated 2026-03-12, before the one it undoes (00000000-0000-4000-8000-0000000027a2, 2026-03-13): an undo is dated on or after it (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:208: NOTICE:  00000: PASS K9 an undo is dated on or after what it undoes: SQLSTATE=23514 message=shortfall application eaa2811b-dda2-4b0d-b47f-e325551ec4e8 is dated 2026-03-12, before the one it undoes (00000000-0000-4000-8000-0000000027a2, 2026-03-13): an undo is dated on or after it (v5.4.2-27) guard=an undo is dated on or after it
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:211: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application 0c86ed19-e979-4d14-a500-8dfa303a7c81 undoes 00000000-0000-4000-8000-0000000027a1: an undo names a shortfall application (not an undo) of the same source and payment (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:211: NOTICE:  00000: PASS K9b an undo names its own source (G1's row, undone as P2's): SQLSTATE=23514 message=shortfall application 0c86ed19-e979-4d14-a500-8dfa303a7c81 undoes 00000000-0000-4000-8000-0000000027a1: an undo names a shortfall application (not an undo) of the same source and payment (v5.4.2-27) guard=of the same source and payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:213: NOTICE:  00000: PASS K9c P2's 10 is undone
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:216: NOTICE:  00000: PASS K9d P1 10 short again; P2 nothing applied
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:219: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application 00000000-0000-4000-8000-0000000027a2: its undos would come to 10.01, more than its 10.00 (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:219: NOTICE:  00000: PASS K10 undos never come to more than what they undo: SQLSTATE=23514 message=shortfall application 00000000-0000-4000-8000-0000000027a2: its undos would come to 10.01, more than its 10.00 (v5.4.2-27) guard=its undos would come to
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:222: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application d0853885-2491-48e5-a878-202d4fb7e7c3 undoes 00000000-0000-4000-8000-0000000027a3: an undo names a shortfall application (not an undo) of the same source and payment (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:222: NOTICE:  00000: PASS K11 an undo is never undone: SQLSTATE=23514 message=shortfall application d0853885-2491-48e5-a878-202d4fb7e7c3 undoes 00000000-0000-4000-8000-0000000027a3: an undo names a shortfall application (not an undo) of the same source and payment (v5.4.2-27) guard=not an undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:224: NOTICE:  00000: PASS K12 with nothing applied, P2 bounces as usual
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:227: NOTICE:  00000: caught: SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002763 (nsf) for shortfall: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:227: NOTICE:  00000: PASS K12b a bounced payment gives nothing (P2 to P1): SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002763 (nsf) for shortfall: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23) guard=money is drawn from a posted payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:231: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application cdd9c1a1-b22f-421c-acf7-d9a90ead1835: payment B27-64 is posted — a shortfall is repaid on a payment that bounced or was reversed (nsf or reversed); money owed on a bill goes to the bill (AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:231: NOTICE:  00000: PASS K13 a shortfall is repaid on a payment that bounced or was reversed: not on a posted one (D): SQLSTATE=23514 message=shortfall application cdd9c1a1-b22f-421c-acf7-d9a90ead1835: payment B27-64 is posted — a shortfall is repaid on a payment that bounced or was reversed (nsf or reversed); money owed on a bill goes to the bill (AC-44, v5.4.2-27) guard=a shortfall is repaid on a payment that bounced or was reversed
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:235: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application e0a12d90-5d9a-4daf-9bb9-3638bfa8e76d: payment B27-65 is pending — a shortfall is repaid on a payment that bounced or was reversed (nsf or reversed); money owed on a bill goes to the bill (AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:235: NOTICE:  00000: PASS K13b nor on a pending one: SQLSTATE=23514 message=shortfall application e0a12d90-5d9a-4daf-9bb9-3638bfa8e76d: payment B27-65 is pending — a shortfall is repaid on a payment that bounced or was reversed (nsf or reversed); money owed on a bill goes to the bill (AC-44, v5.4.2-27) guard=a shortfall is repaid on a payment that bounced or was reversed
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:238: NOTICE:  00000: caught: SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002764 (posted, a deposit) for shortfall: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:238: NOTICE:  00000: PASS K14 a deposit is not in the pot (-15 settles it): SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002764 (posted, a deposit) for shortfall: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23) guard=money is drawn from a posted payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:241: NOTICE:  00000: caught: SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002765 (pending) for shortfall: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:241: NOTICE:  00000: PASS K14b nor a pending payment: SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-000000002765 (pending) for shortfall: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23) guard=money is drawn from a posted payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:244: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_not_own_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:244: NOTICE:  00000: PASS K15 a payment does not repay itself: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_not_own_check" guard=shortfall_applications_not_own_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:247: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_basis_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:247: NOTICE:  00000: PASS K16 basis is customer_pot, operator_override or undo: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_basis_check" guard=shortfall_applications_basis_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:250: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_sign_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:250: NOTICE:  00000: PASS K16b only an undo is negative: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_sign_check" guard=shortfall_applications_sign_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:253: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_sign_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:253: NOTICE:  00000: PASS K16c and an undo names what it undoes: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_sign_check" guard=shortfall_applications_sign_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:257: NOTICE:  00000: caught: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_one_source_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:257: NOTICE:  00000: PASS K16d one source, not two: SQLSTATE=23514 message=new row for relation "shortfall_applications" violates check constraint "shortfall_applications_one_source_check" guard=shortfall_applications_one_source_check
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:261: NOTICE:  00000: caught: SQLSTATE=23503 message=insert or update on table "shortfall_applications" violates foreign key constraint "shortfall_applications_credit_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:261: NOTICE:  00000: PASS K17 another customer's credit does not repay C1's payment (X1b: that is a transfer): SQLSTATE=23503 message=insert or update on table "shortfall_applications" violates foreign key constraint "shortfall_applications_credit_fkey" guard=shortfall_applications_credit_fkey
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:265: NOTICE:  00000: caught: SQLSTATE=23503 message=insert or update on table "shortfall_applications" violates foreign key constraint "shortfall_applications_target_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:265: NOTICE:  00000: PASS K17b nor is C1's payment another customer's target: SQLSTATE=23503 message=insert or update on table "shortfall_applications" violates foreign key constraint "shortfall_applications_target_fkey" guard=shortfall_applications_target_fkey
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:269: NOTICE:  00000: caught: SQLSTATE=42501 message=shortfall_applications: tenant 00000000-0000-4000-8000-0000000027a2 has no close head visible to this session (v5.4.2-22)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:269: NOTICE:  00000: PASS K18 tally_app signed in to T1 writes no T2 row (the freeze cannot see T2's close head under row-level security, and fails closed first): SQLSTATE=42501 message=shortfall_applications: tenant 00000000-0000-4000-8000-0000000027a2 has no close head visible to this session (v5.4.2-22) guard=no close head visible to this session
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:271: NOTICE:  00000: caught: SQLSTATE=42501 message=permission denied for table shortfall_applications
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:271: NOTICE:  00000: PASS K19 the table is add-only for tally_app: no UPDATE: SQLSTATE=42501 message=permission denied for table shortfall_applications guard=permission denied
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:273: NOTICE:  00000: caught: SQLSTATE=42501 message=permission denied for table shortfall_applications
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:273: NOTICE:  00000: PASS K19b no DELETE: SQLSTATE=42501 message=permission denied for table shortfall_applications guard=permission denied
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:277: NOTICE:  00000: caught: SQLSTATE=23001 message=account_ledger e9cc4f15-734a-4e50-b240-c30c49ab7a47 undoes credit 00000000-0000-4000-8000-000000002771's credit_issued entry 00000000-0000-4000-8000-000000002784 while the credit is drawn on (applied, refunded, donated or escheated): undo those first (guard the act; CI-013, v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:277: NOTICE:  00000: PASS K20 G1's credit_issued entry is not withdrawn while G1 pays the shortfall (R15, through cash_source_draws): SQLSTATE=23001 message=account_ledger e9cc4f15-734a-4e50-b240-c30c49ab7a47 undoes credit 00000000-0000-4000-8000-000000002771's credit_issued entry 00000000-0000-4000-8000-000000002784 while the credit is drawn on (applied, refunded, donated or escheated): undo those first (guard the act; CI-013, v5.4.2-23) guard=while the credit is drawn on
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:281: NOTICE:  00000: caught: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002771: on 2026-11-05 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:281: NOTICE:  00000: PASS K21 G1, netted to 0, has nothing to remit (R24 closed; AC-44): SQLSTATE=23514 message=credit 00000000-0000-4000-8000-000000002771: on 2026-11-05 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 20.01, more than its 20.00 (R-06 cap, K-10; v5.4.2-23) guard=R-06 cap
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:287: NOTICE:  00000: caught: SQLSTATE=23503 message=insert or update on table "shortfall_applications" violates foreign key constraint "shortfall_applications_target_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:287: NOTICE:  00000: PASS K22 a T2 row naming a T1 payment fails its keys (every key carries the tenant): SQLSTATE=23503 message=insert or update on table "shortfall_applications" violates foreign key constraint "shortfall_applications_target_fkey" guard=shortfall_applications_target_fkey
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:291: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application 5654dcff-dfc9-4e72-a649-64babf6d448a is recorded at 2026-11-06 19:05:33.787404+00, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:291: NOTICE:  00000: PASS K23 a row is recorded at a time already reached, for any role: SQLSTATE=23514 message=shortfall application 5654dcff-dfc9-4e72-a649-64babf6d448a is recorded at 2026-11-06 19:05:33.787404+00, not a time already reached — every money row is recorded at a finite time already reached (v5.4.2-27) guard=not a time already reached
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:296: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall application 215b3c4c-a6a1-4821-a23f-9019b7a1eb15 is recorded at 2026-11-04 19:05:33.787404+00, a time chosen for it, before payment B27-61 moved to nsf (2026-11-05 19:05:33.787404+00) (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:296: NOTICE:  00000: PASS K23b and, chosen, not before the target bounced: SQLSTATE=23514 message=shortfall application 215b3c4c-a6a1-4821-a23f-9019b7a1eb15 is recorded at 2026-11-04 19:05:33.787404+00, a time chosen for it, before payment B27-61 moved to nsf (2026-11-05 19:05:33.787404+00) (v5.4.2-27) guard=a time chosen for it, before payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:311: NOTICE:  00000: PASS S1 the bank returns the refund check: its row under the refund's posting row is recorded
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:314: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002766: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 20.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:314: NOTICE:  00000: PASS S2 the refund's move to nsf waits: it would leave P3 holding the 20 repaid (Ryan, 2026-11-05): SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002766: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 20.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=undo the shortfall application first
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:316: NOTICE:  00000: PASS S3 the operator undoes 10 of the repayment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:319: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002766: on 2026-03-14 what was applied to its shortfall would leave it and its overpayment credits holding 10.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:319: NOTICE:  00000: PASS S3b still refused: 10 would be left on P3: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002766: on 2026-03-14 what was applied to its shortfall would leave it and its overpayment credits holding 10.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=undo the shortfall application first
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:322: NOTICE:  00000: PASS S4 the operator undoes the rest, and the refund moves to nsf
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:324: NOTICE:  00000: PASS S5 P3 owes nothing and holds nothing; G3 has its 20 back
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:327: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002766: on 2026-03-15 what was applied to its shortfall would leave it and its overpayment credits holding 0.01, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:327: NOTICE:  00000: PASS S6 and nothing more is repaid on P3: it owes nothing: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002766: on 2026-03-15 what was applied to its shortfall would leave it and its overpayment credits holding 0.01, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=a payment that has ended holds no money
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 1
+ hpost 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ hrefund 
+---------
+ 
+(1 row)
+
+ hback 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+ hrefund 
+---------
+ 
+(1 row)
+
+ hrefund 
+---------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+ hback 
+-------
+ 
+(1 row)
+
+psql:<stdin>:379: NOTICE:  00000: PASS F0 before -27's row: PF 0, K 60 short, R1 0 by the cover while it holds 40 of its own (R24)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+psql:<stdin>:388: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000027f1 and its overpayment credit: on 2026-03-14 what they gave and what was taken back on the ledger would come to 170.00, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:388: NOTICE:  00000: PASS F1a R1's own 40 does not go to another payment's shortfall: its family owes more than it holds (the cap on a payment and its credits together): SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000027f1 and its overpayment credit: on 2026-03-14 what they gave and what was taken back on the ledger would come to 170.00, more than the payment's 100.00 (R-06 cap, K-10; v5.4.2-23) guard=and its overpayment credit: on
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:391: NOTICE:  00000: caught: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-0000000027f4: on 2026-03-14 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 40.01, more than its 40.00 (R-06 cap, K-10; v5.4.2-23)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:391: NOTICE:  00000: PASS F1 R1 applies no more than its own 40 to its own payment's shortfall: SQLSTATE=23514 message=credit 00000000-0000-4000-8000-0000000027f4: on 2026-03-14 what it gave (applications, credits, refunds, donations, escheat) and what was taken back on the ledger would come to 40.01, more than its 40.00 (R-06 cap, K-10; v5.4.2-23) guard=R-06 cap
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:393: NOTICE:  00000: PASS F2 R24's closing act: R1's 40 is applied to PF's shortfall (within the family, not held to the family cap)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:396: NOTICE:  00000: PASS F3 the family reads the same (PF 0, K 60 short, R1 0), and now R1 holds nothing of its own: it can close
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:401: NOTICE:  00000: PASS F4 G4's 30 repays PF: it lands on the payment and the cover carries it to K's deficit
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:403: NOTICE:  00000: PASS F4b PF 0, K 30 short, R1 0; G4 0
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:406: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000027f1: on 2026-03-15 what was applied to its shortfall would leave it and its overpayment credits holding 0.01, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:406: NOTICE:  00000: PASS F5 G5's 31 is a cent past the 30 the family still owes: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-0000000027f1: on 2026-03-15 what was applied to its shortfall would leave it and its overpayment credits holding 0.01, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=a payment that has ended holds no money
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:408: NOTICE:  00000: PASS F5b G5 repays the 30
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:410: NOTICE:  00000: PASS F5c the family is square: PF 0, K 0, R1 0; G5 reads 1
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:412: NOTICE:  00000: PASS F6 undoing R1's 40 within the family is admitted: the family's sum is unchanged, and R1 has its own 40 again
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:415: NOTICE:  00000: PASS F6b PF 0 (60 repaid), K 0, R1 0 by the cover, 40 of its own
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:433: NOTICE:  00000: PASS B1 OQ (Q's money, held as a credit) repays 25 of PB's shortfall
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:435: NOTICE:  00000: PASS B1b OQ 25 left; Q 0 of its own; PB 15 short
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:439: NOTICE:  00000: caught: SQLSTATE=23001 message=account_ledger da8ba167-3cad-41ae-925e-cff781968735 takes back payment 00000000-0000-4000-8000-000000002768's money while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (guard the act; R15, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:439: NOTICE:  00000: PASS B2 Q cannot bounce while its credit pays PB's shortfall: SQLSTATE=23001 message=account_ledger da8ba167-3cad-41ae-925e-cff781968735 takes back payment 00000000-0000-4000-8000-000000002768's money while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (guard the act; R15, v5.4.2-27) guard=takes back payment
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:<stdin>:448: NOTICE:  00000: caught: SQLSTATE=23001 message=payment B27-68 cannot move to nsf while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (R15, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:448: NOTICE:  00000: PASS B3 nor move to nsf (the status guard, with the ledger guard off): SQLSTATE=23001 message=payment B27-68 cannot move to nsf while it (or its overpayment credit) is applied to a bounced payment's shortfall: undo that first (R15, v5.4.2-27) guard=cannot move to nsf while it (or its overpayment credit) is applied
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:453: NOTICE:  00000: PASS B4 the operator undoes OQ's 25, and Q bounces
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:455: NOTICE:  00000: PASS B4b PB is 40 short again; Q and OQ read nothing (OQ's money went with Q)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+psql:<stdin>:476: NOTICE:  00000: PASS U1 GD repays the family's 50
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:480: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000276d: on 2026-03-14 what was applied to its shortfall would leave it and its overpayment credits holding 20.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:480: NOTICE:  00000: PASS U2 the donation's undo waits: it would leave the bounced payment's family holding 20 (Ryan, 2026-11-05): SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000276d: on 2026-03-14 what was applied to its shortfall would leave it and its overpayment credits holding 20.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=undo the shortfall application first
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refund 
+--------
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:502: NOTICE:  00000: PASS H1 GH1 repays 20 dated 03-18 (40 owed then)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:505: NOTICE:  00000: caught: SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000276f: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 5.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:505: NOTICE:  00000: PASS H2 GH2's 15 dated 03-13 is refused: 10 was owed that day (checked from its own date, not the latest row's): SQLSTATE=23514 message=payment 00000000-0000-4000-8000-00000000276f: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 5.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27) guard=a payment that has ended holds no money
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:507: NOTICE:  00000: PASS H2b 10 dated 03-13 is admitted (30 repaid of the 40 owed from 03-18)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+RESET
+SET
+UPDATE 1
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+psql:<stdin>:523: NOTICE:  00000: caught: SQLSTATE=23514 message=shortfall_applications: dated 2026-03-20, on or before 2026-03-20, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:523: NOTICE:  00000: PASS D1 a shortfall application dated in a closed period (-22 P2): SQLSTATE=23514 message=shortfall_applications: dated 2026-03-20, on or before 2026-03-20, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22) guard=a closed period is frozen
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:525: NOTICE:  00000: PASS D2 one dated after it is admitted (G2 repays 10 of P1's 10)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:527: NOTICE:  00000: PASS D3 P1 is repaid: 0 left, 30 repaid
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+RESET
+DO
+psql:<stdin>:534: NOTICE:  00000: PASS I1 every -27 guard is in place, exactly
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:544: NOTICE:  00000: PASS I2 the earlier invariants still hold with -27
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:548: NOTICE:  00000: caught: SQLSTATE=0LP01 message=a v5.4.2-27 guard is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER enforce_shortfall_application AFTER INSERT ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION enforce_shortfall_application()
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:548: NOTICE:  00000: PASS I3 the invariant catches a guard switched off: SQLSTATE=0LP01 message=a v5.4.2-27 guard is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER enforce_shortfall_application AFTER INSERT ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION enforce_shortfall_application() guard=enforce_shortfall_application
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:552: NOTICE:  00000: caught: SQLSTATE=0LP01 message=shortfall_applications: tally_app may only SELECT and INSERT it, tally_core only read it, PUBLIC nothing (add-only; v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:552: NOTICE:  00000: PASS I3b and a grant widened: SQLSTATE=0LP01 message=shortfall_applications: tally_app may only SELECT and INSERT it, tally_core only read it, PUBLIC nothing (add-only; v5.4.2-27) guard=tally_app may only SELECT and INSERT
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:556: NOTICE:  00000: caught: SQLSTATE=0LP01 message=shortfall_applications has lost its tenant_isolation policy or forced row security, or has another policy beside it (v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:556: NOTICE:  00000: PASS I3c and a second policy: SQLSTATE=0LP01 message=shortfall_applications has lost its tenant_isolation policy or forced row security, or has another policy beside it (v5.4.2-27) guard=another policy beside it
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK

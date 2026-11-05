@@ -1,0 +1,57 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+DO
+psql:<stdin>:148: NOTICE:  00000: multi-row SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 2.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:<stdin>:160: NOTICE:  00000: writable CTE SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-03-13 what was applied to its shortfall would leave it and its overpayment credits holding 2.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+RESET
+SET CONSTRAINTS
+ROLLBACK
