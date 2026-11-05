@@ -1,0 +1,31 @@
+# Tax, tax stacking and franchise fees — triage of the open points (2026-11-05)
+
+**Input:** `tax-inventory.md` (this folder), section 4: eighteen open points. Each is settled here by a standing rule or by the statute, named in brackets, except the one that goes to Ryan. A settled point Ryan disagrees with is reopened, not argued.
+
+## For Ryan (one question)
+
+**Points 5 and 6: what puts a bill line in or out of the franchise fee's base.** Kyle (2026-10-14, answer 3) asks for a base type per jurisdiction from a short fixed list, no default, and one mechanism in place of today's overlap (the rule's "applies to" against each line's taxable flag). Which mechanism, and what is on the list, are drafting calls inside his ruling (DECISION-LOG 2026-10-14). Asked separately.
+
+## Settled
+
+1. **No separate tax-jurisdictions table.** A jurisdiction is a place; its taxes are dated rows keyed to the place, like the deposit and backbilling law rows. Kyle's "this is the `tax_jurisdictions` table" names the gap (A-8) the rows close, not a second table. [Kyle answer 1; rule-terms convention, 2026-10-06: typed key, validated terms, facets]
+2. **The utility's own row bills a tax rate; the published rate is the reference.** The utility collects and answers for the tax. The Comptroller's quarterly files are loaded by the platform as reference rows; a change is staged with its quarter's date, and the utility's operator approves it into the utility's own row ("no rate change goes live without operator approval"). A disagreement between the two is reported, never silently billed. [Ryan's rule that a value the utility answers for stays its own (2026-09-30); Kyle answer 1]
+3. **The franchise fee follows the city boundary, not the sales-tax boundary.** An annexation moves a premise into the city on the ordinance's effective date for street-use charges (Tax Code §182.025, "within an incorporated city"), but for city sales tax only from the first day of the quarter after the Comptroller receives the ordinance (§321.102(c)). So the fee reads the premise's city membership dated by the boundary, and sales tax reads the tax-axis membership. [Kyle R-26: the two axes stay separate; `application/places-sources/texas.md` §3]
+4. **The premise's city decides the fee, not the rate schedule's.** The fee traces to the customer's franchising city (the franchise-fee invariant, CI-044). The schedule's `franchise_city` is not read for the fee. [CI-044's own statement]
+7. **The defaults go where they now live.** The rates side drops the default on `rate_item_versions.is_taxable_default` (the ruling's `rate_items` column moved there in -03). `adhoc_charges.is_taxable` and `invoice_line_items.is_taxable` are the money stream's: a board note. [Kyle answer 5; board ownership]
+8. **One franchise rate, on the rule.** The franchise rule holds the rate; a franchise line names the rule that produced it (the line link is the money stream's: board note). A franchise fee is a charge for street use, not a tax, so its line is not `charge_type = 'tax'`; the category it takes is settled with the money stream in that note. [store a value once; Tax Code §182.025 calls it a charge]
+9. **Tax rates are stored in percent.** `sales_tax_rate` becomes percent with four decimals, like every rate; no row holds a value yet, so the change costs nothing now and much later. The franchise rule's rate is percent too. [AC-45, Ryan 2026-11-02; store the form, the app converts; settle costly shapes now]
+10. **A tax exemption does not stop the franchise fee.** An exemption certificate exempts a purchase from sales tax (Comptroller Form 01-339); the franchise fee is a charge on the utility for street use. An ordinance that spares a class says so in the rule's customer types. To confirm with Kyle in the next batch; this is the default until he answers. [Tax Code §151 vs §182.025]
+11. **An exempt customer's $0.00 tax line keeps the base it would have been taxed on**, and names the exemption that zeroed it. That lets an auditor tell an exemption from a jurisdiction that levies nothing. The base rows are the money stream's table: board note. [decision table #23; CI-046]
+12. **The liability is by jurisdiction and accounting period, with an optional filing reference.** The rule's remittance frequency stays information only. The franchise-fee invariant's "reconciles against the remittance total owed" is re-read against Kyle's "liability only", as CI-036 was. [Kyle answer 4; -22's accounting periods]
+13. **The old customer-level tax-exempt flag is retired.** Nothing reads it, and its reasons still list `residential`, which is derived, not certified. [Kyle R-13; nothing a reader can trust]
+14. **The 2% street-use ceiling does not reach a city-owned system in its own city.** Tax Code §182.026(a): the subchapter "does not apply to a utility company owned and operated by a city". A city system pays another city's charge only where it serves inside that city. Where it does apply, §182.026(b)(2) keeps franchise contracts that pay more, so the ceiling is a reference value with a discrepancy report, not a refusal at save. [the statute; Ryan's utility-owns-its-values rule; our first customers are city systems]
+15. **The gas gross receipts tax is not a law-row bill line.** §182.022 taxes the utility, and a city system is exempt from it (§182.026(a)). A utility whose tariff passes it through bills it as a tariff line; the stack can carry such a line, but no law row creates one. [Kyle 2026-11-03: always follow the tariff]
+16. **"Residential" for city sales tax comes from rate class and premise use**, as for the state exemption. A limited-purpose area and an ETJ count as outside the city for city taxes (Local Government Code §43.130, §42.902); this is recorded when the city places load. [Kyle R-13]
+17. **Water and sewer:** the tax rows are keyed by service type, not shaped for gas only. Their values wait on tax counsel. [launch scope is not architecture scope]
+18. **Farwell and Texline time zones:** not a tax question; settled with the city loads (-29 limit L3).
+
+## Next
+
+- Ryan's answer on points 5 and 6.
+- A design note (shape, patch split, what goes to the money stream as board notes), then the patch claim on the board.
