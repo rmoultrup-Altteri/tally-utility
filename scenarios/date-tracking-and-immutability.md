@@ -54,8 +54,8 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 
 ### SCN-0071 — Every figure on one bill is read at the same pair of dates
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. **The core's discipline (CI-003, REP):** the schema makes every dated lookup name both dates and binds a bill's snapshot to its run's dates, but cannot see whether one computation used one pair. The preventive net (R-16) is deferred to before the first bill-run code. Whether every bill in a run reads at one recorded instant, or each bill at its own, is not ruled (below).
-*Rule:* a bill is computed at one pair: the date it is priced at, and one recorded instant for what was known. Every lookup of that bill (rates, gas cost, tax, the customer's attributes, the zone) uses that same pair, and the snapshot records it. Sources: CI-003; CI-015; v5.4.2-10 (the snapshot's dates bound to its run).
+*Status:* draft (2026-11-05), not yet sent to Kyle. **The core's discipline (CI-003, REP):** the schema makes every dated lookup name both dates and binds a bill's snapshot to its run's dates, but cannot see whether one computation used one pair. The preventive net (R-16) is deferred to before the first bill-run code. Ryan ruled 2026-11-05 that a run reads every bill at one recorded instant, fixed when it starts (DECISION-LOG; roadmap R-22); a check that the run's snapshots carry that instant is not built.
+*Rule:* a bill is computed at one pair: the date it is priced at, and one recorded instant for what was known; every bill in a billing run uses the run's instant, fixed when the run starts, and a bill outside a run (a rebill) takes its own. Every lookup of that bill (rates, gas cost, tax, the customer's attributes, the zone) uses that same pair, and the snapshot records it. Sources: CI-003; CI-015; v5.4.2-10 (the snapshot's dates bound to its run); Ryan 11-05 (R-22).
 
 **Given** Bluebonnet's December billing run starts Wed Dec 16, 2026 at 8:00. At 9:30, while the run is going, a clerk corrects R-R's customer charge from Dec 1, keyed $14.57 instead of the tariff's $14.75 (**invented**), as SCN-0069 does. BB-02 is on R-R; BB-01 on R-U.
 
@@ -64,9 +64,8 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 **Then**
 - Each bill's lookups all use one pair; none mixes figures known before 9:30 with figures known after.
 - BB-01's bill is unaffected (R-U didn't change).
-- BB-02's bill, under this stream's reading (one recorded instant for the whole run, 8:00): computed at $14.57; the correction reaches it by rebill. Under the other reading (each bill its own instant): computed at 10:00 at $14.75.
+- BB-02's bill is computed at the run's instant, 8:00, so at **$14.57**, though it is computed at 10:00; the correction reaches it by the next run or a rebill. Every R-R bill in the run carries the same customer charge.
 - Either way the snapshot records the pair the bill used, so a recomputation gets the same bill (SCN-0076).
-- **Open (Ryan):** is a billing run's recorded instant one for the whole run, so every bill in it rests on the same knowledge, or each bill's own? This stream reads it as one for the run: a run's bills then agree with each other, and a change mid-run waits for the next run or a rebill.
 
 ---
 
