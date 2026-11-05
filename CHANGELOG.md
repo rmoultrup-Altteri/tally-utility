@@ -6,6 +6,32 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-05 (money) — v5.4.2-27 designed, built and reviewed twice; Ryan's two calls; round 3 planned
+
+**What was done:**
+- **The -27 design**: a credit applied to a bounced payment's shortfall, AC-44's netting. Ryan settled the one open call: a refund that comes back after its shortfall was repaid waits until the repayment is undone (option 1; DECISION-LOG).
+- **Round 1** built, then reviewed:
+  - the build: `shortfall_applications`, add-only and tenant-keyed; six of -23's readers re-issued; the target's cap; the source's own bounce guard. Battery 80, races 14, mutations 35/35.
+  - the reviews: Codex not yet (a later repayment hid an earlier one when a refund came back; invariant privileges), Opus not yet (the same, plus an escheat deadlock), Fable ready.
+- **Ryan's second call.** An undo of a repayment whose credit was since escheated carries the money into a new credit (option 1; DECISION-LOG). It is the 10-21 refund rule, applied here.
+- **Round 2** built, then reviewed:
+  - the return check reads from the first repayment, with an undo counted from the row it undoes;
+  - the carry: origin `shortfall_reissue`, in the old credit's overpayment line, checked at commit. Five more -23 functions are re-issued for it, additions only;
+  - deposit and refund targets refused; invariant privileges asked alone; the race harness bounded; SR9;
+  - results: battery 116, races 16, mutations 58/58; -23's 409 and 51 pass; `ci.sh` 55/55;
+  - the reviews: Fable ready; Opus not yet (an undo dated in the future); Codex not yet (a history load's carry born escheated). Every Codex probe was run by the author, and every prediction held.
+- **Round 3 plan** written: both blockers and one more fix, all by rule, plus the test gaps. The roadmap got R-23, R-24 and the P1 summary.
+
+**Decisions:** see DECISION-LOG 2026-11-05 (-27 design) and (-27 r1); the r2 and r3 plans hold the by-rule calls.
+
+**Failed approaches:**
+- the latest-row boundary (r1);
+- counting an undo retroactively with no strict check from today (r2);
+- a `SET CONSTRAINTS IMMEDIATE` left on in the battery;
+- a void test placed after a draw, so -23's own refusal masked the guard.
+
+**Next:** build -27 round 3 (on Ryan's go), review it with all three, then the mirror; then -24.
+
 ## 2026-11-04 (rates) — v5.4.2-28 round 2 reviewed ready by all three and mirrored (ahead of the money patches); v5.4.2-29 (every Texas county and its time zone) built, reviewed once, round 2 frozen
 
 **What was done:**

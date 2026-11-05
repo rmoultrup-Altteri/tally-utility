@@ -2,80 +2,108 @@ Folder: `~/code/tally-utility`. If your working directory is not this folder, st
 
 # Handoff: schema stream "money" — cash, disputes, collections, enrollments, notices
 
-**Generated**: 2026-11-02, evening
+**Generated**: 2026-11-05, evening
 **Branch**: `main`, pushed (this wrap-up's commit).
-**Status**: -23 round 8 is built, frozen and reviewed: **Fable ready, Codex not yet, Opus not yet.** Three blocking items, all confirmed or executed. The first thing for Ryan is the fix for Codex's B1 (below); it was put to him and not yet answered.
+**Status**: -27 round 2 is reviewed: **Fable ready; Opus and Codex not yet**, with one blocking item each, both confirmed and both settled by rule. The round 3 plan is written. The last question put to Ryan was "Shall I build round 3?", and he has not answered it yet (he asked to wrap up instead).
 
 ## Goal
 
-Close this stream's half of the open invariants, in order (Ryan, 2026-11-02): **-23 → -27 → -24** → -25 and -26 (drafted; reviewed in -27's waits) → enrollments → notices → new rule types. One patch at a time. The rates stream (`~/code/tally-utility-rates`, -28) and the scenarios stream run beside it.
+Close this stream's half of the open invariants, in order (Ryan, 2026-11-02):
+1. -23 (**mirrored 2026-11-04**);
+2. **-27** (now);
+3. -24;
+4. -25 and -26 (drafted; review them during -27's waits);
+5. enrollments;
+6. notices;
+7. new rule types.
+
+One patch at a time. The rates stream (`~/code/tally-utility-rates`) and the scenarios stream run beside this one.
 
 ## Resume Instructions
 
-1. `git pull --ff-only`; `git -C ../gas-billing-memory fetch` and check `HEAD..origin/main`. Read the board's notes for this stream.
-2. **Put Codex's B1 fix to Ryan if he hasn't answered** (one decision, prose, recommendation):
-   - *What breaks:* `check_cash_source`'s family cap (frozen r8 ~3318–3350) refuses any act while the payment and its credits are over the payment's amount from that act's date on, even an act that adds nothing. A family can be legitimately over (K-10: what was paid out stands). Codex's case (take-back 60, not Q5's 50): the bank returns an escheated credit's refund; Ryan's 10-21 rule requires the 20 be carried to a reissue; the family cap refuses the reissue (110 > 100) though a reissue moves no money out. So the return can't be recorded. **Confirmed** (`codex-r8-probes/01-negative-pool-reissue.author-run.txt`).
-   - *Option 1 (recommended):* skip the family cap for the two internal moves, `p_purpose IN ('reissue', 'overpayment_credit')`; the family sum already excludes both. Every other check stays. Tests: Codex's 60 case in Q5, plus a one-cent external refund after the carry still refused; a mutation removing the skip.
-   - *Option 2:* change the family cap for every act to refuse only an act that adds to the overdraw. More general; re-opens the cap every reviewer has worked over.
-   - *Option 3 (rejected by Codex and me):* waive the reissue requirement in deficit; reverses Ryan's 10-21 rule.
-3. **Merge the three r8 reviews into `application/wave2-build-2026-10-15/v5.4.2-23-r9-plan.md`.** Items so far:
-   - **Codex B1** (above). Codex S1: Z6 proves a guarded endpoint on planted history, not a full-history 999th make. Codex S2: the patch header still states the old exact-cap promise somewhere.
-   - **Opus B1 (executed, real sessions):** a refund's return is stamped at its transaction's start; one that began before a take-back and commits after it moves the take-back's share from a later reissue onto the overpayment credit, after the fact. If that reissue was escheated in between, it ends holding 10 of its own on a remitted credit. Fix direction: give every leaving move on a family (a refund going nsf/voided/reversed, a family credit's void) the recorded-order check a draw has (`check_cash_order`'s arrival-entry leg, under the payment's lock it already takes), so it retries (40001) after the take-back. R17 then says "retried, not stamped back". Tests: J as race CR27, the void variant, a mutation.
-   - **Opus B2 = Fable S1 (tests only):** agree() no longer pins what a line can pay; two cap mutations (mA the payment's cap counts the credit's share twice; mB the overpayment credit's cap forgets its share) pass all 390 checks. Fix: agree() admits `least(own side, pool)` and refuses it plus a cent, for each active line (Fable has `agree_exact` in `/private/tmp/claude-501/-Users-ryanscomputer-code-tally-utility/d802ba0f-386f-46fd-bb25-7df86bade265/scratchpad/probe-r8.sql`; scratch, may be gone); add mA and mB as mutations.
-   - **Fable S2:** the P-G shape (an active credit's reissue sized on its own 40) as a battery check; ids 34xx free. Fable's race FR1 is in the same scratchpad (`race-fable-r8.sh`).
-   - **Opus S1** (a statement that makes a reissue and draws on it is sized against the reissue's own draws), **Opus S2** (the pins don't protect the 999-deep line under autovacuum's "pages present, 0 rows" statistics), **Opus S3** (comments): read them in `opus-r8.md`. Opus S2 is final: under autovacuum's "pages present, 0 rows" statistics, Z6 took 23 min 24 s (battery to Z6: 1,444 s against 23 s), mostly in the pinned `overpayment_family` (754 s) and `cash_source_draws` (329 s) and the unpinned `customer_credit_draws_as_of` (323 s). Not blocking (real lines are 1–3 deep); fix: vacuum right before each run, correct R21's "the depth no longer depends on the statistics", consider pinning `customer_credit_draws_as_of`.
-   - Brief housekeeping (Fable): the battery runs with the default search_path; only the strict apply uses an empty one.
-4. Build round 9 (tests first: each new check red on frozen r8), mutations, races, freeze, three reviewers as in round 8 (see "How round 8 was reviewed").
-5. **Fix -15's expired test** (below) as a test-only commit; then `tests/ci.sh` should pass.
+1. Run `git pull --ff-only`. Then `git -C ../gas-billing-memory fetch` and check `HEAD..origin/main`. Read the board's notes for this stream.
+2. **If Ryan says go, build -27 round 3** from `application/wave2-build-2026-10-15/v5.4.2-27-r3-plan.md`. Tests come first: each new check must fail on frozen r2. The fixes:
+   - **Opus B1, an undo dated in the future.** `check_shortfall_repaid`'s NULL path, for a move giving money back, must also read every row at its own date from `current_date` on. The repayment path already reads strictly from `p_from`, and the retroactive undo dating stays for dates before today. Opus's probe: undo dated 2099-12-31, refund return admitted, payment reads +30 to 2099. Probes are in `/private/tmp/claude-501/-Users-ryanscomputer-code-tally-utility/5e6b8bb5-06a7-4742-b166-ff5f4b04a6c3/scratchpad/opus27/`; this is scratch and may be gone, and `opus-r2.md` has the shape.
+   - **Codex B1, a carry born ended.** A `shortfall_reissue` credit is born `active`, for every role including a superuser's history load. Put the check in `enforce_shortfall_reissue`. Add a regression (Codex's `codex-r2-probes/06-carry-history.sql`, whose author run is ACCEPTED on r2) and a mutation. Note that -23's `enforce_cash_birth` returns early for a superuser.
+   - **Opus S1, the undo a carry names.** It must have been recorded at or after the old credit's `escheated_at`.
+   - **Tests:**
+     - `cash_source_draws`' carry leg gets a check and a mutation (Fable S1, Opus S2);
+     - a carry off a credit that was never escheated;
+     - the depth bound;
+     - mixed lines in both directions (from Codex's probe 08);
+     - an escheated credit's ordinary undo still refused;
+     - a caller-level invoice-application undo on a repaid family (Codex S1);
+     - C2 made a true partial undo (probe 09);
+     - E7c's label narrowed, or the balance compared;
+     - mutations for the escheated-source requirement, the depth check, the birth status, and `cash_drawn_at`'s shortfall and repaid terms.
+   - **Notes:**
+     - deadlines on the race helper's monitoring queries;
+     - the header's "never holds money" should name R5;
+     - `repaid` should print 0.00.
+3. Re-run everything:
+   - strict apply twice;
+   - battery, races and all mutations: `python3 -u tests/v5.4.2-27/mutations-27.py`, about 25 minutes; `-u` or the log stays empty until the end;
+   - -23's battery and races with -27 applied;
+   - `tests/ci.sh`.
 
-## How round 8 was reviewed (repeat for round 9)
+   Then freeze r3 and review it with all three ("How a round is reviewed").
+4. **Codex's usage:** it hit its limit at the end of round 2. The reset given was 5:18 PM (2026-11-05). If it is limited again at r3, give Ryan the reset time.
+5. **At -27's mirror** (Ryan's approval, the board's pre-mirror check first):
+   - update APPLICATION-CONTRACTS AC-44 (it still says "claimed, not drafted");
+   - re-grade parity;
+   - write the DEPLOY-VERIFICATION entry;
+   - move the oldest CHANGELOG entries to `changelog-archive/2026-11.md` so 10 stay live. The live file holds 11 after this session's entry.
 
-- Freeze: copy the patch, battery, races and runner to `tests/v5.4.2-23/review/*-frozen-r9.*`, diff r8→r9, md5s into the brief (`review-brief-23-r8.md` is the template), `review-brief-23-r9.md5`, `codex-prompt-r9.md` (sed from r8). Board line → "round 9 frozen".
-- Opus and Fable: Agent tool, `model: opus` / `model: fable`, `general-purpose`, named `opus-r9` / `fable-r9`; ask for the final report in several messages under 3 KB.
-- Codex: `export PATH="$HOME/.nvm/versions/node/v24.15.0/bin:$PATH"; codex exec -s workspace-write -o tests/v5.4.2-23/review/codex-r9-final.txt "$(cat tests/v5.4.2-23/review/codex-prompt-r9.md)" < /dev/null` in the background. Took about 25 minutes.
-- Codex's probes: run each on a fresh clone with the frozen patch strictly applied (the runner script pattern: clone `tally`, revoke TEMP, apply with `search_path=` and `check_function_bodies=on`, run as owner, drop). The 02/03 lock probes run as concurrent sessions on one clone in their documented order. Save outputs as `<probe>.author-run.txt`.
+## How a round is reviewed (repeat for r3)
+
+- **Freeze.** Copy the patch, battery, races and runner to `tests/v5.4.2-27/review/*-frozen-r3.*` and write `r2-to-r3.diff`. The brief is `review-brief-27-r2.md` with `@@` placeholders filled by script. Write the md5 to `.md5`, and make `codex-prompt-r3.md` by sed from r2. Change the board line to "r3 frozen".
+- **Opus and Fable.** Use the Agent tool, general-purpose, `model: opus` and `model: fable`, named `opus-r3` and `fable-r3`. Ask for a reply under 2 KB, with the detail in the file. Both have read their own r1 and r2 files.
+- **Codex.** Run in the background: `export PATH="$HOME/.nvm/versions/node/v24.15.0/bin:$PATH"; codex exec -s workspace-write -o tests/v5.4.2-27/review/codex-r3-final.txt "$(cat tests/v5.4.2-27/review/codex-prompt-r3.md)" < /dev/null`. It takes about 25 minutes. Run its probes yourself, each on a fresh clone with the frozen patch applied strictly, and save `<probe>.author-run.txt`.
 
 ## Not Yet Done
 
-- [ ] **-23 round 9** (above), then the mirror on Ryan's approval (board's pre-mirror check first).
-- [ ] **-27**: a credit applied to a bounced payment's shortfall (AC-44's netting; claimed, not drafted). Additive: a new application target or table, a draw on the credit and a repayment on the payment, through -23's positions and caps. Also R24's closing act.
-- [ ] **-24** (unmatched cash and agency pledges; CI-053, 056), after -27.
-- [ ] **Review -25 and -26.** They passed CI on top of -23 r8 today (every -23/-25/-26 step). At -26's mirror, update APPLICATION-CONTRACTS: AC-10 still lists `dunning_stage` and `late_fee_*` as writable.
-- [ ] **-15's battery V23 expired on 2026-11-02** (fails on plain `tally` too, not ours to blame on -23/-25/-26). The fixture writes a deposit-return due row dated 2026-11-01 whose evidence is c9's closure, which the fixture stamps with today's date; the closure must be on or before the due date. V16 (and the x1–x3 supersede rows) use the same fixed date and may now pass for the wrong reason. Fix in the test only (`tests/v5.4.2-15/battery-15r.sql`, ~1189 and 1233–1281): date the closure in the fixture rather than today, or move the dependent dates; never `tu.sql`. The deposits rewrite is this stream's.
-- [ ] **Counsel question C-03** (roadmap): may a utility set off a debt against a credit before reporting it as unclaimed property, per state? Feeds AC-44's per-state rule.
-- [ ] **Then:** enrollments (wave 4: CI-060, 065, 081 link, 082–085); the reconnect technician check (CI-072); notices (wave 5: CI-088, 093–097, 111, 135); new rule types (wave 7: CI-043, 054 late-fee rows, 079, 080, 081 law row, 105, 114).
-- [ ] **Tell Kyle (not blocking):** ui-concepts still lists `refunded`; `do_not_disconnect` must become a protective enrollment; the four wave-3 law findings.
-- [ ] **Carried over:** the reply to Kyle on where D-2 lives (his 10-14 question); -21 R9; the Florida 25-7.083 text; the waiver rewrite; the -15 r8 follow-ups.
+- [ ] **-27 round 3** (above), then the mirror.
+- [ ] **-23's `refund_reissue` may have Opus S1's mirror gap:** a reissue naming a refund that came back before the escheat. This is this stream's, as a later patch; check it before deciding.
+- [ ] **-24** (unmatched cash, agency pledges; CI-053, 056), after -27.
+- [ ] **Review -25 and -26.** At -26's mirror, update AC-10, which still lists `dunning_stage` and `late_fee_*` as writable.
+- [ ] **Board notes to money** from scenarios (2026-11-04: Kyle's answers; the Mcf unit list loosening -21's check) and from R-12 (two-column tenant keys): read them on the board.
+- [ ] **Counsel question C-03** (setoff before an escheat report, per state).
+- [ ] **Then:** enrollments, the reconnect check (CI-072), notices, new rule types.
+- [ ] **Tell Kyle (not blocking):** ui-concepts still lists `refunded`; `do_not_disconnect` should become a protective enrollment; the four wave-3 law findings.
 
-## Key Decisions (this session and the one before; DECISION-LOG has the reasons)
+## Key Decisions (DECISION-LOG has the reasons)
 
 | Decision | Where |
 |---|---|
-| Option A: a line never reads more than it can pay; not "pays exactly what it reads" (Ryan, 11-01) | DECISION-LOG 2026-11-01 (-23 r8) |
-| Netting before an escheat report is a per-state rule; with no rule row, report in full (Ryan, 11-02) | DECISION-LOG 2026-11-02 (-23 r8); AC-44 |
-| Netting is recorded as a new kind of application to the bounced payment's shortfall, built as -27; never a billed charge (K-10) (Ryan, 11-02) | same; AC-44; board |
-| -27 goes next after -23, ahead of -24 (Ryan, 11-02) | same; board |
-| A reissue is sized on the credit's own money (author's call in the r8 build, follows option A and 10-21) | r8 plan "As built" |
+| A refund that comes back after its shortfall was repaid waits until the repayment is undone (Ryan, 11-05, option 1) | DECISION-LOG 2026-11-05 (-27 design); roadmap R-23 |
+| An undo of a repayment whose credit was since escheated carries the money into a new credit, origin `shortfall_reissue`, in the old credit's overpayment line (Ryan, 11-05, option 1) | DECISION-LOG 2026-11-05 (-27 r1); roadmap R-24 |
+| By rule (r2): the return check reads from the first repayment, with an undo counted from the row it undoes. A bounced deposit and a refund are refused as targets. Each privilege is asked alone. | r2 plan |
+| By rule (r3, planned): also strict from today on; a carry born active; a carry's undo recorded after the escheat | r3 plan |
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Narrowing agree() without a direct cap check:** N207 (and Opus's mA/mB) then pass the battery. Every per-side cap needs a check that refuses its figure plus a cent.
-- **Rewriting the roadmap JSON with `json.dump(indent=1)`:** reformats the whole file. phases.json is `indent=2`; decisions.json is one object per line.
-- **Editing the roadmap before pulling at wrap-up:** the rates stream wraps up the same day; pull first, then edit.
-- **Codex with `-s read-only`; a voided reissue's share passed back to its credit; caps reading the covered positions; one-instant fixtures for distinct-instant shapes; `docker stop` on postgres-mcp containers (use `docker rm -f`/`kill`).**
+- **Checking a returned refund from the target's latest shortfall row (r1).** A later repayment hides an earlier one (Codex B1).
+- **Counting an undo from its repayment's date with no strict check from today on (r2).** A future-dated undo slips through (Opus B1).
+- **`SET CONSTRAINTS … IMMEDIATE` inside an admitted battery check without setting it back to `DEFERRED`.** It stays immediate for the rest of the battery's transaction.
+- **Running `mutations-27.py` without `python3 -u` into a log.** Nothing shows until the end.
+- **A "may be voided" check on a credit something already draws on.** -23 refuses that void for its own reason, so the mutation survives. Test the void before any draw.
+- **Earlier failures (rewriting roadmap JSON with `json.dump`; editing the roadmap before pulling; Codex with `-s read-only`).** These are still in the CHANGELOG.
 
 ## Current State
 
-- **-23 r8** (frozen md5s in `review-brief-23-r8.md`): strict apply twice clean; battery 390/390 (22–45 s after VACUUM); races 40/40 (CR26 new); mutations 225/225 (43 min; N207 retargeted to the new Y7j2, N223 to Z4a after the first run missed them). Red vs r7: `tests/v5.4.2-23/red-r8-against-r7.txt`.
-- **Reviews:** `tests/v5.4.2-23/review/{opus,fable,codex}-r8.md`, Codex's probes and the author runs in `codex-r8-probes/`.
-- **CI** (`tests/ci.sh`, -23 r8 + -25 + -26 pending): every step passes except `battery v5.4.2-15` (V23, the expired date above).
-- **Docker:** 7 leaked postgres-mcp containers from 10-27 removed; 2 live (wrapper processes alive) left.
-- **Dashboard:** P1 text and C-03 updated; dates unchanged (ready to onboard 2027-06-09 likely). -27 isn't in the duration estimate yet.
+- **-27 r2** (frozen md5s in `review-brief-27-r2.md`):
+  - strict apply twice clean;
+  - battery 116/116, races 16/16 (SR1–SR9), mutations 58/58;
+  - -23's battery 409/409 and races 51/51 with r2 applied;
+  - `ci.sh` 55/55 (-29's three pending-only steps are skipped now that its counties are loaded).
+- **Reviews:** `tests/v5.4.2-27/review/{opus,fable,codex}-r2.md`. Codex's r2 probes are run, with outputs in `codex-r2-probes/*.author-run.txt`; every prediction held.
+- **Plans and design:** r2 plan, r3 plan, design sections 8 and 9.
+- **Docker:** review clones dropped. `ci_r27` is left by `ci.sh`, as its steps do.
+- **Dashboard:** decisions R-23 and R-24 added; the P1 summary refreshed. Dates unchanged: ready to onboard 2027-06-09 likely.
 - **Uncommitted changes:** none after this wrap-up's commit.
 
 ## Warnings
 
-- **Don't edit the patch or tests while `mutations-23.py` runs.** A selected rerun: `python3 tests/v5.4.2-23/mutations-23.py N207 N223`. Adding a check can change which check fails first for other mutations: rerun all after adding one.
-- **CR10 can miss its "B waits" observation under the mutation run's load.** Rerun that mutation alone before believing it.
-- **Revoke TEMP after every TEMPLATE clone. Never edit the frozen review copies or tu.sql's mirrored bodies.**
-- **Other streams share tally-pg.** `ci.sh` only through its lock; the pre-mirror check before a mirror.
+- Don't edit the patch or tests while a mutation run is going. Adding a check can change which check fails first for other mutations, so rerun them all.
+- Revoke TEMP after every TEMPLATE clone. Never edit the frozen review copies or `tu.sql`'s mirrored bodies.
+- The battery's ids are `00000000-0000-4000-8000-0000000027xx`. These are used: `10`–`5f` (r2), `61`–`9e`, `a1`–`ae`, `b1`/`b2` (users), `c1`–`c9` (customers), `d1`–`d4`, `e1`–`e8`, `f1`–`f6`. The races use the prefix `…0000000028`.
