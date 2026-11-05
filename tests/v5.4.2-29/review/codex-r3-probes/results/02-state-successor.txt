@@ -1,0 +1,36 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+psql:/tmp/probe3.sql:522: NOTICE:  SETUP PASS: state, children and facts closed and succeeded with all guards enabled
+SELECT 1
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:524: NOTICE:  v5.4.2-29: 0 counties loaded, 254 already present
+psql:/tmp/probe3.sql:524: NOTICE:  PASS r3 accepts valid state succession (accepted)
+ check_it 
+----------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:525: NOTICE:  PASS state succession replay no-op
+psql:/tmp/probe3.sql:532: NOTICE:  N18 restores state succession refusal caught SQLSTATE=P0001 message=v5.4.2-29 precondition: no Texas state place in force on 1900-01-01
+psql:/tmp/probe3.sql:532: NOTICE:  PASS N18 restores state succession refusal (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:533: NOTICE:  PASS N18 refusal atomic
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK

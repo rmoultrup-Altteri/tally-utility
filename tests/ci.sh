@@ -37,8 +37,10 @@ trap 'exit 130' INT TERM HUP
 # patch DROPS (the patch is pending while that table still exists); a marker
 # table.column is a column the patch adds; a '?' before the marker means an SQL
 # condition (no colon in it) that holds while the patch is pending (a data patch)
-# -29 is a data patch: pending while Texas has fewer than 254 open counties.
-P29_PENDING="(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND effective_to IS NULL) < 254"
+# -29 is a data patch: pending while Texas has fewer than 254 counties in force
+# on 1900-01-01, the date it loads them (not open today: a later migration may
+# close a county; review r3, Opus S1).
+P29_PENDING="(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND daterange(effective_from, effective_to, '[)') @> DATE '1900-01-01') < 254"
 PENDING=(
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions

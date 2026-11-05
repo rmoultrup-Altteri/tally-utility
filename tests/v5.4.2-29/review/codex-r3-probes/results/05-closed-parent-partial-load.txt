@@ -1,0 +1,29 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+ALTER TABLE
+DELETE 252
+ALTER TABLE
+ALTER TABLE
+DELETE 252
+ALTER TABLE
+psql:/tmp/probe3.sql:532: NOTICE:  SETUP PASS: state, children and facts closed and succeeded with all guards enabled
+DO
+SELECT 1
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:535: NOTICE:  P10b new county under closed historical Texas caught SQLSTATE=23514 message=place rejected: parent f80b1129-16b7-44a7-bc26-293d260d0b01 is not a state of state TX in force over 1900-01-01..open — v5.4.2-16
+psql:/tmp/probe3.sql:535: NOTICE:  PASS P10b new county under closed historical Texas (expected refusal)
+psql:/tmp/probe3.sql:536: NOTICE:  PASS P10b refusal preserves every row
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK

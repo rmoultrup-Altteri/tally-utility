@@ -54,9 +54,10 @@ refused() {  # $1 label, $2 fragment, $3 output, $4 exit
   elif [ "$4" -eq 0 ]; then echo "FAIL ${1%% *} [admitted] ${1#* }: expected a refusal naming '$2'"; fail=1
   else echo "FAIL ${1%% *} [refused otherwise] ${1#* }: expected '$2', got: $(echo "$3" | grep -m1 ERROR)"; fail=1; fi
 }
-fp() {  # every places and place_facts row, as one digest
-  docker exec tally-pg psql -U tally -d $DB -Atc "SELECT md5(string_agg(t, E'\n' ORDER BY t)) FROM (
-    SELECT 'p:' || to_jsonb(p)::text AS t FROM public.places p UNION ALL SELECT 'f:' || to_jsonb(f)::text FROM public.place_facts f) s"
+fp() {  # every places and place_facts row, as one digest; fails on no answer
+  local d; d=$(docker exec tally-pg psql -U tally -d $DB -Atc "SELECT md5(string_agg(t, E'\n' ORDER BY t)) FROM (
+    SELECT 'p:' || to_jsonb(p)::text AS t FROM public.places p UNION ALL SELECT 'f:' || to_jsonb(f)::text FROM public.place_facts f) s") || return 1
+  [ -n "$d" ] && echo "$d"
 }
 noop() {  # $1 label, $2 output, $3 exit, $4 digest before, $5 digest after
   if [ "$3" -ne 0 ]; then echo "FAIL ${1%% *} [refused] ${1#* }: $(echo "$2" | grep -m1 ERROR)"; fail=1
@@ -97,12 +98,13 @@ out=$(apply "SET ROLE tally_app"); refused "P6 as tally_app the load refuses at 
 out=$(apply "SET ROLE tally_core"); refused "P6b as tally_core the load refuses at places" "permission denied for table places" "$out" $?
 
 fresh || exit 2
-out1=$(apply); s1=$?; d1=$(fp); out2=$(apply); s2=$?; d2=$(fp)
+out1=$(apply); s1=$?; d1=$(fp) || d1=""; out2=$(apply); s2=$?; d2=$(fp) || d2=""
 n=$(docker exec tally-pg psql -U tally -d $DB -Atc "SELECT count(DISTINCT p.id) || '/' || count(f.id) FROM public.places p JOIN public.place_facts f ON f.place_id = p.id AND f.fact_code = 'time_zone' WHERE p.kind_code = 'county' AND p.state_code = 'TX'")
 if [ $s1 -eq 0 ] && [ $s2 -eq 0 ] && echo "$out1" | grep -q "252 counties loaded, 2 already present" \
-   && echo "$out2" | grep -q "0 counties loaded, 254 already present" && [ "$n" = "254/254" ] && [ "$d1" = "$d2" ]; then
+   && echo "$out2" | grep -q "0 counties loaded, 254 already present" && [ "$n" = "254/254" ] && [ -n "$d1" ] && [ "$d1" = "$d2" ]; then
   echo "PASS P7 applied twice: 252 loaded, then none, no row changed; 254 counties, 254 zone facts"
-else echo "FAIL P7 [changed]: exits $s1/$s2, counts $n, digests $d1 / $d2: $out1 / $out2"; fail=1; fi
+elif [ $s1 -ne 0 ] || [ $s2 -ne 0 ]; then echo "FAIL P7 [refused]: exits $s1/$s2: $(echo "$out1 $out2" | grep -m1 ERROR)"; fail=1
+else echo "FAIL P7 [changed]: counts $n, digests '$d1' / '$d2': $out1 / $out2"; fail=1; fi
 
 # P8: later corrections, committed on top of the load, then a re-apply. Each
 # successor differs from what it replaced (r3; Codex S3), so a re-apply that
@@ -132,7 +134,7 @@ WITH n AS (INSERT INTO public.places (kind_code, state_code, place_code, name, p
            SELECT 'county', 'TX', '48509', 'New County', id, DATE '2027-01-01', 'reapply-29 P8' FROM public.places WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL
            RETURNING id)
 INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note) SELECT id, 'time_zone', '\"America/Chicago\"', DATE '2027-01-01', 'reapply-29 P8' FROM n;" || { echo "SETUP FAIL P8: the corrections"; exit 2; }
-d1=$(fp); out=$(apply); s8=$?; d2=$(fp)
+d1=$(fp) || d1=""; out=$(apply); s8=$?; d2=$(fp) || d2=""
 noop "P8 after later corrections (a zone superseded by another, a county succeeded under another name, one dissolved, one added) the load re-applies and changes no row" "$out" $s8 "$d1" "$d2"
 
 # P9: Travis present only from 1950.
@@ -169,7 +171,7 @@ END \$s\$;"
 fresh || exit 2
 out=$(apply); [ $? -eq 0 ] || { echo "SETUP FAIL P10: first apply: $out"; exit 2; }
 plant "BEGIN; $SUCCEED_TX COMMIT;" || { echo "SETUP FAIL P10: the succession"; exit 2; }
-d1=$(fp); out=$(apply); s10=$?; d2=$(fp)
+d1=$(fp) || d1=""; out=$(apply); s10=$?; d2=$(fp) || d2=""
 noop "P10 after Texas itself is succeeded, the load re-applies and changes no row" "$out" $s10 "$d1" "$d2"
 
 fresh || exit 2

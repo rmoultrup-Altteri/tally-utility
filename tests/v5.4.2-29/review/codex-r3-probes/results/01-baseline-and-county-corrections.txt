@@ -1,0 +1,62 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+ check_it 
+----------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:494: NOTICE:  PASS baseline codes and names
+psql:/tmp/probe3.sql:502: NOTICE:  PASS baseline ranges, parents and zones
+ check_it 
+----------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:506: NOTICE:  PASS 252 source citations
+ check_it 
+----------
+ 
+(1 row)
+
+SELECT 1
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:508: NOTICE:  v5.4.2-29: 0 counties loaded, 254 already present
+psql:/tmp/probe3.sql:508: NOTICE:  PASS unchanged replay (accepted)
+psql:/tmp/probe3.sql:509: NOTICE:  PASS replay changes no place/fact column
+ check_it 
+----------
+ 
+(1 row)
+
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+psql:/tmp/probe3.sql:536: NOTICE:  relation "p29_counties" already exists, skipping
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe3.sql:536: NOTICE:  v5.4.2-29: 0 counties loaded, 254 already present
+psql:/tmp/probe3.sql:536: NOTICE:  PASS county corrections and dissolution replay (accepted)
+psql:/tmp/probe3.sql:537: NOTICE:  PASS corrections preserved byte-for-byte as JSON
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK
