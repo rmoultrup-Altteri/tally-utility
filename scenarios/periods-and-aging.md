@@ -63,7 +63,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 - The reversal is dated Oct 14, in October; it is not dated Oct 6 or Sep 27.
 - A further reversal of the penalty is refused: nothing is left of it.
-- The penalty does not count toward Bluebonnet's limit of two late penalties for a deposit refund (SCN-0007, SCN-0008): it is reversed for being wrongly assessed. This is this stream's reading (a penalty nets out with its reversal); SCN-0047 (a) rests on it. **Open (Kyle, next batch)**, with SCN-0045's question.
+- The penalty does not count toward Bluebonnet's limit of two late penalties for a deposit refund (SCN-0007, SCN-0008): it is reversed for being wrongly assessed. This is this stream's reading (a penalty nets out with its reversal); SCN-0047 (a) rests on it. **Open (Kyle, sent 2026-11-05)**, with SCN-0045's question.
 - A posted payment must carry the customer's date and the method it was taken by (v5.4.2-19): the check cannot be posted without them, so lateness is never judged from the day it was recorded.
 
 ---
@@ -166,20 +166,20 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0026 — A recovery after a write-off names it, and recoveries never exceed what was written off
 
-*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03. Customer changed 2026-11-05 from BB-02 (who keeps paying into 2027 in SCN-0007, 0046 and 0049) to BB-06, the write-off of SCN-0052; amounts unchanged.
 *Rule:* a write-off recovery must name the write-off it reverses, give a reason and carry the opposite sign; the net of the write-off and everything under it stays between zero and the amount written off, at every date. Sources: -22 W3; review rounds 2 and 3 (the cap on the whole tree, at every date and instant); Kyle 10-15 (R-02: reversals against an entry total at most the entry).
 
-**Given** BB-02 moved out owing $120.00. Bluebonnet writes it off on Dec 31, 2026: a write-off entry of −$120.00.
+**Given** SCN-0052 (d): BB-06 (**invented**) moved out owing $120.00 on its Sep 15, 2026 final bill, with no deposit left. Bluebonnet writes it off on Jan 13, 2027: a write-off entry of −$120.00, naming the final bill.
 
 **When**
-- (a) on Mar 3, 2027, BB-02 pays $50.00 through a collection agency, and the clerk records a recovery of +$50.00 naming the write-off;
+- (a) on Mar 3, 2027, BB-06 pays $50.00 through a collection agency, and the clerk records a recovery of +$50.00 naming the write-off;
 - (b) on Apr 8, 2027, a second recovery of +$80.00 is entered;
 - (c) the Mar 3 recovery is found to have been entered in error and is reversed.
 
 **Then**
 - (a) accepted. The account's balance is the $50.00 recovery less the $50.00 payment: $0.00. $70.00 remains written off.
 - (b) refused: it would recover $130.00 of a $120.00 write-off.
-- (c) after the reversal, the full $120.00 is written off again, and a recovery of up to $120.00 may be entered. The $50.00 payment still stands, so BB-02 now shows a **$50.00 credit** until the recovery is re-entered correctly or the payment is dealt with.
+- (c) after the reversal, the full $120.00 is written off again, and a recovery of up to $120.00 may be entered. The $50.00 payment still stands, so BB-06 now shows a **$50.00 credit** until the recovery is re-entered correctly or the payment is dealt with.
 - A recovery naming no write-off, or another customer's, is refused.
 
 ---

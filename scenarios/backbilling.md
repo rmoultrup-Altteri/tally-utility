@@ -161,7 +161,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(a′)** Refunded for every bill on the platform on this meter, January – June 14: **$28.00**. No window cuts it, and nothing waits on Bluebonnet stating a rule. The rules refuse an evaluation with no start (a2-rules §5.1), so the start is taken as the first bill on the platform: this stream's reading of "as far back as the records show".
 - **(b)** Given also the delegated law row for city-owned systems ("the city sets its own standard"; to be written with the tariff table), the same periods as SCN-0013 are billed (Bluebonnet's own amounts, at its own rates). The record cites Bluebonnet's tariff record and the delegated row, not the Texas rule.
 - Onboarding asks each city whether its ordinance states a backbilling rule; the default stands until it records one.
-- **Open (Kyle, next batch):** in (a), is the six-month default counted back from the test, as Texas's is, and is it also cut short by an earlier test? Does a charge under it need the supervisor's approval when the window reaches before the city went live (SCN-0013)? Written here as counted from the test, with no earlier test on record. And in (a′), does "as far back as the records show" reach the city's records from before it went live (December 2025 and earlier), held until they are loaded as SCN-0039 does, or only the bills on the platform?
+- **Open (Kyle, sent 2026-11-05):** in (a), is the six-month default counted back from the test, as Texas's is, and is it also cut short by an earlier test? Does a charge under it need the supervisor's approval when the window reaches before the city went live (SCN-0013)? Written here as counted from the test, with no earlier test on record. And in (a′), does "as far back as the records show" reach the city's records from before it went live (December 2025 and earlier), held until they are loaded as SCN-0039 does, or only the bills on the platform?
 
 ---
 
@@ -213,7 +213,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - No supervisor approval: the three-month window has no last-test term, so a weak test history cannot move it (the build's reading; Kyle's ruling R-36 names no cause, a2-rules D3).
 - The record names the estimation basis: the same customer's like-period use at the same premise.
 - How the charge reaches a bill is not ruled for this cause (OQ-1); the scenario tests the periods admitted, not the delivery.
-- **Open (Kyle, next batch):** §7.45(7)(B)(v)(II) counts three months back from when the meter "is found not to be registering". Is that the test (Jun 15, as built) or the day it was first noticed, say a reader's May 5 report of no movement (**invented**)? From May 5 the window would start Feb 5: February ($3.00) would be given up whole and March billed whole. And does R-36's approval apply to this cause on a meter with no test history?
+- **Open (Kyle, sent 2026-11-05):** §7.45(7)(B)(v)(II) counts three months back from when the meter "is found not to be registering". Is that the test (Jun 15, as built) or the day it was first noticed, say a reader's May 5 report of no movement (**invented**)? From May 5 the window would start Feb 5: February ($3.00) would be given up whole and March billed whole. And does R-36's approval apply to this cause on a meter with no test history?
 
 ---
 
@@ -244,7 +244,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(b)** Refused: the law sends the unprotected class to Gulf Plains' tariff, and no tariff record states a rule. The refusal names what is missing.
 - **(c)** The window is the claimed start, Oct 1, 2025, earlier than the protected class's Dec 15, so the period set starts there. Every period from October is billed, December whole: **$4,350.00**. No approval: the rule has no last-test term for a weak history to move. The record cites Gulf Plains' tariff record, the delegating row and the field report.
 - As (c) with no claimed start: refused, since the tariff's only bound is the claimed start.
-- **Open (Kyle, next batch):** in (c), does ordinary limitations law cap how far back the charge reaches, and how far may collection (disconnection) pursue it? The delegating row claims nothing on either.
+- **Open (Kyle, sent 2026-11-05):** in (c), does ordinary limitations law cap how far back the charge reaches, and how far may collection (disconnection) pursue it? The delegating row claims nothing on either.
 
 ---
 
@@ -350,7 +350,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **Reading A (what can ground a disconnection first, across bills):** the $28.00 pays August's gas. Left: $14.00 of August (disconnectable) and July's $28.00 backbilling line (never). What may ground a disconnection: **$14.00**.
 - **Reading B (oldest bill first):** the $28.00 pays July's backbilling line. Left: August's $42.00, all disconnectable.
 - Under reading A, the aging (all $42.00 at 26 days) and what is actually unpaid ($28.00 at 57 days, $14.00 at 26) disagree; a test must assert each against its own rule.
-- **Open (Kyle, next batch):** across two bills, does a partial payment go first to what can ground a disconnection (A, "protect the customer"), or to the oldest bill (B)?
+- **Open (Kyle, sent 2026-11-05):** across two bills, does a partial payment go first to what can ground a disconnection (A, "protect the customer"), or to the oldest bill (B)?
 
 ---
 

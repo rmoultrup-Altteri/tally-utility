@@ -59,7 +59,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 - **(c)** Late from Dec 2: the penalty of $6.58 posts after Dec 1, as for any customer. The delay applies only on request.
 - **(d)** The November bill is due Dec 11 as in (a); the December bill is due 15 days after issue, as for any customer, unless BB-04 asks again.
 - The request, its scope (one bill or every later one) and the proof of age are on record; each bill shows the delayed due date.
-- **Open (Kyle):** (1) Does chapter 182 bind city systems, as read on 10-18? (2) Confirm: §182.005's three conditions are joined by "and", and the third (regulated under Title 2, electricity and telecoms) never fits a gas utility, so the exclusion never reaches one. (3) Pecan Flat's bills are due on the 1st and service is cut off on the 10th. If its bill goes out late in the month before, the 25th day comes after the cut-off date. Does the delay hold back the cut-off too? (4) Does the delay also make a payment on time for a deposit refund's late-payment limit, or only free it of the penalty?
+- **Open (Kyle, sent 2026-11-05):** (1) Does chapter 182 bind city systems, as read on 10-18? (2) Confirm: §182.005's three conditions are joined by "and", and the third (regulated under Title 2, electricity and telecoms) never fits a gas utility, so the exclusion never reaches one. (3) Pecan Flat's bills are due on the 1st and service is cut off on the 10th. If its bill goes out late in the month before, the 25th day comes after the cut-off date. Does the delay hold back the cut-off too? (4) Does the delay also make a payment on time for a deposit refund's late-payment limit, or only free it of the penalty?
 
 ---
 
@@ -78,7 +78,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 **Then**
 - The penalty is on the whole amount due, not the current bill only. Two readings, open with Kyle: **$22.53** (10% × $225.30, the earlier penalty included) or **$21.58** (10% × $215.80, the earlier penalty left out). The platform default would have given $12.08 (10% × $120.80).
 - The penalty names the bills it was assessed on.
-- **Open (Kyle, next batch):** Pecan Flat's "10% of the amount due": does the amount due include an earlier penalty? Answer 3's default never charges a penalty on a penalty, but this is the tariff's own wording.
+- **Open (Kyle, sent 2026-11-05):** Pecan Flat's "10% of the amount due": does the amount due include an earlier penalty? Answer 3's default never charges a penalty on a penalty, but this is the tariff's own wording.
 
 ---
 
@@ -99,7 +99,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 - **(b)** Refused: the fee may not be billed before Bluebonnet paid it (Mar 1).
 - **(c)** Refused: the fee is billed once for the year.
 - **(d)** No fee line on any bill.
-- **Open (Kyle, next batch):** is a county (or a school district, or the college) outside §8.201's state-agency exemption, as written here?
+- **Open (Kyle, sent 2026-11-05):** is a county (or a school district, or the college) outside §8.201's state-agency exemption, as written here?
 
 ---
 

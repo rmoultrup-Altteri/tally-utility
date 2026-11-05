@@ -104,7 +104,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Then**
 - **(a)** The deposit is **$40.00**, category senior, law class residential, citing Pecan Flat's tariff record.
 - **(b)** The deposit is **$100.00**, category residential. Once PF-02 provides a date of birth, the senior category applies to the deposit from then on.
-- **Open (Kyle, next batch):** when the date of birth arrives after a $100.00 deposit was paid, is $60.00 returned, and when? Pecan Flat's tariff makes no refund while service continues (`cast.md` §1, invented), and answer 16 rules only the amount at the start.
+- **Open (Kyle, sent 2026-11-05):** when the date of birth arrives after a $100.00 deposit was paid, is $60.00 returned, and when? Pecan Flat's tariff makes no refund while service continues (`cast.md` §1, invented), and answer 16 rules only the amount at the start.
 
 ---
 
@@ -239,7 +239,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Then**
 - On Jan 5, 2027 no due record is written: a returned check falls in the last twelve months.
 - On **Aug 11, 2027**, the first day the returned check is more than twelve months old, the due record is written, citing the clean months. The next bill carries the $250.00 credit, unless BB-02 asks for a check.
-- **Open (Kyle, next batch):** is a returned check counted over the same rolling twelve months as the late penalties, or does it disqualify the refund for the whole time the deposit is held?
+- **Open (Kyle, sent 2026-11-05):** is a returned check counted over the same rolling twelve months as the late penalties, or does it disqualify the refund for the whole time the deposit is held?
 
 ---
 
@@ -257,7 +257,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 - The January bill is paid by the deposit credit: $250.00 − $61.40 leaves a credit of **$188.60**, shown to BB-02 as one figure.
 - The February bill is paid from it: the credit is then **$130.40**.
 - The deposit shows $250.00 returned on Jan 15, 2027, by bill credit; it does not reappear as held.
-- **Open (Kyle, next batch):** (1) Answer 13 offers a bill credit or, if the customer asks, a check. Once the $250.00 is credited, can BB-02 later ask for what is left by check, and is that still a deposit refund (no minimum refund amount) or an ordinary credit refund? (2) If a bill falls past due between the Jan 5 decision and the Jan 15 credit, does the return still stand (deposit rules K6)?
+- **Open (Kyle, sent 2026-11-05):** (1) Answer 13 offers a bill credit or, if the customer asks, a check. Once the $250.00 is credited, can BB-02 later ask for what is left by check, and is that still a deposit refund (no minimum refund amount) or an ordinary credit refund? (2) If a bill falls past due between the Jan 5 decision and the Jan 15 credit, does the return still stand (deposit rules K6)?
 
 ---
 
