@@ -6,6 +6,22 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-05 (scenarios) — four rulings from Ryan; Kyle's batch 2 folded in; tenant isolation and date-tracking families (SCN-0060 – 0079), reviewed by Opus and Fable
+
+**What was done:**
+- **Ryan's rulings:** R-20 (a backbill outside Texas's protected class is refused until the tariff states a rule); R-21 (Tally may impersonate a utility's users on its own decision, recorded by the database with a required reason; plain Tally access read-only); R-12 (all 273 single-column foreign keys between tenant tables become two-column keys with `tenant_id`, counted on `tally` today); R-22 (one recorded instant per billing run, fixed at its start). Each in the DECISION-LOG and the roadmap.
+- **K-13 drafted and sent** (20 questions); **Kyle answered the same day** (GBM `kyle-decisions-2026-11-05-scenario-batch-2.md`), folded into 14 scenarios and the cast: penalties re-assessed on the lower amount after our error, the hidden extra to the next bill, base = tariff-priced lines with tax as a forfeited discount ($6.59 on the reference bill), never compounding, reversed penalties never count; deposit correction for late proof of age, credited deposit is ordinary credit; silent-city backbilling anchors, pre-go-live approval with the legacy record, refunds in two parts, "found" = confirmed, four-year backstop, keying-error rebill limits, two-tier payment order; no per-target override for gas; ch. 182 at city systems, PSF exemption by flag. Logged in GBM (Section BY; Kyle's push added none). Board notes to money and rates.
+- SCN-0026's write-off moved to BB-06 (SCN-0052's former customer).
+- **Two new families:** tenant isolation (SCN-0060 – 0068) and date-tracking and immutability (0069 – 0079, with 0078 dated meter factors and 0079 dry runs added from review).
+- **Review round 3** (`scenarios/review/2026-11-05/`): Opus 18 findings (7 must fix), Fable 12 (2 must fix), all verified and applied: priced-at date is the period end; a rebill always sits on a correction run (dated correction under R-22); shared data stays readable to a switched-off session; -29 is mirrored; run outcomes, run reopening, a second bill from an estimate and a failed-import retry are not built (tests expected to fail); a city never reads the Texas row; test-ready wording where the database changes nothing instead of refusing. Codex did not run (usage limit).
+- Dashboard's decision queue refreshed (R-12, R-20 – R-24, K-13, K-14).
+
+**Decisions:** DECISION-LOG 2026-11-05 (scenarios): R-20, R-21, R-12, R-22 (with its correction), Kyle's batch 2.
+
+**Failed approaches:** claiming built behaviour from a patch's intent rather than its guards (SCN-0067's run outcomes, SCN-0066's retry); taking the issue date as a bill's priced-at date; writing that a rebill can sit outside a run (it reached the R-22 decision-log entry before review caught it).
+
+**Next:** Ryan on R-23 (who provisions and restores a utility's supervisors under read-only Tally staff; recommended: a user-administration exception, recorded with a reason) and Codex for round 3 (retry or waive); then R-24 and Kyle's flags; draft K-14; weather normalization.
+
 ## 2026-11-05 (money) — v5.4.2-27 designed, built and reviewed twice; Ryan's two calls; round 3 planned
 
 **What was done:**
