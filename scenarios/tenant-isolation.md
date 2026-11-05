@@ -103,8 +103,8 @@ One utility never sees or changes another's records; shared platform data is rea
 
 ### SCN-0064 — A record of one utility cannot point at another utility's record
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. **Not fully built.** Where a link is checked today: a refund or a bounced-payment replacement names a payment of the same utility and customer (v5.4.2-19, CI-055). Across the schema, 267 links between utility tables are single-column and not tied to the utility, and the database's own link check does not apply the isolation rule, so case (b) is accepted today (the board's rates → money note of 2026-11-04, from -28 r2). The fix (CI-116's cross-tenant link fix) runs last, alone, after both schema streams finish (the board). Whether every link proves its utility, or only the ones that carry weight, is Ryan's open question R-12.
-*Rule:* a link from one record to another is only ever to a record of the same utility (and, where the link means it, the same customer). A link to another utility's record is refused, whoever asks. Sources: CI-116; the board ("After both schema streams finish"); R-12 (open).
+*Status:* draft (2026-11-05), not yet sent to Kyle. **Not fully built.** Where a link is checked today: a refund or a bounced-payment replacement names a payment of the same utility and customer (v5.4.2-19, CI-055). Across the schema, 273 links (counted 2026-11-05) between utility tables are single-column and not tied to the utility, and the database's own link check does not apply the isolation rule, so case (b) is accepted today (the board's rates → money note of 2026-11-04, from -28 r2). The fix (CI-116's cross-tenant link fix) runs last, alone, after both schema streams finish (the board). Ryan ruled 2026-11-05 that every link proves its utility (R-12, DECISION-LOG).
+*Rule:* a link from one record to another is only ever to a record of the same utility (and, where the link means it, the same customer). A link to another utility's record is refused, whoever asks. Sources: CI-116; the board ("After both schema streams finish"); Ryan 11-05 (R-12: every link, option 1).
 
 **Given** Pecan Flat's consolidated (summary) bill **PF-S1 (invented)**, a draft; Pecan Flat's payment **PF-P1 (invented)**; BB-clerk knows both internal ids (say, from a misdirected export).
 
@@ -117,7 +117,6 @@ One utility never sees or changes another's records; shared platform data is rea
 - (a) Refused today: a refund must cite a payment of the same utility and customer.
 - (b) and (c) Refused, under the rule. **Today (b) is accepted** (the gap above); (c) is the same kind of link (the decision log flagged it for readings). A test for (b) and (c) is written now and expected to fail until the fix mirrors.
 - Each refusal names the link, not the other utility's record, so it reveals nothing of Pecan Flat's data (SCN-0061).
-- **Open (Ryan):** R-12, whether every link between tables must prove both ends are the same utility (267 links), or only the ones that carry weight. This scenario is written to "every link".
 
 ---
 

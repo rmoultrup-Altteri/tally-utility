@@ -53,7 +53,7 @@ A patch joins the queue when it is frozen for review. Before mirroring, re-run i
 
 ## After both schema streams finish
 
-Two patches touch nearly every table and run last, alone: the cross-tenant link fix (CI-116, 267 single-column foreign keys) and Kyle's version check on every edited record (K-01). Then the final parity re-grade.
+Two patches touch nearly every table and run last, alone: the cross-tenant link fix (CI-116; Ryan 2026-11-05, R-12: every one of the 273 single-column foreign keys between tenant tables becomes a two-column key with `tenant_id`, counted on `tally` that day; DECISION-LOG) and Kyle's version check on every edited record (K-01). Then the final parity re-grade.
 
 ## When the schema reaches parity
 
