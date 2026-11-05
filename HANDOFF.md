@@ -7,7 +7,7 @@
 | Folder | Stream | Handoff file | Owns |
 |---|---|---|---|
 | `~/code/tally-utility` | schema: money and collections | `handoffs/schema-money.md` | payments, credits, the ledger, invoices and their applications, deposits, disputes, collections and dunning, `service_orders`, program enrollments, notices and the communication log |
-| `~/code/tally-utility-rates` | schema: rates, meters, places | `handoffs/schema-rates.md` | rate schedules, items and versions, riders, tax and franchise rules, gas cost and PGA, places and jurisdictions, zones and factor tables, meters, `meter_readings`, `meter_deployments`, `service_locations`, backbilling rules |
+| `~/code/tally-utility-rates` | schema: rates, meters, places | `handoffs/schema-rates.md` | rate schedules, items and versions, riders, tax and franchise rules, gas cost and PGA, places and jurisdictions, zones and factor tables, meters, `meter_readings`, `meter_deployments`, `service_locations`, backbilling rules; for -30: `tax_levies` (new), `customer_tax_exemptions`, the tax-exempt columns of `customers`, the `is_state_agency` attribute's basis |
 | `~/code/tally-utility-scenarios` | scenarios and test strategy (P2), beside the schema (gate relaxed 2026-10-29) | `handoffs/scenarios.md` | no schema files; `scenarios/` (Ryan, 2026-11-02) and `application/scenarios-source-inventory-2026-11-02/` |
 
 A table not listed belongs to whichever stream touches it first; add it here when you do. A patch that needs another stream's table leaves a note below rather than editing it.
@@ -34,9 +34,10 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting): r1 reviewed 2026-11-05 (Codex, Opus not yet; Fable ready); **r2 frozen 2026-11-05, under review** (Opus, Fable, Codex): the return check reads from the first repayment, Ryan's carry of an undo off an escheated credit (`shortfall_reissue`), deposit and refund targets refused; battery 116, races 16, mutations 58/58; -23's 409 and 51 pass with it; ci.sh 55/55; in `ci.sh` PENDING after -26 |
 | -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only. **Mirrored 2026-11-05** (Ryan; Opus, Fable and Codex ready on r3). Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
+| -30 | rates | tax rows keyed to places (the utility's levies, the Comptroller's rates as reference), required taxability, each charge's base memberships (sales tax, late-penalty base), exemptions per service type, rates in percent, places read as known at a past instant, the size-tier defect on rate items, the old customer exempt flag retired, a state-agency setting's basis (`application/rates-build-2026-11-05/tax-design.md`). Tests first; not drafted |
 | -28 | rates | small fixes: state-agency time zone (CI-010), dated rider order (CI-101), four-decimal rates (CI-109). **Mirrored 2026-11-04** (Ryan; ahead of -23/-25/-26). The meter test fee (CI-091) moved to its own patch after dated history |
 
-**Next free: -30.**
+**Next free: -31.**
 
 ## Mirror queue
 
