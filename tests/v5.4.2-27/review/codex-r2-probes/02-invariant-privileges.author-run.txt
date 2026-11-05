@@ -1,0 +1,17 @@
+BEGIN
+SAVEPOINT
+REVOKE
+DO
+ROLLBACK
+psql:<stdin>:17: NOTICE:  S1 missing INSERT caught: SQLSTATE=0LP01 message=shortfall_applications: tally_app may only SELECT and INSERT it, tally_core only read it, PUBLIC nothing (add-only; v5.4.2-27)
+SAVEPOINT
+REVOKE
+psql:<stdin>:28: NOTICE:  S1 missing core SELECT caught: SQLSTATE=0LP01 message=shortfall_applications: tally_app may only SELECT and INSERT it, tally_core only read it, PUBLIC nothing (add-only; v5.4.2-27)
+DO
+ROLLBACK
+SAVEPOINT
+GRANT
+DO
+ROLLBACK
+psql:<stdin>:39: NOTICE:  S1 core REFERENCES caught: SQLSTATE=0LP01 message=shortfall_applications: tally_app may only SELECT and INSERT it, tally_core only read it, PUBLIC nothing (add-only; v5.4.2-27)
+ROLLBACK
