@@ -1,0 +1,200 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+ALTER TABLE
+DELETE 252
+ALTER TABLE
+ALTER TABLE
+DELETE 252
+ALTER TABLE
+CREATE FUNCTION
+CREATE TABLE
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:511: NOTICE:  wrong name caught SQLSTATE=P0001 message=v5.4.2-29: county 48453 is already present on 1900-01-01 as Travis Co. (zone America/Chicago), not as the load has it (Travis County, America/Chicago); the load does not overwrite a place
+psql:/tmp/probe.sql:511: NOTICE:  PASS wrong name (expected refusal)
+psql:/tmp/probe.sql:512: NOTICE:  PASS wrong name: atomic refusal
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:517: NOTICE:  wrong zone caught SQLSTATE=P0001 message=v5.4.2-29: county 48453 is already present on 1900-01-01 as Travis County (zone America/Denver), not as the load has it (Travis County, America/Chicago); the load does not overwrite a place
+psql:/tmp/probe.sql:517: NOTICE:  PASS wrong zone (expected refusal)
+psql:/tmp/probe.sql:518: NOTICE:  PASS wrong zone: atomic refusal
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:523: NOTICE:  missing zone caught SQLSTATE=P0001 message=v5.4.2-29: county 48453 is already present on 1900-01-01 as Travis County (zone none), not as the load has it (Travis County, America/Chicago); the load does not overwrite a place
+psql:/tmp/probe.sql:523: NOTICE:  PASS missing zone (expected refusal)
+psql:/tmp/probe.sql:524: NOTICE:  PASS missing zone: atomic refusal
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:529: NOTICE:  later-only code caught SQLSTATE=P0001 message=v5.4.2-29: county 48453 has 1 row(s), none in force on 1900-01-01; the load does not overwrite or backdate a place
+psql:/tmp/probe.sql:529: NOTICE:  PASS later-only code (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:530: NOTICE:  PASS later-only code: atomic refusal
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:536: NOTICE:  closed-list guard caught SQLSTATE=P0001 message=v5.4.2-29 postcondition: county 48990 is not on the Census list
+psql:/tmp/probe.sql:536: NOTICE:  PASS closed-list guard (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:537: NOTICE:  PASS closed-list atomic refusal
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:545: NOTICE:  N6 diagnostic removed caught SQLSTATE=P0001 message=v5.4.2-29 postcondition: county 48453 (Travis County) is missing, misnamed or misparented on 1900-01-01
+psql:/tmp/probe.sql:545: NOTICE:  PASS N6 diagnostic removed (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:548: NOTICE:  v5.4.2-29: 251 counties loaded, 3 already present
+psql:/tmp/probe.sql:548: NOTICE:  PASS N14 actually admitted (accepted)
+ROLLBACK
+SAVEPOINT
+ plant 
+-------
+ 
+(1 row)
+
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:553: NOTICE:  N7 diagnostic removed caught SQLSTATE=P0001 message=v5.4.2-29 postcondition: county 48453 has no time_zone fact of America/Chicago in force on 1900-01-01
+psql:/tmp/probe.sql:553: NOTICE:  PASS N7 diagnostic removed (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:555: NOTICE:  v5.4.2-29: 251 counties loaded, 3 already present
+psql:/tmp/probe.sql:555: NOTICE:  PASS N15 actually admitted (accepted)
+ROLLBACK
+DO
+GRANT
+SET
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:562: NOTICE:  app role insert path caught SQLSTATE=42501 message=permission denied for table places
+psql:/tmp/probe.sql:562: NOTICE:  PASS app role insert path (expected refusal)
+RESET
+SET
+psql:/tmp/probe.sql:565: NOTICE:  core role insert path caught SQLSTATE=42501 message=permission denied for table places
+psql:/tmp/probe.sql:565: NOTICE:  PASS core role insert path (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+RESET
+ plant 
+-------
+ 
+(1 row)
+
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:568: NOTICE:  v5.4.2-29: 251 counties loaded, 3 already present
+psql:/tmp/probe.sql:568: NOTICE:  PASS matching partial load completes (accepted)
+ check_it 
+----------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:569: NOTICE:  PASS partial load ends at 254 counties
+ROLLBACK

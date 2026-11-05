@@ -1,0 +1,36 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+psql:/tmp/probe.sql:518: NOTICE:  SETUP PASS: state, children and facts closed and succeeded with all guards enabled
+SELECT 1
+psql:/tmp/probe.sql:521: NOTICE:  B1 frozen r2 refuses valid state succession caught SQLSTATE=P0001 message=v5.4.2-29 precondition: no open Texas state place in force from 1900-01-01
+psql:/tmp/probe.sql:521: NOTICE:  PASS B1 frozen r2 refuses valid state succession (expected refusal)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:522: NOTICE:  PASS refusal preserves places and facts
+ check_it 
+----------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:527: NOTICE:  v5.4.2-29: 0 counties loaded, 254 already present
+psql:/tmp/probe.sql:527: NOTICE:  PASS B1 control: historical state lookup (accepted)
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:528: NOTICE:  PASS control no-op
+ check_it 
+----------
+ 
+(1 row)
+
+ROLLBACK

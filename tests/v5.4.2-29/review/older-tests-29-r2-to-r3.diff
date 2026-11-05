@@ -1,0 +1,17 @@
+diff --git a/tests/ci.sh b/tests/ci.sh
+index 42477fb..854ff47 100755
+--- a/tests/ci.sh
++++ b/tests/ci.sh
+@@ -165,7 +165,11 @@ cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
+ step "source check v5.4.2-29" tests/v5.4.2-29/source-check-29.sh
+ # The load's rules act when it applies, on a base without the counties: run
+ # only while -29 is pending (after the mirror, restore a pre-29 base to run it).
+-if [ "$(q tally -c "SELECT $P29_PENDING")" = "t" ]; then
++# The marker is checked as at the pending list: an answer other than t or f
++# stops the run, it never skips the step (r3; review r2, Codex S2).
++p29=$(q tally -c "SELECT $P29_PENDING" 2>&1)
++case $p29 in t|f) ;; *) echo "SETUP FAIL: the -29 pending marker did not answer: $p29"; exit 2 ;; esac
++if [ "$p29" = "t" ]; then
+   step "load rules v5.4.2-29" tests/v5.4.2-29/reapply-29.sh
+ fi
+ cstep ci_r22 "races and recorded time v5.4.2-22" tests/v5.4.2-22/races/close-22.sh ci_r22

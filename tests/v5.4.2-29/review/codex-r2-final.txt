@@ -1,0 +1,7 @@
+Verdict: **not yet**.
+
+- **B1 — predicted:** Reapply fails after Texas is closed and succeeded because the state lookup still requires an open row.
+
+All frozen MD5s match; source checks pass 5/5. Five rollback-only probes are provided, unexecuted.
+
+Full review: [codex-r2.md](/Users/ryanscomputer/code/tally-utility-rates/tests/v5.4.2-29/review/codex-r2.md).

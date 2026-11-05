@@ -1,6 +1,6 @@
 -- ============================================================================
 -- PATCH v5.4.2-29 — every Texas county and its time zone, loaded once as
---                    shared place data (r2, 2026-11-04)
+--                    shared place data (r3, 2026-11-05)
 -- ============================================================================
 -- Authority:   Ryan, 2026-11-04 (DECISION-LOG, the -28 r2 entry: "counties
 --              and time zones rarely change; load them once for every
@@ -44,9 +44,13 @@
 --     list's zone, Mountain exactly for 48141 and 48229. Anything else
 --     refuses.
 --   * Re-applying is a no-op, also after a later migration corrects a
---     county (closes it or its zone fact and adds a successor) or adds a
---     county from a later date: what was in force on 1900-01-01 does not
---     change.
+--     county (closes it or its zone fact and adds a successor), closes one
+--     without a successor, adds a county from a later date, or replaces
+--     Texas itself (closes the state and adds a successor; r3): what was in
+--     force on 1900-01-01 does not change. Texas, like each county, is the
+--     row in force that day (r3; review r2, Codex B1: r2 still asked for an
+--     open state). A county the load must insert goes under that row; if it
+--     has since closed, the existing parent rule refuses the insert.
 --   * Runs as the owner (tally_app cannot write places), under READ
 --     COMMITTED.
 --   * The in-loop comparison names the county that differs (the diagnostic
@@ -103,10 +107,10 @@ BEGIN
         RAISE EXCEPTION 'v5.4.2-29: run under READ COMMITTED (got %)', current_setting('transaction_isolation');
     END IF;
     SELECT p.id INTO v_tx FROM public.places p
-     WHERE p.kind_code = 'state' AND p.state_code = 'TX' AND p.place_code = 'TX' AND p.effective_to IS NULL
-       AND p.effective_from <= c_from;
+     WHERE p.kind_code = 'state' AND p.state_code = 'TX' AND p.place_code = 'TX'
+       AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
     IF v_tx IS NULL THEN
-        RAISE EXCEPTION 'v5.4.2-29 precondition: no open Texas state place in force from %', c_from;
+        RAISE EXCEPTION 'v5.4.2-29 precondition: no Texas state place in force on %', c_from;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM public.place_kinds WHERE kind_code = 'county' AND code_pattern = '^[0-9]{5}$')
        OR NOT EXISTS (SELECT 1 FROM public.place_fact_kinds WHERE fact_code = 'time_zone' AND 'county' = ANY (place_kinds)) THEN

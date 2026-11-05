@@ -1,0 +1,14 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+ run_sql 
+---------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:488: NOTICE:  isolation refusal caught SQLSTATE=P0001 message=v5.4.2-29: run under READ COMMITTED (got serializable)
+psql:/tmp/probe.sql:488: NOTICE:  PASS isolation refusal (expected refusal)
+ROLLBACK

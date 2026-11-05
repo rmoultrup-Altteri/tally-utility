@@ -3,7 +3,11 @@
 # must be caught where it names:
 #   a battery label (C1, Z2 …)   the mutated patch applies; battery-29 fails there
 #   APPLY:<fragment>             the mutated patch itself refuses, naming it
-#   RE:<case>                    reapply-29.sh, run on the mutated patch, fails that case
+#   RE:<case> [<how>]            reapply-29.sh, run on the mutated patch, fails that
+#                                case in that way: [admitted], [refused otherwise],
+#                                [refused] or [changed] (r3; review r2, Codex S1:
+#                                a case's label alone does not say whether the
+#                                mutated load applied or refused)
 #   SRC:<case>                   source-check-29.sh fails that case
 # A catch elsewhere fails the run. EXTRA: a JSON list of further [old, new]
 # edits, each matching exactly once.
@@ -11,7 +15,8 @@
 # differs (diagnostic), and the postcondition is the guard. A mutation of the
 # in-loop layer alone (N6-N8, N12) is caught by its message: the load still
 # refuses, through the postcondition. N14-N15 remove a comparison from both
-# layers, and the load is then admitted (r2; review r1, Opus S2).
+# layers, and the load is then admitted (r2; review r1, Opus S2): the runner
+# now requires [admitted] for them, and [refused otherwise] for N6-N8, N12.
 #   tests/v5.4.2-29/mutations-29.sh [patch]    (uses m29 and r29re; one run at a time)
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -35,7 +40,7 @@ open(sys.argv[4], "w").write(s)' "$P" "$3" "$4" "$TMP/m.sql"; then
     echo "SETUP $1: anchor not found exactly once"; fail=1; return
   fi
   case $exp in
-    RE:*)  got="RE:$(tests/v5.4.2-29/reapply-29.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL P[0-9]*' | cut -d' ' -f2)" ;;
+    RE:*)  got="RE:$(tests/v5.4.2-29/reapply-29.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL P[0-9a-z]* \[[a-z ]*\]' | cut -d' ' -f2-)" ;;
     SRC:*) got="SRC:$(tests/v5.4.2-29/source-check-29.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL S[0-9a-z]*' | cut -d' ' -f2)" ;;
     *)
       docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m29" -qc "CREATE DATABASE m29 TEMPLATE tally" >/dev/null 2>&1
@@ -75,40 +80,46 @@ mut "N5 a county misnamed" C1b \
   "('48201', 'Harris County'," "('48201', 'Haris County',"
 mut "N5b a county misnamed: the source check" SRC:S2b \
   "('48201', 'Harris County'," "('48201', 'Haris County',"
-mut "N6 a present county's name not compared" RE:P1 \
+mut "N6 a present county's name not compared" "RE:P1 [refused otherwise]" \
   "IF v_place.name IS DISTINCT FROM r.name OR v_zone" "IF false AND v_place.name IS DISTINCT FROM r.name OR v_zone"
-mut "N7 a present county's zone not compared" RE:P2 \
+mut "N7 a present county's zone not compared" "RE:P2 [refused otherwise]" \
   " OR v_zone IS DISTINCT FROM r.zone THEN" " THEN"
-mut "N8 a present county's missing zone read as agreeing" RE:P3 \
+mut "N8 a present county's missing zone read as agreeing" "RE:P3 [refused otherwise]" \
   "OR v_zone IS DISTINCT FROM r.zone THEN" "OR coalesce(v_zone, r.zone) IS DISTINCT FROM r.zone THEN"
-mut "N9 a county not on the list not refused" RE:P4 \
+mut "N9 a county not on the list not refused" "RE:P4 [admitted]" \
   "AND NOT EXISTS (SELECT 1 FROM p29_counties c WHERE c.fips = p.place_code)" "AND false"
-mut "N10 the isolation check gone" RE:P5 \
+mut "N10 the isolation check gone" "RE:P5 [admitted]" \
   "IF current_setting('transaction_isolation') <> 'read committed' THEN" "IF false THEN"
 mut "N11 a loaded county's zone dated from 1950" "APPLY:has no time_zone fact of America/Chicago in force on 1900-01-01" \
   "VALUES (v_place.id, 'time_zone', to_jsonb(r.zone), c_from," "VALUES (v_place.id, 'time_zone', to_jsonb(r.zone), DATE '1950-01-01',"
-mut "N12 a present county skipped without a look (always CONTINUE)" RE:P1 \
+mut "N12 a present county skipped without a look (always CONTINUE)" "RE:P1 [refused otherwise]" \
   "        IF FOUND THEN
 " "        IF FOUND THEN CONTINUE;
 "
 # every case fails under N13; the first is P1, because seeded El Paso (48141) is reloaded before Travis is reached
-mut "N13 a present county reloaded rather than skipped" RE:P1 \
+mut "N13 a present county reloaded rather than skipped" "RE:P1 [refused otherwise]" \
   "            CONTINUE;
         END IF;" "        END IF;"
 
 # r2 (review r1, Opus S2; Opus S1, Fable S1)
 EXTRA='[["AND p.name = c.name AND p.parent_place_id = v_tx)", "AND p.parent_place_id = v_tx)"]]' \
-mut "N14 a county's name compared in neither layer" RE:P1 \
+mut "N14 a county's name compared in neither layer" "RE:P1 [admitted]" \
   "IF v_place.name IS DISTINCT FROM r.name OR v_zone" "IF false AND v_place.name IS DISTINCT FROM r.name OR v_zone"
 EXTRA='[["AND f.value = to_jsonb(c.zone))", ")"]]' \
-mut "N15 a county's zone compared in neither layer" RE:P2 \
+mut "N15 a county's zone compared in neither layer" "RE:P2 [admitted]" \
   " OR v_zone IS DISTINCT FROM r.zone THEN" " THEN"
-mut "N16 a present county looked up as open today (r1), not as of 1900" RE:P8 \
+mut "N16 a present county looked up as open today (r1), not as of 1900" "RE:P8 [refused]" \
   "           AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
         IF FOUND THEN" "           AND p.effective_to IS NULL;
         IF FOUND THEN"
-mut "N17 a code with rows but none on 1900-01-01 not refused by the load" RE:P9 \
+mut "N17 a code with rows but none on 1900-01-01 not refused by the load" "RE:P9 [refused otherwise]" \
   "        IF v_nrows > 0 THEN" "        IF false THEN"
+
+# r3 (review r2, Codex B1)
+mut "N18 Texas looked up as open today (r2), not as of 1900" "RE:P10 [refused]" \
+  "       AND daterange(p.effective_from, p.effective_to, '[)') @> c_from;
+    IF v_tx IS NULL THEN" "       AND p.effective_to IS NULL AND p.effective_from <= c_from;
+    IF v_tx IS NULL THEN"
 
 echo "mutations-29: $caught of $n caught"
 [ $fail -eq 0 ] && [ $caught -eq $n ]
