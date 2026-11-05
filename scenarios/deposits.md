@@ -92,7 +92,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 ### SCN-0011 — A customer aged 65 or over pays the senior deposit
 
-*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; the missing-birth-date case settled (answer 16).
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; the missing-birth-date case settled (answer 16), and the late proof of age (answer 7 of 2026-11-05).
 *Rule:* a utility's own deposit category sets the amount; each category maps to one law class. A customer is placed in the senior category only on a date of birth on file. Sources: Kyle 11-03, answer 16; Pecan Flat's tariff (senior deposit borrowed from Sealy); deposit decision 5 (utility categories, Ryan 10-12).
 
 **Given**
@@ -103,8 +103,8 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 **Then**
 - **(a)** The deposit is **$40.00**, category senior, law class residential, citing Pecan Flat's tariff record.
-- **(b)** The deposit is **$100.00**, category residential. Once PF-02 provides a date of birth, the senior category applies to the deposit from then on.
-- **Open (Kyle, sent 2026-11-05):** when the date of birth arrives after a $100.00 deposit was paid, is $60.00 returned, and when? Pecan Flat's tariff makes no refund while service continues (`cast.md` §1, invented), and answer 16 rules only the amount at the start.
+- **(b)** The deposit is **$100.00**, category residential. When PF-02 later proves a date of birth, the $60.00 difference is returned right away, as a correction of the deposit, not a deposit refund: on the next bill as a credit, or by check if PF-02 asks. Pecan Flat's no-refund-while-service-continues rule does not apply to it (Kyle 11-05, answer 7). The deposit is then $40.00, category senior.
+- **Open (Kyle's flag 2, not ruled):** whether the proof is the same identity check as at sign-up, and whether the correction has a time limit. Not to be built until ruled.
 
 ---
 
@@ -229,7 +229,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 
 ### SCN-0045 — A returned check holds the deposit until it is a year old
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A9). The rolling window is this stream's reading of Kyle's answers 13 and 14 for returned checks (he ruled it for late penalties); confirming it goes to Kyle.
+*Status:* draft (2026-11-04). Reviewer gap (Opus, 2026-11-02, A9). The rolling window confirmed by Kyle 2026-11-05 (answer 6): a utility setting, by default the same rolling twelve months as late penalties, the tariff governing where it speaks. The setting is not built. Dates not yet checked by Kyle.
 *Rule:* Bluebonnet refunds a deposit after twelve consecutive months of good payment; a returned check breaks that run. Sources: Bluebonnet's tariff (`cast.md` §2: no returned checks); Kyle 11-03, answers 13 and 14.
 
 **Given** SCN-0007 (a), except that BB-02's check for the July bill comes back unpaid on **Aug 10, 2026** (**invented**), and is made good on Aug 12. No other returned check; two late penalties, as SCN-0007; no bill past due from then on.
@@ -239,13 +239,14 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Then**
 - On Jan 5, 2027 no due record is written: a returned check falls in the last twelve months.
 - On **Aug 11, 2027**, the first day the returned check is more than twelve months old, the due record is written, citing the clean months. The next bill carries the $250.00 credit, unless BB-02 asks for a check.
-- **Open (Kyle, sent 2026-11-05):** is a returned check counted over the same rolling twelve months as the late penalties, or does it disqualify the refund for the whole time the deposit is held?
+- The window is Bluebonnet's setting, here the default; a tariff that states its own window governs (Kyle 11-05, answer 6).
+- **Open (Kyle's flag 2, not ruled):** whether a check returned for the bank's own error is left out of the count. Not to be built until ruled.
 
 ---
 
 ### SCN-0046 — A deposit credit larger than the next bill joins the customer's one credit balance
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A9). How credits are tracked belongs to the cash family (v5.4.2-23, in review).
+*Status:* draft (2026-11-04); its questions answered by Kyle 2026-11-05 (answers 8 and 9). Reviewer gap (Opus, 2026-11-02, A9). How credits are tracked belongs to the cash family (v5.4.2-23, mirrored); the credit-refund policy is a utility setting (CI-126).
 *Rule:* a deposit returned as a bill credit pays the next bill, and what is left joins the customer's credit, which is shown as one balance and applied to later bills; the customer may ask for a check instead. Sources: Kyle 11-03, answer 13; a customer's credits are one pot, shown as one net balance (Kyle 10-30).
 
 **Given** SCN-0007 (a): the $250.00 return falls due on Jan 5, 2027. BB-02's next bill, issued Jan 15, 2027, is **$61.40** (**invented**).
@@ -257,7 +258,8 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 - The January bill is paid by the deposit credit: $250.00 − $61.40 leaves a credit of **$188.60**, shown to BB-02 as one figure.
 - The February bill is paid from it: the credit is then **$130.40**.
 - The deposit shows $250.00 returned on Jan 15, 2027, by bill credit; it does not reappear as held.
-- **Open (Kyle, sent 2026-11-05):** (1) Answer 13 offers a bill credit or, if the customer asks, a check. Once the $250.00 is credited, can BB-02 later ask for what is left by check, and is that still a deposit refund (no minimum refund amount) or an ordinary credit refund? (2) If a bill falls past due between the Jan 5 decision and the Jan 15 credit, does the return still stand (deposit rules K6)?
+- Once credited, the deposit is ordinary account credit. If BB-02 later asks for the $130.40 by check, it is refunded under Bluebonnet's ordinary credit-refund policy (for example a minimum refund amount), not as a deposit refund (Kyle 11-05, answer 8).
+- Had a bill fallen past due between the Jan 5 decision and the Jan 15 credit, the return would still stand: eligibility is fixed on the decision date, and the credit pays the past-due bill first (one credit balance). Had BB-02 asked for a check, the past-due amount would be settled from the deposit first and the rest paid out (Kyle 11-05, answer 9).
 
 ---
 

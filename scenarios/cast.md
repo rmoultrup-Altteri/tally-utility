@@ -21,7 +21,7 @@ Modelled on **Stinnett** (fee schedule A7.000, ordinance 339-26 of 2/11/2026). A
 | Gas cost | the city's purchase price per Mcf, set monthly | Stinnett ("adjusted monthly as necessary") |
 | Inside / outside city | same rate | Stinnett (no split) |
 | Due | the 1st of the month | Stinnett |
-| Late penalty | 10% of the amount due if not paid in full by the 1st: the whole amount due, not the current bill only, because the tariff says so (Kyle 11-03, answer 3 and flag 2) | Stinnett |
+| Late penalty | 10% of the amount due if not paid in full by the 1st: the full amount owed, not the current bill only, because the tariff says so, but never on an earlier penalty, which never compounds (Kyle 11-03, answer 3 and flag 2; Kyle 11-05, answer 4: the utility's full-amount setting; Ryan to confirm, Kyle's flag 4) | Stinnett |
 | Cut-off | unpaid at 1:00 p.m. on the 10th: a $20 service charge is added and service is cut off | Stinnett |
 | Deposit | residential $100, commercial $200; an extra $125 after a second disconnection for nonpayment, as a top-up of the one deposit balance; the two disconnections are counted over a rolling 12 months; reconnection is not held for it, since the tariff doesn't say so (Kyle 11-03, answer 15) | Stinnett |
 | Deposit refund | not stated in the source. **(invented)** At move-out the deposit pays the final bill and the rest is returned; no refund while service continues | — |
@@ -59,7 +59,7 @@ Modelled on **Brenham** (tariff section 500, effective 10/1/2026). About **5,000
 | Minimum bill | the customer charge, every month, even while service is off for the summer | Brenham |
 | Due | 15 days after the bill is issued; a weekend or holiday due date moves to the next workday | Brenham |
 | When a payment counts as made | **the postmark for mail, the sent date for electronic payments (invented)**; the source is silent, and the method varies by place (CI-058) | — |
-| Late penalty | rates are "net"; the "gross" rate for a late payment is 10% higher, on the current bill only, charged once (the platform default where the tariff doesn't say otherwise; Kyle 11-03, answer 3) | Brenham |
+| Late penalty | rates are "net"; the "gross" rate for a late payment is 10% higher, on the current bill only, charged once (the platform default where the tariff doesn't say otherwise; Kyle 11-03, answer 3), on every tariff-priced line (customer charge, distribution, commodity, gas cost adjustment), never on a tax or state fee; as a forfeited prompt-payment discount it is taxed like the gas, so city sales tax applies inside the city (Kyle 11-05, answers 3a and 3b; a tax advisor confirms before go-live). No penalty while the customer's dispute of the bill is open (answer 1) | Brenham |
 | Delinquency | an unpaid bill on the due date makes all the customer's city services delinquent | Brenham (the platform bills gas only; see open questions) |
 | Deposit | homeowner $150; renter $250; landlord $300; commercial twice the highest monthly bill, at least $300 | Brenham |
 | Deposit refund | two routes only (Kyle 11-03, answer 13): (a) after 12 months with no returned checks, no disconnect notice, no more than two late penalties in a rolling 12 months (answer 14) and no bill past due, credited to future bills, or by check if the customer asks; (b) at disconnection, applied to what is owed and the rest refunded, the customer owing any shortfall. The source's "It is also refunded if no bill is past due" is a condition of route (a), not a third route | Brenham |

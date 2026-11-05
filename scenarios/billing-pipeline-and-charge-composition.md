@@ -43,30 +43,31 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 
 ### SCN-0048 — A customer 60 or over may ask for a later due date, and pays no penalty until it
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. That Utilities Code chapter 182 binds city gas systems is Ryan's reading of 10-18, put to Kyle and not yet answered. Reviewer gap (Opus, 2026-11-02, A8).
+*Status:* draft (2026-11-04); its questions answered by Kyle 2026-11-05 (answers 18 and 19): chapter 182 binds city gas systems, and §182.005's exclusion never reaches a gas utility. Figures not yet checked by Kyle. The delay is a standing per-account setting (not built). Reviewer gap (Opus, 2026-11-02, A8).
 *Rule:* on request from a customer aged 60 or over who is a residential customer and occupies the whole premises, a utility must delay a bill's payment date without penalty until the 25th day after the bill is issued, for the latest bill or for that bill and every later one; the utility may ask for proof of age. "Utility" includes one run by a public entity, so it reaches a city system. Sources: Tex. Util. Code §§182.001 (a "utility" is "an electric, gas, water, or telephone utility operated by a public or private entity"), 182.002, 182.003, 182.004, 182.005 (official text: https://statutes.capitol.texas.gov/Docs/UT/htm/UT.182.htm; read 2026-11-04 from a FindLaw copy stated current to Jan 1, 2026, and the reading confirmed by all three reviewers); Ryan 10-18 (for Kyle). The text is verified; that the platform applies it to city systems waits on Kyle.
 
 **Given**
 - Bluebonnet City Gas; **BB-04 (invented)**, aged 63, residential, the only occupant of the house, schedule R-U. Proof of age on file. On Nov 2, 2026 BB-04 asks for the delay on every bill from then on.
-- The reference November bill (`cancel-rebill.md`), issued Mon Nov 16, 2026, **$65.83**. Bluebonnet's ordinary due date is 15 days after issue, Tue Dec 1; the late penalty is 10% of the bill (the reading of SCN-0033, open with Kyle there).
+- The reference November bill (`cancel-rebill.md`), issued Mon Nov 16, 2026, **$65.83**. Bluebonnet's ordinary due date is 15 days after issue, Tue Dec 1; the late penalty is 10% of the tariff-priced lines ($65.18) with city sales tax on it: $6.52 + $0.07 = $6.59 (Kyle 11-05, answers 3a and 3b; SCN-0033).
 
 **When** BB-04 pays (a) on Tue Dec 8; (b) on Mon Dec 14; (c) as (a), but BB-04 had made no request; (d) as (a), but BB-04 asked for the delay on the November bill only.
 
 **Then**
 - BB-04's due date is the 25th day after issue: **Fri Dec 11, 2026**.
-- **(a)** On time: no penalty. This stream reads it as on time for anything else that counts late payments too, such as a deposit refund's limit (SCN-0007): open with Kyle, below.
-- **(b)** Late from Dec 12: a penalty of **$6.58** posts after Dec 11, not after Dec 1.
-- **(c)** Late from Dec 2: the penalty of $6.58 posts after Dec 1, as for any customer. The delay applies only on request.
+- **(a)** On time: no penalty. It is also on time for a deposit refund's late-payment limit (SCN-0007; Kyle 11-05, answer 19).
+- **(b)** Late from Dec 12: a penalty of **$6.59** posts after Dec 11, not after Dec 1.
+- **(c)** Late from Dec 2: the penalty of $6.59 posts after Dec 1, as for any customer. The delay applies only on request.
 - **(d)** The November bill is due Dec 11 as in (a); the December bill is due 15 days after issue, as for any customer, unless BB-04 asks again.
 - The request, its scope (one bill or every later one) and the proof of age are on record; each bill shows the delayed due date.
-- **Open (Kyle, sent 2026-11-05):** (1) Does chapter 182 bind city systems, as read on 10-18? (2) Confirm: §182.005's three conditions are joined by "and", and the third (regulated under Title 2, electricity and telecoms) never fits a gas utility, so the exclusion never reaches one. (3) Pecan Flat's bills are due on the 1st and service is cut off on the 10th. If its bill goes out late in the month before, the 25th day comes after the cut-off date. Does the delay hold back the cut-off too? (4) Does the delay also make a payment on time for a deposit refund's late-payment limit, or only free it of the penalty?
+- The delay is a standing setting on the account (the latest bill, or that bill and every later one), for a residential customer occupying the whole premises, and it takes effect only with proof of age on file (the same date-of-birth check as the senior deposit, SCN-0011; Kyle 11-05, answer 18). Without proof of age, BB-04's request is recorded and the bill keeps its ordinary due date.
+- **At Pecan Flat**, bills are due on the 1st and service is cut off on the 10th, a nine-day gap (`cast.md` §1). A delayed bill's cut-off moves the same nine days past the delayed due date: the 25th day after issue plus nine, **the 34th day** (Kyle 11-05, answer 19).
 
 ---
 
 ### SCN-0053 — Pecan Flat's late penalty is 10% of the whole amount due, because its tariff says so
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Opus 7, Fable 6). The late-penalty rules are dated rule data not yet built (R-11).
-*Rule:* where a city's tariff states the penalty's base, the tariff governs over the platform default (the current bill only). Pecan Flat charges 10% of the amount due if it is not paid in full by the 1st. Sources: Kyle 11-03, answer 3 and flag 2; Pecan Flat's tariff (`cast.md` §1, from Stinnett).
+*Status:* draft (2026-11-04); its question answered by Kyle 2026-11-05 (answer 4): penalties never compound, so the earlier penalty is left out. Review round 2 gap (Opus 7, Fable 6). The late-penalty rules are dated rule data not yet built (R-11), the base a utility setting (Kyle 11-05, answer 4).
+*Rule:* the platform default penalty base is the current bill only; a utility may set it to the full amount owed, excluding earlier penalties, and does where its tariff says so. Penalties never compound. Pecan Flat charges 10% of the amount due if it is not paid in full by the 1st, so it uses the full-amount setting. The base is never a tax or a state fee (Pecan Flat bills neither). Sources: Kyle 11-05, answers 3a and 4; Kyle 11-03, answer 3 and flag 2; Pecan Flat's tariff (`cast.md` §1, from Stinnett).
 
 **Given**
 - Pecan Flat; PF-01. Gas cost for the month $6.10 per Mcf (**invented**), so $15.10 per Mcf with the $9.00 rate.
@@ -76,15 +77,15 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 **When** nothing is paid by Mar 1.
 
 **Then**
-- The penalty is on the whole amount due, not the current bill only. Two readings, open with Kyle: **$22.53** (10% × $225.30, the earlier penalty included) or **$21.58** (10% × $215.80, the earlier penalty left out). The platform default would have given $12.08 (10% × $120.80).
+- The penalty is on the whole amount owed, without the earlier penalty: 10% × ($95.00 + $120.80 = $215.80) = **$21.58**. Not $22.53 (that would charge a penalty on a penalty), and not the platform default's $12.08 (10% × $120.80), which Pecan Flat's tariff overrides.
 - The penalty names the bills it was assessed on.
-- **Open (Kyle, sent 2026-11-05):** Pecan Flat's "10% of the amount due": does the amount due include an earlier penalty? Answer 3's default never charges a penalty on a penalty, but this is the tariff's own wording.
+- **Open (Ryan; Kyle's flag 4):** confirm that Pecan Flat's cast row sets the full-amount base (excluding earlier penalties), as the standing rule "follow the tariff" reads its wording.
 
 ---
 
 ### SCN-0054 — The pipeline safety fee: once, in the month the city passes it on, never to a state agency
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Opus 8, Codex 14). The state-agency check is the rates stream's v5.4.2-28 (in review). Treating a county as not a state agency is this stream's reading of §8.201: open.
+*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Opus 8, Codex 14). The state-agency check is the rates stream's v5.4.2-28 (mirrored); a customer is exempt only when flagged a state agency, and only a governmental customer may be (v5.4.2-07). Who is a state agency answered by Kyle 2026-11-05 (answer 20); the flag's documented basis and the prompt for a public college are not built.
 *Rule:* a city that passes the pipeline safety fee on bills it once, in the month it chooses, as a flat charge of at most $1.00 per service line, never before it has paid the fee to the Commission, and never to a state agency. A city that absorbs it never shows it. Sources: Kyle 11-03, answer 2; 16 TAC §8.201; `cast.md` §1–2.
 
 **Given**
@@ -95,11 +96,11 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 **When** (a) the March bills are issued on Mar 15, 2027; (b) a bill issued Feb 15, 2027 carries the fee; (c) a second fee is added to BB-01's April 2027 bill; (d) Pecan Flat's March bills are issued.
 
 **Then**
-- **(a)** BB-01's bill carries one line, pipeline safety fee **$1.00**, outside the sales tax base: with the reference bill's lines that is $65.83 + $1.00 = **$66.83**. BB-03's bill carries it too: a county is not a state agency. BB-07's carries none.
+- **(a)** BB-01's bill carries one line, pipeline safety fee **$1.00**, outside the sales tax base: with the reference bill's lines that is $65.83 + $1.00 = **$66.83**. BB-03's bill carries it too: a county is not a state agency (Kyle 11-05, answer 20). BB-07's carries none.
 - **(b)** Refused: the fee may not be billed before Bluebonnet paid it (Mar 1).
 - **(c)** Refused: the fee is billed once for the year.
 - **(d)** No fee line on any bill.
-- **Open (Kyle, sent 2026-11-05):** is a county (or a school district, or the college) outside §8.201's state-agency exemption, as written here?
+- Counties, school districts and private colleges are charged by default; a customer is exempt only when the operator flags it a state agency, with the documented basis on record (Kyle 11-05, answer 20). BB-07 carries the flag, citing its basis (**invented**: a lease with a state department). Setting up a **public** college or university prompts the operator to check whether it is a state agency, leaning toward exempt when unsure (Util. Code §101.003(15) and Gov't Code §572.002, limited by Nat. Res. Code §31.401(a)). Who counts as a state agency is with tariff counsel.
 
 ---
 

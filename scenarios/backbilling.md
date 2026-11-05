@@ -149,19 +149,18 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0019 — A city system's backbilling follows its own tariff, or a six-month default for charges while it is silent
 
-*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; case (a) reworked to his answer 8. Written against the ruling; the tariff table and the default row are not built.
-*Rule:* Texas's backbilling rule does not bind a city-owned system; the city sets its own standard as a tariff record, citing its ordinance. While it has none, a refund reaches back as far as the records show, and a charge reaches back six months by platform default; a period straddling the default's start is given up whole (one rule, answer 11). Sources: Kyle 11-03, answers 8 and 11; Utilities Code 101.003(7); the standing rule: a city system's policy is its own tariff row, and the platform default only where it is silent.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03; case (a) reworked to his answer 8, and its anchor, approval and pre-go-live reach to his answers 10–12 of 2026-11-05. Written against the ruling; the tariff table, the default row and the evidence-backed approval are not built.
+*Rule:* Texas's backbilling rule does not bind a city-owned system; the city sets its own standard as a tariff record, citing its ordinance. While it has none, a refund reaches back as far as the records show, and a charge reaches back six months by platform default, built like the Texas rule: for a faulty meter, counted back from the test that found it; for other causes, from the date the error was discovered; cut short by a passed test inside the window; a period straddling the start given up whole. A month before the city went live is charged or refunded only with a supervisor's approval and the city's own billing record for that month attached; with no record, it is neither. Sources: Kyle 11-05, answers 10, 11, 12; Kyle 11-03, answers 8 and 11; Utilities Code 101.003(7); the standing rule: a city system's policy is its own tariff row, and the platform default only where it is silent.
 
 **Given** Bluebonnet City Gas (`cast.md` §2), live on the platform from Jan 1, 2026 (**invented**), its earlier bills not loaded; customer BB-01; the slow-meter facts of SCN-0013 on Bluebonnet's meter, so the platform holds the bills from January 2026 to June 14. Bluebonnet's published tariff says nothing about backbilling.
 
 **When** the correction is evaluated (a) with Bluebonnet's ordinance silent; (a′) the same, but the test finds the meter fast; (b) after Bluebonnet records a tariff rule: "six months before the test, bounded by the last test, a straddling month given up whole" (**invented**: a city that chooses to copy the state's rule).
 
 **Then**
-- **(a)** Billed under the six-month default, which the record cites: the window starts Dec 15, 2025; January – June 14 are billed, **$28.00** (SCN-0013's amounts, standing in for Bluebonnet's own). December 2025 has no bill on the platform; had it one, it would straddle the window and be given up whole.
-- **(a′)** Refunded for every bill on the platform on this meter, January – June 14: **$28.00**. No window cuts it, and nothing waits on Bluebonnet stating a rule. The rules refuse an evaluation with no start (a2-rules §5.1), so the start is taken as the first bill on the platform: this stream's reading of "as far back as the records show".
+- **(a)** Billed under the six-month default, which the record cites: counted back from the Jun 15 test, the window starts Dec 15, 2025; January – June 14 are billed, **$28.00** (SCN-0013's amounts, standing in for Bluebonnet's own). December 2025, before go-live, straddles the window and is given up whole, so nothing before go-live is charged and no approval is needed. Had a passed test fallen inside the window, the window would start at it.
+- **(a′)** The refund is paid in two parts (Kyle 11-05, answer 12). For every bill on the platform on this meter, January – June 14: **$28.00**, refunded now; nothing waits on Bluebonnet stating a rule. For the months before go-live: Bluebonnet's old system holds its bills from Oct 2025 (**invented**), with an error of $4.00 in October, $4.00 in November and $5.00 in December 2025 (**invented**); each month is refunded once its record is attached and a supervisor approves: **$13.00**. A month with no surviving record (September 2025 and earlier) is not refunded. The whole refund is never held for the older part.
 - **(b)** Given also the delegated law row for city-owned systems ("the city sets its own standard"; to be written with the tariff table), the same periods as SCN-0013 are billed (Bluebonnet's own amounts, at its own rates). The record cites Bluebonnet's tariff record and the delegated row, not the Texas rule.
 - Onboarding asks each city whether its ordinance states a backbilling rule; the default stands until it records one.
-- **Open (Kyle, sent 2026-11-05):** in (a), is the six-month default counted back from the test, as Texas's is, and is it also cut short by an earlier test? Does a charge under it need the supervisor's approval when the window reaches before the city went live (SCN-0013)? Written here as counted from the test, with no earlier test on record. And in (a′), does "as far back as the records show" reach the city's records from before it went live (December 2025 and earlier), held until they are loaded as SCN-0039 does, or only the bills on the platform?
 
 ---
 
@@ -194,7 +193,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0035 — A meter that stopped registering: three months back, and the anchor question
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A7). The anchor follows the built Texas row (the test's date); that it should be the discovery date instead is an open disagreement (a2-rules §16, D1).
+*Status:* draft (2026-11-04); its questions answered by Kyle 2026-11-05 (answer 13): the anchor is the confirmed finding, so the built Texas row (the test's date) stands, and a meter with no test history needs a supervisor's approval. Reviewer gap (Opus, 2026-11-02, A7). The approval for this cause and the known-stoppage cut are not built. Figures not yet checked by Kyle.
 *Rule:* where §7.45 binds, gas used but not metered may be charged for at most three months; the window is also cut short by the meter's deployment start, but not by an earlier test; a period straddling the window's start is given up whole; the charge can never ground a disconnection. The record says which basis estimated the unmetered use. Sources: §7.45(7)(B)(v)(II); (4)(E)(vi); the Texas rows of v5.4.2-18 (three months, test-date anchor, forfeit whole, never enforceable); R-23 and R-25 (the estimation basis is recorded); a2-rules §4.1 (F9), §9.1 (D3).
 
 **Given** the common facts, except: the meter stopped registering at all around Feb 25, 2026 (**invented**); the bills from March on show zero usage; and the Jun 15 test finds it **not registering**. The unmetered use for each period, estimated from GP-01's own use in the same months of 2025 (**invented**): Feb $3.00 (its last four days), Mar $22.00, Apr $18.00, May $12.00, Jun 1–14 $5.00. No earlier test.
@@ -210,16 +209,17 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 | Apr 2026 – Jun 14, 2026 | $35.00 | billed | inside the window |
 
 - GP-01 is charged **$35.00**. It can never ground a disconnection.
-- No supervisor approval: the three-month window has no last-test term, so a weak test history cannot move it (the build's reading; Kyle's ruling R-36 names no cause, a2-rules D3).
+- **A supervisor's approval is needed**, with the estimate basis attached: the meter has no test history (Kyle 11-05, answer 13). Today the built row asks none (the three-month window has no last-test term).
+- "Found not to be registering" means confirmed, by a shop test or a documented field check. A meter reader's report of no movement (say on May 5, **invented**) is a lead, not a finding; the window still counts from Jun 15.
+- Had the stoppage date been known and less than three months before the test, only the time since it would be charged: stopped May 1 (**invented**), May – June 14, **$17.00**.
 - The record names the estimation basis: the same customer's like-period use at the same premise.
 - How the charge reaches a bill is not ruled for this cause (OQ-1); the scenario tests the periods admitted, not the delivery.
-- **Open (Kyle, sent 2026-11-05):** §7.45(7)(B)(v)(II) counts three months back from when the meter "is found not to be registering". Is that the test (Jun 15, as built) or the day it was first noticed, say a reader's May 5 report of no movement (**invented**)? From May 5 the window would start Feb 5: February ($3.00) would be given up whole and March billed whole. And does R-36's approval apply to this cause on a meter with no test history?
 
 ---
 
 ### SCN-0036 — A large-volume customer outside the protected class: the law delegates to the utility's tariff, and without one the case is refused
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Reworked in review round 2 (all three reviewers): the unprotected Texas rows are delegations, not permissions (v5.4.2-18, residual R10; confirmed by Ryan 2026-11-05, DECISION-LOG). Gulf Plains' backbilling tariff record is **invented**; the tariff table is not built (the rates stream's).
+*Status:* draft (2026-11-04); (c)'s limitations question answered by Kyle 2026-11-05 (answer 14). Reworked in review round 2 (all three reviewers): the unprotected Texas rows are delegations, not permissions (v5.4.2-18, residual R10; confirmed by Ryan 2026-11-05, DECISION-LOG). Gulf Plains' backbilling tariff record is **invented**; the tariff table is not built (the rates stream's).
 *Rule:* Texas's backbilling limits protect residential and small commercial customers only. Whether a customer is protected follows the utility's class mode: by default every customer is protected; under the explicit-class mode, a class outside the protected list is not. For an unprotected customer, Texas law delegates to the utility's filed tariff and ordinary limitations law: the law row claims no window and no collection scope of its own, and with no tariff record the case is refused (fail toward protection). The period set starts at the widest window of the rules that could apply. Sources: v5.4.2-18 (the unprotected rows as delegations, "16 TAC 7.45 does not reach this class; ordinary limitations law and the filed tariff govern, outside this table"; residual R10); a2-rules §13.1 (class modes), §13.3 and §5.1 (the set start), §4.1 (`claimed_start`), §9.1 (the gate needs a last-test term).
 
 **Given** the common facts, except the customer is **GP-02 (invented)**, a large industrial plant on its own meter, customer class industrial. The Jun 15 test finds the meter **slow**; no earlier test. A field report shows the meter's register gear damaged at the Oct 1, 2025 read (**invented**). The error in each bill (**invented**):
@@ -244,7 +244,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(b)** Refused: the law sends the unprotected class to Gulf Plains' tariff, and no tariff record states a rule. The refusal names what is missing.
 - **(c)** The window is the claimed start, Oct 1, 2025, earlier than the protected class's Dec 15, so the period set starts there. Every period from October is billed, December whole: **$4,350.00**. No approval: the rule has no last-test term for a weak history to move. The record cites Gulf Plains' tariff record, the delegating row and the field report.
 - As (c) with no claimed start: refused, since the tariff's only bound is the claimed start.
-- **Open (Kyle, sent 2026-11-05):** in (c), does ordinary limitations law cap how far back the charge reaches, and how far may collection (disconnection) pursue it? The delegating row claims nothing on either.
+- In (c), the tariff governs how far back, with a legal backstop of four years (Tex. Civ. Prac. & Rem. Code §16.004); Oct 2025 is well inside it. Once billed, the $4,350.00 follows Gulf Plains' ordinary collection and disconnection rules, but no part of it older than four years may ever ground a disconnection, and a payment plan is offered (Kyle 11-05, answer 14). The backstop is with tariff counsel; neither it nor the plan offer is built.
 
 ---
 
@@ -298,6 +298,7 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 - **(b)** The hold is accepted (it ends before go-live). The case freezes, and the $24.10 is refunded now. The hold stays on the open-holds list.
 - **(c)** Refused: this kind of hold closes only when the bills for Dec 15 – Jan 14 are loaded; it then completes, and the case is re-evaluated to include them.
 - A hold on any day from Jan 15 is refused: the platform billed those days.
+- **Open (Kyle):** for a silent city, answer 12 (11-05) releases a pre-go-live refund month by month on a supervisor's approval with the legacy record attached, and refunds nothing for a month with no surviving record (SCN-0019 a′). Does the same apply where §7.45 binds, as here, where the built hold never closes as unrecoverable and waits for the bills to be loaded?
 
 ---
 
@@ -338,19 +339,18 @@ How far back a correction may reach, and what is given up. Invariants: CI-008 (t
 
 ### SCN-0058 — Which bill a partial payment pays when an older bill holds only a backbilled charge
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Codex 9). Kyle's answer 12 covers the order within one bill; across bills it meets the oldest-bill-first rule (Kyle 10-15, K-05). Both outcomes are written; the scenario is open until he says which wins. Carrying the limit into collections is v5.4.2-26's (not built).
-*Rule:* a payment pays the oldest bill first (K-05), and within a bill the amounts that can ground a disconnection first (answer 12). Aging is balance-forward, newest first (v5.4.2-22). Sources: Kyle 10-15, K-05; Kyle 11-03, answer 12; SCN-0031.
+*Status:* draft (2026-11-04); answered by Kyle 2026-11-05 (answer 16): two tiers, what can ground a disconnection first. Review round 2 gap (Codex 9). Carrying the limit into collections is v5.4.2-26's (not built); the payment order is the money stream's (board note).
+*Rule:* a payment pays in two tiers: first every charge that can ground a disconnection, oldest first; then the charges that cannot (backbills), oldest first. This ranks above the oldest-bill-first rule (K-05) where they conflict. A customer who directs a payment to a bill is followed, and the operator is warned when that leaves more open to disconnection. Aging is balance-forward, newest first (v5.4.2-22). Sources: Kyle 11-05, answer 16; Kyle 11-03, answer 12; Kyle 10-15, K-05; SCN-0031.
 
 **Given** SCN-0031 (a): the July bill's $40.00 of gas is paid, leaving only its $28.00 backbilling line (never disconnectable). The August bill, issued Sep 5, due Sep 21: **$42.00** of gas, unpaid. On Sep 25 GP-01 pays **$28.00**.
 
-**When** GP-01's account is read on Oct 1.
+**When** GP-01's account is read on Oct 1, (a) with the payment undirected; (b) with GP-01 directing it to the July bill.
 
 **Then**
 - Balance **$42.00** either way. The aging, balance-forward and newest first, shows it all in 0–30 days (the August bill, 26 days), whichever bill the payment went to.
-- **Reading A (what can ground a disconnection first, across bills):** the $28.00 pays August's gas. Left: $14.00 of August (disconnectable) and July's $28.00 backbilling line (never). What may ground a disconnection: **$14.00**.
-- **Reading B (oldest bill first):** the $28.00 pays July's backbilling line. Left: August's $42.00, all disconnectable.
-- Under reading A, the aging (all $42.00 at 26 days) and what is actually unpaid ($28.00 at 57 days, $14.00 at 26) disagree; a test must assert each against its own rule.
-- **Open (Kyle, sent 2026-11-05):** across two bills, does a partial payment go first to what can ground a disconnection (A, "protect the customer"), or to the oldest bill (B)?
+- **(a)** The $28.00 pays August's gas (the first tier). Left: $14.00 of August (disconnectable) and July's $28.00 backbilling line (never). What may ground a disconnection: **$14.00**.
+- **(b)** As above, but GP-01 says the payment is for the July bill: it pays July's backbilling line, and the operator is warned that all of August's $42.00 stays open to disconnection. Left: August's $42.00, all disconnectable.
+- In the first case, the aging (all $42.00 at 26 days) and what is actually unpaid ($28.00 at 57 days, $14.00 at 26) disagree; a test must assert each against its own rule.
 
 ---
 
