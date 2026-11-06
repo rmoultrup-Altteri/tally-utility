@@ -13,7 +13,9 @@
 --      on its credit
 --   B  a source applied to a shortfall holds up its own bounce (R15)
 --   T  targets (r2)       C  a later repayment hides no earlier one (r2)
---   E  the carry after an escheat (r2)
+--   E  the carry after an escheat (r2; r3: born active, recorded after the
+--      escheat, mixed lines, the depth bound, ordinary undos still refused)
+--   R  an undo dated after today (r3)
 --   D  the freeze          I  invariants
 -- What one transaction cannot show (READ COMMITTED, recorded order across
 -- transactions, two writers) is in races/shortfall-27.sh.
@@ -52,6 +54,8 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 -- k(): the battery's ids, 00000000-0000-4000-8000-0000000027xx.
 CREATE FUNCTION pg_temp.k(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SELECT ('00000000-0000-4000-8000-0000000027' || p)::uuid $$;
+-- n(): r3's ids, 00000000-0000-4000-8000-0000000029xx.
+CREATE FUNCTION pg_temp.n(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SELECT ('00000000-0000-4000-8000-0000000029' || p)::uuid $$;
 -- post(): a pending payment's posting entry (payment, deposit or refund,
 -- dated its payment date, at minus its amount), then the move to posted.
 CREATE FUNCTION pg_temp.post(p_pay uuid, p_entry uuid) RETURNS void LANGUAGE plpgsql AS $$
@@ -73,13 +77,13 @@ END $$;
 CREATE FUNCTION pg_temp.pay(p_id uuid, p_entry uuid, p_cust uuid, p_amount numeric, p_on date, p_deposit boolean DEFAULT false) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, is_deposit)
-  VALUES (p_id, '00000000-0000-4000-8000-0000000027a1', 'B27-' || right(p_id::text, 2), p_cust, p_on, p_amount, 'check', p_deposit);
+  VALUES (p_id, '00000000-0000-4000-8000-0000000027a1', 'B27-' || right(p_id::text, 4), p_cust, p_on, p_amount, 'check', p_deposit);
   PERFORM pg_temp.post(p_id, p_entry);
 END $$;
 CREATE FUNCTION pg_temp.refund(p_id uuid, p_entry uuid, p_cust uuid, p_pay uuid, p_credit uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, refunds_payment_id, refunds_customer_credit_id)
-  VALUES (p_id, '00000000-0000-4000-8000-0000000027a1', 'B27-' || right(p_id::text, 2) || 'R', p_cust, p_on, -p_amount, 'refund', p_pay, p_credit);
+  VALUES (p_id, '00000000-0000-4000-8000-0000000027a1', 'B27-' || right(p_id::text, 4) || 'R', p_cust, p_on, -p_amount, 'refund', p_pay, p_credit);
   PERFORM pg_temp.post(p_id, p_entry);
 END $$;
 CREATE FUNCTION pg_temp.bounce(p_pay uuid, p_entry uuid, p_row uuid, p_on date) RETURNS void LANGUAGE plpgsql AS $$
@@ -113,7 +117,7 @@ $$;
 CREATE FUNCTION pg_temp.crem(p_credit uuid) RETURNS numeric LANGUAGE sql AS $$
   SELECT remaining FROM public.customer_credit_position_as_of(p_credit, DATE '2026-12-31', clock_timestamp())
 $$;
-GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text), pg_temp.k(text),
+GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text), pg_temp.k(text), pg_temp.n(text),
   pg_temp.post(uuid, uuid), pg_temp.pay(uuid, uuid, uuid, numeric, date, boolean), pg_temp.refund(uuid, uuid, uuid, uuid, uuid, numeric, date),
   pg_temp.bounce(uuid, uuid, uuid, date), pg_temp.credit(uuid, uuid, uuid, numeric),
   pg_temp.sa(uuid, uuid, uuid, uuid, uuid, numeric, date, text, uuid), pg_temp.pos(uuid), pg_temp.crem(uuid) TO tally_app, tally_core;
@@ -154,8 +158,8 @@ INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment
 VALUES (pg_temp.k('65'), '00000000-0000-4000-8000-0000000027a1', 'B27-65', :c1, DATE '2026-03-10', 20, 'check');
 SELECT public.account_balance_as_of(:c1, DATE '2026-12-31', clock_timestamp()) AS bal_c1 \gset
 
-SELECT pg_temp.ok('K0 Kyle''s example: P1 reads 30 short, nothing repaid',
-  pg_temp.pos(pg_temp.k('61')) = '-30.00/0');
+SELECT pg_temp.ok('K0 Kyle''s example: P1 reads 30 short, nothing repaid (r3, Fable N6: printed 0.00, as every amount)',
+  pg_temp.pos(pg_temp.k('61')) = '-30.00/0.00');
 SELECT pg_temp.refuses_at('K1 a repayment dated before the bounce (03-11) would leave the payment holding money that day',
   $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('61'), NULL, pg_temp.k('71'), 20, DATE '2026-03-11')$q$,
   '23514', 'a payment that has ended holds no money');
@@ -210,6 +214,11 @@ SELECT pg_temp.admits('K9c P2''s 10 is undone',
 SELECT pg_temp.ok('K9d P1 10 short again; P2 nothing applied',
   pg_temp.pos(pg_temp.k('61')) = '-10.00/20.00'
   AND (SELECT applied = 0 AND remaining = 30 FROM public.payment_position_as_of(pg_temp.k('63'), DATE '2026-12-31', clock_timestamp())));
+-- r3 (Opus S2): a carry is only for an undo of a credit's repayment.
+SELECT pg_temp.refuses_at('K9e no carry names the undo of a payment''s repayment (P2''s money went back to P2, which has not ended)',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c1', 'shortfall_reissue', 10, DATE '2026-03-14', pg_temp.k('a3'))$q$,
+  '23514', 'its source is a payment');
 SELECT pg_temp.refuses_at('K10 undos never come to more than what they undo',
   $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c1', pg_temp.k('61'), pg_temp.k('63'), NULL, -0.01, DATE '2026-03-14', 'undo', pg_temp.k('a2'))$q$,
   '23514', 'its undos would come to');
@@ -311,6 +320,12 @@ SELECT pg_temp.refuses_at('S2 the refund''s move to nsf waits: it would leave P3
   '23514', 'undo the shortfall application first');
 SELECT pg_temp.admits('S3 the operator undoes 10 of the repayment',
   $q$SELECT pg_temp.sa(pg_temp.k('a6'), '00000000-0000-4000-8000-0000000027c3', pg_temp.k('66'), NULL, pg_temp.k('74'), -10, DATE '2026-03-14', 'undo', pg_temp.k('a5'))$q$);
+-- r3 (Opus S2): the carry is for a credit since escheated; G3 is active, so
+-- the 10 is simply back on it.
+SELECT pg_temp.refuses_at('S3c no carry names an undo of a credit that was never escheated (G3 is active)',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c3', 'shortfall_reissue', 10, DATE '2026-03-14', pg_temp.k('a6'))$q$,
+  '23514', 'its credit is active');
 SELECT pg_temp.refuses_at('S3b still refused: 10 would be left on P3',
   $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = pg_temp.k('8d') WHERE id = pg_temp.k('67')$q$,
   '23514', 'undo the shortfall application first');
@@ -372,7 +387,7 @@ VALUES (pg_temp.k('e7'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-
 UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-13', status_cause_id = pg_temp.k('e7'), status_recorded_at = now() - interval '7 hours' WHERE id = pg_temp.k('f1');
 SELECT pg_temp.hback(pg_temp.k('f6'), pg_temp.k('e6'), pg_temp.k('e8'), DATE '2026-03-14', interval '6 hours');
 SELECT pg_temp.ok('F0 before -27''s row: PF 0, K 60 short, R1 0 by the cover while it holds 40 of its own (R24)',
-  pg_temp.pos(pg_temp.k('f1')) = '0.00/0' AND pg_temp.crem(pg_temp.k('f2')) = -60 AND pg_temp.crem(pg_temp.k('f4')) = 0
+  pg_temp.pos(pg_temp.k('f1')) = '0.00/0.00' AND pg_temp.crem(pg_temp.k('f2')) = -60 AND pg_temp.crem(pg_temp.k('f4')) = 0
   AND public.customer_credit_own_remaining_as_of(pg_temp.k('f4'), DATE '2026-12-31', clock_timestamp()) = 40);
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
@@ -429,7 +444,7 @@ VALUES (pg_temp.k('77'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-
 SELECT pg_temp.admits('B1 OQ (Q''s money, held as a credit) repays 25 of PB''s shortfall',
   $q$SELECT pg_temp.sa(pg_temp.k('a8'), '00000000-0000-4000-8000-0000000027c5', pg_temp.k('69'), NULL, pg_temp.k('77'), 25, DATE '2026-03-13')$q$);
 SELECT pg_temp.ok('B1b OQ 25 left; Q 0 of its own; PB 15 short',
-  pg_temp.crem(pg_temp.k('77')) = 25 AND pg_temp.pos(pg_temp.k('68')) = '0.00/0' AND pg_temp.pos(pg_temp.k('69')) = '-15.00/25.00');
+  pg_temp.crem(pg_temp.k('77')) = 25 AND pg_temp.pos(pg_temp.k('68')) = '0.00/0.00' AND pg_temp.pos(pg_temp.k('69')) = '-15.00/25.00');
 SELECT pg_temp.refuses_at('B2 Q cannot bounce while its credit pays PB''s shortfall',
   $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
      VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c5', DATE '2026-03-14', 'nsf', 'Q returned', 50, 'payment', pg_temp.k('68'), pg_temp.k('94'))$q$,
@@ -560,6 +575,11 @@ SELECT pg_temp.refuses_at('C2 undoing the later repayment (20) does not settle t
   $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c7', pg_temp.k('20'), NULL, pg_temp.k('27'), -20, DATE '2026-03-19', 'undo', pg_temp.k('29'));
      UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('2b') WHERE id = pg_temp.k('22')$q$,
   '23514', 'undo the shortfall application first');
+-- r3 (Codex S1, probe 09): a true partial undo of the later repayment.
+SELECT pg_temp.refuses_at('C2b undoing only 10 of the later 20 does not settle the earlier one either',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000027c7', pg_temp.k('20'), NULL, pg_temp.k('27'), -10, DATE '2026-03-19', 'undo', pg_temp.k('29'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('2b') WHERE id = pg_temp.k('22')$q$,
+  '23514', 'undo the shortfall application first');
 SELECT pg_temp.admits('C3 undoing the earlier one (10), dated 03-19, settles it from 03-13: the return is recorded',
   $q$SELECT pg_temp.sa(pg_temp.k('2c'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('20'), NULL, pg_temp.k('27'), -10, DATE '2026-03-19', 'undo', pg_temp.k('2a'));
      UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-19', status_cause_id = pg_temp.k('2b') WHERE id = pg_temp.k('22')$q$);
@@ -640,6 +660,24 @@ SELECT pg_temp.refuses_at('E6b and only a shortfall_reissue names one',
   $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
      VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'goodwill', 30, DATE '2026-03-15', pg_temp.k('47'))$q$,
   '23514', 'customer_credits_shortfall_reissue_check');
+-- r3 (Codex B1): a carry is born active for every role. A superuser's
+-- history load keeps its own status elsewhere (-23's enforce_cash_birth), but
+-- a carry born ended would hold the returned money where nothing can reach it.
+RESET ROLE;
+SELECT pg_temp.refuses_at('E6c a carry is born active, for every role: a history load''s carry born escheated is refused (Codex B1)',
+  $q$SELECT pg_temp.sa(pg_temp.k('4a'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.k('49') WHERE id = pg_temp.k('42');
+     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id, status, status_recorded_at)
+     VALUES (pg_temp.k('4b'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 30, DATE '2026-03-15', pg_temp.k('4a'), 'escheated', now())$q$,
+  '23514', 'is born active');
+SELECT pg_temp.refuses_at('E6d and one born voided is refused at once, not only at commit',
+  $q$SELECT pg_temp.sa(pg_temp.k('4a'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
+     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id, status, status_recorded_at)
+     VALUES (pg_temp.k('4b'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 30, DATE '2026-03-15', pg_temp.k('4a'), 'voided', now())$q$,
+  '23514', 'is born active');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT public.account_balance_as_of(:c7, DATE '2026-12-31', clock_timestamp()) AS bal_c7 \gset
 SELECT pg_temp.admits('E7 the undo, the refund''s return and the new credit (KE, 30), together; checked at commit',
   $q$SELECT pg_temp.sa(pg_temp.k('4a'), '00000000-0000-4000-8000-0000000027c7', pg_temp.k('40'), NULL, pg_temp.k('45'), -30, DATE '2026-03-15', 'undo', pg_temp.k('47'));
      UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.k('49') WHERE id = pg_temp.k('42');
@@ -650,8 +688,13 @@ SELECT pg_temp.admits('E7 the undo, the refund''s return and the new credit (KE,
 SELECT pg_temp.ok('E7b P7 owes nothing and holds nothing; CE reads nothing left; KE 30',
   pg_temp.pos(pg_temp.k('40')) = '0.00/0.00' AND pg_temp.crem(pg_temp.k('45')) = 0 AND pg_temp.crem(pg_temp.k('4b')) = 30
   AND (SELECT carried = 30 FROM public.customer_credit_position_as_of(pg_temp.k('45'), DATE '2026-12-31', clock_timestamp())));
-SELECT pg_temp.ok('E7c KE posts no ledger row: the customer''s balance is unchanged by the carry',
-  NOT EXISTS (SELECT 1 FROM public.account_ledger WHERE reference_type = 'customer_credit' AND reference_id = pg_temp.k('4b')));
+-- r3 (Codex S1): the balance compared, as K3b does.
+SELECT pg_temp.ok('E7c KE posts no ledger row: the customer''s balance is unchanged by the undo and the carry',
+  NOT EXISTS (SELECT 1 FROM public.account_ledger WHERE reference_type = 'customer_credit' AND reference_id = pg_temp.k('4b'))
+  AND public.account_balance_as_of(:c7, DATE '2026-12-31', clock_timestamp()) = :bal_c7);
+-- r3 (Fable S1, Opus S2): the escheated credit's draws list its carry.
+SELECT pg_temp.ok('E7d CE''s draws list KE (30): its cap and recorded order see the carry',
+  EXISTS (SELECT 1 FROM public.cash_source_draws('credit', pg_temp.k('45')) d WHERE d.id = pg_temp.k('4b') AND d.amount = 30));
 SELECT pg_temp.refuses_at('E8 one carry per undo',
   $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
      VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000027c7', 'shortfall_reissue', 0.01, DATE '2026-03-15', pg_temp.k('4a'))$q$,
@@ -707,6 +750,220 @@ SELECT pg_temp.ok('E14b the take-back reaches KQ: it holds nothing of Q''s money
   pg_temp.crem(pg_temp.k('5d')) = 0);
 SELECT pg_temp.ok('E14c and as recorded, before the cover: KQ held all 30 of the family''s money at the take-back (OQ7, escheated, held none), so it took 30',
   (SELECT coalesce(sum(x.absorbed), 0) FROM public.overpayment_shares(pg_temp.k('52')) x WHERE x.credit_id = pg_temp.k('5d')) = 30);
+RESET ROLE;
+
+-- r3 fixtures: customers X2-X4 (n c2-c4).
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000029c2', '00000000-0000-4000-8000-0000000027a1', 'B27-X2', 'residential'),
+  ('00000000-0000-4000-8000-0000000029c3', '00000000-0000-4000-8000-0000000027a1', 'B27-X3', 'residential'),
+  ('00000000-0000-4000-8000-0000000029c4', '00000000-0000-4000-8000-0000000027a1', 'B27-X4', 'residential');
+\set x2 '''00000000-0000-4000-8000-0000000029c2'''
+\set x3 '''00000000-0000-4000-8000-0000000029c3'''
+\set x4 '''00000000-0000-4000-8000-0000000029c4'''
+
+-- r3 (Opus S1): a carry names an undo recorded at or after the escheat. X2:
+-- P (n20) pays 50, refunded 30 (n22), bounces: 30 short. G (n25), 40, repays
+-- 20 (n27) and that is undone (n28) while G is active: the 20 is back on G.
+-- Then G's 40 is sent to the state (n29), recorded after the undo. The undo
+-- left nothing to carry: the escheat took it.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.n('20'), pg_temp.n('21'), :x2, 50, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.n('22'), pg_temp.n('23'), :x2, pg_temp.n('20'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.n('20'), pg_temp.n('21'), pg_temp.n('24'), DATE '2026-03-12');
+SELECT pg_temp.credit(pg_temp.n('25'), pg_temp.n('26'), :x2, 40);
+SELECT pg_temp.sa(pg_temp.n('27'), :x2, pg_temp.n('20'), NULL, pg_temp.n('25'), 20, DATE '2026-03-13');
+SELECT pg_temp.sa(pg_temp.n('28'), :x2, pg_temp.n('20'), NULL, pg_temp.n('25'), -20, DATE '2026-03-14', 'undo', pg_temp.n('27'));
+-- Flush the undo's commit check (G is active: nothing to carry), so no
+-- trigger event is left pending for the invariant checks' ALTER TABLE.
+SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE;
+SET CONSTRAINTS public.enforce_shortfall_undo_carried DEFERRED;
+RESET ROLE;
+-- The escheat recorded after the undo (the owner's status time, a time
+-- already reached: one transaction cannot otherwise order the two).
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+VALUES (pg_temp.n('29'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('25'), :x2, 'escheated_to_state', 40, '2026-03-15 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('29'), escheated_at = now(), status_recorded_at = clock_timestamp()
+ WHERE id = pg_temp.n('25');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.refuses_at('E15 a carry names an undo recorded at or after the escheat: one recorded while G was active gave it nothing to carry (Opus S1)',
+  $q$INSERT INTO public.customer_credits (tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c2', 'shortfall_reissue', 10, DATE '2026-03-15', pg_temp.n('28'))$q$,
+  '23514', 'recorded while the credit was active');
+
+-- r3 (Opus S2, Fable N2, Codex probe 08): the mixed lines, both ways, and
+-- the depth bound. X3: Q (n30) pays 40, held whole as OQ (n33). P (n34)
+-- pays 30, refunded 30, bounces; OQ repays it (n39), its other 10 goes to
+-- the state, P's refund comes back: the undo (n3c) is carried into KQ (n3d,
+-- a shortfall_reissue). KQ is refunded 10 (n3e), its other 20 goes to the
+-- state, the refund comes back: carried into R (n42, a refund_reissue of a
+-- shortfall_reissue). P2 (n43) pays 20, refunded 20, bounces; R repays 5 of
+-- it (n48), its other 5 goes to the state, P2's refund comes back: the undo
+-- (n4b) is carried into K3 (n4c, a shortfall_reissue of a refund_reissue).
+-- All of it is Q's money: Q's bounce reaches K3.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.n('30'), pg_temp.n('31'), :x3, 40, DATE '2026-03-10');
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+VALUES (pg_temp.n('32'), '00000000-0000-4000-8000-0000000027a1', :x3, pg_temp.n('30'), 40, '00000000-0000-4000-8000-0000000027b1');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES (pg_temp.n('33'), '00000000-0000-4000-8000-0000000027a1', :x3, 'overpayment', 40, DATE '2026-03-11', pg_temp.n('30'), pg_temp.n('32'));
+SELECT pg_temp.pay(pg_temp.n('34'), pg_temp.n('35'), :x3, 30, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.n('36'), pg_temp.n('37'), :x3, pg_temp.n('34'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.n('34'), pg_temp.n('35'), pg_temp.n('38'), DATE '2026-03-12');
+SELECT pg_temp.sa(pg_temp.n('39'), :x3, pg_temp.n('34'), NULL, pg_temp.n('33'), 30, DATE '2026-03-13');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+VALUES (pg_temp.n('3a'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('33'), :x3, 'escheated_to_state', 10, '2026-03-14 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('3a'), escheated_at = now() WHERE id = pg_temp.n('33');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.n('3b'), '00000000-0000-4000-8000-0000000027a1', :x3, DATE '2026-03-15', 'nsf', 'refund check returned', -30, pg_temp.n('37'));
+SELECT pg_temp.sa(pg_temp.n('3c'), :x3, pg_temp.n('34'), NULL, pg_temp.n('33'), -30, DATE '2026-03-15', 'undo', pg_temp.n('39'));
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = pg_temp.n('3b') WHERE id = pg_temp.n('36');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+VALUES (pg_temp.n('3d'), '00000000-0000-4000-8000-0000000027a1', :x3, 'shortfall_reissue', 30, DATE '2026-03-15', pg_temp.n('3c'));
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT pg_temp.refund(pg_temp.n('3e'), pg_temp.n('3f'), :x3, NULL, pg_temp.n('3d'), 10, DATE '2026-03-16');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+VALUES (pg_temp.n('40'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('3d'), :x3, 'escheated_to_state', 20, '2026-03-17 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('40'), escheated_at = now() WHERE id = pg_temp.n('3d');
+SELECT pg_temp.bounce(pg_temp.n('3e'), pg_temp.n('3f'), pg_temp.n('41'), DATE '2026-03-18');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_refund_id)
+VALUES (pg_temp.n('42'), '00000000-0000-4000-8000-0000000027a1', :x3, 'refund_reissue', 10, DATE '2026-03-18', pg_temp.n('3e'));
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
+SELECT pg_temp.ok('E16 a refund_reissue of a shortfall_reissue: R''s root is OQ, it is two reissues down, in the family, holding 10; KQ holds nothing',
+  public.overpayment_root(pg_temp.n('42')) = pg_temp.n('33') AND public.reissue_generation(pg_temp.n('42')) = 2
+  AND EXISTS (SELECT 1 FROM public.overpayment_family(pg_temp.n('33')) f WHERE f.id = pg_temp.n('42'))
+  AND pg_temp.crem(pg_temp.n('42')) = 10 AND pg_temp.crem(pg_temp.n('3d')) = 0);
+SELECT pg_temp.pay(pg_temp.n('43'), pg_temp.n('44'), :x3, 20, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.n('45'), pg_temp.n('46'), :x3, pg_temp.n('43'), NULL, 20, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.n('43'), pg_temp.n('44'), pg_temp.n('47'), DATE '2026-03-12');
+SELECT pg_temp.sa(pg_temp.n('48'), :x3, pg_temp.n('43'), NULL, pg_temp.n('42'), 5, DATE '2026-03-20');
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+VALUES (pg_temp.n('49'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('42'), :x3, 'escheated_to_state', 5, '2026-03-21 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('49'), escheated_at = now() WHERE id = pg_temp.n('42');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.n('4a'), '00000000-0000-4000-8000-0000000027a1', :x3, DATE '2026-03-22', 'nsf', 'refund check returned', -20, pg_temp.n('46'));
+RESET ROLE;
+-- The depth bound, with the bound lowered to 2 inside the check's own
+-- subtransaction (999 reissues are past what a battery builds).
+SELECT pg_temp.refuses_at('E17 a carry is no deeper than the bound: with the bound at 2, K3 (three down) is refused',
+  $q$CREATE OR REPLACE FUNCTION public.reissue_line_bound() RETURNS integer LANGUAGE sql IMMUTABLE AS $f$ SELECT 2 $f$;
+     SELECT pg_temp.sa(pg_temp.n('4b'), '00000000-0000-4000-8000-0000000029c3', pg_temp.n('43'), NULL, pg_temp.n('42'), -5, DATE '2026-03-22', 'undo', pg_temp.n('48'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-22', status_cause_id = pg_temp.n('4a') WHERE id = pg_temp.n('45');
+     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES (pg_temp.n('4c'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c3', 'shortfall_reissue', 5, DATE '2026-03-22', pg_temp.n('4b'))$q$,
+  '23514', 'its line would be more than 2 reissues deep');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.admits('E18 at the real bound, the undo of R''s repayment, P2''s return and the carry into K3 (5), together',
+  $q$SELECT pg_temp.sa(pg_temp.n('4b'), '00000000-0000-4000-8000-0000000029c3', pg_temp.n('43'), NULL, pg_temp.n('42'), -5, DATE '2026-03-22', 'undo', pg_temp.n('48'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-22', status_cause_id = pg_temp.n('4a') WHERE id = pg_temp.n('45');
+     INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id)
+     VALUES (pg_temp.n('4c'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c3', 'shortfall_reissue', 5, DATE '2026-03-22', pg_temp.n('4b'));
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE;
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried DEFERRED$q$);
+SELECT pg_temp.ok('E18b a shortfall_reissue of a refund_reissue: K3''s root is OQ, it is three down, in the family, holding 5; R and P2 hold nothing',
+  public.overpayment_root(pg_temp.n('4c')) = pg_temp.n('33') AND public.reissue_generation(pg_temp.n('4c')) = 3
+  AND EXISTS (SELECT 1 FROM public.overpayment_family(pg_temp.n('33')) f WHERE f.id = pg_temp.n('4c'))
+  AND pg_temp.crem(pg_temp.n('4c')) = 5 AND pg_temp.crem(pg_temp.n('42')) = 0 AND pg_temp.pos(pg_temp.n('43')) = '0.00/0.00');
+SELECT pg_temp.admits('E18c Q bounces',
+  $q$SELECT pg_temp.bounce(pg_temp.n('30'), pg_temp.n('31'), pg_temp.n('4d'), DATE '2026-03-23')$q$);
+SELECT pg_temp.ok('E18d the take-back reaches K3, three reissues down: it holds nothing of Q''s money',
+  pg_temp.crem(pg_temp.n('4c')) = 0);
+RESET ROLE;
+
+-- r3 (Opus S2, Codex S1): an escheated credit's ordinary undo is still
+-- refused (only the undo of a repayment may give money back to it, and that
+-- one is carried). X4: G (n50), 50, pays 20 of a bill (n5a) and gives 10 to
+-- the assistance fund (n52); its other 20 is sent to the state.
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  (pg_temp.n('d4'), '00000000-0000-4000-8000-0000000027a1', :x4, 'L27-X4', '4 Main', 'Austin', 'TX', '78701');
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT pg_temp.n('a7'), 'municipality', 'TX', 'TX-B27-CITY', 'Battery City 27', s.id, DATE '2000-01-01', 'battery-27 fixture'
+  FROM public.places s WHERE s.kind_code = 'state' AND s.state_code = 'TX';
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction,
+                                             owning_place_id, effective_from, evidence_reference, evidence_date)
+VALUES ('00000000-0000-4000-8000-0000000027a1', 'gas', 'distribution', 'TX', 'municipal', false, pg_temp.n('a7'), DATE '2000-01-01', 'Battery City charter', DATE '2000-01-01');
+INSERT INTO public.payment_allocation_tariffs (id, tenant_id, state_code, service_type, system_kind, effective_from, effective_to, tariff_reference, terms_kind, terms_version, terms_source)
+VALUES (pg_temp.n('ab'), '00000000-0000-4000-8000-0000000027a1', 'TX', 'gas', 'distribution', DATE '2026-01-01', DATE '2026-04-01', 'City tariff 7', 'payment_allocation_tariff', 1,
+        '{"citation": "City tariff 7", "within_bill": {"strategy": "charge_type_order", "version": 1, "regulated": ["base_charge", "usage_charge", "surcharge", "minimum_bill_adjustment", "tax", "late_fee", "penalty", "deposit", "adjustment", "credit", "consolidated_summary"], "unregulated": ["adhoc", "misc"]}}');
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
+VALUES (pg_temp.n('5a'), '00000000-0000-4000-8000-0000000027a1', 'B27-X4-I1', :x4, pg_temp.n('d4'), DATE '2026-03-01', '2026-02', DATE '2026-02-01', DATE '2026-02-28', DATE '2026-03-20', 60.00);
+INSERT INTO public.invoice_line_items (id, tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, rate, regulatory_class) VALUES
+  (pg_temp.n('5b'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('5a'), 0, 'gas', 'base_charge', 'Gas service', 60.00, 60.00, 'regulated');
+INSERT INTO public.invoice_calculation_snapshots
+  (tenant_id, invoice_id, billing_run_id, valid_at, recorded_at, snapshot_schema_version, formula_version,
+   rate_inputs, gas_factors, wna_inputs, tax_inputs, read_inputs, customer_inputs, period_inputs, line_items)
+SELECT i.tenant_id, i.id, i.billing_run_id, DATE '2026-02-28', now(), 'v1', 'bat27',
+   '{"rate_schedule_id":null,"rate_schedule_version_id":null,"rate_schedule_code":null,"customer_type":null,"partial_period_policy":null,"items":[]}',
+   '{"pga_factor":null,"btu_factor":null,"pressure_factor":null,"temperature_factor":null,"meter_multiplier":null,"factor_stack_intermediates":{}}',
+   '{"applied":false}', '{"jurisdictions":[],"exemptions":[],"franchise_fees":[]}', '{"reads":[]}',
+   jsonb_build_object('customer_id', i.customer_id, 'customer_class', null, 'location_id', i.location_id, 'premise_zones', '{}'::jsonb),
+   jsonb_build_object('period_start', i.period_start, 'period_end', i.period_end, 'days_in_period', i.period_end - i.period_start + 1, 'proration_policy', null),
+   (SELECT coalesce(jsonb_agg(jsonb_build_object('invoice_line_item_id', l.id, 'charge_type', l.charge_type, 'amount', l.amount)), '[]'::jsonb)
+      FROM public.invoice_line_items l WHERE l.invoice_id = i.id)
+  FROM public.invoices i WHERE i.id = pg_temp.n('5a');
+UPDATE public.invoices SET status = 'pending' WHERE id = pg_temp.n('5a');
+UPDATE public.invoices SET first_issued_at = now() - interval '3 hours' WHERE id = pg_temp.n('5a');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.credit(pg_temp.n('50'), pg_temp.n('51'), :x4, 50);
+INSERT INTO public.invoice_applications (id, tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, allocation_tariff_id)
+VALUES (pg_temp.n('53'), '00000000-0000-4000-8000-0000000027a1', :x4, pg_temp.n('5a'), pg_temp.n('5b'), pg_temp.n('50'), 20, DATE '2026-03-05', 'oldest_first', pg_temp.n('ab'));
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES (pg_temp.n('52'), '00000000-0000-4000-8000-0000000027a1', :x4, DATE '2026-03-11', 'donation', 'to the assistance fund', 10, 'customer_credit', pg_temp.n('50'));
+INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+VALUES (pg_temp.n('54'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('50'), :x4, 'escheated_to_state', 20, '2026-03-14 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('54'), escheated_at = now() WHERE id = pg_temp.n('50');
+SELECT pg_temp.refuses_at('E19 the undo of an escheated credit''s bill application is refused (the bill writer''s own call, purpose undo)',
+  $q$INSERT INTO public.invoice_applications (tenant_id, customer_id, invoice_id, invoice_line_item_id, customer_credit_id, amount, applied_on, basis, undoes_application_id, applied_by, reason)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c4', pg_temp.n('5a'), pg_temp.n('5b'), pg_temp.n('50'), -20, DATE '2026-03-15', 'undo', pg_temp.n('53'),
+             '00000000-0000-4000-8000-0000000027b1', 'keyed wrong')$q$,
+  '23514', 'an undo only while its source has not ended');
+SELECT pg_temp.refuses_at('E19b and so is the undo of its donation',
+  $q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+     VALUES ('00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c4', DATE '2026-03-15', 'adjustment', 'donation keyed in error', -10, pg_temp.n('52'))$q$,
+  '23514', 'an undo only while its source has not ended');
+RESET ROLE;
+
+-- ============================================================== R an undo dated after today (r3, Opus B1)
+-- X5: P (n60) pays 50 on 03-10, is refunded 30 (n62) on 03-11 and bounces on
+-- 03-12: 30 short. G (n65), 30, repays it dated 03-13 (n67). The refund check
+-- comes back (n68). An undo dated after today would settle the return check
+-- from 03-13 while the positions read P holding the 30 until the undo's date.
+-- "Today" is the latest date anywhere (UTC+14), so an undo the utility dates
+-- today in its own zone always settles it.
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000029c5', '00000000-0000-4000-8000-0000000027a1', 'B27-X5', 'residential');
+\set x5 '''00000000-0000-4000-8000-0000000029c5'''
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.n('60'), pg_temp.n('61'), :x5, 50, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.n('62'), pg_temp.n('63'), :x5, pg_temp.n('60'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.n('60'), pg_temp.n('61'), pg_temp.n('64'), DATE '2026-03-12');
+SELECT pg_temp.credit(pg_temp.n('65'), pg_temp.n('66'), :x5, 30);
+SELECT pg_temp.sa(pg_temp.n('67'), :x5, pg_temp.n('60'), NULL, pg_temp.n('65'), 30, DATE '2026-03-13');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id)
+VALUES (pg_temp.n('68'), '00000000-0000-4000-8000-0000000027a1', :x5, DATE '2026-03-20', 'nsf', 'refund check returned', -30, pg_temp.n('63'));
+SELECT pg_temp.refuses_at('R1 an undo dated 2099-12-31 does not settle the return: P would hold the 30 until then (Opus B1)',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000029c5', pg_temp.n('60'), NULL, pg_temp.n('65'), -30, DATE '2099-12-31', 'undo', pg_temp.n('67'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-20', status_cause_id = pg_temp.n('68') WHERE id = pg_temp.n('62')$q$,
+  '23514', 'undo the shortfall application first');
+SELECT pg_temp.refuses_at('R1b nor one dated the day after today, the latest date anywhere (the boundary, one side)',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000029c5', pg_temp.n('60'), NULL, pg_temp.n('65'), -30, (now() AT TIME ZONE 'Etc/GMT-14')::date + 1, 'undo', pg_temp.n('67'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-20', status_cause_id = pg_temp.n('68') WHERE id = pg_temp.n('62')$q$,
+  '23514', 'undo the shortfall application first');
+SELECT pg_temp.admits('R2 one dated today, the latest date anywhere, settles it (the other side)',
+  $q$SELECT pg_temp.sa(NULL, '00000000-0000-4000-8000-0000000029c5', pg_temp.n('60'), NULL, pg_temp.n('65'), -30, (now() AT TIME ZONE 'Etc/GMT-14')::date, 'undo', pg_temp.n('67'));
+     UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-20', status_cause_id = pg_temp.n('68') WHERE id = pg_temp.n('62');
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE;
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried DEFERRED$q$);
+SELECT pg_temp.ok('R2b from that date on, P holds nothing and G has its 30 back',
+  (SELECT remaining = 0 AND repaid = 0 FROM public.payment_position_as_of(pg_temp.n('60'), (now() AT TIME ZONE 'Etc/GMT-14')::date, clock_timestamp()))
+  AND (SELECT remaining = 30 FROM public.customer_credit_position_as_of(pg_temp.n('65'), (now() AT TIME ZONE 'Etc/GMT-14')::date, clock_timestamp())));
 RESET ROLE;
 
 -- ============================================================== D the freeze

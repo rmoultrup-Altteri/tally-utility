@@ -30,7 +30,8 @@
 #        refunds 60; X9 bounces (60 short, on K9). A repays 10 of X9's
 #        shortfall and holds; B moves K9's returned refund to nsf: waits on
 #        X9's lock, then is refused (the family would hold the 10).
-# r2 (Codex S2): every session runs under a statement timeout, every
+# r2 (Codex S2): every session runs under a statement timeout (r3: the
+# monitoring queries too, Codex N2), every
 # handshake has a deadline, B's exit is checked before A is waited for, and
 # A is ended and reaped when anything fails.
 # Every two() leg checks that session B was SEEN BLOCKED BY SESSION A.
@@ -39,6 +40,9 @@
 set -uo pipefail
 DB="${1:-r27}"
 PSQL=(docker exec -i -e PGOPTIONS=-c\ statement_timeout=30s tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -q -At)
+# r3 (Codex N2): the monitoring and reaping queries get deadlines too: a
+# short statement timeout, and a connect timeout for the client.
+MON=(docker exec -i -e PGOPTIONS=-c\ statement_timeout=5s -e PGCONNECT_TIMEOUT=5 tally-pg psql -U tally -d "$DB" -At)
 P=00000000-0000-4000-8000-0000000028
 T=${P}f0; OP=${P}f1; C=${P}f2
 A_OUT=$(mktemp); B_OUT=$(mktemp)
@@ -134,7 +138,7 @@ SQL
 waiting() {
 local n i
 for i in 1 2 3 4 5 6 7 8 9 10; do
-  n=$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity b JOIN pg_stat_activity a ON a.datname = b.datname AND a.application_name = 'race27_a' WHERE b.datname = current_database() AND b.application_name = 'race27_b' AND a.pid = ANY (pg_blocking_pids(b.pid))" 2>/dev/null)
+  n=$("${MON[@]}" -c "SELECT count(*) FROM pg_stat_activity b JOIN pg_stat_activity a ON a.datname = b.datname AND a.application_name = 'race27_a' WHERE b.datname = current_database() AND b.application_name = 'race27_b' AND a.pid = ANY (pg_blocking_pids(b.pid))" 2>/dev/null)
   if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ]; then echo 1; return; fi
   sleep 0.15
 done
@@ -198,7 +202,7 @@ SQL
 APID=$!
 local seen=0
 for _ in $(seq 1 100); do
-  [ "$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'")" = "1" ] && { seen=1; break; }; sleep 0.1
+  [ "$("${MON[@]}" -c "SELECT count(*) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'")" = "1" ] && { seen=1; break; }; sleep 0.1
 done
 if [ "$seen" -ne 1 ]; then reap "$1"; AST=99; echo "session A never began" >"$A_OUT"; return; fi
 # B stays marked done until A has finished (or 20s), so A cannot miss it.
@@ -221,7 +225,7 @@ if [ "$BST" -ne 0 ]; then reap "$1"; AST=98; echo "session B failed: $(cat "$B_O
 wait $APID; AST=$?
 }
 reap() {  # end session A of begun() $1 and reap its client
-docker exec -i tally-pg psql -U tally -d "$DB" -Atq -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'" >/dev/null 2>&1
+"${MON[@]}" -q -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'race27_a_begun$1'" >/dev/null 2>&1
 wait $APID 2>/dev/null
 }
 retry() {  # $1 label, $2 statement
