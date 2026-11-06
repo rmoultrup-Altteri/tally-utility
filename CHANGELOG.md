@@ -22,6 +22,45 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 **Next:** Codex's r3 review and its probes; a short r4 folding all three reviewers' should-fix items; re-test on the current `tally`; ask Ryan about the mirror; then -31 franchise fees.
 
+---
+
+## 2026-11-06 (money) — v5.4.2-27 rounds 3, 4 and 5 built and reviewed; mirrored
+
+**What was done:**
+- **Round 3** (Ryan: "build round 3"): the return check also read from today; a carry is born active for every role; a carry names an undo recorded after the escheat. Battery 135, races 16, mutations 67/67, `ci.sh` 55/55. Reviews: Codex ready; Opus and Fable not yet, the same hole found independently (an undo dated 2099, recorded alone, made the refund's return unrecordable until 2099).
+- **Ryan's question on round 3, and the lesson.** Fable's "undo and escheat in one transaction" was put to Ryan as three options. He asked why money-flow questions kept reaching him: this one decides only which record a carry names, so it is settled by rule. Saved to memory (policy vs bookkeeping questions).
+- **Round 4** (Ryan: "build round 4"):
+  - an undo is dated no later than today (UTC+14), or the row it undoes where later. This is -23's R-02 rule, which r3's plan had wrongly said -23 lacked;
+  - r3's second reading is removed (redundant under the rule);
+  - the database records whether an undo gave money to an escheated credit (`gave_to_escheated`, re-read under the credit's lock). Built as option 2, not the option 1 Ryan approved: option 1 needed owner-chosen times through most of the battery (DECISION-LOG);
+  - new tests: J1 (Codex S2), a carry paying a bill, SR10 and SR11;
+  - results: battery 142, races 21, mutations 72/72, `ci.sh` 58/58. All three reviewers ready.
+- **Round 5** (Ryan: "do the short round 5", so the mirrored comment is accurate):
+  - `cash_drawn_at`'s comment corrected for both terms (Codex r4 S1; J2, M64);
+  - an undo and its credit's escheat in one statement gives 23514, not an unclearable 40001 (Opus r4 S1);
+  - SR11 checks its SQLSTATE.
+  - Results: battery 146, races 21, mutations 74/74, `ci.sh` 58/58. Opus and Fable ready; Codex rate-limited until 16:06, waived by Ryan.
+- **Mirror** (Ryan: "waive Codex and mirror -27"):
+  - tu.sql 47,634 → 49,090 lines, a pure append, body byte-identical;
+  - the build is identical to tally + the frozen r5 (schema dumps and catalog identity); init md5 matches; `ci.sh --build` 56/56;
+  - -27 out of PENDING, ahead of -25 and -26 (none of -25, -26 or -30 redefines its functions);
+  - AC-44 updated; parity update (no class change, 85 of 135); DEPLOY-VERIFICATION; GBM Section BZ.
+- **Every Codex probe of rounds 3 and 4 was run by the author** (25 probes). Every prediction held, including two that showed my "always 0" comment wrong.
+- **The rates stream ported -23's battery to -30's columns.** It now passes only with -30 applied after -27.
+- **Roadmap:** P1 at 85 of 135 and its summary; R-25, R-26 answered. The dashboard's decision list was merged with the rates stream's newer upload (K-15 answered), not overwritten. Dates unchanged (ready to onboard 2027-06-09 likely).
+
+**Decisions:** DECISION-LOG 2026-11-06 (-27 r3) and (-27); the r3, r4 and r5 plans hold the by-rule calls.
+
+**Failed approaches:**
+- r3's second reading (from today), which checked only dates a row falls on and missed an undo recorded alone;
+- claiming a reader term "always reads 0", twice disproved by same-transaction rows;
+- option 1's strictly-later stamp comparison, which needs chosen times through the whole battery;
+- running -23's battery without -30 after the rates port.
+
+**Next:** -24 (unmatched cash, agency pledges); review -25 and -26 (re-test on the new tally first); -23's `refund_reissue` gap and its missing carry check for a returned refund of an escheated credit, in a later patch.
+
+---
+
 ## 2026-11-05 (rates) — v5.4.2-29 reviewed by Codex, fixed, reviewed ready by all three and mirrored; tax work inventoried, triaged and designed; v5.4.2-30 claimed, tested first and drafted
 
 **What was done:**
@@ -179,55 +218,5 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 **Failed approaches:** a jsonpath `(@ * 10000).floor()` in a CHECK. PostgreSQL prints it back as text that doesn't parse, so dumps break.
 
 **Next:** Ryan's call on reading the zone only when it can change the answer. Then build round 2, freeze it, and send it to all three reviewers.
-
----
-
-## 2026-10-29 (night, money) — -23 round 6 reviewed (all three: not yet); round 7 built and tested, waiting on Kyle
-
-**What was done:**
-- **Round 6's three reviews** (Opus, Fable, Codex) all said not yet. The common finding: a payment's credits never covered each other's shortfall, so after a bounce one credit could read −50 and its reissue +20, with the +20 looking refundable when it wasn't. Opus also found an escheat admitted on money that later came back, and a voided reissue whose share of a take-back stayed in the payment's limit; Codex found the 1,000th reissue losing its payment; all three found a deadlock between a reissue's void and a give-back. Codex's probes were run on a fresh clone (outputs in `codex-r6.md`).
-- **Kyle asked in Slack** (Ryan sent it): do a payment's credits net against each other, and which covers a shortfall first, the sibling credits or the payment's own money?
-- **Round 7 built on our lean** (siblings first, the latest first), with every other fix: escheat only on the credit's own money, no void of a reissue carrying a take-back's share, the payment's lock first on a reissue's void, a 999-deep reissue bound that raises instead of reading NULL.
-- **Tests:** battery 372/372 (Z section new; agree() now checks escheated credits); races 39/39 (CR25 new; deadlocks on r6); mutations 218/218 (N212–N219 new; N203 re-anchored to Y7i; N129's one miss was timing).
-
-**Decisions:** which credit covers a shortfall goes to Kyle, and round 7 isn't frozen until he answers (Ryan). Refusing a reissue's void while it carries a take-back's share is a known limit, not put to Kyle (Ryan). DECISION-LOG 2026-10-29 (-23 r7).
-
-**Failed approaches:** Codex with `-s read-only` (can't write its files); passing a voided reissue's share back to its credit (a new path through every reader and cap).
-
-**Next:** Kyle's answer → record it in GBM → freeze round 7 → three reviewers. Then -24, and -25/-26 to review.
-
-## 2026-10-29 — parallel streams set up (board, per-stream handoffs, clones, CI lock); scenarios run beside the schema; -23 r6 built and frozen
-
-**What was done:**
-- **The schema estimate, re-counted.** The 56 open invariants map to about 15 patches after -23: 24 / 47 / 91 working days in one stream. Ryan accepted it: 7 / 12 / 20½ weeks from 10-14, where the old estimate was 3 / 5 / 8.
-- **Three decisions on concurrency** (DECISION-LOG 2026-10-29):
-  - two schema streams on separate tables (money; rates, meters, places);
-  - one clone per stream, each with its own handoff file, and `HANDOFF.md` becomes a board of what crosses streams;
-  - scenarios run beside the schema (the gate relaxed between steps 1 and 2; Kyle has room), and the platform starts at schema parity.
-- **The roadmap:** ready to onboard likely 2027-06-09 (04-24 to 09-08). `phases.json`, `decisions.json` and the dashboard are updated.
-- **Setup** (`7c18a57`, `bb4b83b`):
-  - clones `~/code/tally-utility-rates` and `-scenarios`, with memory linked through the shared ccs projects folder;
-  - handoffs `schema-money`, `schema-rates`, `scenarios`;
-  - the board;
-  - `CLAUDE.md` (session start by folder, standing rules, wrap-up) and `CONTEXT.md`;
-  - `tests/ci.sh` takes a lock across clones, `/tmp/tally-ci.lock`, and falls back to the main checkout's law venv.
-- **-23 r6** (`00b39b1`), every item of the r6 plan:
-  - take-backs ordered against the draws (`check_cash_order`);
-  - the shortfall placed at the reading (`overpayment_shares`, `overpayment_absorbed_as_of`);
-  - the tree's order within one instant;
-  - status times change only with their status, and history moves come after their lineage (`cash_lineage_recorded`);
-  - reissues stay in their payment's lineage (`overpayment_root`, `overpayment_family`);
-  - S1 to S3 and S5 (R17 corrected; R18 to R21).
-  - Battery 344, races 38, mutations 210/210, `ci.sh` 49/49 with -25 and -26. The new checks fail against r5 (`red-r6-against-r5.txt`). Frozen, with the brief, in `tests/v5.4.2-23/review/`.
-
-**Decisions made:** DECISION-LOG 2026-10-29 (three entries: the estimate and the streams; the gate; -23 r6's drafting calls).
-
-**Failed approaches:**
-- **Placing a reissue's share of a take-back when a position is read.** Its own draw shrank its share, so the cap never applied (Y7j). The fix records the shares when the take-back is.
-- **Caps that read the covered positions.** The cover works both ways, so one side could draw the other's money.
-- **One-instant fixtures for shapes that need distinct instants.** Within one transaction the shares read that transaction's draws as already made (R17); those shapes are now history loads.
-- **A payment lock on a reissue's void.** Nothing observable needed it, so it was removed.
-
-**Next:** launch the three reviewers on the frozen r6 (`review-brief-23-r6.md`, `codex-prompt-r6.md`). Ryan's call this session: in the next one.
 
 ---
