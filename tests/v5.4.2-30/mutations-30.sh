@@ -31,7 +31,7 @@ open(sys.argv[4], "w").write(s)' "$P" "$3" "$4" "$TMP/m.sql"; then
     echo "SETUP $1: anchor not found exactly once"; fail=1; return
   fi
   case $exp in
-    PRE:*) got="PRE:$(tests/v5.4.2-30/preconditions-30.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL C[0-9]*' | cut -d' ' -f2)" ;;
+    PRE:*) got="PRE:$(tests/v5.4.2-30/preconditions-30.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL C[0-9a-z]*' | cut -d' ' -f2)" ;;
     *)
       docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "CREATE DATABASE m30 TEMPLATE tally" >/dev/null 2>&1
       docker exec tally-pg psql -U tally -d m30 -qc "REVOKE TEMP ON DATABASE m30 FROM PUBLIC" -qc "REVOKE TEMP ON DATABASE m30 FROM tally_app" -qc "REVOKE TEMP ON DATABASE m30 FROM tally_core" >/dev/null
@@ -65,7 +65,18 @@ mut "N3 a state agency with no basis not refused" PRE:C3 \
             RAISE EXCEPTION 'v5.4.2-30 precondition: % state agenc(ies)" "        IF false THEN
             RAISE EXCEPTION 'v5.4.2-30 precondition: % state agenc(ies)"
 mut "N4 the fact-kind repair run over existing fraction facts" PRE:C4 \
-  "    IF EXISTS (SELECT 1 FROM public.place_facts WHERE fact_code = 'sales_tax_rate') THEN" "    IF false THEN"
+  "    IF EXISTS (SELECT 1 FROM public.place_fact_kinds WHERE fact_code = 'sales_tax_rate' AND value_max IS DISTINCT FROM 100)
+       AND EXISTS" "    IF false
+       AND EXISTS"
+mut "N4b the repair refusing whenever a fact exists, percent or not (r1)" PRE:C5 \
+  "    IF EXISTS (SELECT 1 FROM public.place_fact_kinds WHERE fact_code = 'sales_tax_rate' AND value_max IS DISTINCT FROM 100)
+       AND EXISTS" "    IF true
+       AND EXISTS"
+mut "N4c an exemption naming no real service not refused (precondition)" PRE:C2b \
+  "        OR NOT (service_types <@" "        OR false AND NOT (service_types <@"
+mut "N4d existing premises left without a recorded state" PRE:C6 \
+  " WHERE NOT EXISTS (SELECT 1 FROM public.service_location_state_history h WHERE h.service_location_id = l.id);" \
+  " WHERE false;"
 mut "N5 the vocabulary guard left firing on origin only after the repair" F1b \
   "ALTER TABLE public.place_fact_kinds ENABLE ALWAYS TRIGGER a_enforce_place_vocabulary_immutable;" \
   "ALTER TABLE public.place_fact_kinds ENABLE TRIGGER a_enforce_place_vocabulary_immutable;"
@@ -139,9 +150,18 @@ mut "N25 the other order: an exclusion admitted over a version in the penalty ba
 mut "N26 an exemption with no service types admitted" E1 \
   "    CHECK ((service_types IS NOT NULL) AND (cardinality(service_types) > 0)" "    CHECK ((cardinality(service_types) > 0)"
 mut "N27 an empty service list admitted" E2 \
-  " AND (cardinality(service_types) > 0) AND (array_position(service_types, NULL) IS NULL));" " AND (array_position(service_types, NULL) IS NULL));"
-mut "N28 a NULL among the service types admitted" E2b \
-  " AND (cardinality(service_types) > 0) AND (array_position(service_types, NULL) IS NULL));" " AND (cardinality(service_types) > 0));"
+  " AND (cardinality(service_types) > 0) AND (array_position(service_types, NULL) IS NULL)
+           AND (service_types <@" " AND (array_position(service_types, NULL) IS NULL)
+           AND (service_types <@"
+# r2: no mutation drops the NULL-element leg alone: the service-list leg (<@)
+# refuses a NULL element too, so E2b stays refused (the leg is kept, stated).
+EXTRA='[["           AND (service_types <@ ARRAY[", "           AND (true OR service_types <@ ARRAY["]]' \
+mut "N28 a NULL among the service types admitted (both legs gone)" E2b \
+  " AND (cardinality(service_types) > 0) AND (array_position(service_types, NULL) IS NULL)
+           AND" " AND (cardinality(service_types) > 0)
+           AND"
+mut "N28b a misspelled service admitted" E2c \
+  "           AND (service_types <@ ARRAY[" "           AND (true OR service_types <@ ARRAY["
 mut "N29 an exemption read as covering every service" E5 \
   "        WHERE p_service_type = ANY (cte.service_types)" "        WHERE true"
 mut "N30 a line with no service type not refused" E6 \
@@ -156,6 +176,45 @@ mut "N32 a basis of only a tab admitted" A2 \
   "CHECK ((NOT is_state_agency) OR (state_agency_basis IS NOT NULL));"
 mut "N33 a change of basis not logged" A5 \
   "    IF OLD.state_agency_basis IS DISTINCT FROM NEW.state_agency_basis THEN" "    IF false THEN"
+
+# --- r2 (the round-1 findings)
+mut "N34 a late-penalty guard left firing on origin only" P7 \
+  "ALTER TABLE public.rate_item_versions ENABLE ALWAYS TRIGGER b_enforce_late_penalty_base;
+" ""
+mut "N35 a place closed from under its levy" C1 \
+  "    IF v_levy IS NOT NULL THEN" "    IF false THEN"
+mut "N36 the coverage check run at once, not at commit (no succession possible)" C0 \
+  "    DEFERRABLE INITIALLY DEFERRED
+" ""
+mut "N37 coverage taken as a row in force on the levy's first day" L23 \
+  "    IF v_cover IS NULL OR NOT v_cover @> v_range THEN" "    IF v_cover IS NULL OR NOT v_cover @> lower(v_range) THEN"
+mut "N38 the premise's latest state read, whenever recorded" M3 \
+  "     WHERE h.service_location_id = p_service_location_id AND h.recorded_at <= p_recorded_at" \
+  "     WHERE h.service_location_id = p_service_location_id"
+mut "N39 the premise's first recorded state read, not the latest" M7 \
+  "     ORDER BY h.recorded_at DESC, h.seq DESC LIMIT 1;" "     ORDER BY h.recorded_at, h.seq LIMIT 1;"
+mut "N40 a change of state not recorded" M7 \
+  "    IF TG_OP = 'UPDATE' AND upper(btrim(NEW.state)) IS NOT DISTINCT FROM upper(btrim(OLD.state)) THEN" "    IF TG_OP = 'UPDATE' THEN"
+mut "N41 a change of spelling recorded as a change" M8b \
+  "    IF TG_OP = 'UPDATE' AND upper(btrim(NEW.state)) IS NOT DISTINCT FROM upper(btrim(OLD.state)) THEN" \
+  "    IF TG_OP = 'UPDATE' AND NEW.state IS NOT DISTINCT FROM OLD.state THEN"
+mut "N42 the app writing its own state history" M10 \
+  "    IF pg_trigger_depth() < 2 AND NOT coalesce((SELECT r.rolsuper FROM pg_roles r WHERE r.rolname = current_user), false) THEN" "    IF false THEN"
+mut "N43 a premise's state stored as typed" M10d \
+  "    VALUES (NEW.tenant_id, NEW.id, upper(btrim(NEW.state)), now());" "    VALUES (NEW.tenant_id, NEW.id, NEW.state, now());"
+mut "N44 a place's end read as known from the start" M11 \
+  "       AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+       AND p.state_code = v_state" "       AND daterange(p.effective_from, p.effective_to, '[)') @> p_on
+       AND p.state_code = v_state"
+mut "N45 a published rate with no levy not reported" G5 \
+  "     WHERE daterange(p.effective_from, p.effective_to, '[)') @> p_on
+       AND (EXISTS" "     WHERE false AND daterange(p.effective_from, p.effective_to, '[)') @> p_on
+       AND (EXISTS"
+# N46: the agreeing state levy is then reported beside the city's, so G1's
+# "exactly one gap" fails before G2.
+mut "N46 an agreeing levy reported as a gap (r1, Fable N3)" G1 \
+  "       AND (t.terms ->> 'rate_percent')::numeric IS DISTINCT FROM (f.value #>> '{}')::numeric
+" ""
 
 echo "mutations-30: $caught of $n caught"
 [ $fail -eq 0 ] && [ $caught -eq $n ]

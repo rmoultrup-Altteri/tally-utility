@@ -53,7 +53,7 @@ So the mechanism is one, shared by every base: each rate item version states, fo
 
 ### 2.4 Tax rates in percent (schema; changes the meaning of a fact kind, free now: no rows)
 
-`place_fact_kinds.sales_tax_rate` becomes percent with at most four decimals (8.25, not 0.0825), and its bounds move with it. The levy rate is percent. (AC-45.)
+`place_fact_kinds.sales_tax_rate` becomes percent (8.25, not 0.0825), 0 up to but not including 100, stored as published. The levy rate is percent with at most four decimals (K-06 is for the rates a utility enters; a published rate with more would differ from any levy and show in the gaps report). (AC-45; narrowed 2026-11-06, -30 r2, Codex r1 S4.)
 
 ### 2.5 Places and memberships as known at a past instant (schema; additive)
 

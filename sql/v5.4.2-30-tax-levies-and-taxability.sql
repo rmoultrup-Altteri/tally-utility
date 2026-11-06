@@ -1,6 +1,6 @@
 -- ============================================================================
 -- PATCH v5.4.2-30 — tax rows keyed to places, and the taxability fixes
---                    (draft r0, 2026-11-05)
+--                    (r2, 2026-11-06; r1 frozen and reviewed 2026-11-06)
 -- ============================================================================
 -- Authority:   Kyle 2026-10-14 (GBM application/kyle-decisions-2026-10-14-
 --              tax-jurisdictions-and-gas-cost.md, answers 1, 2, 5); Kyle
@@ -12,6 +12,7 @@
 --              utility answers for stays its own row); Ryan 2026-11-02 (AC-45:
 --              rates in percent). Board claim -30 (rates stream).
 -- Design:      application/rates-build-2026-11-05/tax-design.md (2.1–2.8);
+--              round 2: v5.4.2-30-r2-plan.md (the round-1 findings);
 --              triage of the open points: tax-triage.md; sources:
 --              tax-inventory.md.
 -- Invariants:  CI-045 (each tax on its own base, in its order: the levy rows
@@ -43,16 +44,24 @@
 --   5. Exemptions name their services; should_charge_tax() refuses a NULL
 --      service type.
 --   6. The published sales_tax_rate is percent (0 to 100).
---   7. premise_places_as_of() gains a recorded-at instant: the memberships
---      and places as known then. The three-argument form reads at now().
+--   7. premise_places_as_of() gains a recorded-at instant: the premise's
+--      state, memberships and places as known then. The premise's state is
+--      recorded on change by the database (service_location_state_history,
+--      r2). The three-argument form reads at now().
 --   8. customers.state_agency_basis: required while is_state_agency is true,
 --      logged in the attribute history.
+--   9. A place is never closed from under a levy: checked at commit, so a
+--      close and its successor row may come in one transaction (r2).
 --
 -- Rules (each refused case is a battery check, tests/v5.4.2-30/battery-30.sql)
 --   * A levy names a kind of place that levies its tax (tax_kinds.place_
 --     kinds), and a place of that kind and code in the row's state is in
 --     force over the whole of the row's dates (its successive rows may cover
 --     them together: a levy keyed by code survives the place's succession).
+--     -16's convention: a successor row of the same kind, state and code is
+--     the same place. A place is closed only while its levies stay covered
+--     (section 2b), so a levy never outlives its place, and a code reused
+--     later inherits no levy.
 --   * The rate carries at most four decimals (K-06); 0 to 100.
 --   * computed_on names only known tax kinds, never the levy's own.
 --   * The citation has a letter or a digit.
@@ -79,11 +88,24 @@
 --       a line's bases, an exempt $0.00 line keeping its would-be base, and
 --       the defaults on one-off charges and bill lines are the money
 --       stream's (board note).
+--   L6. An instant before a premise's state was recorded cannot be read
+--       (refused). A bill from before go-live is rebilled from its own
+--       legacy record, with a supervisor's approval (Kyle 2026-11-05,
+--       batch 2 answer 11).
+--   L7. Two writers on one levy key: the template stamps created_at and
+--       closed_at with now() (transaction start), so a successor recorded by
+--       a transaction that began before its predecessor's close can make a
+--       read at an instant between the two raise "2 rows" for those seconds.
+--       It refuses, never mis-answers; the template's stamps are shared by
+--       every rule table, places and memberships (-17), so the change is
+--       the template's (board, unassigned).
 --
 -- Preconditions (a real database): no rate item version yet (each would need
 -- its penalty-base answer decided, not defaulted); no exemption without
--- service types; no state agency without a basis. Each refuses and names the
--- rows.
+-- service types, or naming one that is not a service; no state agency without
+-- a basis; no sales_tax_rate fact while the kind is still a fraction. Each
+-- refuses and counts the rows. On a re-apply each is skipped once its change
+-- is in place.
 -- ============================================================================
 
 BEGIN;
@@ -103,9 +125,10 @@ BEGIN
         END IF;
     END IF;
     SELECT count(*) INTO v FROM public.customer_tax_exemptions
-     WHERE service_types IS NULL OR cardinality(service_types) = 0 OR array_position(service_types, NULL) IS NOT NULL;
+     WHERE service_types IS NULL OR cardinality(service_types) = 0 OR array_position(service_types, NULL) IS NOT NULL
+        OR NOT (service_types <@ ARRAY['water'::text, 'sewer'::text, 'electric'::text, 'gas'::text, 'stormwater'::text, 'trash'::text, 'reclaimed_water'::text]);
     IF v > 0 THEN
-        RAISE EXCEPTION 'v5.4.2-30 precondition: % exemption(s) name no service type; each must name the services it covers (Kyle 2026-10-14, 5)', v;
+        RAISE EXCEPTION 'v5.4.2-30 precondition: % exemption(s) name no service type, or one that is not a service; each must name the services it covers (Kyle 2026-10-14, 5)', v;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_schema = 'public' AND table_name = 'customers' AND column_name = 'state_agency_basis') THEN
@@ -257,7 +280,7 @@ CREATE TABLE IF NOT EXISTS public.tax_levies (
 );
 
 CREATE OR REPLACE FUNCTION public.tax_levy_insert_check(p_row jsonb) RETURNS void
-    LANGUAGE plpgsql STABLE
+    LANGUAGE plpgsql VOLATILE
     SET search_path = public, pg_temp
     AS $$
 DECLARE
@@ -266,6 +289,7 @@ DECLARE
     v_range  daterange := daterange((p_row ->> 'effective_from')::date, (p_row ->> 'effective_to')::date, '[)');
     v_rate   numeric := (p_row -> 'terms' ->> 'rate_percent')::numeric;
     v_on     text;
+    v_place  uuid;
 BEGIN
     IF NOT public.is_platform_admin() AND (p_row ->> 'tenant_id')::uuid IS DISTINCT FROM public.get_user_tenant_id()
        AND NOT coalesce((SELECT r.rolsuper OR r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user), false) THEN
@@ -281,6 +305,15 @@ BEGIN
     END IF;
     -- The place, by kind and code in the row's state: its rows together
     -- cover the levy's dates (a successor row of the same place continues it).
+    -- Each row's lock is taken shared first, so a close of it waits for this
+    -- levy's commit and then sees it (section 2b); the rows are then re-read
+    -- under READ COMMITTED (a close committed meanwhile is seen).
+    PERFORM public.assert_place_read_committed('recording a tax levy');
+    FOR v_place IN SELECT p.id FROM public.places p
+                    WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code'
+                    ORDER BY p.id LOOP
+        PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_place));
+    END LOOP;
     SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) INTO v_cover
       FROM public.places p
      WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code';
@@ -310,7 +343,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.tax_levy_insert_check(jsonb) IS
-    'v5.4.2-30. The area predicate of tax_levies (rule_tables.insert_check), over the new row with its document: the writer is the row''s own utility; the place kind levies the tax (tax_kinds.place_kinds); a place of that kind and code in the row''s state is in force over the whole of the row''s dates; the rate has at most four decimals; computed_on names known tax kinds, never the levy''s own. Raises.';
+    'v5.4.2-30. The area predicate of tax_levies (rule_tables.insert_check), over the new row with its document: the writer is the row''s own utility; the place kind levies the tax (tax_kinds.place_kinds); a place of that kind and code in the row''s state is in force over the whole of the row''s dates (READ COMMITTED; each of the code''s rows share-locked first, so a close waits and then sees the levy); the rate has at most four decimals; computed_on names known tax kinds, never the levy''s own. Raises.';
 
 DO $register30$
 BEGIN
@@ -322,6 +355,48 @@ END
 $register30$;
 REVOKE ALL ON FUNCTION public.tax_levy_insert_check(jsonb) FROM PUBLIC, tally_core;
 GRANT EXECUTE ON FUNCTION public.tax_levy_insert_check(jsonb) TO tally_app;
+
+-- ----------------------------------------------------------------------------
+-- 2b. A place is never closed from under a levy (r2; review r1: Codex B1,
+--     Opus S2, Fable S1)
+-- ----------------------------------------------------------------------------
+-- -16's enforce_place() refuses a close while a citing row runs past it. A
+-- levy names its place by code, and a succession is a close then a successor
+-- row (the rows of one code never overlap), so the levy's check runs at
+-- commit: by then the successor is there, or the close is refused. The closer
+-- sees every tenant (enforce_place requires superuser or BYPASSRLS) and holds
+-- the place's exclusive lock until commit; a levy insert takes it shared
+-- (tax_levy_insert_check), so the two serialise.
+CREATE OR REPLACE FUNCTION public.check_place_levy_coverage() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_levy uuid;
+BEGIN
+    SELECT t.id INTO v_levy FROM public.tax_levies t
+     WHERE t.place_kind = OLD.kind_code AND t.state_code = OLD.state_code AND t.place_code = OLD.place_code
+       AND NOT coalesce((SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) FROM public.places p
+                          WHERE p.kind_code = t.place_kind AND p.state_code = t.state_code AND p.place_code = t.place_code)
+                        @> daterange(t.effective_from, t.effective_to, '[)'), false)
+     ORDER BY t.id LIMIT 1;
+    IF v_levy IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('place %s: closed at %s, a tax levy %s of %s %s runs past what the place''s rows cover; add the successor row in the same transaction, or have the utility close its levy first (v5.4.2-30)',
+                             OLD.id, NEW.effective_to, v_levy, OLD.kind_code, OLD.place_code),
+            ERRCODE = 'restrict_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.check_place_levy_coverage() IS
+    'v5.4.2-30 r2. Deferred (at commit) AFTER UPDATE OF effective_to on places, every role: after a place row''s close, every tax levy of its kind, state and code must still be covered by that code''s rows. A succession (the close and the successor row in one transaction) passes; a dissolution waits for the utility''s close of its levy.';
+REVOKE ALL ON FUNCTION public.check_place_levy_coverage() FROM PUBLIC;
+DROP TRIGGER IF EXISTS z_check_place_levy_coverage ON public.places;
+CREATE CONSTRAINT TRIGGER z_check_place_levy_coverage AFTER UPDATE OF effective_to ON public.places
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION public.check_place_levy_coverage();
+ALTER TABLE public.places ENABLE ALWAYS TRIGGER z_check_place_levy_coverage;
 COMMENT ON TABLE public.tax_levies IS
     'v5.4.2-30 (Kyle 2026-10-14 answers 1, 2; Ryan 2026-09-30: a value the utility answers for stays its own), on the rule-terms convention. The utility''s own record of each tax a place levies on its bills, per (tenant, state, service, system, place kind and code, tax kind, dates): one tax_levy document (rate in percent, stacking position, computed_on, source kind and citation, reaches_residential). The place is named by its kind and code, not its row id, so the levy survives the place''s succession. Never edited; closed once (effective_to), stamped; a change is a close and a successor. The published rate (place_facts sales_tax_rate) is the reference and never bills: tax_levy_reference_gaps() reports a difference. Read through tax_levy_as_of().';
 
@@ -372,6 +447,7 @@ BEGIN
             ERRCODE = 'null_value_not_allowed';
     END IF;
     RETURN QUERY
+    -- A levy whose rate differs from the published one.
     SELECT t.id, t.place_kind, t.place_code, (t.terms ->> 'rate_percent')::numeric, (f.value #>> '{}')::numeric, f.source_note
       FROM public.tax_levies t
       JOIN public.places p ON p.kind_code = t.place_kind AND p.state_code = t.state_code AND p.place_code = t.place_code
@@ -381,11 +457,31 @@ BEGIN
      WHERE t.tenant_id = p_tenant_id AND t.tax_kind = 'sales_tax'
        AND daterange(t.effective_from, t.effective_to, '[)') @> p_on
        AND (t.terms ->> 'rate_percent')::numeric IS DISTINCT FROM (f.value #>> '{}')::numeric
-     ORDER BY t.place_kind, t.place_code;
+    UNION ALL
+    -- r2 (review r1, Fable S6): a place the utility's premises are in (an open
+    -- tax-axis membership on p_on, or the premise's state), publishing a rate
+    -- on p_on, with no sales-tax levy of the utility in force: a published tax
+    -- nobody approved (known limit L1).
+    SELECT NULL::uuid, p.kind_code, p.place_code, NULL::numeric, (f.value #>> '{}')::numeric, f.source_note
+      FROM public.places p
+      JOIN public.place_facts f ON f.place_id = p.id AND f.fact_code = 'sales_tax_rate'
+                               AND daterange(f.effective_from, f.effective_to, '[)') @> p_on
+     WHERE daterange(p.effective_from, p.effective_to, '[)') @> p_on
+       AND (EXISTS (SELECT 1 FROM public.premise_place_memberships m
+                     WHERE m.place_id = p.id AND m.tenant_id = p_tenant_id AND m.axis = 'tax' AND m.voided_at IS NULL
+                       AND daterange(m.valid_from, m.valid_to, '[)') @> p_on)
+            OR (p.kind_code = 'state'
+                AND EXISTS (SELECT 1 FROM public.service_locations l
+                             WHERE l.tenant_id = p_tenant_id AND upper(btrim(l.state)) = p.state_code)))
+       AND NOT EXISTS (SELECT 1 FROM public.tax_levies t
+                        WHERE t.tenant_id = p_tenant_id AND t.tax_kind = 'sales_tax' AND t.state_code = p.state_code
+                          AND t.place_kind = p.kind_code AND t.place_code = p.place_code
+                          AND daterange(t.effective_from, t.effective_to, '[)') @> p_on)
+     ORDER BY 2, 3;
 END;
 $$;
 COMMENT ON FUNCTION public.tax_levy_reference_gaps(uuid, date) IS
-    'v5.4.2-30 (Ryan 2026-09-30: the platform keeps the published value as a reference and reports a disagreement). Each sales-tax levy of the utility in force on p_on whose place carries a published sales_tax_rate in force that differs: both rates and the published value''s source. A report, never a refusal: the utility''s row bills. Both arguments required.';
+    'v5.4.2-30 (Ryan 2026-09-30: the platform keeps the published value as a reference and reports a disagreement). On p_on: each sales-tax levy of the utility whose place carries a published sales_tax_rate that differs (both rates and the published value''s source); and (r2) each place the utility''s premises are in (an open tax-axis membership, or the premise''s state) that publishes a rate while the utility has no levy of it (levy_id and levy_rate_percent NULL). A report, never a refusal: the utility''s row bills. Both arguments required.';
 REVOKE ALL ON FUNCTION public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone),
                        public.tax_levy_reference_gaps(uuid, date), public.end_as_known(date, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone),
@@ -444,6 +540,7 @@ COMMENT ON FUNCTION public.enforce_late_penalty_base() IS
 DROP TRIGGER IF EXISTS b_enforce_late_penalty_base ON public.rate_item_versions;
 CREATE TRIGGER b_enforce_late_penalty_base BEFORE INSERT OR UPDATE OF in_late_penalty_base, is_a_tax ON public.rate_item_versions
     FOR EACH ROW EXECUTE FUNCTION public.enforce_late_penalty_base();
+ALTER TABLE public.rate_item_versions ENABLE ALWAYS TRIGGER b_enforce_late_penalty_base;
 
 CREATE OR REPLACE FUNCTION public.enforce_surcharge_rule_late_penalty_base() RETURNS trigger
     LANGUAGE plpgsql
@@ -470,15 +567,19 @@ COMMENT ON FUNCTION public.enforce_surcharge_rule_late_penalty_base() IS
 DROP TRIGGER IF EXISTS c_enforce_surcharge_rule_late_penalty_base ON public.regulatory_surcharge_rules;
 CREATE TRIGGER c_enforce_surcharge_rule_late_penalty_base BEFORE INSERT ON public.regulatory_surcharge_rules
     FOR EACH ROW EXECUTE FUNCTION public.enforce_surcharge_rule_late_penalty_base();
+ALTER TABLE public.regulatory_surcharge_rules ENABLE ALWAYS TRIGGER c_enforce_surcharge_rule_late_penalty_base;
 
 -- ----------------------------------------------------------------------------
 -- 5. Exemptions name their services
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.customer_tax_exemptions DROP CONSTRAINT IF EXISTS customer_tax_exemptions_service_types_check;
 ALTER TABLE public.customer_tax_exemptions ADD CONSTRAINT customer_tax_exemptions_service_types_check
-    CHECK ((service_types IS NOT NULL) AND (cardinality(service_types) > 0) AND (array_position(service_types, NULL) IS NULL));
+    CHECK ((service_types IS NOT NULL) AND (cardinality(service_types) > 0) AND (array_position(service_types, NULL) IS NULL)
+           AND (service_types <@ ARRAY['water'::text, 'sewer'::text, 'electric'::text, 'gas'::text, 'stormwater'::text, 'trash'::text, 'reclaimed_water'::text]));
 COMMENT ON CONSTRAINT customer_tax_exemptions_service_types_check ON public.customer_tax_exemptions IS
-    'v5.4.2-30 (Kyle 2026-10-14 answer 5: customer taxability is per service type): an exemption names the services it covers; "every service" is the list written out.';
+    'v5.4.2-30 (Kyle 2026-10-14 answer 5: customer taxability is per service type): an exemption names the services it covers, each one a service (r2: a misspelled one is refused, never silently matching nothing); "every service" is the list written out.';
+COMMENT ON COLUMN public.customer_tax_exemptions.service_types IS
+    'The service types this exemption covers: required, non-empty, each one a service (water, sewer, electric, gas, stormwater, trash, reclaimed_water). An exemption of every service lists them all; {gas} is exempt from gas only and still pays tax on the others (v5.4.2-30; Kyle 2026-10-14 answer 5).';
 
 CREATE OR REPLACE FUNCTION public.should_charge_tax(p_customer_id uuid, p_item_is_taxable boolean, p_service_type text, p_valid_at date, p_recorded_at timestamp with time zone) RETURNS boolean
     LANGUAGE plpgsql STABLE
@@ -532,7 +633,10 @@ $$;
 -- any sales_tax_rate fact exists (its value would change meaning).
 DO $repair30$
 BEGIN
-    IF EXISTS (SELECT 1 FROM public.place_facts WHERE fact_code = 'sales_tax_rate') THEN
+    -- r2 (review r1: Opus S3, Fable S3, Codex S1): only while the repair is
+    -- still to be made; once the kind is percent, its facts are percent.
+    IF EXISTS (SELECT 1 FROM public.place_fact_kinds WHERE fact_code = 'sales_tax_rate' AND value_max IS DISTINCT FROM 100)
+       AND EXISTS (SELECT 1 FROM public.place_facts WHERE fact_code = 'sales_tax_rate') THEN
         RAISE EXCEPTION 'v5.4.2-30 precondition: sales_tax_rate facts exist; their values are fractions and the kind cannot move to percent in place';
     END IF;
 END
@@ -540,10 +644,99 @@ $repair30$;
 ALTER TABLE public.place_fact_kinds DISABLE TRIGGER a_enforce_place_vocabulary_immutable;
 UPDATE public.place_fact_kinds
    SET value_max = 100,
-       description = 'The place''s published sales-tax rate, in percent (8.25 = 8.25%), dated as the tax authority publishes it. A reference value: the utility''s own levy (tax_levies) bills.',
+       description = 'The place''s published sales-tax rate, in percent (8.25 = 8.25%), 0 up to but not including 100, stored as the tax authority publishes it and dated as it publishes it. A reference value: the utility''s own levy (tax_levies, four decimals at most) bills.',
        source_note = 'Texas Tax 321.102 (quarter-start effective dates), Comptroller rate file (inventory P7; review r1 B5); in percent since v5.4.2-30 (AC-45)'
  WHERE fact_code = 'sales_tax_rate' AND (value_max IS DISTINCT FROM 100 OR description !~ 'in percent');
 ALTER TABLE public.place_fact_kinds ENABLE ALWAYS TRIGGER a_enforce_place_vocabulary_immutable;
+
+-- ----------------------------------------------------------------------------
+-- 7a. A premise's state, recorded on change (r2; review r1: Opus B1, Codex B2)
+-- ----------------------------------------------------------------------------
+-- A read as known at an instant needs the premise's state as known then: the
+-- operator can correct a state (once its other-state memberships are voided,
+-- -16), and the past read must still answer the old state and its places.
+-- The database records the normalised state when a premise is inserted and
+-- each time it changes; the app writes and edits none of it.
+CREATE TABLE IF NOT EXISTS public.service_location_state_history (
+    id                  uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    tenant_id           uuid NOT NULL,
+    service_location_id uuid NOT NULL,
+    state               text NOT NULL,
+    recorded_at         timestamp with time zone DEFAULT now() NOT NULL,
+    seq                 bigint GENERATED ALWAYS AS IDENTITY,
+    CONSTRAINT service_location_state_history_pkey PRIMARY KEY (id),
+    CONSTRAINT service_location_state_history_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
+    CONSTRAINT service_location_state_history_location_fkey FOREIGN KEY (service_location_id, tenant_id) REFERENCES public.service_locations(id, tenant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_service_location_state_history_lookup
+    ON public.service_location_state_history USING btree (service_location_id, recorded_at DESC, seq DESC);
+CREATE INDEX IF NOT EXISTS idx_service_location_state_history_tenant ON public.service_location_state_history USING btree (tenant_id);
+ALTER TABLE public.service_location_state_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_location_state_history FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON public.service_location_state_history;
+CREATE POLICY tenant_isolation ON public.service_location_state_history USING ((public.is_platform_admin() OR (tenant_id = public.get_user_tenant_id())));
+REVOKE ALL ON public.service_location_state_history FROM PUBLIC, tally_app, tally_core;
+GRANT SELECT, INSERT ON public.service_location_state_history TO tally_app;
+GRANT SELECT ON public.service_location_state_history TO tally_core;
+COMMENT ON TABLE public.service_location_state_history IS
+    'v5.4.2-30 r2 (CI-001, CI-004). Each premise''s normalised state (upper(btrim(service_locations.state))) as recorded: one row when the premise is inserted and one each time its normalised state changes, written by the database (record_service_location_state). Append-only. premise_places_as_of() reads the state as known at an instant from it. Backfilled for every existing premise at its created_at.';
+
+CREATE OR REPLACE FUNCTION public.enforce_state_history_written_by_db() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    -- inside this trigger a direct statement is depth 1; the recorder's insert is depth 2
+    IF pg_trigger_depth() < 2 AND NOT coalesce((SELECT r.rolsuper FROM pg_roles r WHERE r.rolname = current_user), false) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = 'service_location_state_history is written by the database: change the premise''s state and let it be recorded; a direct insert is not history (v5.4.2-30)',
+            ERRCODE = 'insufficient_privilege';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_state_history_written_by_db() IS
+    'v5.4.2-30 r2. BEFORE INSERT on service_location_state_history, every role: refused for a direct statement (pg_trigger_depth() < 2 inside the guard) unless the writer is a superuser (the backfill). With TEMP revoked from the app role the depth is a structural fence (as -07''s enforce_event_written_by_db).';
+DROP TRIGGER IF EXISTS a_enforce_state_history_written_by_db ON public.service_location_state_history;
+CREATE TRIGGER a_enforce_state_history_written_by_db BEFORE INSERT ON public.service_location_state_history
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_state_history_written_by_db();
+ALTER TABLE public.service_location_state_history ENABLE ALWAYS TRIGGER a_enforce_state_history_written_by_db;
+DROP TRIGGER IF EXISTS append_only ON public.service_location_state_history;
+CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.service_location_state_history
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_append_only();
+ALTER TABLE public.service_location_state_history ENABLE ALWAYS TRIGGER append_only;
+DROP TRIGGER IF EXISTS no_truncate ON public.service_location_state_history;
+CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.service_location_state_history
+    FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete();
+ALTER TABLE public.service_location_state_history ENABLE ALWAYS TRIGGER no_truncate;
+
+CREATE OR REPLACE FUNCTION public.record_service_location_state() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' AND upper(btrim(NEW.state)) IS NOT DISTINCT FROM upper(btrim(OLD.state)) THEN
+        RETURN NULL;
+    END IF;
+    INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
+    VALUES (NEW.tenant_id, NEW.id, upper(btrim(NEW.state)), now());
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.record_service_location_state() IS
+    'v5.4.2-30 r2. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now().';
+REVOKE ALL ON FUNCTION public.record_service_location_state(), public.enforce_state_history_written_by_db() FROM PUBLIC;
+DROP TRIGGER IF EXISTS z_record_service_location_state ON public.service_locations;
+CREATE TRIGGER z_record_service_location_state AFTER INSERT OR UPDATE OF state ON public.service_locations
+    FOR EACH ROW EXECUTE FUNCTION public.record_service_location_state();
+ALTER TABLE public.service_locations ENABLE ALWAYS TRIGGER z_record_service_location_state;
+-- Backfill: every premise without a recorded state, at its created_at (the
+-- owner; the guard lets the superuser write). Its state today is the best
+-- record there is: -16 refused a change under other-state memberships.
+INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
+SELECT l.tenant_id, l.id, upper(btrim(l.state)), l.created_at
+  FROM public.service_locations l
+ WHERE NOT EXISTS (SELECT 1 FROM public.service_location_state_history h WHERE h.service_location_id = l.id);
 
 -- ----------------------------------------------------------------------------
 -- 7. A premise's places as known at an instant
@@ -567,9 +760,17 @@ BEGIN
             MESSAGE = 'premise_places_as_of: a recorded-at instant is required: the places as known then (v5.4.2-30)',
             ERRCODE = 'null_value_not_allowed';
     END IF;
-    -- An invisible or missing premise has no state, so the state check
-    -- below refuses it too (review r2: one refusal, not two).
-    SELECT upper(btrim(l.state)) INTO v_state FROM public.service_locations l WHERE l.id = p_service_location_id;
+    -- The premise's state as known at p_recorded_at (r2): the latest recorded
+    -- by then. An invisible or missing premise has none, nor one recorded
+    -- later, and is refused.
+    SELECT h.state INTO v_state FROM public.service_location_state_history h
+     WHERE h.service_location_id = p_service_location_id AND h.recorded_at <= p_recorded_at
+     ORDER BY h.recorded_at DESC, h.seq DESC LIMIT 1;
+    IF v_state IS NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('premise_places_as_of: premise %s is not found (or not visible), or was not yet recorded at %s; its places cannot be read (v5.4.2-30)', p_service_location_id, p_recorded_at),
+            ERRCODE = 'no_data_found';
+    END IF;
     SELECT p.id INTO v_state_place FROM public.places p
      WHERE p.kind_code = 'state' AND p.state_code = v_state AND p.created_at <= p_recorded_at
        AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on;
@@ -599,7 +800,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.premise_places_as_of(uuid, date, text, timestamp with time zone) IS
-    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. A rebill reads the jurisdictions the original bill saw. Every argument required.';
+    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. A rebill reads the jurisdictions the original bill saw. Refuses a premise not yet recorded then. Every argument required.';
 
 CREATE OR REPLACE FUNCTION public.premise_places_as_of(p_service_location_id uuid, p_on date, p_axis text)
     RETURNS TABLE (place_id uuid, kind_code text, state_code text, place_code text, name text, specificity integer, relation text, distance_miles numeric)
