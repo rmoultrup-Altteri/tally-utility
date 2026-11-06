@@ -44,7 +44,6 @@ P29_PENDING="(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND 
 PENDING=(
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
-  sql/v5.4.2-27-shortfall-applications.sql:shortfall_applications
   sql/v5.4.2-30-tax-levies-and-taxability.sql:tax_levies
 )
 BASE=ci_base

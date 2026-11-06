@@ -1,8 +1,42 @@
 # Deploy verification — tu.sql
 
-**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-23 + v5.4.2-28 + v5.4.2-29, verified 2026-11-05.** After v5.4.2-29 (data only; the object counts are -23's): **140 tables** / **9 views** / **4 matviews** / **109 policies** / **108 FORCE-RLS** / **512 FKs** / **625 CHECKs** / **27 EXCLUDE** / **496 triggers** / **594 functions** / **750 indexes**; 254 Texas counties, each with one time_zone fact. tu.sql **47,634 lines**, md5 `8db7a0b53daf42edae56a7563f52f5c2` (the container init file matches by hash).
+**Current: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-23 + v5.4.2-27 + v5.4.2-28 + v5.4.2-29, verified 2026-11-06.** After v5.4.2-27: **141 tables** / **9 views** / **4 matviews** / **110 policies** / **109 FORCE-RLS** / **519 FKs** / **633 CHECKs** / **27 EXCLUDE** / **509 triggers** / **604 functions** / **758 indexes**; 254 Texas counties, each with one time_zone fact. tu.sql **49,090 lines**, md5 `26ea77de6d842fcca59b8c85a018d6f7` (the container init file matches by hash).
 
-**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-23 + v5.4.2-28, verified 2026-11-04.** After v5.4.2-23: **140 tables** / **9 views** / **4 matviews** / **109 policies** / **108 FORCE-RLS** / **512 FKs** / **625 CHECKs** / **27 EXCLUDE** / **496 triggers** / **594 functions** / **750 indexes**. tu.sql **47,265 lines**, md5 `891000175b491278ed95878fb181b6a2` (the container init file matches by hash).
+**Previous: v5.2.1 + v5.4.0-00 through v5.4.0-06 + v5.4.1-01 + v5.4.1-02 + v5.4.2-01 through v5.4.2-23 + v5.4.2-28 + v5.4.2-29, verified 2026-11-05.** After v5.4.2-29 (data only; the object counts are -23's): **140 tables** / **9 views** / **4 matviews** / **109 policies** / **108 FORCE-RLS** / **512 FKs** / **625 CHECKs** / **27 EXCLUDE** / **496 triggers** / **594 functions** / **750 indexes**; 254 Texas counties, each with one time_zone fact. tu.sql **47,634 lines**, md5 `8db7a0b53daf42edae56a7563f52f5c2` (the container init file matches by hash).
+
+## v5.4.2-27 — a credit applied to a bounced payment's shortfall, AC-44's netting recorded (Kyle 2026-10-30; Ryan 2026-11-02, 11-05; mirror approved by Ryan 2026-11-06 "waive Codex and mirror -27")
+`sql/v5.4.2-27-shortfall-applications.sql` (1,619 lines, md5 `50e7b43da4def4e69883120b5b558333`, the frozen r5), mirrored into tu.sql (47,634 → **49,090**: a pure append of a blank line, a 4-line banner and the 1,450-line body; 1,456 insertions, 0 deletions). The header, the psql re-run gate (`\gset` / `\if`) and BEGIN / COMMIT are omitted, as with every mirror. The body is byte-identical to the patch's lines 168–1617.
+
+**What changes** (the patch header lists each item, with residuals R1–R5; the design is `application/wave2-build-2026-10-15/v5.4.2-27-design.md`):
+- **`shortfall_applications`:** a payment's or a credit's money applied to what a bounced or reversed payment of the same customer left owed. Add-only, with a negative `undo` row to take one back. Every key carries the tenant and customer. RLS is forced, and the table is frozen by the close.
+- **The caps:** a source gives only what it has (-23's caps, with new purposes). A bounced payment and its credits never hold money (`check_shortfall_repaid`). A refund that comes back after its shortfall was repaid waits until the repayment is undone (Ryan 2026-11-05). An undo is dated no later than today (UTC+14), or than the repayment it undoes where that is later.
+- **The carry:** an undo onto a credit since escheated is carried into a new credit (`shortfall_reissue`, Ryan 2026-11-05), born active and checked at commit. The database records, as each undo is written, whether its credit was already escheated (`gave_to_escheated`).
+- **Readers:** `payment_position_as_of` gains a last column, `repaid`. Six -23 readers and three line walks re-issued with the new terms.
+
+**Review** (`tests/v5.4.2-27/review/`), five rounds; each round's merged list is `application/wave2-build-2026-10-15/v5.4.2-27-rN-plan.md`. Round 4: Opus, Fable and Codex ready. Round 5, a narrow round Ryan asked for before the mirror (a corrected comment, one error code, tests): Opus and Fable ready, Codex waived by Ryan while rate-limited. Every Codex probe of rounds 2–4 was run by the author (`codex-rN-probes/*.author-run.txt`).
+
+**Method.**
+1. Strict apply twice on a clone of `tally` (after -29), TEMP revoked: clean (the second skips: "already applied").
+2. **battery-27: 146 PASS**, rolled back. **races/shortfall-27.sh: 21 PASS** (SR1–SR11).
+3. **mutations-27.py: 74 of 74**, each caught at its named check.
+4. -23's own tests with -27 applied: **battery-23 409** (with -30 applied after -27, as the rates stream's port of it requires), **races/cash-23.sh 51**.
+5. Before the mirror, `pg_dump --schema-only` (with and without privileges) and `tests/v5.4.2-14/parity/catalog-identity.sql` taken of that clone with the patch applied.
+6. Mirror. -27 taken out of `PENDING` in `tests/ci.sh`. None of -25, -26 or -30 (still pending, applied over the build) redefines a function -27 re-issues.
+7. Image rebuilt on a fresh container (`tests/ci.sh --build`): no errors during init, and the init file equals tu.sql by md5 (`26ea77de6d842fcca59b8c85a018d6f7`).
+8. **Schema parity, full identity:** the build's `pg_dump --schema-only` equals step 5's, with and without privileges (0 differing lines; pg_dump's random `\restrict` token excluded). Catalog identity on the build: 12,079 lines, md5 `0712fe20324ad907064003b31caa929b`, equal to step 5's.
+9. **On the build: every `ci.sh` step passes (56).** These include -27's battery and races and the pending -25, -26 and -30 over it. TEMP is false for `tally_app`, `tally_core`, `tally_seal` and `tally_close`.
+10. Counts by catalog query, against -29: +1 table (`shortfall_applications`), +1 policy, +1 FORCE-RLS, +7 FKs, +8 CHECKs, +13 triggers, +10 functions, +8 indexes.
+
+**Before applying, on a database that holds data** (the build has none): `customer_credits` gains a column and a CHECK and has its origin CHECK replaced, so a row whose `origin_type` is outside the new list fails the replacement. Nothing else reads existing rows.
+
+**At deployment, run these; each must return 0** (an INSERT trigger does not inspect rows already present; on the build each returns 0):
+```sql
+-- no shortfall application yet exists where -27 is first applied
+SELECT count(*) FROM public.shortfall_applications;
+-- every shortfall_reissue credit names an undo that gave money to an escheated credit
+SELECT count(*) FROM public.customer_credits c JOIN public.shortfall_applications s ON s.id = c.reissues_shortfall_application_id
+ WHERE NOT s.gave_to_escheated;
+```
 
 ## v5.4.2-29 — every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04; mirror approved by Ryan 2026-11-05 "go ahead with the mirror")
 `sql/v5.4.2-29-texas-counties.sql` (452 lines, md5 `a3030b836fce0eeb6609a2464a797362`, r3), mirrored into tu.sql (47,265 → **47,634**: a pure append of a blank line, a 4-line banner, a blank line, the 358-line body and the end banner; 369 insertions, 0 deletions). The header is omitted, as with every mirror; the patch has no BEGIN / COMMIT of its own. The body is byte-identical to the patch's lines 95–452. Data only: no object is created or changed.

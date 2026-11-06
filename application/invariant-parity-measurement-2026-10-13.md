@@ -8,6 +8,14 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-06 (after v5.4.2-27)
+
+**How this was graded.** -27 records a customer's credit (or a payment's own money) applied to what a bounced payment left owed: AC-44's netting, Kyle's one-pot ruling (2026-10-30). Its design maps no canonical invariant to it. It closes -23's residuals R23 (the netting's record) and R24 (a credit at 0 that never closes), on CI-013's and CI-049's ground, and both are already REP+PROT after -23. Read against -27's header (residuals R1–R5), its design, five review rounds (all three reviewers ready on r4; r5 ready from Opus and Fable, Codex waived by Ryan) and its battery (146 checks). No class changes: **85 of 135** done, as after -29.
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-049 | REP+PROT | REP+PROT | med | -27 (AC-44; Ryan 2026-11-02, 11-05) | Payment allocation now covers a bounced payment's shortfall: `shortfall_applications` records whose money repaid it (basis `customer_pot`, `operator_override` with reason and user, or a negative `undo`), capped at the source and at the target (an ended payment and its credits never hold money), add-only, frozen by the close. A refund that comes back after its shortfall was repaid waits until the repayment is undone; an undo onto a credit since escheated is carried into a `shortfall_reissue` credit. | Which shortfall and credit go first, and when to net, are the core's (-27 R1); netting before an escheat report is per state (R2, AC-44). |
+
 ## Update — 2026-11-05 (after v5.4.2-29)
 
 **How this was graded.** -29 is data only: it loads every Texas county with its time zone (252 new, El Paso and Hudspeth checked). It maps to no invariant of its own; the one row it touches is CI-010, whose "what is left" named the county data. No class changes: **85 of 135** done, as after -23.
