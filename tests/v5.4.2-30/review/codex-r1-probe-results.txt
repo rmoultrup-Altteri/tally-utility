@@ -1,0 +1,233 @@
+===== 00-battery-with-error-notices.sql
+psql:/tmp/probe.sql:139: NOTICE:  PASS L0 tax_kinds holds sales_tax, levied by the state, a county, a city, a transit authority or a district
+psql:/tmp/probe.sql:142: NOTICE:  PASS L0b tax_levies is a tariff table on the rule-terms template, keyed by the place's kind and code (in the row's state) and the tax kind
+psql:/tmp/probe.sql:145: NOTICE:  PASS L0c tally_app reads tax kinds and writes none
+
+
+
+00000000-0000-4000-8000-0000000030b1
+
+psql:/tmp/probe.sql:153: NOTICE:  PASS L1 the city's sales tax, 1.0000 percent, reaching residential gas, from 2026-01-01
+psql:/tmp/probe.sql:157: NOTICE:  PASS L2 the state's sales tax, 6.25 percent, not reaching residential gas (Tax Code 151.317)
+
+psql:/tmp/probe.sql:160: NOTICE:  PASS L1b the stored row names the operator who approved it, and its document
+
+
+psql:/tmp/probe.sql:165: NOTICE:  caught SQLSTATE=23514 message=tax levy: a limited_purpose_area does not levy sales_tax (tax_kinds: state, county, municipality, transit_authority, special_purpose_district; v5.4.2-30)
+psql:/tmp/probe.sql:165: NOTICE:  PASS L3 a limited-purpose area levies no sales tax: refused by does not levy (tax levy: a limited_purpose_area does not levy sales_tax (tax_kinds: state, county, municipality, transit_authority, special_purpose_distric)
+
+psql:/tmp/probe.sql:169: NOTICE:  caught SQLSTATE=23514 message=tax levy: no county 48994 in TX is in force over the whole of [2026-01-01,) (its rows: none; v5.4.2-30)
+psql:/tmp/probe.sql:169: NOTICE:  PASS L4 a county code with no place in the row's state (48994: even, never real, not planted): refused by in force over the whole (tax levy: no county 48994 in TX is in force over the whole of [2026-01-01,) (its rows: none; v5.4.2-30))
+
+psql:/tmp/probe.sql:173: NOTICE:  caught SQLSTATE=23514 message=tax levy: no municipality TX-B30-CITY in TX is in force over the whole of [1990-01-01,2000-06-01) (its rows: {[2000-01-01,)}; v5.4.2-30)
+psql:/tmp/probe.sql:173: NOTICE:  PASS L5 a levy dated before its place exists (the city is in force from 2000): refused by in force over the whole (tax levy: no municipality TX-B30-CITY in TX is in force over the whole of [1990-01-01,2000-06-01) (its rows: {[2000-01-01,)}; v5.4.2-30))
+psql:/tmp/probe.sql:177: NOTICE:  caught SQLSTATE=23514 message=tax levy: a rate carries at most four decimals, in percent (K-06, AC-45); got 0.50005 (v5.4.2-30)
+psql:/tmp/probe.sql:177: NOTICE:  PASS L6 a rate with five decimals (four at most, K-06): refused by at most four decimals (tax levy: a rate carries at most four decimals, in percent (K-06, AC-45); got 0.50005 (v5.4.2-30))
+
+psql:/tmp/probe.sql:181: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /rate_percent: must be at most 100 (v5.4.2-17)
+psql:/tmp/probe.sql:181: NOTICE:  PASS L7 a rate over 100 percent: refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /rate_percent: must be at most 100 (v5.4.2-17))
+
+psql:/tmp/probe.sql:185: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /rate_percent: must be at least 0 (v5.4.2-17)
+psql:/tmp/probe.sql:185: NOTICE:  PASS L7b a negative rate: refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /rate_percent: must be at least 0 (v5.4.2-17))
+
+
+psql:/tmp/probe.sql:189: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /rate_percent: expected a number (v5.4.2-17)
+psql:/tmp/probe.sql:189: NOTICE:  PASS L8 a rate given as a fraction-looking string, not a number: refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /rate_percent: expected a number (v5.4.2-17))
+psql:/tmp/probe.sql:193: NOTICE:  caught SQLSTATE=23514 message=tax levy: computed_on names franchise_fee, which is not a tax kind (v5.4.2-30)
+psql:/tmp/probe.sql:193: NOTICE:  PASS L9 tax on tax naming an unknown kind: refused by computed_on names (tax levy: computed_on names franchise_fee, which is not a tax kind (v5.4.2-30))
+
+psql:/tmp/probe.sql:197: NOTICE:  caught SQLSTATE=23514 message=tax levy: computed_on names its own kind (sales_tax): a levy is never charged on itself (v5.4.2-30)
+psql:/tmp/probe.sql:197: NOTICE:  PASS L10 tax on tax naming the levy's own kind: refused by its own kind (tax levy: computed_on names its own kind (sales_tax): a levy is never charged on itself (v5.4.2-30))
+
+
+psql:/tmp/probe.sql:201: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /computed_on: required (v5.4.2-17)
+psql:/tmp/probe.sql:201: NOTICE:  PASS L11 no computed_on at all (empty is the stated "none"; absent is not a choice): refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /computed_on: required (v5.4.2-17))
+psql:/tmp/probe.sql:205: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /stacking_position: must be at least 1 (v5.4.2-17)
+psql:/tmp/probe.sql:205: NOTICE:  PASS L12 a stacking position of 0: refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /stacking_position: must be at least 1 (v5.4.2-17))
+
+
+psql:/tmp/probe.sql:209: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /source_kind: "custom" is not one of ordinance, statute, tariff (v5.4.2-17)
+psql:/tmp/probe.sql:209: NOTICE:  PASS L13 a source kind that is not statute, ordinance or tariff: refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /source_kind: "custom" is not one of ordinance, statute, tariff (v5.4.2-17))
+
+psql:/tmp/probe.sql:213: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /citation: does not match [A-Za-z0-9]; : strings and keys hold no control characters (newline, tab, …): "\t" (v5.4.2-17)
+psql:/tmp/probe.sql:213: NOTICE:  PASS L14 a citation that is only a tab: refused by citation (tax_levies: the document is not a valid tax_levy v1: /citation: does not match [A-Za-z0-9]; : strings and keys hold no control characters (n)
+psql:/tmp/probe.sql:217: NOTICE:  caught SQLSTATE=23514 message=tax_levies: the document is not a valid tax_levy v1: /citation: required (v5.4.2-17)
+psql:/tmp/probe.sql:217: NOTICE:  PASS L14b no citation: refused by tax_levy (tax_levies: the document is not a valid tax_levy v1: /citation: required (v5.4.2-17))
+
+
+psql:/tmp/probe.sql:221: NOTICE:  caught SQLSTATE=23P01 message=conflicting key value violates exclusion constraint "tax_levies_rule_no_overlap"
+psql:/tmp/probe.sql:221: NOTICE:  PASS L15 a second city sales tax overlapping the first: refused by tax_levies_rule_no_overlap (conflicting key value violates exclusion constraint "tax_levies_rule_no_overlap")
+psql:/tmp/probe.sql:224: NOTICE:  caught SQLSTATE=23001 message=tax_levies rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v5.4.2-17)
+psql:/tmp/probe.sql:224: NOTICE:  PASS L16 a levy is never edited in place: refused by rows are never edited (tax_levies rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v5.4.2-17))
+
+psql:/tmp/probe.sql:227: NOTICE:  caught SQLSTATE=42501 message=permission denied for table tax_levies
+psql:/tmp/probe.sql:227: NOTICE:  PASS L17 a levy is never deleted: refused by tax_levies (permission denied for table tax_levies)
+
+00000000-0000-4000-8000-0000000030b2
+psql:/tmp/probe.sql:232: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "tax_levies": a utility writes its own levies only (v5.4.2-30)
+psql:/tmp/probe.sql:232: NOTICE:  PASS L18 another utility writes no levy for T1: refused by its own (new row violates row-level security policy for table "tax_levies": a utility writes its own levies only (v5.4.2-30))
+
+psql:/tmp/probe.sql:233: NOTICE:  PASS L18b and sees none of T1's
+
+00000000-0000-4000-8000-0000000030b1
+psql:/tmp/probe.sql:238: NOTICE:  PASS L19 the county's rate in force from 2026-01-01 to 2026-07-01 (closed in the row)
+
+psql:/tmp/probe.sql:240: NOTICE:  PASS L20 the city's rate closed at 2026-07-01, once
+
+psql:/tmp/probe.sql:244: NOTICE:  PASS L21 and its successor from 2026-07-01 at 2.0 percent
+
+psql:/tmp/probe.sql:246: NOTICE:  PASS L21b the row names its place by kind and code, so a successor row of the same place keeps it
+
+psql:/tmp/probe.sql:248: NOTICE:  PASS L20b the close is stamped with its time and its operator
+
+psql:/tmp/probe.sql:263: NOTICE:  PASS Q1 on 2026-03-01, now: the city's first rate
+
+psql:/tmp/probe.sql:266: NOTICE:  PASS Q2 on 2026-08-01, now: the successor
+psql:/tmp/probe.sql:269: NOTICE:  PASS Q3 on 2026-08-01, as known a day ago: the first rate, then still open (its close came later)
+
+
+
+psql:/tmp/probe.sql:272: NOTICE:  PASS Q4 as known three days ago: nothing (no row was recorded yet)
+psql:/tmp/probe.sql:275: NOTICE:  PASS Q5 the county on 2026-08-01: nothing (its row ends 2026-07-01, known from the start)
+
+psql:/tmp/probe.sql:278: NOTICE:  caught SQLSTATE=22004 message=tax_levy_as_of: every argument is required — never default to today or to now() (v5.4.2-30)
+psql:/tmp/probe.sql:278: NOTICE:  PASS Q6 no recorded instant: refused by every argument is required (tax_levy_as_of: every argument is required — never default to today or to now() (v5.4.2-30))
+
+
+psql:/tmp/probe.sql:281: NOTICE:  caught SQLSTATE=22004 message=tax_levy_as_of: every argument is required — never default to today or to now() (v5.4.2-30)
+psql:/tmp/probe.sql:281: NOTICE:  PASS Q6b no date: refused by every argument is required (tax_levy_as_of: every argument is required — never default to today or to now() (v5.4.2-30))
+psql:/tmp/probe.sql:284: NOTICE:  caught SQLSTATE=22004 message=tax_levy_as_of: every argument is required — never default to today or to now() (v5.4.2-30)
+psql:/tmp/probe.sql:284: NOTICE:  PASS Q6c no place code: refused by every argument is required (tax_levy_as_of: every argument is required — never default to today or to now() (v5.4.2-30))
+
+psql:/tmp/probe.sql:286: NOTICE:  PASS Q7 the lookup has no defaulted argument
+
+psql:/tmp/probe.sql:292: NOTICE:  PASS F1 the sales_tax_rate fact kind is percent, 0 to 100
+
+psql:/tmp/probe.sql:295: NOTICE:  PASS F1b the vocabulary guard on fact kinds is back on after the repair, firing always
+
+psql:/tmp/probe.sql:302: NOTICE:  caught SQLSTATE=23514 message=place fact rejected: sales_tax_rate takes a number; 101 is not one (v5.4.2-16)
+psql:/tmp/probe.sql:302: NOTICE:  PASS F2 a published rate of 101 percent: refused by sales_tax_rate (place fact rejected: sales_tax_rate takes a number; 101 is not one (v5.4.2-16))
+
+psql:/tmp/probe.sql:306: NOTICE:  PASS G1 on 2026-03-01 the city's levy (1.0) differs from the published 1.5: reported, with both and the source
+
+psql:/tmp/probe.sql:309: NOTICE:  PASS G2 the state's levy agrees with the published 6.25: not reported
+
+psql:/tmp/probe.sql:312: NOTICE:  PASS G3 on 2026-08-01 the successor (2.0) differs from 1.5: reported
+
+psql:/tmp/probe.sql:315: NOTICE:  caught SQLSTATE=22004 message=tax_levy_reference_gaps: the utility and the date are required (v5.4.2-30)
+psql:/tmp/probe.sql:315: NOTICE:  PASS G4 no date: refused by required (tax_levy_reference_gaps: the utility and the date are required (v5.4.2-30))
+
+00000000-0000-4000-8000-0000000030b1
+2
+2
+2
+2
+psql:/tmp/probe.sql:339: NOTICE:  caught SQLSTATE=23502 message=null value in column "is_taxable_default" of relation "rate_item_versions" violates not-null constraint
+psql:/tmp/probe.sql:339: NOTICE:  PASS T1 a version that does not state its taxability: refused by is_taxable_default (null value in column "is_taxable_default" of relation "rate_item_versions" violates not-null constraint)
+
+psql:/tmp/probe.sql:342: NOTICE:  caught SQLSTATE=23502 message=null value in column "is_a_tax" of relation "rate_item_versions" violates not-null constraint
+psql:/tmp/probe.sql:342: NOTICE:  PASS T2 a version that does not state whether it is a tax: refused by is_a_tax (null value in column "is_a_tax" of relation "rate_item_versions" violates not-null constraint)
+
+psql:/tmp/probe.sql:345: NOTICE:  caught SQLSTATE=23502 message=null value in column "in_late_penalty_base" of relation "rate_item_versions" violates not-null constraint
+psql:/tmp/probe.sql:345: NOTICE:  PASS T3 a version that does not state whether it is in the late-penalty base: refused by in_late_penalty_base (null value in column "in_late_penalty_base" of relation "rate_item_versions" violates not-null constraint)
+
+psql:/tmp/probe.sql:348: NOTICE:  caught SQLSTATE=23502 message=null value in column "applies_to_customer_types" of relation "rate_item_versions" violates not-null constraint
+psql:/tmp/probe.sql:348: NOTICE:  PASS T4 a version that does not state its customer types (the old default left out small and large commercial): refused by applies_to_customer_types (null value in column "applies_to_customer_types" of relation "rate_item_versions" violates not-null constraint)
+
+psql:/tmp/probe.sql:351: NOTICE:  caught SQLSTATE=23514 message=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_customer_types_check"
+psql:/tmp/probe.sql:351: NOTICE:  PASS T5 an empty customer-type list: refused by rate_item_versions_customer_types_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_customer_types_check")
+
+psql:/tmp/probe.sql:354: NOTICE:  caught SQLSTATE=23514 message=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_customer_types_check"
+psql:/tmp/probe.sql:354: NOTICE:  PASS T6 a customer type that does not exist: refused by rate_item_versions_customer_types_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_customer_types_check")
+
+psql:/tmp/probe.sql:357: NOTICE:  caught SQLSTATE=23514 message=new row for relation "rate_item_versions" violates check constraint "rate_item_versions_customer_types_check"
+psql:/tmp/probe.sql:357: NOTICE:  PASS T6b a NULL among the customer types: refused by rate_item_versions_customer_types_check (new row for relation "rate_item_versions" violates check constraint "rate_item_versions_customer_types_check")
+
+psql:/tmp/probe.sql:360: NOTICE:  PASS T7 the customer charge: taxable, not a tax, in the penalty base, for every type including small and large commercial
+
+
+psql:/tmp/probe.sql:364: NOTICE:  PASS T8 no default left on the four columns
+psql:/tmp/probe.sql:367: NOTICE:  PASS T9 the taxability comment no longer calls the default an open question
+
+
+
+psql:/tmp/probe.sql:371: NOTICE:  caught SQLSTATE=23514 message=rate_item_versions: rate item 00000000-0000-4000-8000-000000003013 is a tax and cannot be in the late-penalty base (Kyle 2026-11-05, 3a: never on taxes; v5.4.2-30)
+psql:/tmp/probe.sql:371: NOTICE:  PASS P1 a tax in the late-penalty base (Kyle: never on taxes): refused by late-penalty base (rate_item_versions: rate item 00000000-0000-4000-8000-000000003013 is a tax and cannot be in the late-penalty base (Kyle 2026-11-05, 3a: nev)
+psql:/tmp/probe.sql:373: NOTICE:  PASS P2 the same tax, out of the penalty base
+psql:/tmp/probe.sql:375: NOTICE:  PASS P3 the pipeline safety fee, out of every base
+
+
+psql:/tmp/probe.sql:383: NOTICE:  caught SQLSTATE=23514 message=rate_item_versions: rate item 00000000-0000-4000-8000-000000003012 is a pipeline_safety_fee surcharge rider excluded from tax bases (regulatory_surcharge_rules e6e3c159-d4be-4257-9971-6c207553b795) and cannot be in the late-penalty base (Kyle 2026-11-05, 3a: never on state fees; v5.4.2-30)
+psql:/tmp/probe.sql:383: NOTICE:  PASS P4 a new version of the fee put into the penalty base (Kyle: never on state fees): refused by late-penalty base (rate_item_versions: rate item 00000000-0000-4000-8000-000000003012 is a pipeline_safety_fee surcharge rider excluded from tax bases (regulat)
+psql:/tmp/probe.sql:385: NOTICE:  PASS P5 a rider in the penalty base but not taxable (so only the penalty-base rule speaks in P6)
+
+psql:/tmp/probe.sql:389: NOTICE:  caught SQLSTATE=23514 message=regulatory_surcharge_rules: rider 00000000-0000-4000-8000-000000003014 cannot be excluded from tax bases while 1 open version(s) are in the late-penalty base — correct those versions first (Kyle 2026-11-05, 3a; v5.4.2-30)
+psql:/tmp/probe.sql:389: NOTICE:  PASS P6 the other order: an excluded-from-tax-bases rule for a rider whose open version is in the penalty base: refused by late-penalty base (regulatory_surcharge_rules: rider 00000000-0000-4000-8000-000000003014 cannot be excluded from tax bases while 1 open version(s) are in the )
+
+psql:/tmp/probe.sql:397: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check"
+psql:/tmp/probe.sql:397: NOTICE:  PASS E1 an exemption with no service types: refused by customer_tax_exemptions_service_types_check (new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check")
+psql:/tmp/probe.sql:401: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check"
+psql:/tmp/probe.sql:401: NOTICE:  PASS E2 an exemption with an empty list of service types: refused by customer_tax_exemptions_service_types_check (new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check")
+psql:/tmp/probe.sql:405: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check"
+psql:/tmp/probe.sql:405: NOTICE:  PASS E2b a NULL among the service types: refused by customer_tax_exemptions_service_types_check (new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check")
+
+
+
+psql:/tmp/probe.sql:410: NOTICE:  PASS E3 a verified exemption for gas only
+
+psql:/tmp/probe.sql:412: NOTICE:  PASS E4 a taxable gas line of the exempt customer: not taxed
+
+psql:/tmp/probe.sql:414: NOTICE:  PASS E5 a taxable water line of the same customer: taxed (the exemption names gas only)
+
+psql:/tmp/probe.sql:417: NOTICE:  caught SQLSTATE=22004 message=should_charge_tax: a service type is required: a line with none matches no exemption (v5.4.2-30)
+psql:/tmp/probe.sql:417: NOTICE:  PASS E6 a line with no service type is not matched to any exemption: the call raises: refused by a service type is required (should_charge_tax: a service type is required: a line with none matches no exemption (v5.4.2-30))
+
+
+psql:/tmp/probe.sql:419: NOTICE:  PASS E7 a non-taxable item stays untaxed for a taxable customer
+psql:/tmp/probe.sql:449: NOTICE:  PASS M1 on 2026-06-01, as known now: below the state, the limited-purpose area only
+
+
+psql:/tmp/probe.sql:452: NOTICE:  PASS M2 on 2026-06-01, as known a moment ago: the city (not yet closed) and the county (not yet voided), not the area (not yet recorded)
+psql:/tmp/probe.sql:455: NOTICE:  caught SQLSTATE=P0002 message=premise_places_as_of: premise 00000000-0000-4000-8000-0000000030d1 is not found (or not visible), or its state TX is no state known on 2026-06-01; its places cannot be read (v5.4.2-16)
+psql:/tmp/probe.sql:455: NOTICE:  PASS M3 as known three days ago, before Texas was recorded: the premise's places cannot be read: refused by is no state known (premise_places_as_of: premise 00000000-0000-4000-8000-0000000030d1 is not found (or not visible), or its state TX is no state known on 2026-)
+
+psql:/tmp/probe.sql:458: NOTICE:  PASS M4 the three-argument form still reads as known now
+
+psql:/tmp/probe.sql:461: NOTICE:  caught SQLSTATE=22004 message=premise_places_as_of: a recorded-at instant is required: the places as known then (v5.4.2-30)
+psql:/tmp/probe.sql:461: NOTICE:  PASS M5 no recorded instant: refused by a recorded-at instant is required (premise_places_as_of: a recorded-at instant is required: the places as known then (v5.4.2-30))
+
+00000000-0000-4000-8000-0000000030b1
+psql:/tmp/probe.sql:470: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customers" violates check constraint "customers_state_agency_basis_check"
+psql:/tmp/probe.sql:470: NOTICE:  PASS A1 a customer set as a state agency with no basis: refused by customers_state_agency_basis_check (new row for relation "customers" violates check constraint "customers_state_agency_basis_check")
+
+psql:/tmp/probe.sql:473: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customers" violates check constraint "customers_state_agency_basis_check"
+psql:/tmp/probe.sql:473: NOTICE:  PASS A2 a basis that is only a tab: refused by customers_state_agency_basis_check (new row for relation "customers" violates check constraint "customers_state_agency_basis_check")
+
+psql:/tmp/probe.sql:476: NOTICE:  caught SQLSTATE=23514 message=new row for relation "customers" violates check constraint "customers_state_agency_basis_check"
+psql:/tmp/probe.sql:476: NOTICE:  PASS A3 a new customer born a state agency with no basis: refused by customers_state_agency_basis_check (new row for relation "customers" violates check constraint "customers_state_agency_basis_check")
+
+psql:/tmp/probe.sql:479: NOTICE:  PASS A4 with its basis (a public university, Gov't Code 572.002)
+
+psql:/tmp/probe.sql:485: NOTICE:  PASS A5 the basis is logged in the attribute history beside the flag
+
+psql:/tmp/probe.sql:487: NOTICE:  PASS A6 a customer that is not a state agency needs no basis
+
+psql:/tmp/probe.sql:489: NOTICE:  battery-30: all checks passed
+===== 01-place-close-and-reused-code.sql
+00000000-0000-4000-8000-0000000030b1
+psql:/tmp/probe.sql:137: NOTICE:  B1: place close accepted with an open levy
+psql:/tmp/probe.sql:137: NOTICE:  B1: August levy rows=1; full coverage=f (predicted 1, false)
+psql:/tmp/probe.sql:137: NOTICE:  S3: levy rows after differently named successor=1; schema has no continuity assertion
+psql:/tmp/probe.sql:137: NOTICE:  S3: new levy spanning both differently named place rows accepted
+===== 02-historical-premise-state.sql
+00000000-0000-4000-8000-0000000030b1
+psql:/tmp/probe.sql:129: NOTICE:  B2 same date and recorded instant: before=TX:48996,TX:TX after=NM:NM (predicted TX:48996,TX:TX -> NM:NM)
+===== 03-percent-facts-and-reapply.sql
+psql:/tmp/probe.sql:114: NOTICE:  S4 accepted reference percent 6.25
+psql:/tmp/probe.sql:114: NOTICE:  S4 caught value=6.25 SQLSTATE=Z0001 message=rollback accepted candidate
+psql:/tmp/probe.sql:114: NOTICE:  S4 accepted reference percent 6.25001
+psql:/tmp/probe.sql:114: NOTICE:  S4 caught value=6.25001 SQLSTATE=Z0001 message=rollback accepted candidate
+psql:/tmp/probe.sql:114: NOTICE:  S4 caught value=100 SQLSTATE=23514 message=place fact rejected: sales_tax_rate takes a number; 100 is not one (v5.4.2-16)
+psql:/tmp/probe.sql:131: NOTICE:  S1 reapply precondition caught SQLSTATE=P0001 message=v5.4.2-30 precondition: sales_tax_rate facts exist; their values are fractions and the kind cannot move to percent in place
+===== 04-battery-time-assumption.sql
+psql:/tmp/probe.sql:15: NOTICE:  S2 Texas rows known three days ago=0 oldest=<NULL>; M3 requires zero

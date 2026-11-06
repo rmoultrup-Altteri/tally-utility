@@ -1,0 +1,6 @@
+Verdict: **not yet**.
+
+- **B1 — predicted:** Closing a place can leave an approved levy without place coverage.
+- **B2 — predicted:** A later premise-state correction changes historical jurisdiction results.
+
+[Full review](tests/v5.4.2-30/review/codex-r1.md) includes five author-run probes. All frozen MD5s match; no database commands or test scripts were run.
