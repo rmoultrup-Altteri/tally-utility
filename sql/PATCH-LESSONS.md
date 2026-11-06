@@ -35,8 +35,10 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 **Time and coordinates**
 - [temporal-helper-no-live-fallback](#temporal-helper-no-live-fallback) — Standing rule for any as-of/temporal lookup function in tu.sql — no live-value fallback, NULL coordinate raises, NULL result means unknowable
 - [date-from-snapshot-knowledge-from-now](#date-from-snapshot-knowledge-from-now) — issue-time checks classify at the snapshot's bound valid_at but under now(); the snapshot's recorded_at is caller-chosen and hides retractions
+- [history-stamped-at-xact-start](#history-stamped-at-xact-start) — a history read latest-first by a now() stamp goes permanently wrong when the earlier-begun writer commits last; refuse that writer (40001), don't switch to clock_timestamp()
 
 **Concurrency**
+- [succession-checks-at-commit](#succession-checks-at-commit) — a "never closed from under X" check on code-keyed rows must run at commit (deferred constraint trigger, ALWAYS, all-tenants role), or it refuses every close-then-successor
 - [count-guards-need-lock-handshake](#count-guards-need-lock-handshake) — A guard that counts rows can be defeated by an in-flight writer (phantom); pair it with a lock handshake — prefer a row-version mutex (UPDATE) over a bare lock, FOR KEY SHARE on heartbeated rows, and pin READ COMMITTED only where no row version can be written
 - [lock-order-as-a-rule](#lock-order-as-a-rule) — State a lock order as a rule over the rows taken in order, plus "every writer retries 40P01"; never as a list of shapes
 - [race-barriers-clear-stat-snapshot](#race-barriers-clear-stat-snapshot) — two-session race barriers polling pg_stat_activity must call pg_stat_clear_snapshot() each poll; never edit test files while mutations-22.py runs
@@ -443,3 +445,18 @@ Found drafting v5.4.2-30 (2026-11-05): `rule_table_register` requires each area-
 **Why:** the template keys rows by codes (state, service, system kind) so a rule row means the same thing across the life of the thing it names. A place's row id changes when the place is closed and succeeded (the -29 Texas succession defect); its kind and code do not.
 **How to apply:** key a rule row that names a place by `place_kind` and `place_code` within its `state_code`, and resolve the place in force over the row's dates in the insert check (its successive rows may cover them together). Write terms numbers canonically in fixtures and seeds.
 
+<a id="history-stamped-at-xact-start"></a>
+### history-stamped-at-xact-start
+
+v5.4.2-30 r2 recorded each premise's state in a history stamped `now()` (the transaction's start) and read the latest stamp. Two operators correcting one premise at once: the transaction that began first waits on the row lock, commits last, and its row sorts *below* the one it overwrote. The premise then sits in one state while every "as known now" read answers the other, forever, with no error (Opus and Fable, r2, two sessions).
+
+**Why not `clock_timestamp()`:** a correction voids memberships in the same transaction; those voids are stamped `now()`. A history row stamped by the clock post-dates them, so a read between the two sees the old state without its places. One transaction must keep one instant.
+
+**How to apply:** for any database-written history read latest-first by a `now()` stamp, have the writer refuse with 40001 (retry) when the entity already has a row stamped after its own `now()`. Both writers hold the entity's row lock, so the second sees the first's committed row. Test it with a two-session race in which the earlier-begun writer reaches the lock second, plus a planted future-stamped row in the battery. Reads at an instant still inherit the general limit that a writer in flight at that instant is invisible until it commits (-30 L7).
+
+<a id="succession-checks-at-commit"></a>
+### succession-checks-at-commit
+
+-16's places are closed once and continued by a successor row of the same kind, state and code, and a code's rows never overlap. So the successor can only be inserted *after* the close. A rule like "a place is never closed while a levy keyed by its code runs past it" cannot be checked at the close: it would refuse every succession (-30 r2).
+
+**How to apply:** make it a `DEFERRABLE INITIALLY DEFERRED` constraint trigger (`AFTER UPDATE OF effective_to`, `ENABLE ALWAYS`) that measures coverage across all the code's rows at commit. A close and its successor in one transaction pass; a dissolution waits for the dependent row's own close. The check runs under whatever role holds the session at COMMIT, so it must itself require the all-tenants role the close required (Fable r2 S1). The writer of the dependent row takes each found row's lock shared and then re-reads the rows, refusing (40001) if one was committed while it waited (-16's race R19 rule). In a battery, plant stamps before any close: `ALTER TABLE` is refused while deferred trigger events are pending.

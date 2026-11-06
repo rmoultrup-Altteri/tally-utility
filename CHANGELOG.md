@@ -6,6 +6,22 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-06 (rates) — v5.4.2-30 into CI, then three review rounds: r3 ready from Opus and Fable, Codex pending; Kyle's franchise answers in
+
+**What was done:**
+- **-30 joins `ci.sh`:** seven older tests ported to its required answers (batteries -09, -16, -20, -21, -23 (money's), -28, -29; race labels-21); PENDING after money's -27; board note to money. New tools: `mutations-30.sh` (battery, `PRE:` and `RACE:` catches), `preconditions-30.sh` (guards that fire only over existing data, re-apply, backfill), `races/levy-30.sh`.
+- **Round 1** (all three; Opus and Codex not yet, Fable ready; Codex's probes run, all predictions held): the main gaps were that correcting a premise's state rewrote past reads, and that a place could be closed under an open levy.
+- **Round 2** (plan `v5.4.2-30-r2-plan.md`): `service_location_state_history`, written by the database, read as known at an instant; a deferred commit-time check that a place's levies stay covered (a succession passes); late-penalty guards ALWAYS; the repair re-applies after percent facts; exemption services checked; the gaps report lists a published rate with no levy. Opus and Fable: not yet, both on overlapping corrections recorded out of order; Codex rate-limited.
+- **Round 3** (plan `v5.4.2-30-r3-plan.md`): the earlier-begun overlapping correction is refused (40001, retry); the coverage check needs an all-tenants role; a past read within two places of one exclusive group refuses; a levy insert that waited re-reads the place's rows. Opus and Fable: **ready** (should-fix: count places not rows; L7's wording overclaims for writers in flight; two untested filters). Codex queued for 16:08 after its reset.
+- Results at r3: strict apply twice clean; battery 112/112; preconditions 8/8; races 5/5; mutations 57/57; `ci.sh` 59/59.
+- **Kyle answered the franchise base (K-15):** two base values with no default; class-split franchise rules per city; the taxable flag is sales tax only; no 2% cap assumed for city-owned systems. Recorded in the DECISION-LOG; roadmap K-15 answered; dashboard updated.
+
+**Decisions:** DECISION-LOG 2026-11-06 (rates, -30 r1) and (rates, -30 r2): every review finding settled by standing rule; the premise state recorded on change rather than its change refused; the overlapping writer retries rather than clock stamps.
+
+**Failed approaches:** a place-close check at the close (refuses every succession: moved to commit); `clock_timestamp()` for the state history (splits a correction from its own voids); `ALTER TABLE places` after a close in one battery transaction (pending deferred events); a tie-break test ending where it began. Two new PATCH-LESSONS: history-stamped-at-xact-start, succession-checks-at-commit.
+
+**Next:** Codex's r3 review and its probes; a short r4 folding all three reviewers' should-fix items; re-test on the current `tally`; ask Ryan about the mirror; then -31 franchise fees.
+
 ## 2026-11-05 (rates) — v5.4.2-29 reviewed by Codex, fixed, reviewed ready by all three and mirrored; tax work inventoried, triaged and designed; v5.4.2-30 claimed, tested first and drafted
 
 **What was done:**

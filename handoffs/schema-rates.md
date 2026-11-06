@@ -2,12 +2,12 @@ Folder: `~/code/tally-utility-rates`. If your working directory is not this fold
 
 # Handoff: schema stream "rates" — tax, gas cost, zones, reads, dated history
 
-**Generated**: 2026-11-05, end of this stream's third session
+**Generated**: 2026-11-06, end of this stream's fourth session
 **Branch**: `main`. Run `git pull --ff-only` first.
 **Status**:
-- v5.4.2-29 (every Texas county and its time zone) is **mirrored**: 2026-11-05, all three reviewers ready on round 3.
-- **v5.4.2-30** (tax levies and taxability fixes) is **drafted at round 0**. Its battery passes 80 of 80. Seven older tests must be ported before it can join CI or go to review.
-- Kyle has the franchise-fee base question (roadmap K-15).
+- **v5.4.2-30** (tax levies and taxability) is at **round 3, frozen and in review**. Opus and Fable both say **ready** on r3. **Codex has not yet reviewed r3**: its usage limit reset at 16:06 on 2026-11-06, and this session left a background job that starts it at 16:08 (see Resume Instructions, item 1).
+- -30 is in `ci.sh` PENDING (after money's -27). CI: 59/59.
+- Kyle answered the franchise-fee base (K-15, 2026-11-06), so -31 is unblocked.
 
 ## Goal
 
@@ -17,123 +17,101 @@ Close the rates half of the open invariants, beside the money stream (`~/code/ta
 
 - **The board** (`HANDOFF.md`): read it at session start and before every mirror. Edit only this stream's lines.
 - **Next free patch number:** -31. Claim a number on the board before creating its file.
-- **`tests/ci.sh`:** a patch joins `PENDING` only once its battery passes and the older tests it breaks are ported. CI holds a lock across all clones.
+- **`tests/ci.sh`:** one run at a time across clones (a lock). -30 is in PENDING; its battery, race test (`races v5.4.2-30`) and the seven older tests ported to it all run.
 - **Law runners:** this clone has no `tools/law/.venv`. `ci.sh` finds the main checkout's venv by itself.
 
 ## Completed this session
 
-- [x] **-29:**
-  - Codex reviewed round 2 and said not yet (B1): re-applying refused after Texas itself was closed and succeeded.
-  - Round 3 fixed it: Texas is looked up as in force on 1900-01-01.
-  - All three reviewers said ready on round 3.
-  - Mirrored, with the build verified identical to the expectation.
-  - Records: `ci.sh --build` 55/55, DEPLOY-VERIFICATION, DECISION-LOG, parity update, GBM Section BX.
-- [x] **Tax work:**
-  - `application/rates-build-2026-11-05/`:
-    - `tax-inventory.md`: 17 gaps, 18 open points.
-    - `tax-triage.md`: 16 points settled, 1 question sent to Kyle.
-    - `tax-design.md`: the three-patch split and -30's interface in section 2.8.
-  - -30 claimed on the board.
-  - `tests/v5.4.2-30/battery-30.sql` written tests-first (80 checks).
-  - `sql/v5.4.2-30-tax-levies-and-taxability.sql` drafted (r0, about 700 lines). It applies strictly twice, and the battery passes 80/80.
-- [x] Kyle's batch 2 (2026-11-05) read and folded into the design. Answer 3a gives the per-charge late-penalty base; answer 20 the state-agency basis.
-- [x] Roadmap: K-15 added and phase 1's text updated; dashboard data uploaded.
+- [x] **Seven older tests ported to -30's required answers** (batteries -09, -16, -20, -21, -23 (money's), -28, -29 and race labels-21); -30 added to `ci.sh` PENDING and the battery loop. Board note to money (2026-11-06) posted.
+- [x] **New test tools:** `tests/v5.4.2-30/mutations-30.sh` (57 mutations; kinds: battery label, `PRE:` preconditions, `RACE:` race leg), `preconditions-30.sh` (C0–C6: the guards that fire only over existing data, the re-apply after a percent fact, the backfill), `races/levy-30.sh` (R1–R5).
+- [x] **Round 1** frozen and reviewed by all three (Opus and Codex not yet, Fable ready). Codex's five probes run by the author; all predictions held.
+- [x] **Round 2** (`application/rates-build-2026-11-05/v5.4.2-30-r2-plan.md`): a premise's state is recorded on change (`service_location_state_history`) and read as known; a place is never closed from under a levy (a deferred check at commit, so a succession passes); late-penalty guards ALWAYS; the repair re-applies after percent facts; exemption services checked; the gaps report lists a published rate with no levy. Opus and Fable reviewed it (both not yet, the same blocking item); Codex was rate-limited.
+- [x] **Round 3** (`v5.4.2-30-r3-plan.md`): an overlapping state correction that began first is refused and retries (40001); the coverage check needs an all-tenants role; a past read within two places of one exclusive group refuses; a levy insert that waited re-reads the place's rows (40001). Opus and Fable: **ready**.
+- [x] DECISION-LOG: 2026-11-06 (rates, -30 r1) and (rates, -30 r2), including Kyle's franchise answers. Design 2.4 narrowed. Board: -30's row, the new table, the template-stamps item (unassigned).
+- [x] Roadmap: K-15 answered; dashboard's decision queue uploaded.
 
 ## Not Yet Done
 
-1. [ ] **Port the older tests -30 breaks.** CI run with -30 pending: 51 pass, 7 fail.
-   - **Battery -09:** exemptions are inserted without `service_types`. Error: `new row for relation "customer_tax_exemptions" violates check constraint "customer_tax_exemptions_service_types_check"`. Add `service_types` (`'{gas}'`) to each insert.
-   - **Battery -16 N12a:** `pg_temp.fact('austin', 'sales_tax_rate', '5', …)` expects a refusal, but under percent 5 is a valid 5%. Change it to `'101'` and update its message (over 100 percent).
-   - **Batteries -21, -23 (the money stream's: board note), -28, -29, and race `tests/v5.4.2-21/races/labels-21.sh`:** rate item version inserts lack the new required columns. Error: `null value in column "applies_to_customer_types" of relation "rate_item_versions" violates not-null constraint`. Add `is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types` with explicit values. Keep each test's meaning: a pipeline safety fee rider is `false, false, false`.
-   - **Race -21's second error** (`40001 rate_items … was modified since it was read`) follows from its first. Re-check it after the port.
-   - **Battery -20 passed** although expected to break; check whether it inserts versions at all.
-2. [ ] **Add -30 to `ci.sh`.** Put `sql/v5.4.2-30-tax-levies-and-taxability.sql:tax_levies` in `PENDING`, and add `30` to the battery loop (line 140). Run `tests/ci.sh`. **Expected: all pass.**
-3. [ ] **Board note to money:**
-   - Battery -23's fixture was ported, and why.
-   - The money-side items from `tax-design.md` section 1: a bill line naming its levy and place; no tax on tax unless the levy's `computed_on` names it; an exempt $0.00 line keeps its would-be base; no defaults on `adhoc_charges.is_taxable` and `invoice_line_items.is_taxable`; a one-off charge's service type required; snapshots citing places, memberships and levies; the liability by jurisdiction and accounting period.
-   - The new `in_late_penalty_base` column, which their penalty engine reads.
-4. [ ] **Write the mutation runner `tests/v5.4.2-30/mutations-30.sh`.** Model it on `mutations-29.sh`. One mutation per guard: the insert check's six refusals, `end_as_known`, the as-of filters (`created_at`, `voided_at`), the two penalty-base triggers, the exemption check, `should_charge_tax`'s NULL refusal, the basis check, and the fact-kind repair's precondition. Each must be caught at its named battery check.
-5. [ ] Freeze round 1 and write the review brief, then run all three reviewers: Codex source-only, probes run by us.
-6. [ ] -31 (franchise fees) after Kyle answers K-15; -32 (Texas cities and districts, with the Comptroller's rates). Then handoff items 3–8 from before:
+1. [ ] **Codex's r3 review.** Check `tests/v5.4.2-30/review/codex-r3.md`. If missing, the background job died with the session: run it (Resume Instructions, item 1). Run its probes on a clone with frozen r3 applied and append the output to its file, as for r1 (`codex-r1-probe-results.txt` shows the shape).
+2. [ ] **Round 4, short**, folding the r3 should-fix items (all three reviewers' together). From Opus and Fable so far:
+   - **Fable S1:** the exclusive-group refusal counts membership rows, not places. The same county voided and re-recorded by overlapping transactions is refused as "two places". Count `DISTINCT m.place_id` (and keep the main read from returning a place twice).
+   - **Opus S1:** L7 and `premise_places_as_of`'s comment overclaim ("refuse, never mis-answer"; "a rebill sees what the bill saw"). Stamps are the writer's transaction start, so a writer in flight at the bill's instant can make a rebill answer different places. Restate L7 and narrow the comment. Widen the board's stamps item: `clock_timestamp()` does not cover a writer straddling the instant. The lasting remedy is the core's (a bill line records its levies and places, as L5 already gives money; or the core reads at an instant every writer begun by then has finished). Opus said this is not new: every as-of read in the schema works this way.
+   - **Opus S2:** the two-places check's `relation = 'within'` and `exclusivity_group IS NOT NULL` filters are untested. Add a fixture (a premise outside two cities, or in two stacking districts) and two mutations.
+   - Opus notes (non-blocking): a sub-millisecond residual in the levy's coverage read (a one-clause fix, in `opus-r3.md`); the recorder refuses while the server clock is stepped back; the backfill trusts a settable `created_at`.
+   - Fable notes: `levy-30.sh`'s `seen()` prints a FAIL line twice (cosmetic).
+   These are settled by rule (wording, tests, and a narrowing that refuses less). Then a narrow review of r4, and ask Ryan about the mirror.
+3. [ ] **Before the mirror:** re-run -30's battery and races on the current `tally` (the money stream mirrors -25, -26, -27 first; -27 reached r5 on 2026-11-06, not yet run with -30 r3). Follow the board's pre-mirror check.
+4. [ ] **-31 franchise fees** (Kyle 2026-11-06, GBM `application/kyle-decisions-2026-11-06-franchise-fee-base.md`):
+   - The base is one of two values, no default: "gas sales" or "all billed lines" (never taxes or the fee itself).
+   - A rider's exclusion leaves it out of the rule's base.
+   - No per-charge flag: a city may have several franchise rules, each covering a required list of customer classes. No two rules may cover one class over overlapping dates; this replaces `UNIQUE (tenant_id, city_name, effective_date)`.
+   - Keyed to the city as a place; rate in percent.
+   - No 2% cap check that assumes §182.025 governs city-owned systems (§182.026(a)).
+   - Design: `tax-design.md` section 3.
+5. [ ] -32 (Texas cities and districts, with the Comptroller's rates as reference facts), then the carried-over items:
    - the gas-cost billing side;
    - zones and factor tables;
-   - read ownership and replacement reads (Kyle batch 2, answer 15: keying errors);
+   - read ownership and replacement reads (Kyle batch 2, answer 15);
    - dated history and the meter test fee;
    - the backbilling tariff table (Kyle batch 2, answers 10–14);
    - retiring the `decimal` rate unit;
-   - retiring the old customer exempt columns (moved out of -30).
+   - retiring the old customer exempt columns.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **A `place_id uuid` as the levy's area key:** `rule_table_register` requires area-key columns to be `text NOT NULL`. Use `place_kind` and `place_code` (text) within the row's `state_code`. That also survives place succession.
-- **`UPDATE place_fact_kinds` directly:** refused by `a_enforce_place_vocabulary_immutable` ("vocabulary rows are never edited"). -30 does a reviewed repair: precondition no `sales_tax_rate` fact, guard disabled for the one UPDATE, then `ENABLE ALWAYS`.
-- **Terms written as `1.0`:** the template refuses non-canonical numbers ("numbers must be written canonically, without trailing fractional zeros"). Write `1`, `2`.
-- **Levy test with state `'OK'`:** the template refuses an unknown state first ("OK is not a known state"). Use a code with no place instead (county `48994`).
-- **"As known three days ago" expecting an empty answer:** Texas was recorded when `tally` was built, so before that the read refuses with `P0002` ("is no state known"). Use "a moment ago" (`now() - interval '1 second'`) for the open-then case.
-- **`premise_places_as_of` results compared whole:** they always include the state row. Filter with `kind_code <> 'state'`.
+- **A place-close check at the close itself (BEFORE UPDATE):** it refuses every succession. A code's rows never overlap, so the successor row can only be inserted after the close. The check runs at commit (deferred constraint trigger).
+- **Stamping the state history with `clock_timestamp()`** (Fable's r2 suggestion): a correction's row then post-dates the membership voids in its own transaction, and a read between them sees the old state without its places. Keep `now()` and refuse the overlapping writer.
+- **`ALTER TABLE places …` after a place close in the same battery transaction:** "pending trigger events" (the deferred check). Plant place stamps before any close.
+- **A tie-break test that ends where it began** (TX → NM → TX): both orders give TX. End on a different state.
+- **A test fragment like `empty`** that the new wording also contains ("non-empty"): match the old phrase itself.
+- **Reading after `COMMIT` in the same psql session that did `SET ROLE tally_app`:** the role persists without `app.user_id` (22P02). Read in a new session.
+- Carried over: a uuid as a rule-template key (keys are text); editing a vocabulary row directly; non-canonical JSON numbers (`1.0`); expecting "as known before the build" to read empty.
 
-## Key Decisions (all in DECISION-LOG 2026-11-05)
+## Key Decisions (DECISION-LOG 2026-11-06)
 
 | Decision | Rationale |
 |---|---|
-| Ryan: Codex on -29 round 2, then all three reviewers on round 3, then the mirror | Codex found the Texas succession defect the other two missed |
-| Ryan: send the franchise base to Kyle (K-15) | Kyle ruled the fixed list; only he knows whether ordinances exclude a charge for some classes only |
-| Tax work split into -30, -31 and -32 | -30 does not wait on Kyle, and the other two build on it |
-| A levy is keyed by place kind and code, not row id | The template requires text keys, and a code key survives succession |
-| No draft levy rows | A proposal bills nothing; approval is the insert, which records its approver |
-| One column per base (`is_taxable_default` = sales tax, `in_late_penalty_base` new) | A NOT NULL column with no default is required by itself |
-| `sales_tax_rate` moved to percent by a platform repair | No fact exists yet; AC-45 |
+| A premise's state recorded on change, not its change refused | A premise with no memberships still reads its state's tax; a clerk's typo is corrected, not refused |
+| Overlapping state corrections: the earlier-begun writer retries (40001) | One transaction, one instant; the database's own "changed since you read it" pattern |
+| Place-close coverage checked at commit, under an all-tenants role | A succession needs close-then-insert; the check counts every tenant's levies |
+| A levy insert that waited re-reads the place's rows (40001) | -16's rule: a row committed while a writer waited is never trusted unlocked |
+| Codex on every round unless Ryan waives it | Standing rule; r2 went to r3 for Codex because of its usage limit |
 
 ## Current State
 
-**Working:**
-- `tally` holds -23, -28 and -29 (rebuilt 2026-11-05). CI on `tally` without -30: 55/55.
-- -30 r0 applies strictly twice. Battery -30: 80/80.
+**Working:** `tally` holds -23, -28 and -29. -30 r3 applies strictly twice. Battery 112/112, preconditions 8/8, races 5/5, mutations 57/57, `ci.sh` 59/59 (with -30 pending after money's -25, -26, -27 r4).
 
-**Broken:** with -30 pending, the 7 older tests listed under Not Yet Done fail. -30 is **not** in `ci.sh`'s PENDING list (taken back out at wrap-up), so CI stays green for the other streams.
+**Uncommitted changes:** none after the wrap-up commit. Codex's r3 output, if it lands later, goes to `tests/v5.4.2-30/review/codex-r3*` (uncommitted until the next session).
 
-**Uncommitted changes:** none after the wrap-up commit.
-
-## Code Context
+## Code Context (r3 additions to r0)
 
 ```sql
--- sql/v5.4.2-30-tax-levies-and-taxability.sql (r0)
-public.end_as_known(p_end date, p_closed_at timestamptz, p_at timestamptz) RETURNS date
-public.tax_kinds (tax_kind text PK, place_kinds text[], description, source_note)    -- seeded: sales_tax
-public.tax_levies                                     -- rule-terms tariff; area key (place_kind, place_code, tax_kind)
-  terms tax_levy v1: {rate_percent 0..100 (4 dp in insert check), stacking_position int >=1,
-                      computed_on [tax_kind] (required; [] = none), source_kind statute|ordinance|tariff,
-                      citation (has alnum), reaches_residential bool}
-public.tax_levy_insert_check(jsonb)                   -- own tenant; kind levies tax; place covers dates; 4 dp; computed_on
-public.tax_levy_as_of(tenant uuid, state text, place_kind text, place_code text, tax_kind text,
-                      service_type text, system_kind text, on date, recorded_at timestamptz) RETURNS SETOF tax_levies
-public.tax_levy_reference_gaps(tenant uuid, on date)
-  RETURNS TABLE (levy_id, place_kind, place_code, levy_rate_percent, reference_rate_percent, reference_source)
-rate_item_versions: in_late_penalty_base NOT NULL (new); no defaults on is_taxable_default, is_a_tax, applies_to_customer_types;
-  CHECK rate_item_versions_customer_types_check; trigger b_enforce_late_penalty_base
-regulatory_surcharge_rules: trigger c_enforce_surcharge_rule_late_penalty_base
-customer_tax_exemptions_service_types_check; should_charge_tax raises 22004 on a NULL service type
-public.premise_places_as_of(location uuid, on date, axis text, recorded_at timestamptz)  -- 3-arg form = 4-arg at now()
-customers.state_agency_basis + customers_state_agency_basis_check; logger attribute 'state_agency_basis'
+public.service_location_state_history (tenant_id, service_location_id, state, recorded_at now(), seq identity)
+  -- written by z_record_service_location_state (AFTER INSERT OR UPDATE OF state on service_locations, ALWAYS);
+  -- refused to the app (a_enforce_state_history_written_by_db, depth fence); append_only; backfilled at created_at;
+  -- an UPDATE is refused 40001 when the premise has a row stamped after now()
+premise_places_as_of(loc, on, axis, recorded_at)   -- state from the history (latest recorded_at, seq by then);
+  -- refuses P0002 "not yet recorded"; refuses 21000 when two within places of one exclusivity group answer
+public.check_place_levy_coverage()  -- z_check_place_levy_coverage: DEFERRABLE INITIALLY DEFERRED, AFTER UPDATE OF effective_to
+  -- on places, ALWAYS; needs superuser/BYPASSRLS; every levy of the code still covered by its rows
+tax_levy_insert_check   -- VOLATILE; READ COMMITTED; share-locks each row of the code, re-reads them (40001 if new), then coverage
+tax_levy_reference_gaps -- second leg: a place reached by the utility's premises, publishing a rate, with no levy (levy_id NULL)
 ```
-
-The battery plants "recorded earlier" rows by disabling a table's guard (owner only, rolled back): `rule_row_history` on `tax_levies`, `a_enforce_premise_place_membership`, `a_enforce_place`. The insert check runs after the template validates the document, so a malformed document is refused with "the document is not a valid tax_levy v1".
 
 ## Resume Instructions
 
-1. Port the seven tests (Not Yet Done, item 1).
-   - Then put -30 in `ci.sh` (`PENDING` and the battery loop) and run `tests/ci.sh`.
-   - Expected: `ci: all pass` (56 steps or so).
-   - If a battery fails on `customer_attribute_history` counts, it's the logger's new tenth attribute: each customer insert now logs one more initial row.
-2. Commit the ports and the `ci.sh` change; post the board note to money.
-3. Write `mutations-30.sh` and run it (database names `m30`, `r30`). Expected: every mutation caught at its named check.
-4. Freeze round 1 under `tests/v5.4.2-30/review/`, write the brief and Codex prompt (copy -29's shape), and run Opus, Fable and Codex.
+1. **Codex on r3.** If `tests/v5.4.2-30/review/codex-r3.md` does not exist, run:
+   `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C ~/code/tally-utility-rates -o tests/v5.4.2-30/review/codex-r3-final.txt "$(cat tests/v5.4.2-30/review/codex-prompt-r3.md)" < /dev/null > tests/v5.4.2-30/review/codex-r3.log 2>&1`
+   (in the background; it takes about 10 minutes; watch for "usage limit" in the log). Then run its probes from `codex-r3-probes/` on a fresh clone of `tally` with `patch-30-frozen-r3.sql` strict-applied, and append the results to `codex-r3.md`.
+2. Fold all three reviewers' r3 should-fix items into r4 (Not Yet Done, item 2). Write `v5.4.2-30-r4-plan.md`; tests first; re-run the battery, preconditions, races, mutations and `ci.sh`; freeze r4 and run a narrow review with all three.
+3. Ask Ryan about the mirror once all three say ready (one question; re-test on the current `tally` first, item 3).
+4. Then -31.
 
 ## Warnings
 
-- Revoke TEMP after every TEMPLATE clone. At most two mutation runs at once.
-- Never edit frozen review copies or `tu.sql`'s mirrored bodies.
-- Don't put -30 in `PENDING` before the ports: it breaks CI for the other streams.
+- Revoke TEMP after every TEMPLATE clone. At most two mutation runs at once. The mutation runner drops `m30`, `m30p` and `r30m` when it ends: don't use those names for your own scratch work.
+- Never edit the frozen review copies or `tu.sql`'s mirrored bodies.
+- -30's battery -23 port means money's battery -23 passes only with -30 applied. Run it through `ci.sh` until -30 is mirrored (board note of 2026-11-06).
 - Kyle's batch 2 answer 3b (late-charge tax depends on the tariff's form) and the penalty engine are the money stream's.
 - Before writing or reviewing patch code, read the index at the top of `sql/PATCH-LESSONS.md`.
 - Ryan wants plain language with no shorthand codes in what he reads, and one decision per message.
