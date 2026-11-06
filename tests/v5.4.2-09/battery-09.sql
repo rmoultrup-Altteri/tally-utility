@@ -31,8 +31,8 @@ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000000b1';
 SET ROLE tally_app;
 
 -- F1: a draft needs no evidence
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start)
-VALUES ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000a1',
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start)
+VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000a1',
         '00000000-0000-4000-8000-0000000000c1', 'religious', CURRENT_DATE - 400);
 DO $$ BEGIN RAISE NOTICE 'PASS F1: draft (pending_verification) accepted without evidence'; END $$;
 
@@ -79,9 +79,9 @@ UPDATE public.customer_tax_exemptions SET notes = 'bat9 note'
 DO $$ BEGIN RAISE NOTICE 'PASS F5: notes edit on asserted row accepted (gate fires only on entry to assertion)'; END $$;
 
 -- F6: certificate_url alone is sufficient evidence (Comptroller letter)
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start,
         certificate_url, status, verified_by, verified_at)
-VALUES ('00000000-0000-4000-8000-0000000000d2', '00000000-0000-4000-8000-0000000000a1',
+VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d2', '00000000-0000-4000-8000-0000000000a1',
         '00000000-0000-4000-8000-0000000000c1', 'educational', CURRENT_DATE - 100,
         'https://artifacts.example/comptroller-letter-77.pdf', 'active',
         '00000000-0000-4000-8000-0000000000b1', now());
@@ -94,9 +94,9 @@ DECLARE v text;
 BEGIN
     FOREACH v IN ARRAY ARRAY['   ', E'\t', E'\n', chr(160), '---', E' \t.', ''] LOOP
         BEGIN
-            INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start,
+            INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start,
                     certificate_number, status, verified_by, verified_at)
-            VALUES ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
+            VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
                     'medical', CURRENT_DATE, v, 'active', '00000000-0000-4000-8000-0000000000b1', now());
             RAISE EXCEPTION 'F7 FAILED: certificate_number "%" accepted as evidence', v;
         EXCEPTION WHEN check_violation THEN
@@ -112,9 +112,9 @@ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000000b2';
 SET ROLE tally_app;
 
 -- F8: flag-only category asserts without evidence
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start,
         status, verified_by, verified_at)
-VALUES ('00000000-0000-4000-8000-0000000000d3', '00000000-0000-4000-8000-0000000000a2',
+VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d3', '00000000-0000-4000-8000-0000000000a2',
         '00000000-0000-4000-8000-0000000000c2', 'government', CURRENT_DATE - 50, 'active',
         '00000000-0000-4000-8000-0000000000b2', now());
 DO $$ BEGIN RAISE NOTICE 'PASS F8: flag-only category (T2 government) asserts without evidence'; END $$;
@@ -122,9 +122,9 @@ DO $$ BEGIN RAISE NOTICE 'PASS F8: flag-only category (T2 government) asserts wi
 -- F9: the flip is per category — T2 non_profit still requires evidence
 DO $$
 BEGIN
-    INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start,
+    INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start,
             status, verified_by, verified_at)
-    VALUES ('00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000c2',
+    VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000c2',
             'non_profit', CURRENT_DATE, 'active', '00000000-0000-4000-8000-0000000000b2', now());
     RAISE EXCEPTION 'F9 FAILED: T2 non_profit asserted without evidence';
 EXCEPTION WHEN check_violation THEN
@@ -139,9 +139,9 @@ SET ROLE tally_app;
 -- F10: certificate_required = "maybe" refuses the write that consulted it
 DO $$
 BEGIN
-    INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start,
+    INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start,
             status, verified_by, verified_at)
-    VALUES ('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000c3',
+    VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000c3',
             'government', CURRENT_DATE, 'active', '00000000-0000-4000-8000-0000000000b3', now());
     RAISE EXCEPTION 'F10 FAILED: malformed certificate_required config did not raise';
 EXCEPTION WHEN check_violation THEN
@@ -204,16 +204,16 @@ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000000b1';
 SET ROLE tally_app;
 
 -- fixtures: due-in-10 (in window), due-in-200 (outside), lapsed
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
         certificate_number, status, verified_by, verified_at)
 VALUES
- ('00000000-0000-4000-8000-0000000000d4', '00000000-0000-4000-8000-0000000000a1',
+ ('{gas}', '00000000-0000-4000-8000-0000000000d4', '00000000-0000-4000-8000-0000000000a1',
   '00000000-0000-4000-8000-0000000000c1', 'non_profit', CURRENT_DATE - 355, CURRENT_DATE + 10,
   '01-339-1010', 'active', '00000000-0000-4000-8000-0000000000b1', now()),
- ('00000000-0000-4000-8000-0000000000d5', '00000000-0000-4000-8000-0000000000a1',
+ ('{gas}', '00000000-0000-4000-8000-0000000000d5', '00000000-0000-4000-8000-0000000000a1',
   '00000000-0000-4000-8000-0000000000c1', 'agricultural', CURRENT_DATE - 165, CURRENT_DATE + 200,
   '01-924-2020', 'active', '00000000-0000-4000-8000-0000000000b1', now()),
- ('00000000-0000-4000-8000-0000000000d6', '00000000-0000-4000-8000-0000000000a1',
+ ('{gas}', '00000000-0000-4000-8000-0000000000d6', '00000000-0000-4000-8000-0000000000a1',
   '00000000-0000-4000-8000-0000000000c1', 'sales_for_resale', CURRENT_DATE - 400, CURRENT_DATE - 5,
   '01-339-3030', 'active', '00000000-0000-4000-8000-0000000000b1', now());
 
@@ -233,9 +233,9 @@ BEGIN
 END $$;
 
 -- F15: a renewal on file suppresses the expiring row
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
         certificate_number, status, verified_by, verified_at)
-VALUES ('00000000-0000-4000-8000-0000000000d7', '00000000-0000-4000-8000-0000000000a1',
+VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d7', '00000000-0000-4000-8000-0000000000a1',
         '00000000-0000-4000-8000-0000000000c1', 'non_profit', CURRENT_DATE + 11, CURRENT_DATE + 376,
         '01-339-1011', 'active', '00000000-0000-4000-8000-0000000000b1', now());
 DO $$
@@ -251,9 +251,9 @@ END $$;
 
 -- F15b: a LAPSED row stays listed even with a renewal on file (it owes
 -- its expiry succession) — round-1 Fable LOW
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
         certificate_number, status, verified_by, verified_at)
-VALUES ('00000000-0000-4000-8000-0000000000d9', '00000000-0000-4000-8000-0000000000a1',
+VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d9', '00000000-0000-4000-8000-0000000000a1',
         '00000000-0000-4000-8000-0000000000c1', 'sales_for_resale', CURRENT_DATE + 300, CURRENT_DATE + 665,
         '01-339-3031', 'active', '00000000-0000-4000-8000-0000000000b1', now());
 DO $$
@@ -271,13 +271,13 @@ END $$;
 -- F15c: the window boundary — "notify 60 days before expiry" means a row
 -- with EXACTLY 60 days remaining is listed TODAY (opened_on = today), and
 -- one with 61 days remaining is not (round-2 Codex MEDIUM: < gave N-1 days)
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
         certificate_number, status, verified_by, verified_at, exemption_reason)
 VALUES
- ('00000000-0000-4000-8000-0000000000da', '00000000-0000-4000-8000-0000000000a1',
+ ('{gas}', '00000000-0000-4000-8000-0000000000da', '00000000-0000-4000-8000-0000000000a1',
   '00000000-0000-4000-8000-0000000000c1', 'medical', CURRENT_DATE - 305, CURRENT_DATE + 60,
   '01-339-6060', 'active', '00000000-0000-4000-8000-0000000000b1', now(), NULL),
- ('00000000-0000-4000-8000-0000000000db', '00000000-0000-4000-8000-0000000000a1',
+ ('{gas}', '00000000-0000-4000-8000-0000000000db', '00000000-0000-4000-8000-0000000000a1',
   '00000000-0000-4000-8000-0000000000c1', 'other', CURRENT_DATE - 304, CURRENT_DATE + 61,
   '01-339-6161', 'active', '00000000-0000-4000-8000-0000000000b1', now(), 'bat9 boundary probe');
 DO $$
@@ -322,10 +322,10 @@ UPDATE public.customer_tax_exemptions
  WHERE id = '00000000-0000-4000-8000-0000000000d6';
 DO $$
 BEGIN
-    INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start, effective_end,
+    INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start, effective_end,
             status, verified_by, verified_at, revoked_at, revoked_by,
             change_type, change_reason, supersedes_id)
-    VALUES ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
+    VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
             'sales_for_resale', CURRENT_DATE - 400, CURRENT_DATE - 5,
             'expired', '00000000-0000-4000-8000-0000000000b1', now(), NULL, NULL,
             'succession', 'certificate lapsed (bat9 F17)', '00000000-0000-4000-8000-0000000000d6');
@@ -333,9 +333,9 @@ BEGIN
 EXCEPTION WHEN check_violation THEN
     RAISE NOTICE 'PASS F17a: expired successor without evidence refused';
 END $$;
-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
         certificate_number, status, verified_by, verified_at, change_type, change_reason, supersedes_id)
-VALUES ('00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000a1',
+VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000a1',
         '00000000-0000-4000-8000-0000000000c1', 'sales_for_resale', CURRENT_DATE - 400, CURRENT_DATE - 5,
         '01-339-3030', 'expired', '00000000-0000-4000-8000-0000000000b1', now(),
         'succession', 'certificate lapsed (bat9 F17)', '00000000-0000-4000-8000-0000000000d6');

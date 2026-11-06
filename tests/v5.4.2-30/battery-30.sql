@@ -52,6 +52,20 @@ BEGIN
   END;
   RAISE EXCEPTION 'FAIL %: accepted', p_label;
 END $$;
+-- ok_q(): ok() over a query's text, so an error inside the read is a FAIL of
+-- this label, not an unlabelled stop (mutation N14 of the as-of read).
+CREATE FUNCTION pg_temp.ok_q(p_label text, p_sql text) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE v boolean;
+BEGIN
+  BEGIN
+    EXECUTE p_sql INTO v;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'FAIL %: the read raised % (%)', p_label, SQLSTATE, SQLERRM;
+  END;
+  IF v IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL %', p_label; END IF;
+  RAISE NOTICE 'PASS %', p_label;
+END $$;
 CREATE FUNCTION pg_temp.ok(p_label text, p_cond boolean) RETURNS void
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -66,7 +80,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'FAIL %: refused with % (%)', p_label, SQLSTATE, SQLERRM;
 END $$;
-GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.admits(text, text) TO tally_app;
+GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok(text, boolean), pg_temp.ok_q(text, text), pg_temp.admits(text, text) TO tally_app;
 
 -- A levy row as the tests write it: id or NULL, tenant, state, the place by its kind and code, the tax kind, dates, terms (JSON text).
 CREATE FUNCTION pg_temp.levy_sql(p_id uuid, p_tenant uuid, p_state text, p_pkind text, p_pcode text, p_kind text, p_from date, p_to date, p_terms text) RETURNS text
@@ -238,21 +252,21 @@ ALTER TABLE public.tax_levies DISABLE TRIGGER rule_row_history;
 UPDATE public.tax_levies SET created_at = now() - interval '2 days' WHERE id IN ('00000000-0000-4000-8000-0000000030f1', '00000000-0000-4000-8000-0000000030f3');
 ALTER TABLE public.tax_levies ENABLE ALWAYS TRIGGER rule_row_history;
 
-SELECT pg_temp.ok('Q1 on 2026-03-01, now: the city''s first rate',
-  (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
-     'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now())));
-SELECT pg_temp.ok('Q2 on 2026-08-01, now: the successor',
-  (SELECT id = '00000000-0000-4000-8000-0000000030f4' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
-     'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now())));
-SELECT pg_temp.ok('Q3 on 2026-08-01, as known a day ago: the first rate, then still open (its close came later)',
-  (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
-     'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now() - interval '1 day')));
-SELECT pg_temp.ok('Q4 as known three days ago: nothing (no row was recorded yet)',
-  NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
-     'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now() - interval '3 days')));
-SELECT pg_temp.ok('Q5 the county on 2026-08-01: nothing (its row ends 2026-07-01, known from the start)',
-  NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996',
-     'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now() - interval '1 day')));
+SELECT pg_temp.ok_q('Q1 on 2026-03-01, now: the city''s first rate',
+  $q$SELECT (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
+     'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now()))$q$);
+SELECT pg_temp.ok_q('Q2 on 2026-08-01, now: the successor',
+  $q$SELECT (SELECT id = '00000000-0000-4000-8000-0000000030f4' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
+     'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now()))$q$);
+SELECT pg_temp.ok_q('Q3 on 2026-08-01, as known a day ago: the first rate, then still open (its close came later)',
+  $q$SELECT (SELECT id = '00000000-0000-4000-8000-0000000030f1' FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
+     'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now() - interval '1 day'))$q$);
+SELECT pg_temp.ok_q('Q4 as known three days ago: nothing (no row was recorded yet)',
+  $q$SELECT NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY',
+     'sales_tax', 'gas', 'distribution', DATE '2026-03-01', now() - interval '3 days'))$q$);
+SELECT pg_temp.ok_q('Q5 the county on 2026-08-01: nothing (its row ends 2026-07-01, known from the start)',
+  $q$SELECT NOT EXISTS (SELECT 1 FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'county', '48996',
+     'sales_tax', 'gas', 'distribution', DATE '2026-08-01', now() - interval '1 day'))$q$);
 SELECT pg_temp.refuses_at('Q6 no recorded instant',
   $q$SELECT * FROM public.tax_levy_as_of('00000000-0000-4000-8000-0000000030a1', 'TX', 'municipality', 'TX-B30-CITY', 'sales_tax', 'gas', 'distribution', DATE '2026-03-01', NULL)$q$,
   '22004', 'every argument is required');
@@ -270,6 +284,9 @@ SELECT pg_temp.ok('Q7 the lookup has no defaulted argument',
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.ok('F1 the sales_tax_rate fact kind is percent, 0 to 100',
   (SELECT value_min = 0 AND value_max = 100 AND description ~* 'percent' AND description !~* 'fraction' FROM public.place_fact_kinds WHERE fact_code = 'sales_tax_rate'));
+-- The repair lifts the vocabulary guard for one statement: it must be back on, as ALWAYS.
+SELECT pg_temp.ok('F1b the vocabulary guard on fact kinds is back on after the repair, firing always',
+  (SELECT tgenabled = 'A' FROM pg_trigger WHERE tgrelid = 'public.place_fact_kinds'::regclass AND tgname = 'a_enforce_place_vocabulary_immutable'));
 INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note) VALUES
   ('00000000-0000-4000-8000-0000000030e1', 'sales_tax_rate', '1.5', DATE '2026-01-01', 'Comptroller rate file 2026Q1 (battery 30)'),
   ((SELECT id FROM b30 WHERE k = 'tx'), 'sales_tax_rate', '6.25', DATE '2026-01-01', 'Tax Code 151.051 (battery 30)');

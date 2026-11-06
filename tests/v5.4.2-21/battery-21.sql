@@ -152,20 +152,20 @@ UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
 SELECT public.assert_reference_version('rate_items', i, 1)
   FROM unnest(ARRAY['00000000-0000-4000-8000-000000002153', '00000000-0000-4000-8000-000000002154', '00000000-0000-4000-8000-000000002155']::uuid[]) i;
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type, tier_config) VALUES
-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002153', 'Per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'initial', NULL),
-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002154', 'Tiered', 'gas', 'tiered_usage', 'regulated', DATE '2026-01-01', 'initial', '{"tiers": []}'),
-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002155', 'Fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial', NULL);
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type, tier_config) VALUES
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002153', 'Per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial', NULL),
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002154', 'Tiered', 'gas', 'tiered_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial', '{"tiers": []}'),
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002155', 'Fixed', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial', NULL);
 -- JF: fixed in January, per unit from February (the correction case, A7).
 SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-000000002156', 1);
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, expiry_date, change_type) VALUES
-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'January fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', DATE '2026-01-31', 'initial'),
-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'February per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-02-01', NULL, 'initial');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, expiry_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'January fixed', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', DATE '2026-01-31', 'initial'),
+  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'February per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-02-01', NULL, 'initial');
 -- Tenant 2's per-unit item (invisible to tenant 1, A4h).
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b2', true);
 SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-000000002159', 1);
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
-  ('00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-000000002159', 'T2 per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'initial');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-000000002159', 'T2 per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial');
 
 -- draft(): a draft bill of tenant 1 for January.
 CREATE FUNCTION pg_temp.draft(p_id uuid, p_num text) RETURNS void LANGUAGE sql AS $$

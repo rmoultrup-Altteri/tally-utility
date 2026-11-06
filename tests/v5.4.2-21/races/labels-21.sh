@@ -215,8 +215,8 @@ else echo "FAIL LR7: waited=$WAITED after ${EL}s: $OUT"; fail=1; fi
 BEGIN;
 $APP
 SELECT public.assert_reference_version('rate_items', '$IF', 1);
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
-  VALUES ('$T', '$IF', 'fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
+  VALUES ('$T', '$IF', 'fixed', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial');
 INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
   VALUES ('$B', '$T', 'R21-AR1', '$C', '$L', DATE '2026-02-01', '2026-01', DATE '2026-01-01', DATE '2026-01-31', DATE '2026-02-20', 10);
 INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate_item_id, regulatory_class)
@@ -231,8 +231,8 @@ $APP
 SELECT public.assert_reference_version('rate_items', '$IF', 2);
 UPDATE public.rate_item_versions SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'race-21 AR1: misclassified'
  WHERE rate_item_id = '$IF' AND recorded_until IS NULL;
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type, change_reason)
-  VALUES ('$T', '$IF', 'per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'correction', 'race-21 AR1: misclassified');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type, change_reason)
+  VALUES ('$T', '$IF', 'per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'correction', 'race-21 AR1: misclassified');
 COMMIT;
 SQL
 # Snapshot at the bill's creation instant (admissible), then issue with every deferred check.

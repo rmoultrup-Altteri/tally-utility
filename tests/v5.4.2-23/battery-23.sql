@@ -1096,8 +1096,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-0000000024c1', '00000000-0000-4000-8000-0000000023a1', 'B23-GAS');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
 SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-0000000024c1', 1);
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
-  ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000024c1', 'Gas service', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000024c1', 'Gas service', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial');
 INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
 VALUES ('00000000-0000-4000-8000-000000002407', '00000000-0000-4000-8000-0000000023a1', 'B23-I7', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-0000000023d1',
         DATE '2026-04-01', '2026-03', DATE '2026-03-01', DATE '2026-03-31', DATE '2026-04-20', 20.00);

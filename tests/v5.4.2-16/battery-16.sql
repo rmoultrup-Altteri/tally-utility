@@ -889,8 +889,9 @@ DO $$ BEGIN
 EXCEPTION WHEN restrict_violation THEN
   RAISE NOTICE 'PASS N11: fact kinds and evidence kinds are never edited or deleted'; END $$;
 DO $$ BEGIN
-  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '5', DATE '2020-01-01');
-  RAISE EXCEPTION 'FAIL N12a: a sales tax of 500%%';
+  -- v5.4.2-30: sales_tax_rate is in percent (0 to 100), so 5 is a valid 5%; over 100 is refused
+  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '101', DATE '2020-01-01');
+  RAISE EXCEPTION 'FAIL N12a: a sales tax over 100 percent';
 EXCEPTION WHEN check_violation THEN NULL; END $$;
 DO $$ BEGIN
   PERFORM pg_temp.fact('austin', 'sales_tax_rate', '-0.01', DATE '2020-01-01');
@@ -901,9 +902,9 @@ DO $$ BEGIN
   RAISE EXCEPTION 'FAIL N12c: a negative population';
 EXCEPTION WHEN check_violation THEN NULL; END $$;
 DO $$ BEGIN
-  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '0.02', DATE '2020-01-01');
+  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '8.25', DATE '2020-01-01');
   PERFORM pg_temp.fact('austin', 'census_population', '0', DATE '2020-01-01');
-  RAISE NOTICE 'PASS N12: a number fact lies in its kind''s range (a rate in [0, 1), a population of at least 0)';
+  RAISE NOTICE 'PASS N12: a number fact lies in its kind''s range (a rate in percent, in [0, 100); a population of at least 0)';
 END $$;
 DO $$ BEGIN
   PERFORM pg_temp.fact('austin', 'time_zone', '"Etc/GMT+6"', DATE '1990-01-01');
@@ -1107,15 +1108,16 @@ DO $$ BEGIN
   RAISE NOTICE 'PASS T6: a voided owning profile does not hold its place open';
 END $$;
 DO $$ BEGIN
-  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '1', DATE '1990-01-01');
-  RAISE EXCEPTION 'FAIL T7a: a sales-tax rate of exactly 1';
+  -- v5.4.2-30: in percent; the upper bound (100) stays open
+  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '100', DATE '1990-01-01');
+  RAISE EXCEPTION 'FAIL T7a: a sales-tax rate of exactly 100 percent';
 EXCEPTION WHEN check_violation THEN NULL; END $$;
 DO $$ BEGIN
-  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '0.9999', DATE '1990-01-01');
+  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '99.9999', DATE '1990-01-01');
   RAISE EXCEPTION 'rollback T7';
 EXCEPTION WHEN raise_exception THEN
   IF SQLERRM <> 'rollback T7' THEN RAISE; END IF;
-  RAISE NOTICE 'PASS T7: a rate''s upper bound is open (1 refused, 0.9999 kept)';
+  RAISE NOTICE 'PASS T7: a rate''s upper bound is open (100 refused, 99.9999 kept)';
 END $$;
 SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000016b1';
 SET ROLE tally_app;

@@ -150,8 +150,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-0000000028e1', '00000000-0000-4000-8000-0000000028a1', 'PSF');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
 SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-0000000028e1', 1);
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
-  ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', DATE '2020-01-01', 'initial');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', false, false, false, '{residential,commercial,industrial,government,wholesale}', DATE '2020-01-01', 'initial');
 INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies) VALUES
   ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'pipeline_safety_fee', DATE '2026-01-01', DATE '2026-12-31', 50, true, true);
 
@@ -540,8 +540,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code)
 SELECT ('00000000-0000-4000-8000-00000000287' || g)::uuid, '00000000-0000-4000-8000-0000000028a1', 'R' || g FROM generate_series(1, 8) g;
 -- riv(): the SQL of one version of item R<n> with p_cols / p_vals added.
 CREATE FUNCTION pg_temp.riv(p_n int, p_kind text, p_cols text, p_vals text) RETURNS text LANGUAGE sql AS $$
-  SELECT format($f$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type%s)
-    VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-00000000287%s', 'R%s', 'gas', %L, 'regulated', DATE '2026-01-01', 'initial'%s)$f$,
+  SELECT format($f$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type%s)
+    VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-00000000287%s', 'R%s', 'gas', %L, 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial'%s)$f$,
     p_cols, p_n, p_n, p_kind, p_vals)
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.riv(int, text, text, text) TO tally_app;

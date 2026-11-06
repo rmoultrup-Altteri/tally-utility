@@ -177,8 +177,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
   ('00000000-0000-4000-8000-0000000029e1', '00000000-0000-4000-8000-0000000029a1', 'PSF');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000029b1', true);
 SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-0000000029e1', 1);
-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
-  ('00000000-0000-4000-8000-0000000029a1', '00000000-0000-4000-8000-0000000029e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', DATE '2020-01-01', 'initial');
+INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
+  ('00000000-0000-4000-8000-0000000029a1', '00000000-0000-4000-8000-0000000029e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', false, false, false, '{residential,commercial,industrial,government,wholesale}', DATE '2020-01-01', 'initial');
 INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies) VALUES
   ('00000000-0000-4000-8000-0000000029a1', '00000000-0000-4000-8000-0000000029e1', 'pipeline_safety_fee', DATE '2026-01-01', DATE '2026-12-31', 50, true, true);
 

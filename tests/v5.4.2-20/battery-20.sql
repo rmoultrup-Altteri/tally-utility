@@ -141,8 +141,8 @@ SELECT pg_temp.refuses_at('S2b a zone version with no check',
      VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002061', 'Z1', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
 SELECT pg_temp.refuses_at('S2c an item version with no check',
-  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
-     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
+  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
+     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
 -- S3: a lifecycle move with no check; an updated_at touch (the dependency mutex) needs none.
 SELECT pg_temp.refuses_at('S3a archiving a zone with no check',
@@ -236,8 +236,8 @@ SELECT pg_temp.ok('S10g the database stamps the receipt''s transaction and time,
   (SELECT bool_and(xact = pg_current_xact_id() AND at = now()) FROM public.reference_version_receipts));
 -- S11: no role is exempt: the owner (a superuser) meets the guard too.
 SELECT pg_temp.refuses_at('S11 the owner writes a version with no check',
-  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
-     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
+  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
+     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
 -- S13: each part of the receipt test binds. The owner plants receipts with
 -- the stamp trigger disabled (inside this rolled-back transaction), each
@@ -259,8 +259,8 @@ SELECT pg_temp.refuses_at('S13b a receipt of this start time but another transac
      VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002042', 'RS2', 'gas', 'residential', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
 SELECT pg_temp.refuses_at('S13c a receipt of this transaction for another version of the entity',
-  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
-     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
+  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
+     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial')$q$,
   '23001', 'only after the version check');
 -- A receipt right in every part but the header table: RS2's uuid under rate_items.
 RESET ROLE;
