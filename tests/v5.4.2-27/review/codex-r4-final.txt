@@ -1,0 +1,3 @@
+Wrote [codex-r4.md](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-27/review/codex-r4.md).
+
+Verdict: **ready**, with two nonblocking findings. All six checksums match. Added 14 author-run probes; no database commands or prohibited runners were executed.

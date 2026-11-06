@@ -1,0 +1,57 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+RESET
+DO
+psql:<stdin>:159: NOTICE:  SQLSTATE=00000 source term at take-back=10.00 cash_drawn_at=10.00 shares=20.00
+psql:<stdin>:159: NOTICE:  PASS source term is observable at take-back instant
+ROLLBACK

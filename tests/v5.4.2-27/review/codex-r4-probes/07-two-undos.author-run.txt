@@ -1,0 +1,71 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+psql:<stdin>:134: NOTICE:  PASS E1 CE's other 20 is sent to the state and CE is escheated
+ admits 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+ sa 
+----
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+psql:<stdin>:148: NOTICE:  missing carries SQLSTATE=23514 message=shortfall application 00000000-0000-4000-8000-00000000274a gives 30.00 back to credit 00000000-0000-4000-8000-000000002745, which was escheated — carry it to a new credit (origin shortfall_reissue, naming this undo) in the same transaction (Ryan, 2026-11-05; v5.4.2-27)
+DO
+INSERT 0 2
+UPDATE 1
+SET CONSTRAINTS
+psql:<stdin>:154: NOTICE:  PASS two undos carried: old=0, carries=10+20
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

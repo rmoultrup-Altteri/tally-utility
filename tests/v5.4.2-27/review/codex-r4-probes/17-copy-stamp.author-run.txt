@@ -1,0 +1,52 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+COPY 1
+psql:<stdin>:155: NOTICE:  00000: PASS COPY replaces supplied false
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+psql:<stdin>:155: NOTICE:  00000: SQLSTATE=00000 COPY stamp and carry accepted
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK

@@ -1,0 +1,8 @@
+BEGIN
+psql:<stdin>:17: NOTICE:  instant=2026-11-06 10:30:00+00 zone=Etc/GMT+12 local_date=2026-11-05 latest_date=2026-11-07 date_difference=2
+psql:<stdin>:17: NOTICE:  instant=2026-11-06 10:30:00+00 zone=Pacific/Pago_Pago local_date=2026-11-05 latest_date=2026-11-07 date_difference=2
+psql:<stdin>:17: NOTICE:  instant=2026-11-06 10:30:00+00 zone=Pacific/Honolulu local_date=2026-11-06 latest_date=2026-11-07 date_difference=1
+psql:<stdin>:17: NOTICE:  instant=2026-11-06 10:30:00+00 zone=America/Chicago local_date=2026-11-06 latest_date=2026-11-07 date_difference=1
+psql:<stdin>:17: NOTICE:  instant=2026-11-06 10:30:00+00 zone=Pacific/Kiritimati local_date=2026-11-07 latest_date=2026-11-07 date_difference=0
+DO
+ROLLBACK

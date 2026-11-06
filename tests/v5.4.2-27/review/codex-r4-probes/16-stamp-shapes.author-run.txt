@@ -1,0 +1,57 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+INSERT 0 2
+RESET
+psql:<stdin>:157: NOTICE:  PASS multirow CTE undo stamps both true
+psql:<stdin>:157: NOTICE:  SQLSTATE=00000 multirow writable CTE and carries accepted
+DO
+ROLLBACK

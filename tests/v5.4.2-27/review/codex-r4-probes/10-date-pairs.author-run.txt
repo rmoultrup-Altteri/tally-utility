@@ -1,0 +1,47 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:165: NOTICE:  case 1 accepted SQLSTATE=00000 remaining_today=0.00 remaining_future=0.00
+psql:<stdin>:165: NOTICE:  case 1 caught SQLSTATE=ZX001 message=probe scenario rollback
+psql:<stdin>:165: NOTICE:  case 2 caught SQLSTATE=23514 message=shortfall application e1d9453d-8fe3-4ba7-851a-9e3f2a1d601e is dated 2026-11-11, after today (2026-11-07, the latest date anywhere) and after the one it undoes (2026-11-10): an undo is of something that happened, dated no later than today, or than the row it undoes where that is later (R-02's rule; v5.4.2-27)
+psql:<stdin>:165: NOTICE:  case 3 accepted SQLSTATE=00000 remaining_today=0.00 remaining_future=0.00
+psql:<stdin>:165: NOTICE:  case 3 caught SQLSTATE=ZX001 message=probe scenario rollback
+DO
+psql:<stdin>:165: NOTICE:  case 4 caught SQLSTATE=23514 message=shortfall application f140eb1a-2f09-4b97-a401-5e649f5b024c is dated 2026-11-08, after today (2026-11-07, the latest date anywhere) and after the one it undoes (2026-03-13): an undo is of something that happened, dated no later than today, or than the row it undoes where that is later (R-02's rule; v5.4.2-27)
+ROLLBACK
