@@ -13,7 +13,8 @@
 --              was since escheated carries the money into a new credit.
 -- Spec:        application/wave2-build-2026-10-15/v5.4.2-27-design.md;
 --              DECISION-LOG 2026-11-02 (-23 r8), 2026-11-05 (-27 design) and
---              2026-11-05 (-27 r1); v5.4.2-27-r2-plan.md, -r3-plan.md.
+--              2026-11-05 (-27 r1); v5.4.2-27-r2-plan.md, -r3-plan.md,
+--              -r4-plan.md.
 --              ADDITIVE: a new table and new terms in -23's readers; no
 --              existing column changes meaning (payment_position_as_of gains
 --              a last column, repaid).
@@ -56,9 +57,10 @@
 --     The moves: a refund of the payment or of a family credit that leaves
 --     (voided, nsf, reversed), an undo of an application, a donation or a
 --     repayment on a family credit (Ryan, 2026-11-05, option 1: the operator
---     undoes the repayment first, in the same transaction). r3 (Opus B1):
---     such a move is also read from today on, every row at its own date, so
---     an undo dated after today does not settle it (R5 stays in the past).
+--     undoes the repayment first, in the same transaction). r4 (Opus B1,
+--     Fable B1; -23's R-02): an undo is dated no later than today (the
+--     latest date anywhere), or than the row it undoes where that is later,
+--     so R5's interval stays in the past.
 --   * The target is a bill payment (r2, Opus S1, S2): a refund is refused
 --     with its own message, and a deposit, which is kept out of the pot
 --     (K-05).
@@ -72,8 +74,10 @@
 --     it is left on the credit, is dated on or after the undo, is never
 --     voided, and is checked at commit (enforce_shortfall_undo_carried). r3:
 --     it is born active for every role, a history load's too (Codex B1), and
---     the undo it names was recorded at or after the credit's escheat (Opus
---     S1: one recorded before left nothing to carry). It
+--     the undo it names gave its money to the credit after the escheat (Opus
+--     S1: one written before left nothing to carry; r4, Fable S1: recorded
+--     by the database as the undo is written, shortfall_applications.
+--     gave_to_escheated, since two stamps of one transaction are equal). It
 --     is in the escheated credit's overpayment line where that has one: the
 --     three walks of the line follow it (reissue_generation, overpayment_
 --     root, overpayment_family), and its issued is its amount, or its
@@ -131,13 +135,17 @@
 --       the ended payment reads the money it was repaid; the cap admits it,
 --       since the undo corrects from the repayment's date and a closed
 --       period cannot be written into. The core reads an undo as correcting
---       its row (AC-44). r3 (Opus B1): only before today. "Today" is the
---       latest date anywhere (UTC+14), so in a zone behind it an undo dated
---       the next local day is admitted: the interval reaches at most that
---       day ahead.
+--       its row (AC-44). r4 (Opus B1, Fable B1): an undo is dated no later
+--       than today, or than the row it undoes where that is later, so the
+--       interval is before today. "Today" is the latest date anywhere
+--       (UTC+14), not -23's CURRENT_DATE (tenants have no zone): in a zone
+--       behind it an undo may be dated ahead of the local date, by one day
+--       in Texas and up to two in the far west (UTC-12, American Samoa;
+--       Codex r3 S3). It is read at now(), the transaction's instant, so a
+--       transaction across midnight keeps its start's date.
 --
--- Tests. battery-27 (135 checks), races/shortfall-27.sh (SR1-SR9, 16 results),
---   mutations-27.py (67 mutations). -23's battery (409) and races (51) pass
+-- Tests. battery-27 (142 checks), races/shortfall-27.sh (SR1-SR11, 21 results),
+--   mutations-27.py (72 mutations). -23's battery (409) and races (51) pass
 --   with -27 applied. assert_shortfall_guard_invariants() runs in the tail
 --   and in CI.
 --
@@ -173,6 +181,7 @@ CREATE TABLE public.shortfall_applications (
     reason                          text,
     undoes_shortfall_application_id uuid,
     created_at                      timestamp with time zone DEFAULT now() NOT NULL,
+    gave_to_escheated               boolean DEFAULT false NOT NULL,
     CONSTRAINT shortfall_applications_pkey PRIMARY KEY (id),
     CONSTRAINT shortfall_applications_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants (id),
     -- Every key carries the tenant (and the customer): a single-column key
@@ -201,6 +210,10 @@ CREATE TABLE public.shortfall_applications (
                AND (amount < 0) = (basis = 'undo')
                AND (basis = 'undo') = (undoes_shortfall_application_id IS NOT NULL)),
     CONSTRAINT shortfall_applications_not_self_check CHECK (undoes_shortfall_application_id IS DISTINCT FROM id),
+    -- r4 (Fable S1): only an undo of a credit's repayment gives money to an
+    -- escheated credit.
+    CONSTRAINT shortfall_applications_gave_to_escheated_check
+        CHECK (NOT gave_to_escheated OR (basis = 'undo' AND customer_credit_id IS NOT NULL)),
     -- CI-049's rule: an operator's choice and an undo say why, and who.
     CONSTRAINT shortfall_applications_operator_check
         CHECK (basis NOT IN ('operator_override', 'undo')
@@ -216,6 +229,28 @@ CREATE INDEX idx_shortfall_apps_undoes ON public.shortfall_applications (undoes_
 CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.shortfall_applications
     FOR EACH ROW EXECUTE FUNCTION public.stamp_log_created_at();
 ALTER TABLE public.shortfall_applications ENABLE ALWAYS TRIGGER a_stamp_created_at;
+-- r4 (Fable S1; Ryan, 2026-11-06, by rule): whether an undo gave its money to
+-- a credit already escheated is a fact the database records when the undo is
+-- written, for every role; a carry may name only such an undo. Two stamps
+-- of one transaction cannot say which came first; this can.
+-- enforce_shortfall_application re-reads it under the credit's lock.
+CREATE OR REPLACE FUNCTION public.stamp_shortfall_gave_to_escheated() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    NEW.gave_to_escheated := NEW.basis = 'undo' AND NEW.customer_credit_id IS NOT NULL
+        AND coalesce((SELECT c.status = 'escheated' FROM public.customer_credits c WHERE c.id = NEW.customer_credit_id), false);
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.stamp_shortfall_gave_to_escheated() IS
+    'v5.4.2-27 r4 (Fable S1). BEFORE INSERT on shortfall_applications, for every role: gave_to_escheated is true exactly for an undo of a credit''s repayment whose credit is escheated as the undo is written; whatever the caller sent is replaced. enforce_shortfall_application re-reads the status under the credit''s lock (40001 if it moved).';
+CREATE TRIGGER a_stamp_gave_to_escheated BEFORE INSERT ON public.shortfall_applications
+    FOR EACH ROW EXECUTE FUNCTION public.stamp_shortfall_gave_to_escheated();
+ALTER TABLE public.shortfall_applications ENABLE ALWAYS TRIGGER a_stamp_gave_to_escheated;
+COMMENT ON COLUMN public.shortfall_applications.gave_to_escheated IS
+    'v5.4.2-27 r4 (Fable S1). Written by the database (stamp_shortfall_gave_to_escheated), for every role: true for an undo of a credit''s repayment whose credit was escheated when the undo was written, so the money it gave back is carried into a shortfall_reissue credit naming it. Only such an undo is named by one.';
 -- Money dated by a day: the close freezes it (-22 P2); the freeze takes the
 -- tenant's close head, first in the lock order.
 CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.shortfall_applications
@@ -408,12 +443,13 @@ CREATE OR REPLACE FUNCTION public.cash_drawn_at(p_kind text, p_id uuid, p_at tim
         -- undo negative); for a payment that bounced, what was repaid to it
         -- (negative); and for a credit, what an undo gave back to it that was
         -- carried into a shortfall_reissue credit (Ryan, 2026-11-05), as
-        -- cash_source_draws reads them. r3 (Codex S1): the first two read 0
-        -- at every instant overpayment_shares asks (a take-back's): a
-        -- take-back waits while the source's shortfall applications net to
-        -- more than 0 (R15), and a payment is repaid only after it ended,
-        -- when nothing more is taken back under its entry. They are kept so
-        -- this lists what cash_source_draws lists; no test can observe them.
+        -- cash_source_draws reads them. r4 (Codex r3 S2): what was repaid to
+        -- a payment counts at its bounce's instant when the repayment is
+        -- recorded in the bounce's transaction (the two share now()); the
+        -- share reader then places the take-back with it (battery J1). The
+        -- source's own shortfall applications net to 0 at every take-back's
+        -- instant (R15 holds the take-back while they are applied); that
+        -- term is kept so this lists what cash_source_draws lists.
         UNION ALL
         SELECT s.amount FROM public.shortfall_applications s
          WHERE ((p_kind = 'payment' AND s.payment_id = p_id) OR (p_kind = 'credit' AND s.customer_credit_id = p_id)) AND s.created_at <= p_at
@@ -749,20 +785,15 @@ GRANT EXECUTE ON FUNCTION public.payment_position_as_of(uuid, date, timestamp wi
 -- one. There an undo counts from the date of the row it undoes: it
 -- corrects that row, and the operator's undo, dated when it is recorded
 -- (the repayment's period may be closed), settles it from its own date
--- (residual R5: the positions read the undo at its own date). r3 (Opus B1):
--- and from today on, every row at its own date: an undo dated after today
--- would leave the money on the payment until then, so R5's interval stays
--- in the past.
+-- (residual R5: the positions read the undo at its own date). r4 (Opus B1,
+-- Fable B1): an undo is dated no later than today or the row it undoes
+-- (enforce_shortfall_application), so R5's interval stays in the past.
 CREATE OR REPLACE FUNCTION public.check_shortfall_repaid(p_payment_id uuid, p_from date) RETURNS void
     LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_first  date;
-    v_today  date;
     v_from   date;
-    v_retro  boolean;
-    v_pass   integer;
     v_on     date;
     v_used   numeric;
     v_amount numeric;
@@ -770,70 +801,55 @@ BEGIN
     IF p_payment_id IS NULL THEN
         RETURN;
     END IF;
-    SELECT min(s.applied_on) INTO v_first FROM public.shortfall_applications s WHERE s.target_payment_id = p_payment_id AND s.basis <> 'undo';
-    IF v_first IS NULL THEN
+    SELECT min(s.applied_on) INTO v_from FROM public.shortfall_applications s WHERE s.target_payment_id = p_payment_id AND s.basis <> 'undo';
+    IF v_from IS NULL THEN
         RETURN;
     END IF;
-    -- r3 (Opus B1): today is the latest date anywhere (UTC+14), as -22's
-    -- close reads a period's end at UTC-12: an undo the utility dates today
-    -- in its own zone is never later than it.
-    v_today := (pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date;
-    -- A repayment (p_from given): one reading, from its own date, every row
-    -- at its own date. A move giving money back (NULL): two. First from the
-    -- first repayment's date, an undo at the date of the row it undoes (r2);
-    -- then (r3) from today on, every row at its own date, so an undo dated
-    -- after today does not settle it: the positions would read the ended
-    -- payment holding the money until the undo's date, and an undo is never
-    -- undone. R5's interval stays before today.
-    FOR v_pass IN 1 .. CASE WHEN p_from IS NULL THEN 2 ELSE 1 END LOOP
-        v_retro := p_from IS NULL AND v_pass = 1;
-        v_from := CASE WHEN p_from IS NOT NULL THEN p_from WHEN v_pass = 1 THEN v_first ELSE v_today END;
-        SELECT x.on_date, x.used, pp.amount INTO v_on, v_used, v_amount
-          FROM public.payments pp
-          CROSS JOIN LATERAL (
-               SELECT u.on_date, sum(u.amount) OVER (ORDER BY u.on_date) AS used
-                 FROM (SELECT d.on_date, d.amount FROM public.cash_source_draws('payment', pp.id) d
-                        WHERE d.id NOT IN (SELECT c.id FROM public.customer_credits c WHERE c.source_payment_id = pp.id)
-                          AND d.id NOT IN (SELECT s.id FROM public.shortfall_applications s WHERE s.target_payment_id = pp.id)
-                       UNION ALL
-                       -- What was repaid to it (a negative draw); in the
-                       -- first reading of a move giving money back, an undo
-                       -- from its row's date (r2).
-                       SELECT CASE WHEN v_retro THEN coalesce(u.applied_on, s.applied_on) ELSE s.applied_on END, -s.amount
-                         FROM public.shortfall_applications s LEFT JOIN public.shortfall_applications u ON u.id = s.undoes_shortfall_application_id
-                        WHERE s.target_payment_id = pp.id
-                       UNION ALL
-                       SELECT d.on_date, d.amount FROM public.customer_credits k
-                         CROSS JOIN LATERAL public.overpayment_family(k.id) f
-                         JOIN public.customer_credits c ON c.id = f.id
-                         CROSS JOIN LATERAL public.cash_source_draws('credit', c.id) d
-                        WHERE k.source_payment_id = pp.id AND k.status <> 'voided' AND c.status <> 'voided'
-                          AND d.id NOT IN (SELECT g.id FROM public.overpayment_family(k.id) g)
-                       UNION ALL
-                       SELECT l.transaction_date, l.amount FROM public.account_ledger l
-                        WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', pp.id)))
-                       UNION ALL
-                       SELECT '-infinity'::date, pp.amount
-                       UNION ALL
-                       SELECT l.transaction_date, l.amount FROM public.account_ledger l
-                        WHERE l.id = public.cash_arrival_entry('payment', pp.id)
-                       UNION ALL
-                       -- r3: the reading's first date is read too, though no
-                       -- row is dated on it (today, with an undo dated later).
-                       SELECT v_from, 0) u) x
-         WHERE pp.id = p_payment_id AND x.used < pp.amount AND x.on_date >= v_from
-         ORDER BY x.on_date LIMIT 1;
-        IF FOUND THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('payment %s: on %s what was applied to its shortfall would leave it and its overpayment credits holding %s, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction%s (Ryan, 2026-11-05; AC-44, v5.4.2-27)', p_payment_id, v_on, v_amount - v_used,
-                                 CASE WHEN p_from IS NULL AND v_pass = 2 THEN format(', dated no later than today (%s): an undo dated after it leaves the money on the payment until then', v_today) ELSE '' END),
-                ERRCODE = 'check_violation';
-        END IF;
-    END LOOP;
+    -- A repayment is itself a row on its date (a negative draw on the
+    -- payment), so the sum is read there. r3 added a second reading from
+    -- today on; r4 (Opus B1, Fable B1) dates every undo no later than today
+    -- or the row it undoes (enforce_shortfall_application), after which that
+    -- reading could never refuse what this one admits, so it went.
+    v_from := coalesce(p_from, v_from);
+    SELECT x.on_date, x.used, pp.amount INTO v_on, v_used, v_amount
+      FROM public.payments pp
+      CROSS JOIN LATERAL (
+           SELECT u.on_date, sum(u.amount) OVER (ORDER BY u.on_date) AS used
+             FROM (SELECT d.on_date, d.amount FROM public.cash_source_draws('payment', pp.id) d
+                    WHERE d.id NOT IN (SELECT c.id FROM public.customer_credits c WHERE c.source_payment_id = pp.id)
+                      AND d.id NOT IN (SELECT s.id FROM public.shortfall_applications s WHERE s.target_payment_id = pp.id)
+                   UNION ALL
+                   -- What was repaid to it (a negative draw); for a move
+                   -- giving money back, an undo from its row's date (r2).
+                   SELECT CASE WHEN p_from IS NULL THEN coalesce(u.applied_on, s.applied_on) ELSE s.applied_on END, -s.amount
+                     FROM public.shortfall_applications s LEFT JOIN public.shortfall_applications u ON u.id = s.undoes_shortfall_application_id
+                    WHERE s.target_payment_id = pp.id
+                   UNION ALL
+                   SELECT d.on_date, d.amount FROM public.customer_credits k
+                     CROSS JOIN LATERAL public.overpayment_family(k.id) f
+                     JOIN public.customer_credits c ON c.id = f.id
+                     CROSS JOIN LATERAL public.cash_source_draws('credit', c.id) d
+                    WHERE k.source_payment_id = pp.id AND k.status <> 'voided' AND c.status <> 'voided'
+                      AND d.id NOT IN (SELECT g.id FROM public.overpayment_family(k.id) g)
+                   UNION ALL
+                   SELECT l.transaction_date, l.amount FROM public.account_ledger l
+                    WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', pp.id)))
+                   UNION ALL
+                   SELECT '-infinity'::date, pp.amount
+                   UNION ALL
+                   SELECT l.transaction_date, l.amount FROM public.account_ledger l
+                    WHERE l.id = public.cash_arrival_entry('payment', pp.id)) u) x
+     WHERE pp.id = p_payment_id AND x.used < pp.amount AND x.on_date >= v_from
+     ORDER BY x.on_date LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('payment %s: on %s what was applied to its shortfall would leave it and its overpayment credits holding %s, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction (Ryan, 2026-11-05; AC-44, v5.4.2-27)', p_payment_id, v_on, v_amount - v_used),
+            ERRCODE = 'check_violation';
+    END IF;
 END;
 $$;
 COMMENT ON FUNCTION public.check_shortfall_repaid(uuid, date) IS
-    'v5.4.2-27 (AC-44; Ryan, 2026-11-05, option 1). For a payment with shortfall applications naming it: refuses (23514) any date from p_from on (a repayment passes its own date, every row read at its own date; r2, NULL, for a move giving money back: from its first repayment''s date, an undo read from the date of the row it undoes; r3, Opus B1: and also from today, the latest date anywhere, every row at its own date, so an undo dated after today does not settle it) at which it and its overpayment family would hold money, that is, at which what they gave and what was taken back under its posting entry, less what was repaid, come to less than the payment. Returns at once for NULL or a payment nothing was repaid to. Called by enforce_shortfall_application, by check_cash_source after an undo, and by enforce_shortfall_source_moves when a refund of the family leaves. The caller holds the payment''s lock.';
+    'v5.4.2-27 (AC-44; Ryan, 2026-11-05, option 1). For a payment with shortfall applications naming it: refuses (23514) any date from p_from on (a repayment passes its own date, every row read at its own date; r2, NULL, for a move giving money back: from its first repayment''s date, an undo read from the date of the row it undoes; r4: every undo is dated no later than today or the row it undoes, enforce_shortfall_application) at which it and its overpayment family would hold money, that is, at which what they gave and what was taken back under its posting entry, less what was repaid, come to less than the payment. Returns at once for NULL or a payment nothing was repaid to. Called by enforce_shortfall_application, by check_cash_source after an undo, and by enforce_shortfall_source_moves when a refund of the family leaves. The caller holds the payment''s lock.';
 REVOKE ALL ON FUNCTION public.check_shortfall_repaid(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.check_shortfall_repaid(uuid, date) TO tally_app;
 
@@ -1165,6 +1181,20 @@ BEGIN
                 MESSAGE = format('shortfall application %s is dated %s, before the one it undoes (%s, %s): an undo is dated on or after it (v5.4.2-27)', NEW.id, NEW.applied_on, v_undone.id, v_undone.applied_on),
                 ERRCODE = 'check_violation';
         END IF;
+        -- r4 (Opus B1, Fable B1; -23's R-02 for a ledger reversal): an undo
+        -- is of something that happened, dated no later than today, or than
+        -- the row it undoes where that is later (a repayment dated ahead is
+        -- undone on its own date). An undo dated ahead would leave the money
+        -- on an ended payment until then, and a refund that came back could
+        -- not be recorded before it: an undo is never undone. Today is the
+        -- latest date anywhere (UTC+14), as -22's close reads a period's end
+        -- at UTC-12, so an undo the utility dates today in its own zone is
+        -- never refused (tenants have no zone; -23 reads CURRENT_DATE).
+        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('shortfall application %s is dated %s, after today (%s, the latest date anywhere) and after the one it undoes (%s): an undo is of something that happened, dated no later than today, or than the row it undoes where that is later (R-02''s rule; v5.4.2-27)', NEW.id, NEW.applied_on, (pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on),
+                ERRCODE = 'check_violation';
+        END IF;
     END IF;
     -- The source, under its lock and caps (check_cash_source). A credit
     -- holding the target's own money applies within its family (R24).
@@ -1175,6 +1205,15 @@ BEGIN
     PERFORM public.check_cash_source(v_kind, v_src, NEW.created_at,
                                      CASE WHEN NEW.basis = 'undo' THEN 'shortfall_undo' WHEN v_within THEN 'shortfall_within_family' ELSE 'shortfall' END,
                                      NEW.applied_on);
+    -- r4 (Fable S1): gave_to_escheated was read before the credit's lock
+    -- (check_cash_source took it); read again under it. An escheat that
+    -- committed while this undo waited makes it stale: retry.
+    IF NEW.basis = 'undo' AND v_kind = 'credit'
+       AND NEW.gave_to_escheated IS DISTINCT FROM coalesce((SELECT c.status = 'escheated' FROM public.customer_credits c WHERE c.id = v_src), false) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('shortfall application %s: credit %s was escheated while this undo waited for it, so whether the undo gives money to an escheated credit was read stale — a transaction that began earlier is writing later; retry it (v5.4.2-27)', NEW.id, v_src),
+            ERRCODE = 'serialization_failure';
+    END IF;
     IF NEW.basis = 'undo' THEN
         SELECT v_undone.amount + coalesce(sum(s.amount), 0) INTO v_net
           FROM public.shortfall_applications s WHERE s.undoes_shortfall_application_id = v_undone.id;
@@ -1191,7 +1230,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_shortfall_application() IS
-    'v5.4.2-27 (AC-44; Kyle, 2026-10-30; Ryan, 2026-11-02). AFTER INSERT on shortfall_applications, recorded at a time already reached; READ COMMITTED only (check_cash_source refuses any other level before anything is written). Takes the target payment''s lock (after the head the freeze took) and reads it there: a bill payment (r2: not a refund, not a deposit) that bounced or was reversed (nsf or reversed); the row is recorded after its move (40001; 23514 for a chosen time) and after every row already drawing on it or its overpayment family, a draw that left them, or a row under its posting entry (check_cash_order). An undo names a shortfall application (not an undo) of the same source and target, dated on or after it, and the undos never exceed it. The source under its lock and caps (check_cash_source: purpose shortfall, shortfall_within_family for a credit holding the target''s own money, or shortfall_undo, r2: from an escheated credit too, carried at commit). Then, for a repayment, the target''s cap (check_shortfall_repaid).';
+    'v5.4.2-27 (AC-44; Kyle, 2026-10-30; Ryan, 2026-11-02). AFTER INSERT on shortfall_applications, recorded at a time already reached; READ COMMITTED only (check_cash_source refuses any other level before anything is written). Takes the target payment''s lock (after the head the freeze took) and reads it there: a bill payment (r2: not a refund, not a deposit) that bounced or was reversed (nsf or reversed); the row is recorded after its move (40001; 23514 for a chosen time) and after every row already drawing on it or its overpayment family, a draw that left them, or a row under its posting entry (check_cash_order). An undo names a shortfall application (not an undo) of the same source and target, dated on or after it and (r4) no later than the later of today (UTC+14) and its date, and the undos never exceed it. The source under its lock and caps (check_cash_source: purpose shortfall, shortfall_within_family for a credit holding the target''s own money, or shortfall_undo, r2: from an escheated credit too, carried at commit). Then, for a repayment, the target''s cap (check_shortfall_repaid).';
 CREATE TRIGGER enforce_shortfall_application AFTER INSERT ON public.shortfall_applications
     FOR EACH ROW EXECUTE FUNCTION public.enforce_shortfall_application();
 ALTER TABLE public.shortfall_applications ENABLE ALWAYS TRIGGER enforce_shortfall_application;
@@ -1292,7 +1331,6 @@ CREATE OR REPLACE FUNCTION public.enforce_shortfall_reissue() RETURNS trigger
 DECLARE
     v_undo   public.shortfall_applications%ROWTYPE;
     v_from   text;
-    v_ended  timestamptz;
     v_left   numeric;
 BEGIN
     -- r3 (Codex B1): born active, for every role. A superuser's history load
@@ -1305,7 +1343,7 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
     SELECT * INTO v_undo FROM public.shortfall_applications s WHERE s.id = NEW.reissues_shortfall_application_id;
-    SELECT c.status, c.status_recorded_at INTO v_from, v_ended FROM public.customer_credits c WHERE c.id = v_undo.customer_credit_id;
+    SELECT c.status INTO v_from FROM public.customer_credits c WHERE c.id = v_undo.customer_credit_id;
     IF v_undo.basis IS DISTINCT FROM 'undo' OR v_undo.customer_credit_id IS NULL OR v_from IS DISTINCT FROM 'escheated' THEN
         RAISE EXCEPTION USING
             MESSAGE = format('credit %s reissues shortfall application %s: a shortfall_reissue credit carries what an undo of a credit''s repayment gave back after the credit was escheated; %s', NEW.id, NEW.reissues_shortfall_application_id,
@@ -1313,14 +1351,15 @@ BEGIN
                       || ' (Ryan, 2026-11-05; v5.4.2-27)',
             ERRCODE = 'check_violation';
     END IF;
-    -- r3 (Opus S1): the undo was recorded at or after the escheat (the
-    -- database's time of the credit's move, status_recorded_at). An undo
-    -- recorded while the credit was active left its money there, the escheat
-    -- sent it to the state, and there is nothing of that undo's to carry; its
-    -- name would label other money.
-    IF v_undo.created_at < v_ended THEN
+    -- r3 (Opus S1), r4 (Fable S1): the undo gave its money to the credit
+    -- after the escheat (gave_to_escheated, recorded by the database as the
+    -- undo was written). An undo written while the credit was active left
+    -- its money there, the escheat sent it to the state, and there is nothing
+    -- of that undo's to carry; its name would label other money. r3 compared
+    -- the two recorded times, which are equal within one transaction.
+    IF NOT v_undo.gave_to_escheated THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('credit %s reissues shortfall application %s, recorded at %s, before credit %s was escheated (%s): an undo recorded while the credit was active left its money there for the escheat, and gives nothing to carry; a carry names an undo recorded at or after the escheat (Opus S1; v5.4.2-27)', NEW.id, v_undo.id, v_undo.created_at, v_undo.customer_credit_id, v_ended),
+            MESSAGE = format('credit %s reissues shortfall application %s, written while credit %s was not yet escheated: that undo left its money on the credit for the escheat and gives nothing to carry; a carry names an undo that gave its money to an escheated credit (Opus S1, Fable S1; v5.4.2-27)', NEW.id, v_undo.id, v_undo.customer_credit_id),
             ERRCODE = 'check_violation';
     END IF;
     IF public.reissue_generation(v_undo.customer_credit_id) + 1 > public.reissue_line_bound() THEN
@@ -1352,7 +1391,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_shortfall_reissue() IS
-    'v5.4.2-27 r2 (Ryan, 2026-11-05, option 1; Opus B2, Fable S1). AFTER INSERT on customer_credits naming a shortfall application: r3, born active for every role (Codex B1); it is an undo of a credit''s repayment, the credit is escheated, r3, the undo recorded at or after the escheat (status_recorded_at; Opus S1), the line no deeper than reissue_line_bound(), dated on or after the undo; sized as -23''s refund_reissue (what the undo gave back, as far as it is left on the credit before it); then a draw on the credit (check_cash_source, purpose reissue) under the locks the cap takes.';
+    'v5.4.2-27 r2 (Ryan, 2026-11-05, option 1; Opus B2, Fable S1). AFTER INSERT on customer_credits naming a shortfall application: r3, born active for every role (Codex B1); it is an undo of a credit''s repayment, the credit is escheated, r3, the undo written after the escheat (r4: gave_to_escheated, the database''s record of it; Opus S1, Fable S1), the line no deeper than reissue_line_bound(), dated on or after the undo; sized as -23''s refund_reissue (what the undo gave back, as far as it is left on the credit before it); then a draw on the credit (check_cash_source, purpose reissue) under the locks the cap takes.';
 CREATE TRIGGER enforce_shortfall_reissue AFTER INSERT ON public.customer_credits
     FOR EACH ROW WHEN (NEW.reissues_shortfall_application_id IS NOT NULL) EXECUTE FUNCTION public.enforce_shortfall_reissue();
 ALTER TABLE public.customer_credits ENABLE ALWAYS TRIGGER enforce_shortfall_reissue;
@@ -1447,6 +1486,7 @@ DECLARE
         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''applied_on'')',
         'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
         'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_gave_to_escheated BEFORE INSERT ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION stamp_shortfall_gave_to_escheated()',
         'CREATE TRIGGER enforce_ledger_shortfall_source AFTER INSERT ON public.account_ledger FOR EACH ROW WHEN (((new.reverses_ledger_entry_id IS NOT NULL) AND (new.amount > (0)::numeric))) EXECUTE FUNCTION enforce_ledger_shortfall_source()',
         'CREATE TRIGGER enforce_shortfall_application AFTER INSERT ON public.shortfall_applications FOR EACH ROW EXECUTE FUNCTION enforce_shortfall_application()',
         'CREATE TRIGGER enforce_shortfall_source_moves AFTER UPDATE OF status ON public.payments FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) AND (new.status = ANY (ARRAY[''nsf''::text, ''reversed''::text, ''voided''::text])))) EXECUTE FUNCTION enforce_shortfall_source_moves()',
@@ -1472,6 +1512,7 @@ DECLARE
         'shortfall_applications shortfall_applications_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
         'shortfall_applications shortfall_applications_undoes_fkey FOREIGN KEY (undoes_shortfall_application_id, tenant_id, target_payment_id) REFERENCES shortfall_applications(id, tenant_id, target_payment_id)',
         'shortfall_applications shortfall_applications_id_tenant_customer_key UNIQUE (id, tenant_id, customer_id)',
+        'shortfall_applications shortfall_applications_gave_to_escheated_check CHECK (((NOT gave_to_escheated) OR ((basis = ''undo''::text) AND (customer_credit_id IS NOT NULL))))',
         'customer_credits customer_credits_origin_type_check CHECK ((origin_type = ANY (ARRAY[''overpayment''::text, ''goodwill''::text, ''dispute_resolution''::text, ''deposit_refund''::text, ''transfer''::text, ''adjustment''::text, ''refund_reissue''::text, ''regulatory_rebate''::text, ''promotion''::text, ''other''::text, ''shortfall_reissue''::text])))',
         'customer_credits customer_credits_reissue_shortfall_fkey FOREIGN KEY (reissues_shortfall_application_id, tenant_id, customer_id) REFERENCES shortfall_applications(id, tenant_id, customer_id)',
         'customer_credits customer_credits_shortfall_reissue_check CHECK (((origin_type = ''shortfall_reissue''::text) = (reissues_shortfall_application_id IS NOT NULL)))'];

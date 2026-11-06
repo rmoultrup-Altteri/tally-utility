@@ -30,6 +30,15 @@
 #        refunds 60; X9 bounces (60 short, on K9). A repays 10 of X9's
 #        shortfall and holds; B moves K9's returned refund to nsf: waits on
 #        X9's lock, then is refused (the family would hold the 10).
+#   SR10 (r4, Opus r3 S1) the app's carry in two transactions: X10's
+#        repayment from G10 (50) committed; G10's other 20 is escheated and
+#        committed; later, the refund check comes back, the repayment is
+#        undone and carried into a new credit, in one transaction: admitted,
+#        the undo recorded as giving money to an escheated credit.
+#   SR11 (r4, Fable r3 S1) A escheats G11's other 20 and holds; B undoes
+#        G11's repayment of X11: B read G11 as active, waits on G11's lock,
+#        then is refused for retry (40001: G11 was escheated while it
+#        waited); the retry, with its carry, is admitted.
 # r2 (Codex S2): every session runs under a statement timeout (r3: the
 # monitoring queries too, Codex N2), every
 # handshake has a deadline, B's exit is checked before A is waited for, and
@@ -130,6 +139,13 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
 UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-12', status_cause_id = '${P}89' WHERE id = '${P}09';
 $(credit ${P}ab ${P}bb 10)
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('${P}c9', '$T', '$C', DATE '2026-03-14', 'nsf', 'refund check returned', -60, '${P}49');
+-- r4: X10 and X11, each 30 short, repaid by a 50 credit (G10, G11).
+$(short ${P}30 R27-X10 ${P}31 ${P}32 ${P}33 ${P}34)
+$(credit ${P}35 ${P}36 50)
+INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis) VALUES ('${P}37', '$T', '$C', '${P}30', '${P}35', 30, DATE '2026-03-13', 'customer_pot');
+$(short ${P}50 R27-X11 ${P}51 ${P}52 ${P}53 ${P}54)
+$(credit ${P}55 ${P}56 50)
+INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis) VALUES ('${P}57', '$T', '$C', '${P}50', '${P}55', 30, DATE '2026-03-13', 'customer_pot');
 -- X5's refund check comes back (its row, recorded ahead; the move is the race).
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('${P}c5', '$T', '$C', DATE '2026-03-14', 'nsf', 'refund check returned', -30, '${P}45');
 COMMIT;
@@ -306,5 +322,27 @@ two "$(sa ${P}09 NULL "'${P}ab'" 10)" \
     "UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-14', status_cause_id = '${P}c9' WHERE id = '${P}29';"
 verdict "SR9 a family credit's returned refund recorded while the family's shortfall is being repaid: the move waits on the payment, then is refused (undo first)" 1 "undo the shortfall application first"
 expect "SR9b X9 reads 0 of its own (the deficit is on K9), 10 repaid; K9's refund still posted" "$(pos ${P}09)/$("${PSQL[@]}" -c "SELECT status FROM public.payments WHERE id = '${P}29'")" "0.00/10.00/posted"
+
+# SR10 (r4): the app's carry, in a transaction after the escheat's
+retry "SR10 G10's other 20 is escheated in its own transaction" \
+  "INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date) VALUES ('${P}38', '$T', '${P}35', '$C', 'escheated_to_state', 20, '2026-03-14 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '${P}38', escheated_at = now() WHERE id = '${P}35';"
+retry "SR10a later, the refund's return, the undo onto G10 and the carry, in one transaction, are admitted" \
+  "INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id) VALUES ('${P}39', '$T', '$C', DATE '2026-03-15', 'nsf', 'refund check returned', -30, '${P}32');
+INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id) VALUES ('${P}3a', '$T', '$C', '${P}30', '${P}35', -30, DATE '2026-03-15', 'undo', '$OP', 'refund check returned', '${P}37');
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-15', status_cause_id = '${P}39' WHERE id = '${P}31';
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id) VALUES ('${P}3b', '$T', '$C', 'shortfall_reissue', 30, DATE '2026-03-15', '${P}3a');"
+expect "SR10b the undo is recorded as giving money to an escheated credit; X10 0/0; the carry holds 30" \
+  "$("${PSQL[@]}" -c "SELECT gave_to_escheated FROM public.shortfall_applications WHERE id = '${P}3a'")/$(pos ${P}30)/$("${PSQL[@]}" -c "SELECT remaining FROM public.customer_credit_position_as_of('${P}3b', DATE '2026-12-31', clock_timestamp())")" \
+  "t/0.00/0.00/30.00"
+
+# SR11 (r4): an escheat commits while an undo waits on the credit
+two "INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date) VALUES ('${P}58', '$T', '${P}55', '$C', 'escheated_to_state', 20, '2026-03-14 12:00+00');
+UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '${P}58', escheated_at = now() WHERE id = '${P}55';" \
+    "INSERT INTO public.shortfall_applications (tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id) VALUES ('$T', '$C', '${P}50', '${P}55', -30, DATE '2026-03-15', 'undo', '$OP', 'keyed wrong', '${P}57');"
+verdict "SR11 an undo that read its credit active, then waited while the credit was escheated, is refused for retry (40001)" 1 "was escheated while this undo waited"
+retry "SR11a the retry, with its carry, is admitted" \
+  "INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id) VALUES ('${P}5a', '$T', '$C', '${P}50', '${P}55', -30, DATE '2026-03-15', 'undo', '$OP', 'keyed wrong', '${P}57');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id) VALUES ('${P}5b', '$T', '$C', 'shortfall_reissue', 30, DATE '2026-03-15', '${P}5a');"
 
 exit $fail

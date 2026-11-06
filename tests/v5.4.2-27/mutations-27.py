@@ -79,20 +79,20 @@ MUTATIONS = [
     ("M16", "a refund leaving a repaid family is not checked (Ryan, 2026-11-05)", "S2",
      rep("        PERFORM public.check_shortfall_repaid(coalesce(NEW.refunds_payment_id,", "        PERFORM pg_catalog.num_nulls(coalesce(NEW.refunds_payment_id,")),
     ("M17", "a move giving money back reads an undo at its own date, not its row's (the S4 shape)", "S4",
-     rep("SELECT CASE WHEN v_retro THEN coalesce(u.applied_on, s.applied_on) ELSE s.applied_on END, -s.amount", "SELECT s.applied_on, -s.amount")),
+     rep("SELECT CASE WHEN p_from IS NULL THEN coalesce(u.applied_on, s.applied_on) ELSE s.applied_on END, -s.amount", "SELECT s.applied_on, -s.amount")),
     ("M18", "a move giving money back is checked from the latest repayment's date (r1, Codex B1)", "C1",
-     rep("    SELECT min(s.applied_on) INTO v_first FROM public.shortfall_applications s", "    SELECT max(s.applied_on) INTO v_first FROM public.shortfall_applications s")),
+     rep("    SELECT min(s.applied_on) INTO v_from FROM public.shortfall_applications s", "    SELECT max(s.applied_on) INTO v_from FROM public.shortfall_applications s")),
     ("M18b", "a repayment reads an undo from its row's date too (it would hide money the positions show)", "C4",
-     rep("SELECT CASE WHEN v_retro THEN coalesce(u.applied_on, s.applied_on) ELSE s.applied_on END, -s.amount", "SELECT coalesce(u.applied_on, s.applied_on), -s.amount")),
+     rep("SELECT CASE WHEN p_from IS NULL THEN coalesce(u.applied_on, s.applied_on) ELSE s.applied_on END, -s.amount", "SELECT coalesce(u.applied_on, s.applied_on), -s.amount")),
     ("M16b", "a family credit's refund leaving a repaid family is not checked (Fable S2)", "C6",
      rep("            (SELECT k.source_payment_id FROM public.customer_credits k WHERE k.id = public.overpayment_root(NEW.refunds_customer_credit_id))), NULL);",
          "            NULL), NULL);")),
     ("M16c", "the target's cap leaves out its family credits' draws (Opus S3)", "F2",
-     rep("                        WHERE k.source_payment_id = pp.id AND k.status <> 'voided' AND c.status <> 'voided'\n                          AND d.id NOT IN (SELECT g.id FROM public.overpayment_family(k.id) g)\n                       UNION ALL\n                       SELECT l.transaction_date",
-         "                        WHERE false\n                          AND d.id NOT IN (SELECT g.id FROM public.overpayment_family(k.id) g)\n                       UNION ALL\n                       SELECT l.transaction_date")),
+     rep("                    WHERE k.source_payment_id = pp.id AND k.status <> 'voided' AND c.status <> 'voided'\n                      AND d.id NOT IN (SELECT g.id FROM public.overpayment_family(k.id) g)",
+         "                    WHERE false\n                      AND d.id NOT IN (SELECT g.id FROM public.overpayment_family(k.id) g)")),
     ("M16d", "the target's cap leaves out what was taken back under its posting entry (Opus S3)", "K2",
-     rep("                        WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', pp.id)))\n                       UNION ALL\n                       SELECT '-infinity'::date, pp.amount",
-         "                        WHERE false\n                       UNION ALL\n                       SELECT '-infinity'::date, pp.amount")),
+     rep("                    WHERE l.id = ANY (public.ledger_tree_ids(public.cash_arrival_entry('payment', pp.id)))\n                   UNION ALL\n                   SELECT '-infinity'::date, pp.amount",
+         "                    WHERE false\n                   UNION ALL\n                   SELECT '-infinity'::date, pp.amount")),
     # ---- targets (r2)
     ("M36", "a bounced deposit is a target (Opus S1)", "T1",
      rep("    IF v_target.is_deposit THEN", "    IF false THEN")),
@@ -162,20 +162,37 @@ MUTATIONS = [
      rep("                   WHERE s.target_payment_id = p_payment_id AND s.applied_on <= p_on AND s.created_at <= p_recorded_at), 0.00)\n$$;",
          "                   WHERE s.target_payment_id = p_payment_id AND s.created_at <= p_recorded_at), 0.00)\n$$;")),
     # ---- r3
-    ("M56", "a move giving money back is not read from today on (Opus B1: an undo dated 2099 settles it)", "R1",
-     rep("    FOR v_pass IN 1 .. CASE WHEN p_from IS NULL THEN 2 ELSE 1 END LOOP", "    FOR v_pass IN 1 .. 1 LOOP")),
-    ("M57", "today is read at UTC-12 (an undo the utility dates today would not settle the return)", "R2",
-     rep("    v_today := (pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date;", "    v_today := (pg_catalog.now() AT TIME ZONE 'Etc/GMT+12')::date;")),
-    ("M57b", "today is read a day late (an undo dated tomorrow settles it)", "R1b",
-     rep("    v_today := (pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date;", "    v_today := (pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date + 1;")),
-    ("M58", "the reading's first date is read only where a row is dated on it", "R1",
-     rep("                       UNION ALL\n                       -- r3: the reading's first date is read too, though no\n                       -- row is dated on it (today, with an undo dated later).\n                       SELECT v_from, 0) u) x",
-         ") u) x")),
+    ("M56", "an undo may be dated after today and after its row (Opus B1, Fable B1)", "R0",
+     rep("        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on) THEN",
+         "        IF false AND NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on) THEN")),
+    ("M57", "today is read at UTC-12 (an undo the utility dates today would be refused)", "R2",
+     rep("        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on) THEN",
+         "        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT+12')::date, v_undone.applied_on) THEN")),
+    ("M57b", "today is read a day late (an undo dated tomorrow is admitted)", "R0b",
+     rep("        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on) THEN",
+         "        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date + 1, v_undone.applied_on) THEN")),
+    ("M58", "an undo of a repayment dated ahead must still be dated by today (Fable N1)", "R3b",
+     rep("        IF NEW.applied_on > greatest((pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date, v_undone.applied_on) THEN",
+         "        IF NEW.applied_on > (pg_catalog.now() AT TIME ZONE 'Etc/GMT-14')::date THEN")),
     ("M59", "a carry may be born ended by a history load (Codex B1)", "E6c",
      rep("    IF NEW.status IS DISTINCT FROM 'active' THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('credit %s reissues shortfall application %s and is born %s",
          "    IF false THEN\n        RAISE EXCEPTION USING\n            MESSAGE = format('credit %s reissues shortfall application %s and is born %s")),
-    ("M60", "a carry may name an undo recorded before the escheat (Opus S1)", "E15",
-     rep("    IF v_undo.created_at < v_ended THEN", "    IF false THEN")),
+    ("M60", "a carry may name an undo that gave nothing to an escheated credit (Opus S1, Fable S1)", "E15",
+     rep("    IF NOT v_undo.gave_to_escheated THEN", "    IF false THEN")),
+    # M60b, M60e: a wrong stamp is caught by its re-read under the lock, at
+    # the first undo it misreads, before E15a reads the stamp's values.
+    ("M60b", "every undo of a credit's repayment is recorded as giving to an escheated credit (the re-read refuses an active credit's undo)", "S3",
+     rep("        AND coalesce((SELECT c.status = 'escheated' FROM public.customer_credits c WHERE c.id = NEW.customer_credit_id), false);",
+         "        AND true;")),
+    ("M60e", "no undo is recorded as giving to an escheated credit (the re-read refuses the undo onto an escheated one)", "E3",
+     rep("        AND coalesce((SELECT c.status = 'escheated' FROM public.customer_credits c WHERE c.id = NEW.customer_credit_id), false);",
+         "        AND false;")),
+    ("M60c", "an undo's record of its credit's status is not read again under the credit's lock", "SR11",
+     rep("       AND NEW.gave_to_escheated IS DISTINCT FROM coalesce((SELECT c.status = 'escheated' FROM public.customer_credits c WHERE c.id = v_src), false) THEN",
+         "       AND false THEN")),
+    ("M60d", "the database's record of an undo's credit status is not written (the stamp trigger dropped)", "APPLY:a v5.4.2-27 guard is missing",
+     rep("ALTER TABLE public.shortfall_applications ENABLE ALWAYS TRIGGER a_stamp_gave_to_escheated;\n",
+         "DROP TRIGGER a_stamp_gave_to_escheated ON public.shortfall_applications;\n")),
     ("M61", "a carry's line is not held to the depth bound (Codex S1)", "E17",
      rep("    IF public.reissue_generation(v_undo.customer_credit_id) + 1 > public.reissue_line_bound() THEN", "    IF false THEN")),
     ("M62", "a carry may name an undo of a credit that was never escheated (Codex S1)", "S3c",
@@ -184,14 +201,13 @@ MUTATIONS = [
     ("M63", "a credit's draws leave out its carries (Fable S1)", "E7d",
      rep("    SELECT c.id, c.issued_date, c.original_amount, c.created_at FROM public.customer_credits c\n      JOIN public.shortfall_applications s ON s.id = c.reissues_shortfall_application_id\n     WHERE p_kind = 'credit' AND s.customer_credit_id = p_id AND c.status <> 'voided'",
          "    SELECT c.id, c.issued_date, c.original_amount, c.created_at FROM public.customer_credits c\n      JOIN public.shortfall_applications s ON s.id = c.reissues_shortfall_application_id\n     WHERE false")),
-    # Not M64/M65 (Codex S1 asked for them): cash_drawn_at's two other
-    # shortfall terms read 0 at every instant a reader asks. Its one reader
-    # (overpayment_shares) asks at a take-back's instant; a take-back waits
-    # while the source's shortfall applications net to more than 0 (R15),
-    # and a payment is repaid only after it ended, when nothing more can be
-    # taken back under its entry. Dropping either changes no reading, so no
-    # check can name it. The patch keeps them so the function lists what
-    # cash_source_draws lists (its comment says so).
+    ("M65", "what a payment had given at an instant leaves out what was repaid to it (Codex r3 S2)", "J1",
+     rep("        SELECT -s.amount FROM public.shortfall_applications s\n         WHERE p_kind = 'payment' AND s.target_payment_id = p_id AND s.created_at <= p_at",
+         "        SELECT -s.amount FROM public.shortfall_applications s\n         WHERE false AND s.created_at <= p_at")),
+    # Not M64: cash_drawn_at's source-shortfall term reads 0 at every
+    # take-back's instant (R15 holds the take-back while the source's
+    # shortfall applications net to more than 0), so no check can name it.
+    # The patch keeps it so the function lists what cash_source_draws lists.
     # ---- the definitions the invariant holds
     ("M30", "the freeze trigger is dropped", "APPLY:a v5.4.2-27 guard is missing",
      rep("CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.shortfall_applications\n    FOR EACH ROW EXECUTE FUNCTION public.enforce_accounting_freeze('applied_on');\nALTER TABLE public.shortfall_applications ENABLE ALWAYS TRIGGER a_enforce_accounting_freeze;\n", "")),
