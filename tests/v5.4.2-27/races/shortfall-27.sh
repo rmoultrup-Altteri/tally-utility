@@ -45,6 +45,8 @@
 # A is ended and reaped when anything fails.
 # Every two() leg checks that session B was SEEN BLOCKED BY SESSION A.
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
+# r5 (Fable r4 N3): its ids (…28xx) collide with -23's battery: run that
+# battery on a clone this script has not touched.
 #   usage: shortfall-27.sh <db>      (default: r27)
 set -uo pipefail
 DB="${1:-r27}"
@@ -340,7 +342,8 @@ expect "SR10b the undo is recorded as giving money to an escheated credit; X10 0
 two "INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date) VALUES ('${P}58', '$T', '${P}55', '$C', 'escheated_to_state', 20, '2026-03-14 12:00+00');
 UPDATE public.customer_credits SET status = 'escheated', status_cause_id = '${P}58', escheated_at = now() WHERE id = '${P}55';" \
     "INSERT INTO public.shortfall_applications (tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id) VALUES ('$T', '$C', '${P}50', '${P}55', -30, DATE '2026-03-15', 'undo', '$OP', 'keyed wrong', '${P}57');"
-verdict "SR11 an undo that read its credit active, then waited while the credit was escheated, is refused for retry (40001)" 1 "was escheated while this undo waited"
+# r5 (Codex r4 S2): the SQLSTATE in the label is checked too (verbose errors).
+verdict "SR11 an undo that read its credit active, then waited while the credit was escheated, is refused for retry (40001)" 1 "40001: .*was escheated while this undo waited"
 retry "SR11a the retry, with its carry, is admitted" \
   "INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id) VALUES ('${P}5a', '$T', '$C', '${P}50', '${P}55', -30, DATE '2026-03-15', 'undo', '$OP', 'keyed wrong', '${P}57');
 INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, reissues_shortfall_application_id) VALUES ('${P}5b', '$T', '$C', 'shortfall_reissue', 30, DATE '2026-03-15', '${P}5a');"

@@ -204,10 +204,12 @@ MUTATIONS = [
     ("M65", "what a payment had given at an instant leaves out what was repaid to it (Codex r3 S2)", "J1",
      rep("        SELECT -s.amount FROM public.shortfall_applications s\n         WHERE p_kind = 'payment' AND s.target_payment_id = p_id AND s.created_at <= p_at",
          "        SELECT -s.amount FROM public.shortfall_applications s\n         WHERE false AND s.created_at <= p_at")),
-    # Not M64: cash_drawn_at's source-shortfall term reads 0 at every
-    # take-back's instant (R15 holds the take-back while the source's
-    # shortfall applications net to more than 0), so no check can name it.
-    # The patch keeps it so the function lists what cash_source_draws lists.
+    ("M64", "what a source had given at an instant leaves out its shortfall applications (Codex r4 S1)", "J2",
+     rep("        SELECT s.amount FROM public.shortfall_applications s\n         WHERE ((p_kind = 'payment' AND s.payment_id = p_id) OR (p_kind = 'credit' AND s.customer_credit_id = p_id)) AND s.created_at <= p_at",
+         "        SELECT s.amount FROM public.shortfall_applications s\n         WHERE false AND s.created_at <= p_at")),
+    ("M66", "an undo and its credit's escheat in one statement are told to retry (Opus r4 S1)", "E21",
+     rep("        IF (SELECT c.status_recorded_at FROM public.customer_credits c WHERE c.id = v_src) = pg_catalog.now() THEN",
+         "        IF false THEN")),
     # ---- the definitions the invariant holds
     ("M30", "the freeze trigger is dropped", "APPLY:a v5.4.2-27 guard is missing",
      rep("CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.shortfall_applications\n    FOR EACH ROW EXECUTE FUNCTION public.enforce_accounting_freeze('applied_on');\nALTER TABLE public.shortfall_applications ENABLE ALWAYS TRIGGER a_enforce_accounting_freeze;\n", "")),

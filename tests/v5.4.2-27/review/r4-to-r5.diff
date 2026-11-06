@@ -1,0 +1,76 @@
+--- tests/v5.4.2-27/review/patch-27-frozen-r4.sql	2026-11-06 11:46:49
++++ tests/v5.4.2-27/review/patch-27-frozen-r5.sql	2026-11-06 12:18:56
+@@ -13,8 +13,8 @@
+ --              was since escheated carries the money into a new credit.
+ -- Spec:        application/wave2-build-2026-10-15/v5.4.2-27-design.md;
+ --              DECISION-LOG 2026-11-02 (-23 r8), 2026-11-05 (-27 design) and
+---              2026-11-05 (-27 r1); v5.4.2-27-r2-plan.md, -r3-plan.md,
+---              -r4-plan.md.
++--              2026-11-05 (-27 r1), 2026-11-06 (-27 r3); v5.4.2-27-r2-plan.md
++--              to -r5-plan.md.
+ --              ADDITIVE: a new table and new terms in -23's readers; no
+ --              existing column changes meaning (payment_position_as_of gains
+ --              a last column, repaid).
+@@ -77,7 +77,9 @@
+ --     the undo it names gave its money to the credit after the escheat (Opus
+ --     S1: one written before left nothing to carry; r4, Fable S1: recorded
+ --     by the database as the undo is written, shortfall_applications.
+---     gave_to_escheated, since two stamps of one transaction are equal). It
++--     gave_to_escheated, since two stamps of one transaction are equal;
++--     re-read under the credit's lock: 40001 if another transaction
++--     escheated it meanwhile, r5, 23514 if the undo's own statement did). It
+ --     is in the escheated credit's overpayment line where that has one: the
+ --     three walks of the line follow it (reissue_generation, overpayment_
+ --     root, overpayment_family), and its issued is its amount, or its
+@@ -144,8 +146,8 @@
+ --       Codex r3 S3). It is read at now(), the transaction's instant, so a
+ --       transaction across midnight keeps its start's date.
+ --
+--- Tests. battery-27 (142 checks), races/shortfall-27.sh (SR1-SR11, 21 results),
+---   mutations-27.py (72 mutations). -23's battery (409) and races (51) pass
++-- Tests. battery-27 (146 checks), races/shortfall-27.sh (SR1-SR11, 21 results),
++--   mutations-27.py (74 mutations). -23's battery (409) and races (51) pass
+ --   with -27 applied. assert_shortfall_guard_invariants() runs in the tail
+ --   and in CI.
+ --
+@@ -443,13 +445,13 @@
+         -- undo negative); for a payment that bounced, what was repaid to it
+         -- (negative); and for a credit, what an undo gave back to it that was
+         -- carried into a shortfall_reissue credit (Ryan, 2026-11-05), as
+-        -- cash_source_draws reads them. r4 (Codex r3 S2): what was repaid to
+-        -- a payment counts at its bounce's instant when the repayment is
+-        -- recorded in the bounce's transaction (the two share now()); the
+-        -- share reader then places the take-back with it (battery J1). The
+-        -- source's own shortfall applications net to 0 at every take-back's
+-        -- instant (R15 holds the take-back while they are applied); that
+-        -- term is kept so this lists what cash_source_draws lists.
++        -- cash_source_draws reads them. Rows recorded in a take-back's own
++        -- transaction share its now() and count at its instant, so neither
++        -- term is always 0 there: what was repaid to a payment, when the
++        -- repayment shares the bounce's transaction (r4, Codex r3 S2;
++        -- battery J1), and a source's own shortfall applications, when one
++        -- follows a partial take-back of the source in its transaction (r5,
++        -- Codex r4 S1; battery J2).
+         UNION ALL
+         SELECT s.amount FROM public.shortfall_applications s
+          WHERE ((p_kind = 'payment' AND s.payment_id = p_id) OR (p_kind = 'credit' AND s.customer_credit_id = p_id)) AND s.created_at <= p_at
+@@ -1207,9 +1209,18 @@
+                                      NEW.applied_on);
+     -- r4 (Fable S1): gave_to_escheated was read before the credit's lock
+     -- (check_cash_source took it); read again under it. An escheat that
+-    -- committed while this undo waited makes it stale: retry.
++    -- committed while this undo waited makes it stale: retry. r5 (Opus r4
++    -- S1): an escheat this transaction made itself, in the undo's own
++    -- statement (a writable CTE: the AFTER trigger runs at the statement's
++    -- end), is no race: a retry would fail the same way, so it is refused
++    -- as the statement's shape (23514), not for retry.
+     IF NEW.basis = 'undo' AND v_kind = 'credit'
+        AND NEW.gave_to_escheated IS DISTINCT FROM coalesce((SELECT c.status = 'escheated' FROM public.customer_credits c WHERE c.id = v_src), false) THEN
++        IF (SELECT c.status_recorded_at FROM public.customer_credits c WHERE c.id = v_src) = pg_catalog.now() THEN
++            RAISE EXCEPTION USING
++                MESSAGE = format('shortfall application %s: credit %s was escheated in the statement that wrote this undo, so whether the undo gives money to an escheated credit cannot be told — write the undo in a statement of its own, before or after the escheat (v5.4.2-27)', NEW.id, v_src),
++                ERRCODE = 'check_violation';
++        END IF;
+         RAISE EXCEPTION USING
+             MESSAGE = format('shortfall application %s: credit %s was escheated while this undo waited for it, so whether the undo gives money to an escheated credit was read stale — a transaction that began earlier is writing later; retry it (v5.4.2-27)', NEW.id, v_src),
+             ERRCODE = 'serialization_failure';

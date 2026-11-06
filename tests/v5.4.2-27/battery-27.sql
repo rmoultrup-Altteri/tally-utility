@@ -1041,6 +1041,68 @@ SELECT pg_temp.ok('J1 at the bounce''s instant PJ had been repaid 20 (cash_drawn
   AND (SELECT sum(x.absorbed) FROM public.overpayment_shares(pg_temp.n('82')) x) = 80);
 RESET ROLE;
 
+-- r5 (Codex r4 S1): and a source's own shortfall application, written in
+-- the transaction of a partial take-back under its posting entry, counts at
+-- the take-back's instant. X8: P8 (na0) pays 50, refunded 30, bounces: 30
+-- short. Q8 (na4) pays 100, 80 held as K8 (na6); 20 is taken back under
+-- Q8's entry (na8), Q8 still posted; then K8 repays 10 of P8's shortfall.
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000029c8', '00000000-0000-4000-8000-0000000027a1', 'B27-X8', 'residential');
+\set x8 '''00000000-0000-4000-8000-0000000029c8'''
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.n('a0'), pg_temp.n('a1'), :x8, 50, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.n('a2'), pg_temp.n('a3'), :x8, pg_temp.n('a0'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.n('a0'), pg_temp.n('a1'), pg_temp.n('ae'), DATE '2026-03-12');
+SELECT pg_temp.pay(pg_temp.n('a4'), pg_temp.n('a5'), :x8, 100, DATE '2026-03-10');
+INSERT INTO public.customer_credit_approvals (id, tenant_id, customer_id, payment_id, amount, approved_by)
+VALUES (pg_temp.n('af'), '00000000-0000-4000-8000-0000000027a1', :x8, pg_temp.n('a4'), 80, '00000000-0000-4000-8000-0000000027b1');
+INSERT INTO public.customer_credits (id, tenant_id, customer_id, origin_type, original_amount, issued_date, source_payment_id, approval_id)
+VALUES (pg_temp.n('a6'), '00000000-0000-4000-8000-0000000027a1', :x8, 'overpayment', 80, DATE '2026-03-10', pg_temp.n('a4'), pg_temp.n('af'));
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+VALUES (pg_temp.n('a8'), '00000000-0000-4000-8000-0000000027a1', :x8, DATE '2026-03-12', 'nsf', 'partial take-back', 20, 'payment', pg_temp.n('a4'), pg_temp.n('a5'));
+SELECT pg_temp.sa(pg_temp.n('a9'), :x8, pg_temp.n('a0'), NULL, pg_temp.n('a6'), 10, DATE '2026-03-13');
+SELECT pg_temp.ok('J2 at the partial take-back''s instant K8 had applied 10 to P8''s shortfall (its transaction''s now()): cash_drawn_at reads 10',
+  public.cash_drawn_at('credit', pg_temp.n('a6'), (SELECT created_at FROM public.account_ledger WHERE id = pg_temp.n('a8'))) = 10);
+RESET ROLE;
+
+-- r5 (Opus r4 S1): an undo and its credit's escheat in one statement. X7: P7
+-- (n90) pays 50, refunded 30, bounces: 30 short; G7 (n95), 50, repays it
+-- (n97). A writable CTE that escheats G7 (all 50, the undo's 30 with it) and
+-- undoes the repayment cannot say which came first: refused as the
+-- statement's shape (23514), not for a retry that would fail the same way.
+-- As separate statements, the undo then the escheat, it is admitted.
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES
+  ('00000000-0000-4000-8000-0000000029c7', '00000000-0000-4000-8000-0000000027a1', 'B27-X7', 'residential');
+\set x7 '''00000000-0000-4000-8000-0000000029c7'''
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000027b1', true);
+SELECT pg_temp.pay(pg_temp.n('90'), pg_temp.n('91'), :x7, 50, DATE '2026-03-10');
+SELECT pg_temp.refund(pg_temp.n('92'), pg_temp.n('93'), :x7, pg_temp.n('90'), NULL, 30, DATE '2026-03-11');
+SELECT pg_temp.bounce(pg_temp.n('90'), pg_temp.n('91'), pg_temp.n('94'), DATE '2026-03-12');
+SELECT pg_temp.credit(pg_temp.n('95'), pg_temp.n('96'), :x7, 50);
+SELECT pg_temp.sa(pg_temp.n('97'), :x7, pg_temp.n('90'), NULL, pg_temp.n('95'), 30, DATE '2026-03-13');
+SELECT pg_temp.refuses_at('E21 the undo and the escheat in one statement: refused as its shape, not for a retry (Opus r4 S1)',
+  $q$WITH u AS (UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('99'), escheated_at = now() WHERE id = pg_temp.n('95') RETURNING 1),
+          e AS (INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+                VALUES (pg_temp.n('99'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('95'), '00000000-0000-4000-8000-0000000029c7', 'escheated_to_state', 50, '2026-03-16 12:00+00') RETURNING 1),
+          i AS (INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id)
+                VALUES (pg_temp.n('98'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c7', pg_temp.n('90'), pg_temp.n('95'), -30, DATE '2026-03-15', 'undo', '00000000-0000-4000-8000-0000000027b1', 'battery-27', pg_temp.n('97')) RETURNING 1)
+     SELECT 1$q$,
+  '23514', 'write the undo in a statement of its own');
+SELECT pg_temp.admits('E21b as separate statements, the undo (sending gave_to_escheated true) and then the escheat of all 50, admitted',
+  $q$INSERT INTO public.shortfall_applications (id, tenant_id, customer_id, target_payment_id, customer_credit_id, amount, applied_on, basis, applied_by, reason, undoes_shortfall_application_id, gave_to_escheated)
+     VALUES (pg_temp.n('98'), '00000000-0000-4000-8000-0000000027a1', '00000000-0000-4000-8000-0000000029c7', pg_temp.n('90'), pg_temp.n('95'), -30, DATE '2026-03-15', 'undo', '00000000-0000-4000-8000-0000000027b1', 'battery-27', pg_temp.n('97'), true);
+     INSERT INTO public.escheatment_events (id, tenant_id, customer_credit_id, customer_id, event_type, amount_related, event_date)
+     VALUES (pg_temp.n('99'), '00000000-0000-4000-8000-0000000027a1', pg_temp.n('95'), '00000000-0000-4000-8000-0000000029c7', 'escheated_to_state', 50, '2026-03-16 12:00+00');
+     UPDATE public.customer_credits SET status = 'escheated', status_cause_id = pg_temp.n('99'), escheated_at = now() WHERE id = pg_temp.n('95');
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried IMMEDIATE;
+     SET CONSTRAINTS public.enforce_shortfall_undo_carried DEFERRED$q$);
+SELECT pg_temp.ok('E21c the database replaced the true the app sent: the undo gave its money to an active credit (Fable r4 N1)',
+  NOT (SELECT gave_to_escheated FROM public.shortfall_applications WHERE id = pg_temp.n('98'))
+  AND (SELECT status FROM public.customer_credits WHERE id = pg_temp.n('95')) = 'escheated');
+RESET ROLE;
+
 -- ============================================================== D the freeze
 -- G2 (72), 10, issued before the close.
 SET ROLE tally_app;
