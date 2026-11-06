@@ -1,0 +1,47 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+psql:<stdin>:165: NOTICE:  case 1 accepted SQLSTATE=00000 remaining_today=0.00 remaining_future=0.00
+psql:<stdin>:165: NOTICE:  case 1 caught SQLSTATE=ZX001 message=probe scenario rollback
+psql:<stdin>:165: NOTICE:  case 2 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-11-10 what was applied to its shortfall would leave it and its overpayment credits holding 30.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction, dated no later than today (2026-11-07): an undo dated after it leaves the money on the payment until then (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+psql:<stdin>:165: NOTICE:  case 3 accepted SQLSTATE=00000 remaining_today=0.00 remaining_future=0.00
+psql:<stdin>:165: NOTICE:  case 3 caught SQLSTATE=ZX001 message=probe scenario rollback
+psql:<stdin>:165: NOTICE:  case 4 caught SQLSTATE=23514 message=payment 00000000-0000-4000-8000-000000002761: on 2026-11-07 what was applied to its shortfall would leave it and its overpayment credits holding 20.00, and a payment that has ended holds no money — undo the shortfall application first, in the same transaction, dated no later than today (2026-11-07): an undo dated after it leaves the money on the payment until then (Ryan, 2026-11-05; AC-44, v5.4.2-27)
+DO
+ROLLBACK

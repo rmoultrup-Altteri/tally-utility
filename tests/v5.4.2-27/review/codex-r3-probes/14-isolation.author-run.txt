@@ -1,0 +1,8 @@
+BEGIN
+DO
+ROLLBACK
+psql:<stdin>:10: NOTICE:  REPEATABLE READ SQLSTATE=25000 message=a row drawing on credit 00000000-0000-4000-8000-000000002771 is written at READ COMMITTED (this transaction is repeatable read): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+BEGIN
+psql:<stdin>:18: NOTICE:  SERIALIZABLE SQLSTATE=25000 message=a row drawing on credit 00000000-0000-4000-8000-000000002771 is written at READ COMMITTED (this transaction is serializable): its cap must see every row committed while it waited (R-06, v5.4.2-23)
+DO
+ROLLBACK

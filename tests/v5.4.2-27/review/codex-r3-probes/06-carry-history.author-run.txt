@@ -1,0 +1,63 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:134: NOTICE:  PASS E1 CE's other 20 is sent to the state and CE is escheated
+INSERT 0 1
+ current_user | rolsuper 
+--------------+----------
+ tally        | t
+(1 row)
+
+SAVEPOINT
+psql:<stdin>:154: NOTICE:  history escheated carry rejected SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000274b reissues shortfall application 00000000-0000-4000-8000-00000000274a and is born escheated: a shortfall_reissue credit is born active, for every role (a history load's too), and ends only by a checked move (Codex B1; v5.4.2-27)
+DO
+ROLLBACK
+SAVEPOINT
+psql:<stdin>:168: NOTICE:  history voided rejected SQLSTATE=23514 message=credit 00000000-0000-4000-8000-00000000274b reissues shortfall application 00000000-0000-4000-8000-00000000274a and is born voided: a shortfall_reissue credit is born active, for every role (a history load's too), and ends only by a checked move (Codex B1; v5.4.2-27)
+DO
+ROLLBACK
+ROLLBACK

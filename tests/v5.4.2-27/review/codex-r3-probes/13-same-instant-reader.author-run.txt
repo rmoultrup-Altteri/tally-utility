@@ -1,0 +1,51 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+psql:<stdin>:150: NOTICE:  bounce instant=2026-11-06 17:15:38.008635+00 repaid term at that instant=-20.00 cash_drawn_at=-20.00
+DO
+psql:<stdin>:150: NOTICE:  root share as recorded=80.00
+psql:<stdin>:150: NOTICE:  shares replay accepted SQLSTATE=00000
+SET CONSTRAINTS
+ROLLBACK

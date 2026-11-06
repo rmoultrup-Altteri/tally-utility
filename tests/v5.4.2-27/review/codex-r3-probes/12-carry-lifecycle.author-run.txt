@@ -1,0 +1,115 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 7
+ pay 
+-----
+ 
+(1 row)
+
+ refund 
+--------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ credit 
+--------
+ 
+(1 row)
+
+ sa 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:134: NOTICE:  PASS E1 CE's other 20 is sent to the state and CE is escheated
+INSERT 0 1
+ sa 
+----
+ 
+(1 row)
+
+UPDATE 1
+INSERT 0 1
+SET CONSTRAINTS
+SET CONSTRAINTS
+psql:<stdin>:147: NOTICE:  caught SQLSTATE=23503 message=customer credit 00000000-0000-4000-8000-00000000274b: the move to escheated names the row behind it in status_cause_id (none) — its escheated_to_state escheatment event (Q1 (a), v5.4.2-23)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:147: NOTICE:  PASS active carry cannot end without remittance: refused by status_cause_id (customer credit 00000000-0000-4000-8000-00000000274b: the move to escheated names the row behind it in status_cause_id ()
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:150: NOTICE:  caught SQLSTATE=23001 message=customer credit 00000000-0000-4000-8000-00000000274b cannot be voided: it carries money an undo gave back to a credit that was escheated, and nothing goes back to that credit (Ryan, 2026-10-21, 2026-11-05; v5.4.2-27)
+psql:<stdin>:150: NOTICE:  PASS active carry cannot be voided: refused by nothing goes back to that credit (customer credit 00000000-0000-4000-8000-00000000274b cannot be voided: it carries money an undo gave back to a credit th)
+SAVEPOINT
+INSERT 0 1
+UPDATE 1
+SET CONSTRAINTS
+psql:<stdin>:156: NOTICE:  PASS carry ends through checked remittance with zero remaining
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK
+CREATE FUNCTION
+GRANT
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+UPDATE 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000027b1
+(1 row)
+
+psql:<stdin>:194: NOTICE:  PASS carry pays a real bill through invoice writer
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:196: NOTICE:  PASS carry has 10 left and 20 applied
+ ok 
+----
+ 
+(1 row)
+
+RESET
+SET CONSTRAINTS
+ROLLBACK
