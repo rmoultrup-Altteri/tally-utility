@@ -165,6 +165,7 @@ cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
 cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
 cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
 cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
+cstep ci_r30 "races v5.4.2-30" tests/v5.4.2-30/races/levy-30.sh ci_r30
 step "source check v5.4.2-29" tests/v5.4.2-29/source-check-29.sh
 # The load's rules act when it applies, on a base without the counties: run
 # only while -29 is pending (after the mirror, restore a pre-29 base to run it).

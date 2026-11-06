@@ -141,6 +141,9 @@ SELECT v.id, 'municipality', 'TX', v.code, v.name, b.id, v.f, v.t, 'battery-30 f
                       ('00000000-0000-4000-8000-0000000030e7'::uuid, 'TX-B30-GAP', 'Gap City 30', DATE '2026-07-01', NULL::date),
                       ('00000000-0000-4000-8000-0000000030e8'::uuid, 'TX-B30-OLD', 'Old City 30', DATE '2000-01-01', NULL::date)) v(id, code, name, f, t)
  WHERE b.k = 'tx';
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT '00000000-0000-4000-8000-0000000030eb', 'county', 'TX', '48998', 'Battery County 30b', id, DATE '1900-01-01', 'battery-30 fixture (M12)'
+  FROM public.places WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL;
 INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date) VALUES
   ('00000000-0000-4000-8000-0000000030aa', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d2', '00000000-0000-4000-8000-0000000030e3', 'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
   ('00000000-0000-4000-8000-0000000030ab', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d3', '00000000-0000-4000-8000-0000000030e3', 'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
@@ -317,6 +320,14 @@ SELECT pg_temp.admits('C4b then the place closes at 2028-01-01',
        SET CONSTRAINTS public.z_check_place_levy_coverage IMMEDIATE;
        SET CONSTRAINTS public.z_check_place_levy_coverage DEFERRED;
      END $x$$q$);
+-- r3 (review r2, Fable S1): the check runs as whoever holds the session at commit.
+SELECT pg_temp.refuses_at('C5 a close checked under a role that cannot see every tenant''s levies (the owner closes, then becomes tally_app)',
+  $q$DO $x$ BEGIN
+       UPDATE public.places SET effective_to = DATE '2026-12-01' WHERE id = '00000000-0000-4000-8000-0000000030e7';
+       PERFORM set_config('role', 'tally_app', true);
+       SET CONSTRAINTS public.z_check_place_levy_coverage IMMEDIATE;
+     END $x$$q$,
+  '42501', 'sees them all');
 
 -- ---------------------------------------------------------------------------
 -- Q  the levy as of a date and a recorded instant
@@ -529,7 +540,7 @@ ALTER TABLE public.premise_place_memberships ENABLE ALWAYS TRIGGER a_enforce_pre
 ALTER TABLE public.places DISABLE TRIGGER a_enforce_place;
 UPDATE public.places SET created_at = now() - interval '2 days'
  WHERE id IN ('00000000-0000-4000-8000-0000000030e1', '00000000-0000-4000-8000-0000000030e2', '00000000-0000-4000-8000-0000000030e3',
-              '00000000-0000-4000-8000-0000000030e8', '00000000-0000-4000-8000-0000000030e9');
+              '00000000-0000-4000-8000-0000000030e8', '00000000-0000-4000-8000-0000000030e9', '00000000-0000-4000-8000-0000000030eb');
 ALTER TABLE public.places ENABLE ALWAYS TRIGGER a_enforce_place;
 UPDATE public.premise_place_memberships SET valid_to = DATE '2026-04-01' WHERE id = '00000000-0000-4000-8000-0000000030a7';
 UPDATE public.premise_place_memberships SET void_reason = 'wrong county keyed' WHERE id = '00000000-0000-4000-8000-0000000030a8';
@@ -591,6 +602,19 @@ SELECT pg_temp.ok('M10d recorded normalised, by the database, now',
   (SELECT count(*) = 1 AND bool_and(state = 'TX' AND recorded_at = now()) FROM public.service_location_state_history
     WHERE service_location_id = '00000000-0000-4000-8000-0000000030d5'));
 RESET ROLE;
+-- r3 (review r2, Fable S2): two changes in one transaction share its instant;
+-- the later written is the later state.
+UPDATE public.service_locations SET state = 'NM' WHERE id = '00000000-0000-4000-8000-0000000030d5';
+SELECT pg_temp.ok_q('M8c d5 recorded and corrected in one transaction (TX, then NM): as known now, the later (New Mexico)',
+  $q$SELECT (SELECT array_agg(place_code) = ARRAY['NM']
+               FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d5', DATE '2026-06-01', 'tax', now()))$q$);
+-- r3 (review r2: Opus B1, Fable B1): a row stamped after this transaction
+-- began (planted: a transaction that began later and committed first).
+INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
+VALUES ('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d5', 'NM', now() + interval '1 hour');
+SELECT pg_temp.refuses_at('M13 a change of state by a transaction that began before a recorded change: refused, retry',
+  $q$UPDATE public.service_locations SET state = 'TX' WHERE id = '00000000-0000-4000-8000-0000000030d5'$q$,
+  '40001', 'began after this one');
 -- A place's end as known (r1, Opus S5): d4's Old City membership and Old City
 -- itself are closed now at 2026-05-01.
 UPDATE public.premise_place_memberships SET valid_to = DATE '2026-05-01' WHERE id = '00000000-0000-4000-8000-0000000030ac';
@@ -612,6 +636,23 @@ SELECT pg_temp.ok('G5 on 2026-08-01 the county publishes 0.5 and the utility has
      FROM public.tax_levy_reference_gaps('00000000-0000-4000-8000-0000000030a1', DATE '2026-08-01') WHERE place_code = '48996'));
 SELECT pg_temp.ok('G5b on 2026-03-01 the county levy (0.5) agrees: not reported',
   NOT EXISTS (SELECT 1 FROM public.tax_levy_reference_gaps('00000000-0000-4000-8000-0000000030a1', DATE '2026-03-01') WHERE place_code = '48996'));
+
+-- M12 (r3; review r2, Opus S1): d3's county membership is voided now, and a
+-- membership in a second county (an even code, never real) recorded a day
+-- ago is planted: as known a moment ago, d3 is within both counties.
+UPDATE public.premise_place_memberships SET void_reason = 'second county keyed' WHERE id = '00000000-0000-4000-8000-0000000030ab';
+INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date) VALUES
+  ('00000000-0000-4000-8000-0000000030ad', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d3', '00000000-0000-4000-8000-0000000030eb',
+   'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01');
+ALTER TABLE public.premise_place_memberships DISABLE TRIGGER a_enforce_premise_place_membership;
+UPDATE public.premise_place_memberships SET created_at = now() - interval '1 day' WHERE id = '00000000-0000-4000-8000-0000000030ad';
+ALTER TABLE public.premise_place_memberships ENABLE ALWAYS TRIGGER a_enforce_premise_place_membership;
+SELECT pg_temp.refuses_at('M12 two counties at once as known a moment ago: refused, never both',
+  $q$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d3', DATE '2026-06-01', 'tax', now() - interval '1 second')$q$,
+  '21000', 'two places of one exclusive group');
+SELECT pg_temp.ok_q('M12b as known now: the second county only',
+  $q$SELECT (SELECT array_agg(place_code ORDER BY place_code) = ARRAY['48998', 'TX']
+               FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d3', DATE '2026-06-01', 'tax', now()))$q$);
 
 -- ---------------------------------------------------------------------------
 -- A  a state agency's basis

@@ -1,0 +1,488 @@
+--- tests/v5.4.2-30/review/patch-30-frozen-r2.sql	2026-11-06 11:57:08
++++ tests/v5.4.2-30/review/patch-30-frozen-r3.sql	2026-11-06 12:29:08
+@@ -1,6 +1,6 @@
+ -- ============================================================================
+ -- PATCH v5.4.2-30 — tax rows keyed to places, and the taxability fixes
+---                    (r2, 2026-11-06; r1 frozen and reviewed 2026-11-06)
++--                    (r3, 2026-11-06; r1 and r2 frozen and reviewed 2026-11-06)
+ -- ============================================================================
+ -- Authority:   Kyle 2026-10-14 (GBM application/kyle-decisions-2026-10-14-
+ --              tax-jurisdictions-and-gas-cost.md, answers 1, 2, 5); Kyle
+@@ -13,6 +13,7 @@
+ --              rates in percent). Board claim -30 (rates stream).
+ -- Design:      application/rates-build-2026-11-05/tax-design.md (2.1–2.8);
+ --              round 2: v5.4.2-30-r2-plan.md (the round-1 findings);
++--              round 3: v5.4.2-30-r3-plan.md (the round-2 findings);
+ --              triage of the open points: tax-triage.md; sources:
+ --              tax-inventory.md.
+ -- Invariants:  CI-045 (each tax on its own base, in its order: the levy rows
+@@ -92,13 +93,15 @@
+ --       (refused). A bill from before go-live is rebilled from its own
+ --       legacy record, with a supervisor's approval (Kyle 2026-11-05,
+ --       batch 2 answer 11).
+---   L7. Two writers on one levy key: the template stamps created_at and
+---       closed_at with now() (transaction start), so a successor recorded by
+---       a transaction that began before its predecessor's close can make a
+---       read at an instant between the two raise "2 rows" for those seconds.
+---       It refuses, never mis-answers; the template's stamps are shared by
+---       every rule table, places and memberships (-17), so the change is
+---       the template's (board, unassigned).
++--   L7. Two writers on one key: the template stamps created_at and
++--       closed_at with now() (transaction start), as do places and
++--       memberships (-16), so a successor recorded by a transaction that
++--       began before its predecessor's close or void can make a read at an
++--       instant between the two refuse for those seconds ("2 rows" of a levy;
++--       two places of one exclusive group, r3). A read refuses, never
++--       mis-answers; the change is the template's (board, unassigned). The
++--       premise's state history is not in L7: its recorder refuses the
++--       overlapping writer (r3).
+ --
+ -- Preconditions (a real database): no rate item version yet (each would need
+ -- its penalty-base answer decided, not defaulted); no exemption without
+@@ -290,6 +293,8 @@
+     v_rate   numeric := (p_row -> 'terms' ->> 'rate_percent')::numeric;
+     v_on     text;
+     v_place  uuid;
++    v_locked uuid[] := ARRAY[]::uuid[];
++    v_now    uuid[];
+ BEGIN
+     IF NOT public.is_platform_admin() AND (p_row ->> 'tenant_id')::uuid IS DISTINCT FROM public.get_user_tenant_id()
+        AND NOT coalesce((SELECT r.rolsuper OR r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user), false) THEN
+@@ -313,7 +318,17 @@
+                     WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code'
+                     ORDER BY p.id LOOP
+         PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_place));
++        v_locked := v_locked || v_place;
+     END LOOP;
++    -- r3 (-16's rule, race R19 there): a row of the code committed while this
++    -- waited was never locked, so it is not trusted; the writer retries.
++    SELECT coalesce(array_agg(p.id ORDER BY p.id), ARRAY[]::uuid[]) INTO v_now FROM public.places p
++     WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code';
++    IF v_now <> v_locked THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('tax levy: the rows of %s %s in %s changed while this waited; retry (v5.4.2-30)', p_row ->> 'place_kind', p_row ->> 'place_code', p_row ->> 'state_code'),
++            ERRCODE = 'serialization_failure';
++    END IF;
+     SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) INTO v_cover
+       FROM public.places p
+      WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code';
+@@ -373,7 +388,17 @@
+     AS $$
+ DECLARE
+     v_levy uuid;
++    v_sees_all boolean;
+ BEGIN
++    -- r3 (review r2, Fable S1): the levies are tenant rows; the check runs
++    -- as whoever holds the session at commit, so it requires a role that
++    -- sees them all, as the close itself does (enforce_place).
++    SELECT r.rolsuper OR r.rolbypassrls INTO v_sees_all FROM pg_catalog.pg_roles r WHERE r.rolname = current_user;
++    IF v_sees_all IS NOT TRUE THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('place %s: its close is checked against every tenant''s levies, which needs a role that sees them all (superuser or BYPASSRLS); %s does not (v5.4.2-30)', OLD.id, current_user),
++            ERRCODE = 'insufficient_privilege';
++    END IF;
+     SELECT t.id INTO v_levy FROM public.tax_levies t
+      WHERE t.place_kind = OLD.kind_code AND t.state_code = OLD.state_code AND t.place_code = OLD.place_code
+        AND NOT coalesce((SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) FROM public.places p
+@@ -481,7 +506,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.tax_levy_reference_gaps(uuid, date) IS
+-    'v5.4.2-30 (Ryan 2026-09-30: the platform keeps the published value as a reference and reports a disagreement). On p_on: each sales-tax levy of the utility whose place carries a published sales_tax_rate that differs (both rates and the published value''s source); and (r2) each place the utility''s premises are in (an open tax-axis membership, or the premise''s state) that publishes a rate while the utility has no levy of it (levy_id and levy_rate_percent NULL). A report, never a refusal: the utility''s row bills. Both arguments required.';
++    'v5.4.2-30 (Ryan 2026-09-30: the platform keeps the published value as a reference and reports a disagreement). On p_on: each sales-tax levy of the utility whose place carries a published sales_tax_rate that differs (both rates and the published value''s source); and (r2) each place the utility''s premises are in (an open tax-axis membership, or the premise''s state) that publishes a rate while the utility has no levy of it (levy_id and levy_rate_percent NULL). A report, never a refusal: the utility''s row bills. The second part reads memberships and premises as they stand now, counts every premise of the utility whatever its status, and does not look at service type: a place listed for an inactive premise is a false alarm, never a missed one. Both arguments required.';
+ REVOKE ALL ON FUNCTION public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone),
+                        public.tax_levy_reference_gaps(uuid, date), public.end_as_known(date, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
+ GRANT EXECUTE ON FUNCTION public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone),
+@@ -717,6 +742,17 @@
+ BEGIN
+     IF TG_OP = 'UPDATE' AND upper(btrim(NEW.state)) IS NOT DISTINCT FROM upper(btrim(OLD.state)) THEN
+         RETURN NULL;
++    END IF;
++    -- r3 (review r2: Opus B1, Fable B1): a row stamped after this transaction
++    -- began was written by a transaction that began later and committed
++    -- first (both hold the premise's row lock). Recorded after it, this row
++    -- would sort below it and the history would end on the wrong state, so
++    -- this writer retries.
++    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h
++                                     WHERE h.service_location_id = NEW.id AND h.recorded_at > now()) THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('service location %s: its state was recorded by a transaction that began after this one; retry (v5.4.2-30)', NEW.id),
++            ERRCODE = 'serialization_failure';
+     END IF;
+     INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
+     VALUES (NEW.tenant_id, NEW.id, upper(btrim(NEW.state)), now());
+@@ -724,7 +760,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.record_service_location_state() IS
+-    'v5.4.2-30 r2. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now().';
++    'v5.4.2-30 r2, r3. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now(). A change is refused (40001, retry) when the premise already has a row stamped after this transaction began, so the history''s order is the order of the changes.';
+ REVOKE ALL ON FUNCTION public.record_service_location_state(), public.enforce_state_history_written_by_db() FROM PUBLIC;
+ DROP TRIGGER IF EXISTS z_record_service_location_state ON public.service_locations;
+ CREATE TRIGGER z_record_service_location_state AFTER INSERT OR UPDATE OF state ON public.service_locations
+@@ -779,6 +815,23 @@
+             MESSAGE = format('premise_places_as_of: premise %s is not found (or not visible), or its state %s is no state known on %s; its places cannot be read (v5.4.2-16)', p_service_location_id, coalesce(v_state, 'NULL'), p_on),
+             ERRCODE = 'no_data_found';
+     END IF;
++    -- r3 (review r2, Opus S1): two within places of one exclusive group as
++    -- known at the instant (a void and its successor recorded by overlapping
++    -- transactions, L7) is ambiguous: refused, never both.
++    IF EXISTS (SELECT 1 FROM public.premise_place_memberships m
++                 JOIN public.places p ON p.id = m.place_id
++                WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
++                  AND m.relation = 'within' AND m.exclusivity_group IS NOT NULL
++                  AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
++                  AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
++                  AND p.created_at <= p_recorded_at
++                  AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
++                  AND p.state_code = v_state
++                GROUP BY m.exclusivity_group HAVING count(*) > 1) THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('premise_places_as_of: premise %s is within two places of one exclusive group on %s as known at %s (v5.4.2-30)', p_service_location_id, p_on, p_recorded_at),
++            ERRCODE = 'cardinality_violation';
++    END IF;
+     RETURN QUERY
+     SELECT p.id, p.kind_code, p.state_code, p.place_code, p.name, k.specificity, m.relation, m.distance_miles
+       FROM public.premise_place_memberships m
+--- tests/v5.4.2-30/review/battery-30-frozen-r2.sql	2026-11-06 11:57:08
++++ tests/v5.4.2-30/review/battery-30-frozen-r3.sql	2026-11-06 12:29:08
+@@ -141,6 +141,9 @@
+                       ('00000000-0000-4000-8000-0000000030e7'::uuid, 'TX-B30-GAP', 'Gap City 30', DATE '2026-07-01', NULL::date),
+                       ('00000000-0000-4000-8000-0000000030e8'::uuid, 'TX-B30-OLD', 'Old City 30', DATE '2000-01-01', NULL::date)) v(id, code, name, f, t)
+  WHERE b.k = 'tx';
++INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
++SELECT '00000000-0000-4000-8000-0000000030eb', 'county', 'TX', '48998', 'Battery County 30b', id, DATE '1900-01-01', 'battery-30 fixture (M12)'
++  FROM public.places WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL;
+ INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date) VALUES
+   ('00000000-0000-4000-8000-0000000030aa', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d2', '00000000-0000-4000-8000-0000000030e3', 'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+   ('00000000-0000-4000-8000-0000000030ab', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d3', '00000000-0000-4000-8000-0000000030e3', 'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+@@ -317,6 +320,14 @@
+        SET CONSTRAINTS public.z_check_place_levy_coverage IMMEDIATE;
+        SET CONSTRAINTS public.z_check_place_levy_coverage DEFERRED;
+      END $x$$q$);
++-- r3 (review r2, Fable S1): the check runs as whoever holds the session at commit.
++SELECT pg_temp.refuses_at('C5 a close checked under a role that cannot see every tenant''s levies (the owner closes, then becomes tally_app)',
++  $q$DO $x$ BEGIN
++       UPDATE public.places SET effective_to = DATE '2026-12-01' WHERE id = '00000000-0000-4000-8000-0000000030e7';
++       PERFORM set_config('role', 'tally_app', true);
++       SET CONSTRAINTS public.z_check_place_levy_coverage IMMEDIATE;
++     END $x$$q$,
++  '42501', 'sees them all');
+ 
+ -- ---------------------------------------------------------------------------
+ -- Q  the levy as of a date and a recorded instant
+@@ -529,7 +540,7 @@
+ ALTER TABLE public.places DISABLE TRIGGER a_enforce_place;
+ UPDATE public.places SET created_at = now() - interval '2 days'
+  WHERE id IN ('00000000-0000-4000-8000-0000000030e1', '00000000-0000-4000-8000-0000000030e2', '00000000-0000-4000-8000-0000000030e3',
+-              '00000000-0000-4000-8000-0000000030e8', '00000000-0000-4000-8000-0000000030e9');
++              '00000000-0000-4000-8000-0000000030e8', '00000000-0000-4000-8000-0000000030e9', '00000000-0000-4000-8000-0000000030eb');
+ ALTER TABLE public.places ENABLE ALWAYS TRIGGER a_enforce_place;
+ UPDATE public.premise_place_memberships SET valid_to = DATE '2026-04-01' WHERE id = '00000000-0000-4000-8000-0000000030a7';
+ UPDATE public.premise_place_memberships SET void_reason = 'wrong county keyed' WHERE id = '00000000-0000-4000-8000-0000000030a8';
+@@ -591,6 +602,19 @@
+   (SELECT count(*) = 1 AND bool_and(state = 'TX' AND recorded_at = now()) FROM public.service_location_state_history
+     WHERE service_location_id = '00000000-0000-4000-8000-0000000030d5'));
+ RESET ROLE;
++-- r3 (review r2, Fable S2): two changes in one transaction share its instant;
++-- the later written is the later state.
++UPDATE public.service_locations SET state = 'NM' WHERE id = '00000000-0000-4000-8000-0000000030d5';
++SELECT pg_temp.ok_q('M8c d5 recorded and corrected in one transaction (TX, then NM): as known now, the later (New Mexico)',
++  $q$SELECT (SELECT array_agg(place_code) = ARRAY['NM']
++               FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d5', DATE '2026-06-01', 'tax', now()))$q$);
++-- r3 (review r2: Opus B1, Fable B1): a row stamped after this transaction
++-- began (planted: a transaction that began later and committed first).
++INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
++VALUES ('00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d5', 'NM', now() + interval '1 hour');
++SELECT pg_temp.refuses_at('M13 a change of state by a transaction that began before a recorded change: refused, retry',
++  $q$UPDATE public.service_locations SET state = 'TX' WHERE id = '00000000-0000-4000-8000-0000000030d5'$q$,
++  '40001', 'began after this one');
+ -- A place's end as known (r1, Opus S5): d4's Old City membership and Old City
+ -- itself are closed now at 2026-05-01.
+ UPDATE public.premise_place_memberships SET valid_to = DATE '2026-05-01' WHERE id = '00000000-0000-4000-8000-0000000030ac';
+@@ -613,6 +637,23 @@
+ SELECT pg_temp.ok('G5b on 2026-03-01 the county levy (0.5) agrees: not reported',
+   NOT EXISTS (SELECT 1 FROM public.tax_levy_reference_gaps('00000000-0000-4000-8000-0000000030a1', DATE '2026-03-01') WHERE place_code = '48996'));
+ 
++-- M12 (r3; review r2, Opus S1): d3's county membership is voided now, and a
++-- membership in a second county (an even code, never real) recorded a day
++-- ago is planted: as known a moment ago, d3 is within both counties.
++UPDATE public.premise_place_memberships SET void_reason = 'second county keyed' WHERE id = '00000000-0000-4000-8000-0000000030ab';
++INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date) VALUES
++  ('00000000-0000-4000-8000-0000000030ad', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d3', '00000000-0000-4000-8000-0000000030eb',
++   'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01');
++ALTER TABLE public.premise_place_memberships DISABLE TRIGGER a_enforce_premise_place_membership;
++UPDATE public.premise_place_memberships SET created_at = now() - interval '1 day' WHERE id = '00000000-0000-4000-8000-0000000030ad';
++ALTER TABLE public.premise_place_memberships ENABLE ALWAYS TRIGGER a_enforce_premise_place_membership;
++SELECT pg_temp.refuses_at('M12 two counties at once as known a moment ago: refused, never both',
++  $q$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d3', DATE '2026-06-01', 'tax', now() - interval '1 second')$q$,
++  '21000', 'two places of one exclusive group');
++SELECT pg_temp.ok_q('M12b as known now: the second county only',
++  $q$SELECT (SELECT array_agg(place_code ORDER BY place_code) = ARRAY['48998', 'TX']
++               FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d3', DATE '2026-06-01', 'tax', now()))$q$);
++
+ -- ---------------------------------------------------------------------------
+ -- A  a state agency's basis
+ -- ---------------------------------------------------------------------------
+--- tests/v5.4.2-30/review/mutations-30-frozen-r2.sh	2026-11-06 11:57:08
++++ tests/v5.4.2-30/review/mutations-30-frozen-r3.sh	2026-11-06 12:29:08
+@@ -6,6 +6,8 @@
+ #   PRE:<case>                   preconditions-30.sh, run on the mutated patch,
+ #                                fails that case (the guards that fire only on a
+ #                                database holding data `tally` does not)
++#   RACE:<leg>                   the mutated patch applies on a clone (r30m) and
++#                                races/levy-30.sh fails first at that leg (r3)
+ # A catch elsewhere fails the run. EXTRA: a JSON list of further [old, new]
+ # edits, each matching exactly once.
+ #   tests/v5.4.2-30/mutations-30.sh [patch]    (uses m30 and m30p; one run at a time)
+@@ -14,7 +16,7 @@
+ P=${1:-$ROOT/sql/v5.4.2-30-tax-levies-and-taxability.sql}
+ B=$ROOT/tests/v5.4.2-30/battery-30.sql
+ TMP=$(mktemp -d)
+-trap 'rm -rf "$TMP"; docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" >/dev/null 2>&1' EXIT
++trap 'rm -rf "$TMP"; docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "DROP DATABASE IF EXISTS r30m" >/dev/null 2>&1' EXIT
+ docker cp "$B" tally-pg:/tmp/b30m.sql >/dev/null
+ fail=0; n=0; caught=0
+ 
+@@ -32,6 +34,12 @@
+   fi
+   case $exp in
+     PRE:*) got="PRE:$(tests/v5.4.2-30/preconditions-30.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL C[0-9a-z]*' | cut -d' ' -f2)" ;;
++    RACE:*)
++      docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS r30m" -qc "CREATE DATABASE r30m TEMPLATE tally" >/dev/null 2>&1
++      docker cp "$TMP/m.sql" tally-pg:/tmp/r30m.sql >/dev/null
++      if docker exec -e PGOPTIONS="-c search_path= -c check_function_bodies=on" tally-pg psql -U tally -d r30m -v ON_ERROR_STOP=1 -q -o /dev/null -f /tmp/r30m.sql >/dev/null 2>&1; then
++        got="RACE:$(tests/v5.4.2-30/races/levy-30.sh r30m 2>&1 | grep -m1 -o '^FAIL R[0-9]*' | cut -d' ' -f2)"
++      else got="APPLY (race clone)"; fi ;;
+     *)
+       docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "CREATE DATABASE m30 TEMPLATE tally" >/dev/null 2>&1
+       docker exec tally-pg psql -U tally -d m30 -qc "REVOKE TEMP ON DATABASE m30 FROM PUBLIC" -qc "REVOKE TEMP ON DATABASE m30 FROM tally_app" -qc "REVOKE TEMP ON DATABASE m30 FROM tally_core" >/dev/null
+@@ -47,7 +55,7 @@
+       fi ;;
+   esac
+   if [ "$got" = "$exp" ]; then echo "caught $1 at $got"; caught=$((caught + 1))
+-  elif [ -z "$got" ] || [ "$got" = "PRE:" ]; then echo "MISSED $1 (named $exp)"; fail=1
++  elif [ -z "$got" ] || [ "$got" = "PRE:" ] || [ "$got" = "RACE:" ]; then echo "MISSED $1 (named $exp)"; fail=1
+   else echo "WRONG CHECK $1: caught at $got, named $exp"; fail=1; fi
+ }
+ 
+@@ -105,15 +113,23 @@
+ mut "N14 a levy recorded after the instant read" Q3 \
+   "       AND t.created_at <= p_recorded_at
+        AND daterange(t.effective_from" "       AND daterange(t.effective_from"
++# N15-N17 anchor on the main query's comment (r3: the exclusive-group check
++# repeats the filters; mutating the main read alone is what M2 must catch).
+ mut "N15 a membership recorded after the instant read" M2 \
+-  "       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
+-  "       AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)"
++  "       -- then, and its end only if its close was recorded by then.
++       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
++  "       -- then, and its end only if its close was recorded by then.
++       AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)"
+ mut "N16 a membership voided after the instant dropped" M2 \
+-  "       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
+-  "       AND m.created_at <= p_recorded_at AND m.voided_at IS NULL"
++  "       -- then, and its end only if its close was recorded by then.
++       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
++  "       -- then, and its end only if its close was recorded by then.
++       AND m.created_at <= p_recorded_at AND m.voided_at IS NULL"
+ mut "N17 a membership's end read as known from the start" M2 \
+-  "       AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on" \
+-  "       AND daterange(m.valid_from, m.valid_to, '[)') @> p_on"
++  "       AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
++       -- defence in depth" \
++  "       AND daterange(m.valid_from, m.valid_to, '[)') @> p_on
++       -- defence in depth"
+ mut "N18 a premise's places read without a recorded instant" M5 \
+   "    IF p_recorded_at IS NULL THEN
+         RAISE EXCEPTION USING
+@@ -216,5 +232,28 @@
+   "       AND (t.terms ->> 'rate_percent')::numeric IS DISTINCT FROM (f.value #>> '{}')::numeric
+ " ""
+ 
++# --- r3 (the round-2 findings)
++mut "N48 an overlapping state correction recorded out of order" M13 \
++  "    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h" \
++  "    IF false AND EXISTS (SELECT 1 FROM public.service_location_state_history h"
++mut "N49 two places of one exclusive group both answered" M12 \
++  "                GROUP BY m.exclusivity_group HAVING count(*) > 1) THEN" "                GROUP BY m.exclusivity_group HAVING false) THEN"
++mut "N50 the coverage check run under any role" C5 \
++  "    IF v_sees_all IS NOT TRUE THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('place %s: its close is checked" "    IF false THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('place %s: its close is checked"
++mut "N51 two changes in one transaction read in the wrong order" M8c \
++  "     ORDER BY h.recorded_at DESC, h.seq DESC LIMIT 1;" "     ORDER BY h.recorded_at DESC, h.seq LIMIT 1;"
++# Race-only guards: caught by tests/v5.4.2-30/races/levy-30.sh (RACE:<leg>).
++mut "N52 a levy insert takes no place lock" RACE:R1 \
++  "        PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_place));" "        NULL;"
++mut "N53 a place row committed while the levy waited trusted unlocked" RACE:R5 \
++  "    IF v_now <> v_locked THEN" "    IF false THEN"
++mut "N54 an overlapping correction recorded (between sessions)" RACE:R3 \
++  "    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h" \
++  "    IF false AND EXISTS (SELECT 1 FROM public.service_location_state_history h"
++
+ echo "mutations-30: $caught of $n caught"
+ [ $fail -eq 0 ] && [ $caught -eq $n ]
+--- /dev/null	2026-11-06 12:29:08
++++ tests/v5.4.2-30/review/levy-30-frozen-r3.sh	2026-11-06 12:29:08
+@@ -0,0 +1,146 @@
++#!/usr/bin/env bash
++# v5.4.2-30 races (r3; review r2: Opus S2 and B1, Fable B1, Opus's note).
++#   R1  A records a levy on a city and holds; B's close of the city (no
++#       successor) waits on the place lock, then is refused at its commit:
++#       the coverage check sees A's levy.
++#   R2  A closes a city and holds; B's levy over the closed dates waits on
++#       the shared lock, then re-reads the city's rows and is refused.
++#   R3  two overlapping corrections of one premise's state: B begins first,
++#       A changes the state and holds, B's change waits on the premise's row
++#       lock, then is refused (40001): A's row is stamped after B began. The
++#       history ends on A's state, the premise's own.
++#   R4  control: a correction that begins after A committed is recorded, and
++#       the history ends on it.
++#   R5  A closes a city's row and adds its successor, and holds; B's levy
++#       waits on the row it found, then — though the successor now covers it
++#       — is refused (40001): a row committed while it waited is never
++#       trusted unlocked (-16's rule, its race R19).
++# Every two-session leg checks that the second session ITSELF was seen waiting
++# on a lock (pg_stat_activity, by application_name) before the first
++# committed, so a leg cannot pass by running in order. Setup failures exit 2;
++# a leg whose first session failed is a FAIL.
++# Runs against a THROWAWAY clone (it commits rows).
++#   usage: levy-30.sh <db>      (default: r30race)
++set -uo pipefail
++DB="${1:-r30race}"
++PSQL=(docker exec -i tally-pg psql -U tally -d "$DB" -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -q -At)
++
++T=00000000-0000-4000-8000-0000000030f9
++U=00000000-0000-4000-8000-0000000030f8
++C=00000000-0000-4000-8000-0000000030f7
++L=00000000-0000-4000-8000-0000000030f6
++PA=00000000-0000-4000-8000-0000000030fa
++PB=00000000-0000-4000-8000-0000000030fb
++PC=00000000-0000-4000-8000-0000000030fc
++PC2=00000000-0000-4000-8000-0000000030fd
++APP="SET LOCAL app.user_id = '$U'; SET ROLE tally_app;"
++TERMS='{"rate_percent": 1, "stacking_position": 2, "computed_on": [], "source_kind": "ordinance", "citation": "Race Ord. 1", "reaches_residential": true}'
++levy() {  # $1 city code: a levy from 2026-01-01, open
++echo "INSERT INTO public.tax_levies (tenant_id, state_code, service_type, system_kind, place_kind, place_code, tax_kind, effective_from,
++        tariff_reference, terms_kind, terms_version, terms_source)
++      VALUES ('$T', 'TX', 'gas', 'distribution', 'municipality', '$1', 'sales_tax', DATE '2026-01-01', 'Race tariff', 'tax_levy', 1, '$TERMS');"
++}
++
++"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: fixtures"; exit 2; }
++INSERT INTO public.tenants (id, name, slug) VALUES ('$T', 'Race30', 'race30-$RANDOM$RANDOM');
++INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES ('$U', '$T', 'Op', 'op$RANDOM@race30.test', 'operator');
++INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES ('$C', '$T', 'R30-C', 'residential');
++INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip)
++  VALUES ('$L', '$T', '$C', 'L', '1 Main', 'Raceville', 'TX', '78701');
++INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
++SELECT v.id, 'municipality', 'TX', v.code, v.code, s.id, DATE '1950-01-01', 'race fixture'
++  FROM (VALUES ('$PA'::uuid, 'R30-A'), ('$PB'::uuid, 'R30-B'), ('$PC'::uuid, 'R30-C')) v(id, code),
++       (SELECT id FROM public.places WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL) s;
++SQL
++
++fail=0
++A_OUT=$(mktemp); B_OUT=$(mktemp); trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
++waiting() {
++docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND application_name = 'race30_b' AND wait_event_type = 'Lock'"
++}
++# two(): A's SQL holds 3s; B's SQL starts 1s later; B is sampled while A holds.
++two() {  # $1 A's SQL, $2 B's SQL
++"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
++BEGIN;
++$1
++SELECT pg_sleep(3);
++COMMIT;
++SQL
++APID=$!
++sleep 1
++"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
++SET application_name = 'race30_b';
++$2
++SQL
++sleep 1
++WAITED=$(waiting)
++wait $APID; AST=$?
++wait
++OUT=$(cat "$B_OUT")
++}
++seen() {
++if [ "${AST:-0}" -ne 0 ]; then echo "FAIL $1: session A itself failed: $(cat "$A_OUT")"; fail=1; return 1; fi
++if [ "${WAITED:-0}" -lt 1 ]; then echo "FAIL $1: the second session was never seen waiting (sequential, not a race)"; fail=1; return 1; fi
++}
++
++# R1
++two "$APP $(levy R30-A)" "UPDATE public.places SET effective_to = DATE '2026-06-01' WHERE id = '$PA';"
++if seen R1 && grep -q "a tax levy" <<<"$OUT"; then
++  echo "PASS R1: a city closed while a levy on it is in flight waits, then is refused at commit"
++else echo "FAIL R1: the close said: $OUT"; fail=1; fi
++
++# R2
++two "UPDATE public.places SET effective_to = DATE '2026-06-01' WHERE id = '$PB';" "BEGIN; $APP $(levy R30-B) COMMIT;"
++if seen R2 && grep -q "in force over the whole" <<<"$OUT"; then
++  echo "PASS R2: a levy recorded while its city is being closed waits, then is refused"
++else echo "FAIL R2: the levy said: $OUT"; fail=1; fi
++
++# R3: B begins first, then A; B's change reaches the premise after A holds it.
++"${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
++SET application_name = 'race30_b';
++BEGIN;
++$APP
++SELECT pg_sleep(1.5);
++UPDATE public.service_locations SET state = 'NM' WHERE id = '$L';
++COMMIT;
++SQL
++BPID=$!
++sleep 0.5
++"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
++BEGIN;
++$APP
++UPDATE public.service_locations SET state = 'OK' WHERE id = '$L';
++SELECT pg_sleep(3);
++COMMIT;
++SQL
++APID=$!
++sleep 2
++WAITED=$(waiting)
++wait $APID; AST=$?
++wait $BPID
++OUT=$(cat "$B_OUT")
++LAST=$("${PSQL[@]}" -c "SELECT (SELECT state FROM public.service_location_state_history WHERE service_location_id = '$L' ORDER BY recorded_at DESC, seq DESC LIMIT 1) || '/' || (SELECT upper(btrim(state)) FROM public.service_locations WHERE id = '$L')")
++if seen R3 && grep -q "ERROR:  40001" <<<"$OUT" && grep -q "began after this one" <<<"$OUT" && [ "$LAST" = "OK/OK" ]; then
++  echo "PASS R3: a correction begun before an overlapping one committed is refused (40001); the history ends on the premise's state"
++else echo "FAIL R3: B said: $OUT; history/premise: $LAST"; fail=1; fi
++
++# R4
++OUT=$("${PSQL[@]}" 2>&1 <<SQL
++BEGIN; $APP UPDATE public.service_locations SET state = 'NM' WHERE id = '$L'; COMMIT;
++SQL
++)
++OUT="$OUT$("${PSQL[@]}" -c "SELECT state FROM public.service_location_state_history WHERE service_location_id = '$L' ORDER BY recorded_at DESC, seq DESC LIMIT 1" 2>&1)"
++if [ "$OUT" = "NM" ]; then
++  echo "PASS R4: a correction begun after the other committed is recorded, last"
++else echo "FAIL R4: $OUT"; fail=1; fi
++
++# R5
++two "UPDATE public.places SET effective_to = DATE '2026-07-01' WHERE id = '$PC';
++INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
++SELECT '$PC2', 'municipality', 'TX', 'R30-C', 'R30-C (successor)', id, DATE '2026-07-01', 'race fixture'
++  FROM public.places WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL;" \
++    "BEGIN; $APP $(levy R30-C) COMMIT;"
++if seen R5 && grep -q "ERROR:  40001" <<<"$OUT" && grep -q "changed while this waited" <<<"$OUT"; then
++  echo "PASS R5: a levy that waited on a city's row is refused when a successor row was committed meanwhile (retry)"
++else echo "FAIL R5: the levy said: $OUT"; fail=1; fi
++exit $fail
+diff --git a/tests/ci.sh b/tests/ci.sh
+index 5740cea..06fee6c 100755
+--- a/tests/ci.sh
++++ b/tests/ci.sh
+@@ -165,6 +165,7 @@ cstep ci_r19 "races v5.4.2-19" tests/v5.4.2-19/races/cycle-19.sh ci_r19
+ cstep ci_r20 "races and transactions v5.4.2-20" tests/v5.4.2-20/races/seal-20.sh ci_r20
+ cstep ci_r21 "races v5.4.2-21" tests/v5.4.2-21/races/labels-21.sh ci_r21
+ cstep ci_r28 "races v5.4.2-28" tests/v5.4.2-28/races/past-cycle-28.sh ci_r28
++cstep ci_r30 "races v5.4.2-30" tests/v5.4.2-30/races/levy-30.sh ci_r30
+ step "source check v5.4.2-29" tests/v5.4.2-29/source-check-29.sh
+ # The load's rules act when it applies, on a base without the counties: run
+ # only while -29 is pending (after the mirror, restore a pre-29 base to run it).

@@ -6,6 +6,8 @@
 #   PRE:<case>                   preconditions-30.sh, run on the mutated patch,
 #                                fails that case (the guards that fire only on a
 #                                database holding data `tally` does not)
+#   RACE:<leg>                   the mutated patch applies on a clone (r30m) and
+#                                races/levy-30.sh fails first at that leg (r3)
 # A catch elsewhere fails the run. EXTRA: a JSON list of further [old, new]
 # edits, each matching exactly once.
 #   tests/v5.4.2-30/mutations-30.sh [patch]    (uses m30 and m30p; one run at a time)
@@ -14,7 +16,7 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 P=${1:-$ROOT/sql/v5.4.2-30-tax-levies-and-taxability.sql}
 B=$ROOT/tests/v5.4.2-30/battery-30.sql
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"; docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" >/dev/null 2>&1' EXIT
+trap 'rm -rf "$TMP"; docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "DROP DATABASE IF EXISTS r30m" >/dev/null 2>&1' EXIT
 docker cp "$B" tally-pg:/tmp/b30m.sql >/dev/null
 fail=0; n=0; caught=0
 
@@ -32,6 +34,12 @@ open(sys.argv[4], "w").write(s)' "$P" "$3" "$4" "$TMP/m.sql"; then
   fi
   case $exp in
     PRE:*) got="PRE:$(tests/v5.4.2-30/preconditions-30.sh "$TMP/m.sql" 2>&1 | grep -m1 -o '^FAIL C[0-9a-z]*' | cut -d' ' -f2)" ;;
+    RACE:*)
+      docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS r30m" -qc "CREATE DATABASE r30m TEMPLATE tally" >/dev/null 2>&1
+      docker cp "$TMP/m.sql" tally-pg:/tmp/r30m.sql >/dev/null
+      if docker exec -e PGOPTIONS="-c search_path= -c check_function_bodies=on" tally-pg psql -U tally -d r30m -v ON_ERROR_STOP=1 -q -o /dev/null -f /tmp/r30m.sql >/dev/null 2>&1; then
+        got="RACE:$(tests/v5.4.2-30/races/levy-30.sh r30m 2>&1 | grep -m1 -o '^FAIL R[0-9]*' | cut -d' ' -f2)"
+      else got="APPLY (race clone)"; fi ;;
     *)
       docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "CREATE DATABASE m30 TEMPLATE tally" >/dev/null 2>&1
       docker exec tally-pg psql -U tally -d m30 -qc "REVOKE TEMP ON DATABASE m30 FROM PUBLIC" -qc "REVOKE TEMP ON DATABASE m30 FROM tally_app" -qc "REVOKE TEMP ON DATABASE m30 FROM tally_core" >/dev/null
@@ -47,7 +55,7 @@ open(sys.argv[4], "w").write(s)' "$P" "$3" "$4" "$TMP/m.sql"; then
       fi ;;
   esac
   if [ "$got" = "$exp" ]; then echo "caught $1 at $got"; caught=$((caught + 1))
-  elif [ -z "$got" ] || [ "$got" = "PRE:" ]; then echo "MISSED $1 (named $exp)"; fail=1
+  elif [ -z "$got" ] || [ "$got" = "PRE:" ] || [ "$got" = "RACE:" ]; then echo "MISSED $1 (named $exp)"; fail=1
   else echo "WRONG CHECK $1: caught at $got, named $exp"; fail=1; fi
 }
 
@@ -105,15 +113,23 @@ mut "N13 a row's end read as known from the start" Q3 \
 mut "N14 a levy recorded after the instant read" Q3 \
   "       AND t.created_at <= p_recorded_at
        AND daterange(t.effective_from" "       AND daterange(t.effective_from"
+# N15-N17 anchor on the main query's comment (r3: the exclusive-group check
+# repeats the filters; mutating the main read alone is what M2 must catch).
 mut "N15 a membership recorded after the instant read" M2 \
-  "       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
-  "       AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)"
+  "       -- then, and its end only if its close was recorded by then.
+       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
+  "       -- then, and its end only if its close was recorded by then.
+       AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)"
 mut "N16 a membership voided after the instant dropped" M2 \
-  "       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
-  "       AND m.created_at <= p_recorded_at AND m.voided_at IS NULL"
+  "       -- then, and its end only if its close was recorded by then.
+       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)" \
+  "       -- then, and its end only if its close was recorded by then.
+       AND m.created_at <= p_recorded_at AND m.voided_at IS NULL"
 mut "N17 a membership's end read as known from the start" M2 \
-  "       AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on" \
-  "       AND daterange(m.valid_from, m.valid_to, '[)') @> p_on"
+  "       AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
+       -- defence in depth" \
+  "       AND daterange(m.valid_from, m.valid_to, '[)') @> p_on
+       -- defence in depth"
 mut "N18 a premise's places read without a recorded instant" M5 \
   "    IF p_recorded_at IS NULL THEN
         RAISE EXCEPTION USING
@@ -215,6 +231,29 @@ mut "N45 a published rate with no levy not reported" G5 \
 mut "N46 an agreeing levy reported as a gap (r1, Fable N3)" G1 \
   "       AND (t.terms ->> 'rate_percent')::numeric IS DISTINCT FROM (f.value #>> '{}')::numeric
 " ""
+
+# --- r3 (the round-2 findings)
+mut "N48 an overlapping state correction recorded out of order" M13 \
+  "    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h" \
+  "    IF false AND EXISTS (SELECT 1 FROM public.service_location_state_history h"
+mut "N49 two places of one exclusive group both answered" M12 \
+  "                GROUP BY m.exclusivity_group HAVING count(*) > 1) THEN" "                GROUP BY m.exclusivity_group HAVING false) THEN"
+mut "N50 the coverage check run under any role" C5 \
+  "    IF v_sees_all IS NOT TRUE THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('place %s: its close is checked" "    IF false THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('place %s: its close is checked"
+mut "N51 two changes in one transaction read in the wrong order" M8c \
+  "     ORDER BY h.recorded_at DESC, h.seq DESC LIMIT 1;" "     ORDER BY h.recorded_at DESC, h.seq LIMIT 1;"
+# Race-only guards: caught by tests/v5.4.2-30/races/levy-30.sh (RACE:<leg>).
+mut "N52 a levy insert takes no place lock" RACE:R1 \
+  "        PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_place));" "        NULL;"
+mut "N53 a place row committed while the levy waited trusted unlocked" RACE:R5 \
+  "    IF v_now <> v_locked THEN" "    IF false THEN"
+mut "N54 an overlapping correction recorded (between sessions)" RACE:R3 \
+  "    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h" \
+  "    IF false AND EXISTS (SELECT 1 FROM public.service_location_state_history h"
 
 echo "mutations-30: $caught of $n caught"
 [ $fail -eq 0 ] && [ $caught -eq $n ]

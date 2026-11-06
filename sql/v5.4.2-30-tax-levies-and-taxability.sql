@@ -1,6 +1,6 @@
 -- ============================================================================
 -- PATCH v5.4.2-30 — tax rows keyed to places, and the taxability fixes
---                    (r2, 2026-11-06; r1 frozen and reviewed 2026-11-06)
+--                    (r3, 2026-11-06; r1 and r2 frozen and reviewed 2026-11-06)
 -- ============================================================================
 -- Authority:   Kyle 2026-10-14 (GBM application/kyle-decisions-2026-10-14-
 --              tax-jurisdictions-and-gas-cost.md, answers 1, 2, 5); Kyle
@@ -13,6 +13,7 @@
 --              rates in percent). Board claim -30 (rates stream).
 -- Design:      application/rates-build-2026-11-05/tax-design.md (2.1–2.8);
 --              round 2: v5.4.2-30-r2-plan.md (the round-1 findings);
+--              round 3: v5.4.2-30-r3-plan.md (the round-2 findings);
 --              triage of the open points: tax-triage.md; sources:
 --              tax-inventory.md.
 -- Invariants:  CI-045 (each tax on its own base, in its order: the levy rows
@@ -92,13 +93,15 @@
 --       (refused). A bill from before go-live is rebilled from its own
 --       legacy record, with a supervisor's approval (Kyle 2026-11-05,
 --       batch 2 answer 11).
---   L7. Two writers on one levy key: the template stamps created_at and
---       closed_at with now() (transaction start), so a successor recorded by
---       a transaction that began before its predecessor's close can make a
---       read at an instant between the two raise "2 rows" for those seconds.
---       It refuses, never mis-answers; the template's stamps are shared by
---       every rule table, places and memberships (-17), so the change is
---       the template's (board, unassigned).
+--   L7. Two writers on one key: the template stamps created_at and
+--       closed_at with now() (transaction start), as do places and
+--       memberships (-16), so a successor recorded by a transaction that
+--       began before its predecessor's close or void can make a read at an
+--       instant between the two refuse for those seconds ("2 rows" of a levy;
+--       two places of one exclusive group, r3). A read refuses, never
+--       mis-answers; the change is the template's (board, unassigned). The
+--       premise's state history is not in L7: its recorder refuses the
+--       overlapping writer (r3).
 --
 -- Preconditions (a real database): no rate item version yet (each would need
 -- its penalty-base answer decided, not defaulted); no exemption without
@@ -290,6 +293,8 @@ DECLARE
     v_rate   numeric := (p_row -> 'terms' ->> 'rate_percent')::numeric;
     v_on     text;
     v_place  uuid;
+    v_locked uuid[] := ARRAY[]::uuid[];
+    v_now    uuid[];
 BEGIN
     IF NOT public.is_platform_admin() AND (p_row ->> 'tenant_id')::uuid IS DISTINCT FROM public.get_user_tenant_id()
        AND NOT coalesce((SELECT r.rolsuper OR r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user), false) THEN
@@ -313,7 +318,17 @@ BEGIN
                     WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code'
                     ORDER BY p.id LOOP
         PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_place));
+        v_locked := v_locked || v_place;
     END LOOP;
+    -- r3 (-16's rule, race R19 there): a row of the code committed while this
+    -- waited was never locked, so it is not trusted; the writer retries.
+    SELECT coalesce(array_agg(p.id ORDER BY p.id), ARRAY[]::uuid[]) INTO v_now FROM public.places p
+     WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code';
+    IF v_now <> v_locked THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('tax levy: the rows of %s %s in %s changed while this waited; retry (v5.4.2-30)', p_row ->> 'place_kind', p_row ->> 'place_code', p_row ->> 'state_code'),
+            ERRCODE = 'serialization_failure';
+    END IF;
     SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) INTO v_cover
       FROM public.places p
      WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code';
@@ -373,7 +388,17 @@ CREATE OR REPLACE FUNCTION public.check_place_levy_coverage() RETURNS trigger
     AS $$
 DECLARE
     v_levy uuid;
+    v_sees_all boolean;
 BEGIN
+    -- r3 (review r2, Fable S1): the levies are tenant rows; the check runs
+    -- as whoever holds the session at commit, so it requires a role that
+    -- sees them all, as the close itself does (enforce_place).
+    SELECT r.rolsuper OR r.rolbypassrls INTO v_sees_all FROM pg_catalog.pg_roles r WHERE r.rolname = current_user;
+    IF v_sees_all IS NOT TRUE THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('place %s: its close is checked against every tenant''s levies, which needs a role that sees them all (superuser or BYPASSRLS); %s does not (v5.4.2-30)', OLD.id, current_user),
+            ERRCODE = 'insufficient_privilege';
+    END IF;
     SELECT t.id INTO v_levy FROM public.tax_levies t
      WHERE t.place_kind = OLD.kind_code AND t.state_code = OLD.state_code AND t.place_code = OLD.place_code
        AND NOT coalesce((SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) FROM public.places p
@@ -481,7 +506,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.tax_levy_reference_gaps(uuid, date) IS
-    'v5.4.2-30 (Ryan 2026-09-30: the platform keeps the published value as a reference and reports a disagreement). On p_on: each sales-tax levy of the utility whose place carries a published sales_tax_rate that differs (both rates and the published value''s source); and (r2) each place the utility''s premises are in (an open tax-axis membership, or the premise''s state) that publishes a rate while the utility has no levy of it (levy_id and levy_rate_percent NULL). A report, never a refusal: the utility''s row bills. Both arguments required.';
+    'v5.4.2-30 (Ryan 2026-09-30: the platform keeps the published value as a reference and reports a disagreement). On p_on: each sales-tax levy of the utility whose place carries a published sales_tax_rate that differs (both rates and the published value''s source); and (r2) each place the utility''s premises are in (an open tax-axis membership, or the premise''s state) that publishes a rate while the utility has no levy of it (levy_id and levy_rate_percent NULL). A report, never a refusal: the utility''s row bills. The second part reads memberships and premises as they stand now, counts every premise of the utility whatever its status, and does not look at service type: a place listed for an inactive premise is a false alarm, never a missed one. Both arguments required.';
 REVOKE ALL ON FUNCTION public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone),
                        public.tax_levy_reference_gaps(uuid, date), public.end_as_known(date, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tax_levy_as_of(uuid, text, text, text, text, text, text, date, timestamp with time zone),
@@ -718,13 +743,24 @@ BEGIN
     IF TG_OP = 'UPDATE' AND upper(btrim(NEW.state)) IS NOT DISTINCT FROM upper(btrim(OLD.state)) THEN
         RETURN NULL;
     END IF;
+    -- r3 (review r2: Opus B1, Fable B1): a row stamped after this transaction
+    -- began was written by a transaction that began later and committed
+    -- first (both hold the premise's row lock). Recorded after it, this row
+    -- would sort below it and the history would end on the wrong state, so
+    -- this writer retries.
+    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h
+                                     WHERE h.service_location_id = NEW.id AND h.recorded_at > now()) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('service location %s: its state was recorded by a transaction that began after this one; retry (v5.4.2-30)', NEW.id),
+            ERRCODE = 'serialization_failure';
+    END IF;
     INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
     VALUES (NEW.tenant_id, NEW.id, upper(btrim(NEW.state)), now());
     RETURN NULL;
 END;
 $$;
 COMMENT ON FUNCTION public.record_service_location_state() IS
-    'v5.4.2-30 r2. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now().';
+    'v5.4.2-30 r2, r3. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now(). A change is refused (40001, retry) when the premise already has a row stamped after this transaction began, so the history''s order is the order of the changes.';
 REVOKE ALL ON FUNCTION public.record_service_location_state(), public.enforce_state_history_written_by_db() FROM PUBLIC;
 DROP TRIGGER IF EXISTS z_record_service_location_state ON public.service_locations;
 CREATE TRIGGER z_record_service_location_state AFTER INSERT OR UPDATE OF state ON public.service_locations
@@ -778,6 +814,23 @@ BEGIN
         RAISE EXCEPTION USING
             MESSAGE = format('premise_places_as_of: premise %s is not found (or not visible), or its state %s is no state known on %s; its places cannot be read (v5.4.2-16)', p_service_location_id, coalesce(v_state, 'NULL'), p_on),
             ERRCODE = 'no_data_found';
+    END IF;
+    -- r3 (review r2, Opus S1): two within places of one exclusive group as
+    -- known at the instant (a void and its successor recorded by overlapping
+    -- transactions, L7) is ambiguous: refused, never both.
+    IF EXISTS (SELECT 1 FROM public.premise_place_memberships m
+                 JOIN public.places p ON p.id = m.place_id
+                WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
+                  AND m.relation = 'within' AND m.exclusivity_group IS NOT NULL
+                  AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
+                  AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
+                  AND p.created_at <= p_recorded_at
+                  AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+                  AND p.state_code = v_state
+                GROUP BY m.exclusivity_group HAVING count(*) > 1) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('premise_places_as_of: premise %s is within two places of one exclusive group on %s as known at %s (v5.4.2-30)', p_service_location_id, p_on, p_recorded_at),
+            ERRCODE = 'cardinality_violation';
     END IF;
     RETURN QUERY
     SELECT p.id, p.kind_code, p.state_code, p.place_code, p.name, k.specificity, m.relation, m.distance_miles

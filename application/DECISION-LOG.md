@@ -6,6 +6,12 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-11-06 (rates, -30 r2) — an overlapping state correction retries; round-2 findings settled by standing rule
+
+- **Opus and Fable reviewed -30 round 2** (both not yet, one blocking item, the same); Codex hit its usage limit (reset 16:06) and reviews round 3. Fix list: `application/rates-build-2026-11-05/v5.4.2-30-r3-plan.md`.
+- **Two overlapping corrections of a premise's state: the one that began first and commits last is refused and retries (author, by rule; Opus's fix).** Each history row carries its transaction's start, as memberships and places do; when the transaction that began first committed last, its row sorted below the one it overwrote and every later read answered the wrong state, silently. The recorder now refuses (40001) a change when the premise already has a row stamped after its own transaction began. *Why:* "changed since you read it" is the database's existing retry pattern, and one transaction keeps one instant, so a correction and the memberships it voids are seen together or not at all. *Why not Fable's `clock_timestamp()` with ordering by sequence:* a correction's row would then post-date the voids in its own transaction, and a read at an instant between them would see the old state without its places.
+- **Smaller calls by rule:** the place-close coverage check requires a role that sees every tenant, as the close does; a past read that finds a premise within two places of one exclusive group refuses, as a levy read with two rows does; a levy insert that waited on a place's row refuses (40001) if a row of that place was committed meanwhile (-16's rule, its race R19). Race tests for the locks and the history run in `ci.sh`.
+
 ## 2026-11-06 (rates, -30 r1) — round-1 findings settled by standing rule; a premise's state recorded on change; Kyle's franchise answers in
 
 - **All three reviewed -30 round 1** (Opus and Codex not yet, Fable ready). Every finding was settled by a standing rule; nothing went to Ryan. The fix list: `application/rates-build-2026-11-05/v5.4.2-30-r2-plan.md`.
