@@ -1,0 +1,385 @@
+diff --git a/tests/ci.sh b/tests/ci.sh
+index 3d07d09..5740cea 100755
+--- a/tests/ci.sh
++++ b/tests/ci.sh
+@@ -45,6 +45,7 @@ PENDING=(
+   sql/v5.4.2-25-disputes.sql:disputes
+   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
+   sql/v5.4.2-27-shortfall-applications.sql:shortfall_applications
++  sql/v5.4.2-30-tax-levies-and-taxability.sql:tax_levies
+ )
+ BASE=ci_base
+ # A pending patch with a migration test gets the base as it stood just before it applied.
+@@ -137,7 +138,7 @@ battery() {  # $1 file
+   q "$BASE" -qc "VACUUM public.account_ledger, public.payments, public.customer_credits" &&
+   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
+ }
+-for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 27 28 29; do
++for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 27 28 29 30; do
+   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
+ done
+ step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
+diff --git a/tests/v5.4.2-09/battery-09.sql b/tests/v5.4.2-09/battery-09.sql
+index 25f3d86..4c75584 100644
+--- a/tests/v5.4.2-09/battery-09.sql
++++ b/tests/v5.4.2-09/battery-09.sql
+@@ -31,8 +31,8 @@ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000000b1';
+ SET ROLE tally_app;
+ 
+ -- F1: a draft needs no evidence
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start)
+-VALUES ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000a1',
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start)
++VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000a1',
+         '00000000-0000-4000-8000-0000000000c1', 'religious', CURRENT_DATE - 400);
+ DO $$ BEGIN RAISE NOTICE 'PASS F1: draft (pending_verification) accepted without evidence'; END $$;
+ 
+@@ -79,9 +79,9 @@ UPDATE public.customer_tax_exemptions SET notes = 'bat9 note'
+ DO $$ BEGIN RAISE NOTICE 'PASS F5: notes edit on asserted row accepted (gate fires only on entry to assertion)'; END $$;
+ 
+ -- F6: certificate_url alone is sufficient evidence (Comptroller letter)
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start,
+         certificate_url, status, verified_by, verified_at)
+-VALUES ('00000000-0000-4000-8000-0000000000d2', '00000000-0000-4000-8000-0000000000a1',
++VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d2', '00000000-0000-4000-8000-0000000000a1',
+         '00000000-0000-4000-8000-0000000000c1', 'educational', CURRENT_DATE - 100,
+         'https://artifacts.example/comptroller-letter-77.pdf', 'active',
+         '00000000-0000-4000-8000-0000000000b1', now());
+@@ -94,9 +94,9 @@ DECLARE v text;
+ BEGIN
+     FOREACH v IN ARRAY ARRAY['   ', E'\t', E'\n', chr(160), '---', E' \t.', ''] LOOP
+         BEGIN
+-            INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start,
++            INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start,
+                     certificate_number, status, verified_by, verified_at)
+-            VALUES ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
++            VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
+                     'medical', CURRENT_DATE, v, 'active', '00000000-0000-4000-8000-0000000000b1', now());
+             RAISE EXCEPTION 'F7 FAILED: certificate_number "%" accepted as evidence', v;
+         EXCEPTION WHEN check_violation THEN
+@@ -112,9 +112,9 @@ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000000b2';
+ SET ROLE tally_app;
+ 
+ -- F8: flag-only category asserts without evidence
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start,
+         status, verified_by, verified_at)
+-VALUES ('00000000-0000-4000-8000-0000000000d3', '00000000-0000-4000-8000-0000000000a2',
++VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d3', '00000000-0000-4000-8000-0000000000a2',
+         '00000000-0000-4000-8000-0000000000c2', 'government', CURRENT_DATE - 50, 'active',
+         '00000000-0000-4000-8000-0000000000b2', now());
+ DO $$ BEGIN RAISE NOTICE 'PASS F8: flag-only category (T2 government) asserts without evidence'; END $$;
+@@ -122,9 +122,9 @@ DO $$ BEGIN RAISE NOTICE 'PASS F8: flag-only category (T2 government) asserts wi
+ -- F9: the flip is per category — T2 non_profit still requires evidence
+ DO $$
+ BEGIN
+-    INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start,
++    INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start,
+             status, verified_by, verified_at)
+-    VALUES ('00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000c2',
++    VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000c2',
+             'non_profit', CURRENT_DATE, 'active', '00000000-0000-4000-8000-0000000000b2', now());
+     RAISE EXCEPTION 'F9 FAILED: T2 non_profit asserted without evidence';
+ EXCEPTION WHEN check_violation THEN
+@@ -139,9 +139,9 @@ SET ROLE tally_app;
+ -- F10: certificate_required = "maybe" refuses the write that consulted it
+ DO $$
+ BEGIN
+-    INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start,
++    INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start,
+             status, verified_by, verified_at)
+-    VALUES ('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000c3',
++    VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000c3',
+             'government', CURRENT_DATE, 'active', '00000000-0000-4000-8000-0000000000b3', now());
+     RAISE EXCEPTION 'F10 FAILED: malformed certificate_required config did not raise';
+ EXCEPTION WHEN check_violation THEN
+@@ -204,16 +204,16 @@ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000000b1';
+ SET ROLE tally_app;
+ 
+ -- fixtures: due-in-10 (in window), due-in-200 (outside), lapsed
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+         certificate_number, status, verified_by, verified_at)
+ VALUES
+- ('00000000-0000-4000-8000-0000000000d4', '00000000-0000-4000-8000-0000000000a1',
++ ('{gas}', '00000000-0000-4000-8000-0000000000d4', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-0000000000c1', 'non_profit', CURRENT_DATE - 355, CURRENT_DATE + 10,
+   '01-339-1010', 'active', '00000000-0000-4000-8000-0000000000b1', now()),
+- ('00000000-0000-4000-8000-0000000000d5', '00000000-0000-4000-8000-0000000000a1',
++ ('{gas}', '00000000-0000-4000-8000-0000000000d5', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-0000000000c1', 'agricultural', CURRENT_DATE - 165, CURRENT_DATE + 200,
+   '01-924-2020', 'active', '00000000-0000-4000-8000-0000000000b1', now()),
+- ('00000000-0000-4000-8000-0000000000d6', '00000000-0000-4000-8000-0000000000a1',
++ ('{gas}', '00000000-0000-4000-8000-0000000000d6', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-0000000000c1', 'sales_for_resale', CURRENT_DATE - 400, CURRENT_DATE - 5,
+   '01-339-3030', 'active', '00000000-0000-4000-8000-0000000000b1', now());
+ 
+@@ -233,9 +233,9 @@ BEGIN
+ END $$;
+ 
+ -- F15: a renewal on file suppresses the expiring row
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+         certificate_number, status, verified_by, verified_at)
+-VALUES ('00000000-0000-4000-8000-0000000000d7', '00000000-0000-4000-8000-0000000000a1',
++VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d7', '00000000-0000-4000-8000-0000000000a1',
+         '00000000-0000-4000-8000-0000000000c1', 'non_profit', CURRENT_DATE + 11, CURRENT_DATE + 376,
+         '01-339-1011', 'active', '00000000-0000-4000-8000-0000000000b1', now());
+ DO $$
+@@ -251,9 +251,9 @@ END $$;
+ 
+ -- F15b: a LAPSED row stays listed even with a renewal on file (it owes
+ -- its expiry succession) — round-1 Fable LOW
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+         certificate_number, status, verified_by, verified_at)
+-VALUES ('00000000-0000-4000-8000-0000000000d9', '00000000-0000-4000-8000-0000000000a1',
++VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d9', '00000000-0000-4000-8000-0000000000a1',
+         '00000000-0000-4000-8000-0000000000c1', 'sales_for_resale', CURRENT_DATE + 300, CURRENT_DATE + 665,
+         '01-339-3031', 'active', '00000000-0000-4000-8000-0000000000b1', now());
+ DO $$
+@@ -271,13 +271,13 @@ END $$;
+ -- F15c: the window boundary — "notify 60 days before expiry" means a row
+ -- with EXACTLY 60 days remaining is listed TODAY (opened_on = today), and
+ -- one with 61 days remaining is not (round-2 Codex MEDIUM: < gave N-1 days)
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+         certificate_number, status, verified_by, verified_at, exemption_reason)
+ VALUES
+- ('00000000-0000-4000-8000-0000000000da', '00000000-0000-4000-8000-0000000000a1',
++ ('{gas}', '00000000-0000-4000-8000-0000000000da', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-0000000000c1', 'medical', CURRENT_DATE - 305, CURRENT_DATE + 60,
+   '01-339-6060', 'active', '00000000-0000-4000-8000-0000000000b1', now(), NULL),
+- ('00000000-0000-4000-8000-0000000000db', '00000000-0000-4000-8000-0000000000a1',
++ ('{gas}', '00000000-0000-4000-8000-0000000000db', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-0000000000c1', 'other', CURRENT_DATE - 304, CURRENT_DATE + 61,
+   '01-339-6161', 'active', '00000000-0000-4000-8000-0000000000b1', now(), 'bat9 boundary probe');
+ DO $$
+@@ -322,10 +322,10 @@ UPDATE public.customer_tax_exemptions
+  WHERE id = '00000000-0000-4000-8000-0000000000d6';
+ DO $$
+ BEGIN
+-    INSERT INTO public.customer_tax_exemptions (tenant_id, customer_id, exemption_type, effective_start, effective_end,
++    INSERT INTO public.customer_tax_exemptions (service_types, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+             status, verified_by, verified_at, revoked_at, revoked_by,
+             change_type, change_reason, supersedes_id)
+-    VALUES ('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
++    VALUES ('{gas}', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000c1',
+             'sales_for_resale', CURRENT_DATE - 400, CURRENT_DATE - 5,
+             'expired', '00000000-0000-4000-8000-0000000000b1', now(), NULL, NULL,
+             'succession', 'certificate lapsed (bat9 F17)', '00000000-0000-4000-8000-0000000000d6');
+@@ -333,9 +333,9 @@ BEGIN
+ EXCEPTION WHEN check_violation THEN
+     RAISE NOTICE 'PASS F17a: expired successor without evidence refused';
+ END $$;
+-INSERT INTO public.customer_tax_exemptions (id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
++INSERT INTO public.customer_tax_exemptions (service_types, id, tenant_id, customer_id, exemption_type, effective_start, effective_end,
+         certificate_number, status, verified_by, verified_at, change_type, change_reason, supersedes_id)
+-VALUES ('00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000a1',
++VALUES ('{gas}', '00000000-0000-4000-8000-0000000000d8', '00000000-0000-4000-8000-0000000000a1',
+         '00000000-0000-4000-8000-0000000000c1', 'sales_for_resale', CURRENT_DATE - 400, CURRENT_DATE - 5,
+         '01-339-3030', 'expired', '00000000-0000-4000-8000-0000000000b1', now(),
+         'succession', 'certificate lapsed (bat9 F17)', '00000000-0000-4000-8000-0000000000d6');
+diff --git a/tests/v5.4.2-16/battery-16.sql b/tests/v5.4.2-16/battery-16.sql
+index f1c7a2e..9607ade 100644
+--- a/tests/v5.4.2-16/battery-16.sql
++++ b/tests/v5.4.2-16/battery-16.sql
+@@ -889,8 +889,9 @@ DO $$ BEGIN
+ EXCEPTION WHEN restrict_violation THEN
+   RAISE NOTICE 'PASS N11: fact kinds and evidence kinds are never edited or deleted'; END $$;
+ DO $$ BEGIN
+-  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '5', DATE '2020-01-01');
+-  RAISE EXCEPTION 'FAIL N12a: a sales tax of 500%%';
++  -- v5.4.2-30: sales_tax_rate is in percent (0 to 100), so 5 is a valid 5%; over 100 is refused
++  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '101', DATE '2020-01-01');
++  RAISE EXCEPTION 'FAIL N12a: a sales tax over 100 percent';
+ EXCEPTION WHEN check_violation THEN NULL; END $$;
+ DO $$ BEGIN
+   PERFORM pg_temp.fact('austin', 'sales_tax_rate', '-0.01', DATE '2020-01-01');
+@@ -901,9 +902,9 @@ DO $$ BEGIN
+   RAISE EXCEPTION 'FAIL N12c: a negative population';
+ EXCEPTION WHEN check_violation THEN NULL; END $$;
+ DO $$ BEGIN
+-  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '0.02', DATE '2020-01-01');
++  PERFORM pg_temp.fact('austin', 'sales_tax_rate', '8.25', DATE '2020-01-01');
+   PERFORM pg_temp.fact('austin', 'census_population', '0', DATE '2020-01-01');
+-  RAISE NOTICE 'PASS N12: a number fact lies in its kind''s range (a rate in [0, 1), a population of at least 0)';
++  RAISE NOTICE 'PASS N12: a number fact lies in its kind''s range (a rate in percent, in [0, 100); a population of at least 0)';
+ END $$;
+ DO $$ BEGIN
+   PERFORM pg_temp.fact('austin', 'time_zone', '"Etc/GMT+6"', DATE '1990-01-01');
+@@ -1107,15 +1108,16 @@ DO $$ BEGIN
+   RAISE NOTICE 'PASS T6: a voided owning profile does not hold its place open';
+ END $$;
+ DO $$ BEGIN
+-  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '1', DATE '1990-01-01');
+-  RAISE EXCEPTION 'FAIL T7a: a sales-tax rate of exactly 1';
++  -- v5.4.2-30: in percent; the upper bound (100) stays open
++  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '100', DATE '1990-01-01');
++  RAISE EXCEPTION 'FAIL T7a: a sales-tax rate of exactly 100 percent';
+ EXCEPTION WHEN check_violation THEN NULL; END $$;
+ DO $$ BEGIN
+-  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '0.9999', DATE '1990-01-01');
++  PERFORM pg_temp.fact('nanville', 'sales_tax_rate', '99.9999', DATE '1990-01-01');
+   RAISE EXCEPTION 'rollback T7';
+ EXCEPTION WHEN raise_exception THEN
+   IF SQLERRM <> 'rollback T7' THEN RAISE; END IF;
+-  RAISE NOTICE 'PASS T7: a rate''s upper bound is open (1 refused, 0.9999 kept)';
++  RAISE NOTICE 'PASS T7: a rate''s upper bound is open (100 refused, 99.9999 kept)';
+ END $$;
+ SET LOCAL app.user_id = '00000000-0000-4000-8000-0000000016b1';
+ SET ROLE tally_app;
+diff --git a/tests/v5.4.2-20/battery-20.sql b/tests/v5.4.2-20/battery-20.sql
+index 9280e83..8e4a2c9 100644
+--- a/tests/v5.4.2-20/battery-20.sql
++++ b/tests/v5.4.2-20/battery-20.sql
+@@ -141,8 +141,8 @@ SELECT pg_temp.refuses_at('S2b a zone version with no check',
+      VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002061', 'Z1', DATE '2026-01-01', 'initial')$q$,
+   '23001', 'only after the version check');
+ SELECT pg_temp.refuses_at('S2c an item version with no check',
+-  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
+-     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
++  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
++     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial')$q$,
+   '23001', 'only after the version check');
+ -- S3: a lifecycle move with no check; an updated_at touch (the dependency mutex) needs none.
+ SELECT pg_temp.refuses_at('S3a archiving a zone with no check',
+@@ -236,8 +236,8 @@ SELECT pg_temp.ok('S10g the database stamps the receipt''s transaction and time,
+   (SELECT bool_and(xact = pg_current_xact_id() AND at = now()) FROM public.reference_version_receipts));
+ -- S11: no role is exempt: the owner (a superuser) meets the guard too.
+ SELECT pg_temp.refuses_at('S11 the owner writes a version with no check',
+-  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
+-     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
++  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
++     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial')$q$,
+   '23001', 'only after the version check');
+ -- S13: each part of the receipt test binds. The owner plants receipts with
+ -- the stamp trigger disabled (inside this rolled-back transaction), each
+@@ -259,8 +259,8 @@ SELECT pg_temp.refuses_at('S13b a receipt of this start time but another transac
+      VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002042', 'RS2', 'gas', 'residential', DATE '2026-01-01', 'initial')$q$,
+   '23001', 'only after the version check');
+ SELECT pg_temp.refuses_at('S13c a receipt of this transaction for another version of the entity',
+-  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
+-     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial')$q$,
++  $q$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
++     VALUES ('00000000-0000-4000-8000-0000000020a1', '00000000-0000-4000-8000-000000002051', 'IT1', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial')$q$,
+   '23001', 'only after the version check');
+ -- A receipt right in every part but the header table: RS2's uuid under rate_items.
+ RESET ROLE;
+diff --git a/tests/v5.4.2-21/battery-21.sql b/tests/v5.4.2-21/battery-21.sql
+index 5b1d4f8..f05c45d 100644
+--- a/tests/v5.4.2-21/battery-21.sql
++++ b/tests/v5.4.2-21/battery-21.sql
+@@ -152,20 +152,20 @@ UPDATE public.payments SET status = 'posted', status_cause_id = '00000000-0000-4
+ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
+ SELECT public.assert_reference_version('rate_items', i, 1)
+   FROM unnest(ARRAY['00000000-0000-4000-8000-000000002153', '00000000-0000-4000-8000-000000002154', '00000000-0000-4000-8000-000000002155']::uuid[]) i;
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type, tier_config) VALUES
+-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002153', 'Per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'initial', NULL),
+-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002154', 'Tiered', 'gas', 'tiered_usage', 'regulated', DATE '2026-01-01', 'initial', '{"tiers": []}'),
+-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002155', 'Fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial', NULL);
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type, tier_config) VALUES
++  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002153', 'Per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial', NULL),
++  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002154', 'Tiered', 'gas', 'tiered_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial', '{"tiers": []}'),
++  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002155', 'Fixed', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial', NULL);
+ -- JF: fixed in January, per unit from February (the correction case, A7).
+ SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-000000002156', 1);
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, expiry_date, change_type) VALUES
+-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'January fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', DATE '2026-01-31', 'initial'),
+-  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'February per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-02-01', NULL, 'initial');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, expiry_date, change_type) VALUES
++  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'January fixed', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', DATE '2026-01-31', 'initial'),
++  ('00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-000000002156', 'February per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-02-01', NULL, 'initial');
+ -- Tenant 2's per-unit item (invisible to tenant 1, A4h).
+ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b2', true);
+ SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-000000002159', 1);
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
+-  ('00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-000000002159', 'T2 per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'initial');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
++  ('00000000-0000-4000-8000-0000000021a2', '00000000-0000-4000-8000-000000002159', 'T2 per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial');
+ 
+ -- draft(): a draft bill of tenant 1 for January.
+ CREATE FUNCTION pg_temp.draft(p_id uuid, p_num text) RETURNS void LANGUAGE sql AS $$
+diff --git a/tests/v5.4.2-21/races/labels-21.sh b/tests/v5.4.2-21/races/labels-21.sh
+index 19ca4f3..5291d00 100755
+--- a/tests/v5.4.2-21/races/labels-21.sh
++++ b/tests/v5.4.2-21/races/labels-21.sh
+@@ -215,8 +215,8 @@ else echo "FAIL LR7: waited=$WAITED after ${EL}s: $OUT"; fail=1; fi
+ BEGIN;
+ $APP
+ SELECT public.assert_reference_version('rate_items', '$IF', 1);
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type)
+-  VALUES ('$T', '$IF', 'fixed', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type)
++  VALUES ('$T', '$IF', 'fixed', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial');
+ INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
+   VALUES ('$B', '$T', 'R21-AR1', '$C', '$L', DATE '2026-02-01', '2026-01', DATE '2026-01-01', DATE '2026-01-31', DATE '2026-02-20', 10);
+ INSERT INTO public.invoice_line_items (tenant_id, invoice_id, service_type, charge_type, description, amount, rate_item_id, regulatory_class)
+@@ -231,8 +231,8 @@ $APP
+ SELECT public.assert_reference_version('rate_items', '$IF', 2);
+ UPDATE public.rate_item_versions SET recorded_until = now(), closed_type = 'retracted', closed_reason = 'race-21 AR1: misclassified'
+  WHERE rate_item_id = '$IF' AND recorded_until IS NULL;
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type, change_reason)
+-  VALUES ('$T', '$IF', 'per unit', 'gas', 'per_unit_usage', 'regulated', DATE '2026-01-01', 'correction', 'race-21 AR1: misclassified');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type, change_reason)
++  VALUES ('$T', '$IF', 'per unit', 'gas', 'per_unit_usage', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'correction', 'race-21 AR1: misclassified');
+ COMMIT;
+ SQL
+ # Snapshot at the bill's creation instant (admissible), then issue with every deferred check.
+diff --git a/tests/v5.4.2-23/battery-23.sql b/tests/v5.4.2-23/battery-23.sql
+index 85376a0..6eaacfe 100644
+--- a/tests/v5.4.2-23/battery-23.sql
++++ b/tests/v5.4.2-23/battery-23.sql
+@@ -1096,8 +1096,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
+   ('00000000-0000-4000-8000-0000000024c1', '00000000-0000-4000-8000-0000000023a1', 'B23-GAS');
+ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
+ SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-0000000024c1', 1);
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
+-  ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000024c1', 'Gas service', 'gas', 'fixed_monthly', 'regulated', DATE '2026-01-01', 'initial');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
++  ('00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000024c1', 'Gas service', 'gas', 'fixed_monthly', 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial');
+ INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
+ VALUES ('00000000-0000-4000-8000-000000002407', '00000000-0000-4000-8000-0000000023a1', 'B23-I7', '00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-0000000023d1',
+         DATE '2026-04-01', '2026-03', DATE '2026-03-01', DATE '2026-03-31', DATE '2026-04-20', 20.00);
+diff --git a/tests/v5.4.2-28/battery-28.sql b/tests/v5.4.2-28/battery-28.sql
+index f33955e..aa03160 100644
+--- a/tests/v5.4.2-28/battery-28.sql
++++ b/tests/v5.4.2-28/battery-28.sql
+@@ -150,8 +150,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
+   ('00000000-0000-4000-8000-0000000028e1', '00000000-0000-4000-8000-0000000028a1', 'PSF');
+ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000028b1', true);
+ SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-0000000028e1', 1);
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
+-  ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', DATE '2020-01-01', 'initial');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
++  ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', false, false, false, '{residential,commercial,industrial,government,wholesale}', DATE '2020-01-01', 'initial');
+ INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies) VALUES
+   ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-0000000028e1', 'pipeline_safety_fee', DATE '2026-01-01', DATE '2026-12-31', 50, true, true);
+ 
+@@ -540,8 +540,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code)
+ SELECT ('00000000-0000-4000-8000-00000000287' || g)::uuid, '00000000-0000-4000-8000-0000000028a1', 'R' || g FROM generate_series(1, 8) g;
+ -- riv(): the SQL of one version of item R<n> with p_cols / p_vals added.
+ CREATE FUNCTION pg_temp.riv(p_n int, p_kind text, p_cols text, p_vals text) RETURNS text LANGUAGE sql AS $$
+-  SELECT format($f$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type%s)
+-    VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-00000000287%s', 'R%s', 'gas', %L, 'regulated', DATE '2026-01-01', 'initial'%s)$f$,
++  SELECT format($f$INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type%s)
++    VALUES ('00000000-0000-4000-8000-0000000028a1', '00000000-0000-4000-8000-00000000287%s', 'R%s', 'gas', %L, 'regulated', false, false, true, '{residential,commercial,industrial,government,wholesale}', DATE '2026-01-01', 'initial'%s)$f$,
+     p_cols, p_n, p_n, p_kind, p_vals)
+ $$;
+ GRANT EXECUTE ON FUNCTION pg_temp.riv(int, text, text, text) TO tally_app;
+diff --git a/tests/v5.4.2-29/battery-29.sql b/tests/v5.4.2-29/battery-29.sql
+index 0953a45..bc62e48 100644
+--- a/tests/v5.4.2-29/battery-29.sql
++++ b/tests/v5.4.2-29/battery-29.sql
+@@ -177,8 +177,8 @@ INSERT INTO public.rate_items (id, tenant_id, item_code) VALUES
+   ('00000000-0000-4000-8000-0000000029e1', '00000000-0000-4000-8000-0000000029a1', 'PSF');
+ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000029b1', true);
+ SELECT public.assert_reference_version('rate_items', '00000000-0000-4000-8000-0000000029e1', 1);
+-INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, effective_date, change_type) VALUES
+-  ('00000000-0000-4000-8000-0000000029a1', '00000000-0000-4000-8000-0000000029e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', DATE '2020-01-01', 'initial');
++INSERT INTO public.rate_item_versions (tenant_id, rate_item_id, item_name, service_type, calculation_type, regulatory_class, is_taxable_default, is_a_tax, in_late_penalty_base, applies_to_customer_types, effective_date, change_type) VALUES
++  ('00000000-0000-4000-8000-0000000029a1', '00000000-0000-4000-8000-0000000029e1', 'PSF', 'gas', 'fixed_monthly', 'regulated', false, false, false, '{residential,commercial,industrial,government,wholesale}', DATE '2020-01-01', 'initial');
+ INSERT INTO public.regulatory_surcharge_rules (tenant_id, rate_item_id, surcharge_kind, cycle_start, cycle_end, cap_per_service, excluded_from_tax_bases, exempts_state_agencies) VALUES
+   ('00000000-0000-4000-8000-0000000029a1', '00000000-0000-4000-8000-0000000029e1', 'pipeline_safety_fee', DATE '2026-01-01', DATE '2026-12-31', 50, true, true);
+ 
