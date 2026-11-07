@@ -31,6 +31,12 @@
 #        sender and commits; A makes 60 of R9 a payment: refused for retry
 #        (40001: recorded before a row of the receipt); the retry is refused
 #        by the cap, a retry of 50 admitted.
+#   SU11 (r3, Opus B1) A's transaction begins; B returns R10's 100 to its
+#        sender and commits; A undoes that return: refused for retry (40001).
+#   SU12 (r3, Fable B1) R11's payment (100, C1) posted and committed. A's
+#        transaction begins; B reverses the payment as misposted and commits;
+#        A records its misposting return: refused for retry (40001); the
+#        retry is admitted.
 # Every two() leg checks that session B was SEEN BLOCKED BY SESSION A.
 # Every session runs under a statement timeout. Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -79,6 +85,8 @@ $(rcpt ${P}05 R24-5 100)
 $(rcpt ${P}07 R24-7 100)
 $(rcpt ${P}08 R24-8 100)
 $(rcpt ${P}09 R24-9 100)
+$(rcpt ${P}0b R24-10 100)
+$(rcpt ${P}0c R24-11 100)
 INSERT INTO public.assistance_agencies (id, tenant_id, name, program_kind, recorded_by) VALUES ('${P}a1', '$T', 'CEAP', 'liheap_ceap', '$OP'), ('${P}a2', '$T', 'Charity', 'charity', '$OP');
 INSERT INTO public.agency_pledges (id, tenant_id, customer_id, agency_id, amount, pledged_on, form, recorded_by) VALUES
   ('${P}11', '$T', '$C1', '${P}a1', 100, DATE '2026-03-10', 'written', '$OP'),
@@ -269,5 +277,51 @@ COMMIT;
 SQL
 )
 if [ $? -eq 0 ]; then echo "PASS SU10c a retry of 50 is admitted"; else echo "FAIL SU10c: $OUT"; fail=1; fi
+
+begun_then() {  # $1 A's statement after its transaction began and B committed, $2 B's statement
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+BEGIN;
+$AS_OP
+SELECT now();
+SELECT pg_sleep(3);
+$1
+COMMIT;
+SQL
+APID=$!
+sleep 1
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$2
+COMMIT;
+SQL
+) || { echo "FAIL B of a begun leg: $OUT"; fail=1; }
+wait $APID; AST=$?
+}
+begun_then "INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, undoes_disposition_id) VALUES ('$T', '${P}0b', 'undo', -100, DATE '2026-04-02', 'check came back', '$OP', '${P}2b');" \
+           "INSERT INTO public.suspense_receipt_dispositions (id, tenant_id, suspense_receipt_id, kind, amount, disposed_on, instrument_reference, reason, recorded_by) VALUES ('${P}2b', '$T', '${P}0b', 'returned_to_sender', 100, DATE '2026-04-01', 'RCHK-2b', 'returned', '$OP');"
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT"; then echo "PASS SU11 an undo begun before its original committed is refused for retry (40001)"; else echo "FAIL SU11: A=$AST: $(cat "$A_OUT")"; fail=1; fi
+
+"${PSQL[@]}" >/tmp/r24su12.out 2>&1 <<SQL || { echo "FAIL SU12 setup: $(cat /tmp/r24su12.out)"; fail=1; }
+BEGIN;
+$AS_OP
+$(fromr ${P}0c $C1 100 ${P}23)
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}35', '$T', '$C1', DATE '2026-03-02', 'payment', 'posted', -100, 'payment', '${P}23');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}35' WHERE id = '${P}23';
+COMMIT;
+SQL
+MRET="INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id) VALUES ('$T', '${P}0c', 'misposting_returned', -100, DATE '2026-03-05', 'misposted', '$OP', '${P}23');"
+begun_then "$MRET" \
+           "INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}36', '$T', '$C1', DATE '2026-03-05', 'adjustment', 'misposted', 100, 'payment', '${P}23', '${P}35', 'misposted');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = '$OP', reversed_reason = 'misposted', status_cause_id = '${P}36' WHERE id = '${P}23';"
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT"; then echo "PASS SU12 a misposting return begun before the reversal committed is refused for retry (40001)"; else echo "FAIL SU12: A=$AST: $(cat "$A_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$MRET
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS SU12b the retry is admitted"; else echo "FAIL SU12b: $OUT"; fail=1; fi
 
 exit $fail
