@@ -1000,6 +1000,10 @@ SELECT pg_temp.refuses_at('O2 a receipt recorded at infinity',
   $q$INSERT INTO public.suspense_receipts (tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
      VALUES (pg_temp.t1(), 'R24-O2', 5, DATE '2026-04-02', 'mail', 'internal', '1', pg_temp.op(), 'infinity')$q$,
   '23514', 'a finite time already reached');
+SELECT pg_temp.refuses_at('O2e or at -infinity (it would read as known before every other row)',
+  $q$INSERT INTO public.suspense_receipt_candidates (tenant_id, suspense_receipt_id, customer_id, basis, recorded_by, created_at)
+     VALUES (pg_temp.t1(), pg_temp.k('0b'), '00000000-0000-4000-8000-0000000a24c1', 'operator', pg_temp.op(), '-infinity')$q$,
+  '23514', 'a finite time already reached');
 SELECT pg_temp.refuses_at('O2b or in the future',
   $q$INSERT INTO public.agency_pledges (tenant_id, customer_id, agency_id, amount, pledged_on, form, recorded_by, created_at)
      VALUES (pg_temp.t1(), '00000000-0000-4000-8000-0000000a24c1', pg_temp.k('41'), 5, DATE '2026-04-02', 'written', pg_temp.op(), clock_timestamp() + interval '1 day')$q$,

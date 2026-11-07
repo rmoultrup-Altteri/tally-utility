@@ -52,6 +52,27 @@ def rep(old: str, new: str) -> Callable[[str], str]:
     return m
 
 
+def both(*ms: Callable[[str], str]) -> Callable[[str], str]:
+    def m(x: str) -> str:
+        for f in ms:
+            x = f(x)
+        return x
+    return m
+
+
+def unpin(conname: str) -> Callable[[str], str]:
+    """r2: drop the constraint's entry from the invariant's list too, as a
+    deliberate edit would, so the behavioural check meets the mutation."""
+    def m(x: str) -> str:
+        lines = x.split("\n")
+        hit = [i for i, l in enumerate(lines) if (f" {conname} " in l) and l.lstrip().startswith(("'", "E'"))]
+        assert len(hit) == 1, f"pinned constraint {conname}: {len(hit)} entries"
+        del lines[hit[0]]
+        out = "\n".join(lines)
+        return out.replace(",\n        ];", "];").replace("ARRAY[\n        ,", "ARRAY[\n        ")
+    return m
+
+
 def lock(kind: str, var: str) -> str:
     return f"    PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('{kind}', {var}));\n"
 
@@ -59,7 +80,8 @@ def lock(kind: str, var: str) -> str:
 MUTATIONS = [
     # ---- the receipt
     ("M01", "a receipt with no evidence is admitted", "U2",
-     rep("               OR agency_id IS NOT NULL)\n);", "               OR agency_id IS NOT NULL OR true)\n);")),
+     both(rep("               OR agency_id IS NOT NULL)\n);", "               OR agency_id IS NOT NULL OR true)\n);"),
+          unpin("suspense_receipts_evidence_check"))),
     ("M02", "a receipt may be dated after today", "U4",
      rep("    IF NEW.received_on > public.suspense_today_latest() THEN", "    IF false THEN")),
     ("M03", "a receipt does not check the provider transaction", "U8",
@@ -76,7 +98,8 @@ MUTATIONS = [
      rep("WHERE r.tenant_id = p_tenant AND r.source_system = p_source AND r.provider_transaction_id = p_txn", "WHERE r.tenant_id = p_tenant AND r.provider_transaction_id = p_txn")),
     # ---- payments from a receipt
     ("M07", "a resolution needs no reason", "P3",
-     rep("        CHECK ((suspense_receipt_id IS NULL) = (suspense_resolution_reason IS NULL)\n", "        CHECK (true\n")),
+     both(rep("        CHECK ((suspense_receipt_id IS NULL) = (suspense_resolution_reason IS NULL)\n", "        CHECK (true\n"),
+          unpin("payments_suspense_resolution_check"))),
     ("M08", "a payment from a receipt may be dated before the money came", "P4",
      rep("        IF NEW.payment_date < r.received_on THEN", "        IF false THEN")),
     ("M09", "a payment from a receipt may be effective after the money came", "P4b",
@@ -87,8 +110,9 @@ MUTATIONS = [
      rep("\n        IF NEW.channel IS DISTINCT FROM r.channel OR NEW.source_system IS DISTINCT FROM r.source_system\n           OR NEW.reference_number IS DISTINCT FROM r.reference_number OR NEW.check_number IS DISTINCT FROM r.check_number",
          "\n        IF NEW.channel IS DISTINCT FROM r.channel OR NEW.source_system IS DISTINCT FROM r.source_system\n           OR NEW.reference_number IS DISTINCT FROM r.reference_number")),
     ("M12", "a payment from a receipt may carry its own provider id", "P5c",
-     rep("               AND (suspense_receipt_id IS NULL OR (payment_method <> 'refund' AND amount > 0 AND provider_transaction_id IS NULL)));",
-         "               AND (suspense_receipt_id IS NULL OR (payment_method <> 'refund' AND amount > 0)));")),
+     both(rep("               AND (suspense_receipt_id IS NULL OR (payment_method <> 'refund' AND amount > 0 AND provider_transaction_id IS NULL)));",
+         "               AND (suspense_receipt_id IS NULL OR (payment_method <> 'refund' AND amount > 0)));"),
+          unpin("payments_suspense_resolution_check"))),
     ("M13", "the receipt's cap is not checked for a payment", "P2",
      rep("    PERFORM public.check_suspense_receipt_cap(NEW.suspense_receipt_id);\n    RETURN NULL;\nEND;\n$$;\nCREATE TRIGGER enforce_payment_suspense_cap",
          "    RETURN NULL;\nEND;\n$$;\nCREATE TRIGGER enforce_payment_suspense_cap")),
@@ -96,7 +120,7 @@ MUTATIONS = [
      rep("                            AND p.status <> 'voided'), 0)", "                            AND true), 0)")),
     ("M15", "the cap gives a reversed payment's share back by itself (r1's rule)", "P9c2",
      rep("                            AND p.status <> 'voided'), 0)", "                            AND p.status NOT IN ('voided', 'reversed')), 0)")),
-    ("M16", "the cap reads dispositions on every date at once (an undo hides the worst day)", "X7",
+    ("M16", "the cap reads dispositions on every date at once (an undo hides the worst day)", "P9c2",
      rep("                          WHERE x.suspense_receipt_id = p_receipt_id AND x.disposed_on <= e.d), 0) AS o", "                          WHERE x.suspense_receipt_id = p_receipt_id), 0) AS o")),
     ("M17", "the payment's cap check takes no lock on the receipt", "SU1",
      rep(lock('suspense_receipt', 'NEW.suspense_receipt_id') + "    PERFORM public.check_suspense_recorded_order(NEW.suspense_receipt_id, NEW.id, NEW.created_at, 'a payment from a receipt');\n",
@@ -112,17 +136,20 @@ MUTATIONS = [
     ("M21", "a disposition takes no lock on the receipt", "SU2",
      rep("    PERFORM public.suspense_require_read_committed('a suspense disposition');\n" + lock('suspense_receipt', 'NEW.suspense_receipt_id'),
          "    PERFORM public.suspense_require_read_committed('a suspense disposition');\n")),
-    ("M22", "the cap is not checked for a disposition", "X2",
+    ("M22", "the cap is not checked for a disposition", "P12d",
      rep("    PERFORM public.check_suspense_receipt_cap(NEW.suspense_receipt_id);\n    RETURN NULL;\nEND;\n$$;\nCOMMENT ON FUNCTION public.enforce_suspense_disposition()",
          "    RETURN NULL;\nEND;\n$$;\nCOMMENT ON FUNCTION public.enforce_suspense_disposition()")),
     ("M23", "a return names no instrument", "X3",
-     rep("                 WHEN 'returned_to_sender' THEN coalesce(instrument_reference ~ '[[:alnum:]]', false) AND return_code IS NULL",
-         "                 WHEN 'returned_to_sender' THEN return_code IS NULL")),
+     both(rep("                 WHEN 'returned_to_sender' THEN coalesce(instrument_reference ~ '[[:alnum:]]', false) AND return_code IS NULL",
+         "                 WHEN 'returned_to_sender' THEN return_code IS NULL"),
+          unpin("suspense_receipt_dispositions_kind_check"))),
     ("M24", "an escheat names no report", "X3b",
-     rep("                 WHEN 'escheated' THEN coalesce(jurisdiction ~ '^[A-Z]{2}$', false) AND coalesce(report_reference ~ '[[:alnum:]]', false) AND return_code IS NULL",
-         "                 WHEN 'escheated' THEN coalesce(jurisdiction ~ '^[A-Z]{2}$', false) AND return_code IS NULL")),
+     both(rep("                 WHEN 'escheated' THEN coalesce(jurisdiction ~ '^[A-Z]{2}$', false) AND coalesce(report_reference ~ '[[:alnum:]]', false) AND return_code IS NULL",
+         "                 WHEN 'escheated' THEN coalesce(jurisdiction ~ '^[A-Z]{2}$', false) AND return_code IS NULL"),
+          unpin("suspense_receipt_dispositions_kind_check"))),
     ("M25", "a disposition need not say why", "X3d",
-     rep("    CONSTRAINT suspense_receipt_dispositions_reason_check CHECK (coalesce(reason ~ '[[:alnum:]]', false))", "    CONSTRAINT suspense_receipt_dispositions_reason_check CHECK (true)")),
+     both(rep("    CONSTRAINT suspense_receipt_dispositions_reason_check CHECK (coalesce(reason ~ '[[:alnum:]]', false))", "    CONSTRAINT suspense_receipt_dispositions_reason_check CHECK (true)"),
+          unpin("suspense_receipt_dispositions_reason_check"))),
     ("M26", "a disposition may precede the money", "X4",
      rep("    IF NEW.disposed_on < r.received_on THEN", "    IF false THEN")),
     ("M27", "a disposition may be dated after today", "X4b",
@@ -138,7 +165,7 @@ MUTATIONS = [
     ("M31", "the reader gives a reversed payment's share back by itself", "P9b",
      rep("                         AND NOT (p.status = 'voided' AND p.status_recorded_at <= p_recorded_at)), 0) AS pays,",
          "                         AND NOT (p.status IN ('voided', 'reversed') AND p.status_recorded_at <= p_recorded_at)), 0) AS pays,")),
-    ("M32", "the reader ignores a disposition's date", "X1c",
+    ("M32", "the reader ignores a disposition's date", "P9b7",
      rep("                       WHERE d.suspense_receipt_id = r.id AND d.disposed_on <= p_on AND d.created_at <= p_recorded_at), 0) AS disp) x",
          "                       WHERE d.suspense_receipt_id = r.id AND d.created_at <= p_recorded_at), 0) AS disp) x")),
     # ---- agencies and agreements
@@ -201,7 +228,8 @@ MUTATIONS = [
     ("M59", "the trace does not follow a reissue to its refund", "G5",
      rep("        ELSIF c.origin_type = 'refund_reissue' AND c.reissues_refund_id IS NOT NULL THEN", "        ELSIF false THEN")),
     ("M60", "an agency's payment need not name its agency", "L7",
-     rep("        CHECK (payment_method = 'refund' OR (payer_class = 'agency') = (agency_id IS NOT NULL)),", "        CHECK (payment_method = 'refund' OR payer_class = 'agency' OR agency_id IS NULL),")),
+     both(rep("        CHECK (payment_method = 'refund' OR (payer_class = 'agency') = (agency_id IS NOT NULL)),", "        CHECK (payment_method = 'refund' OR payer_class = 'agency' OR agency_id IS NULL),"),
+          unpin("payments_agency_check"))),
     # ---- settings and the aged reader
     ("M61", "an unset service level reads as none aged", "S1",
      rep("    IF v_level IS NULL THEN\n        RAISE EXCEPTION USING", "    IF v_level IS NULL THEN\n        RETURN;\n        RAISE EXCEPTION USING")),
@@ -219,8 +247,9 @@ MUTATIONS = [
     ("M67", "the freeze trigger on receipts is dropped", "APPLY:a v5.4.2-24 guard is missing",
      rep("ALTER TABLE public.suspense_receipts ENABLE ALWAYS TRIGGER a_enforce_accounting_freeze;\n", "DROP TRIGGER a_enforce_accounting_freeze ON public.suspense_receipts;\n")),
     ("M68", "a key from payments to a new table loses its tenant", "APPLY:does not carry tenant_id",
-     rep("    ADD CONSTRAINT payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES public.agency_pledges (id, tenant_id),",
-         "    ADD CONSTRAINT payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id) REFERENCES public.agency_pledges (id),")),
+     both(rep("    ADD CONSTRAINT payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES public.agency_pledges (id, tenant_id),",
+         "    ADD CONSTRAINT payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id) REFERENCES public.agency_pledges (id),"),
+          unpin("payments_agency_pledge_fkey"))),
     ("M69", "the payments guard is not ENABLE ALWAYS", "APPLY:a v5.4.2-24 guard is missing",
      rep("ALTER TABLE public.payments ENABLE ALWAYS TRIGGER enforce_payment_suspense_pledge;\n", "")),
     ("M70", "the app may update a receipt", "APPLY:suspense_receipts: tally_app may only",
@@ -241,7 +270,9 @@ MUTATIONS = [
     ("M77", "a payment returned to suspense may take a return code", "P9b9",
      rep("                IF EXISTS (SELECT 1 FROM public.suspense_receipt_dispositions d WHERE d.returned_payment_id = NEW.id) THEN", "                IF false THEN")),
     ("M78", "a receipt's payment may drift from its instrument after insert", "P5e",
-     rep("            IF NEW.channel IS DISTINCT FROM r.channel OR NEW.source_system IS DISTINCT FROM r.source_system\n               OR", "            IF false AND NEW.channel IS DISTINCT FROM r.channel OR false AND NEW.source_system IS DISTINCT FROM r.source_system\n               OR false AND")),
+     both(rep("            IF NEW.channel IS DISTINCT FROM r.channel OR NEW.source_system IS DISTINCT FROM r.source_system\n               OR", "            IF false AND (NEW.channel IS DISTINCT FROM r.channel OR NEW.source_system IS DISTINCT FROM r.source_system\n               OR"),
+          rep("OR NEW.check_bank_name IS DISTINCT FROM r.check_bank_name THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('payment %s carries the receipt''s instrument: channel, source system, reference, check number, date and bank as receipt %s records them, at insert and after",
+              "OR NEW.check_bank_name IS DISTINCT FROM r.check_bank_name) THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('payment %s carries the receipt''s instrument: channel, source system, reference, check number, date and bank as receipt %s records them, at insert and after"))),
     ("M79", "a provider id written later is not checked", "U8h",
      rep("        IF OLD.provider_transaction_id IS NULL AND NEW.provider_transaction_id IS NOT NULL THEN", "        IF false THEN")),
     ("M80", "the provider check excludes a row of the other table with the same uuid (r1)", "U8f",
@@ -256,7 +287,7 @@ MUTATIONS = [
      rep("        IF p_at = pg_catalog.now() THEN", "        IF false THEN")),
     ("M85", "a row may be recorded in the future", "O2b",
      rep("    IF NEW.created_at IS NULL OR NOT pg_catalog.isfinite(NEW.created_at) OR NEW.created_at > pg_catalog.clock_timestamp() THEN", "    IF NEW.created_at IS NULL OR NOT pg_catalog.isfinite(NEW.created_at) THEN")),
-    ("M86", "a row may be recorded at infinity", "O2",
+    ("M86", "a row may be recorded at -infinity", "O2e",
      rep("    IF NEW.created_at IS NULL OR NOT pg_catalog.isfinite(NEW.created_at) OR NEW.created_at > pg_catalog.clock_timestamp() THEN", "    IF NEW.created_at IS NULL OR NEW.created_at > pg_catalog.clock_timestamp() THEN")),
     ("M87", "a pledge toward a bill may be paid unrestricted", "L18",
      rep("        IF l.toward_invoice_id IS NOT NULL AND NEW.restricted_to_invoice_id IS DISTINCT FROM l.toward_invoice_id THEN", "        IF false THEN")),
@@ -272,8 +303,9 @@ MUTATIONS = [
      rep("    IF NOT has_column_privilege('tally_app', 'public.assistance_agencies', 'status', 'UPDATE')", "    IF false AND NOT has_column_privilege('tally_app', 'public.assistance_agencies', 'status', 'UPDATE')")),
     ("M93", "the invariant does not check the recorded-at guard", "I8g",
      rep("                format('CREATE TRIGGER b_enforce_recorded_at BEFORE INSERT ON public.%s FOR EACH ROW EXECUTE FUNCTION enforce_suspense_recorded_at()', t),\n", "")),
-    ("M94", "a value written straight into the history is read unchecked", "APPLY:a v5.4.2-24 constraint is missing",
-     rep("           OR public.suspense_days_setting_valid(new_value));", "           OR true);")),
+    ("M94", "a value written straight into the history is read unchecked", "S5b",
+     both(rep("           OR public.suspense_days_setting_valid(new_value));", "           OR true);"),
+          unpin("tenant_configuration_history_suspense_days_check"))),
 ]
 
 def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
