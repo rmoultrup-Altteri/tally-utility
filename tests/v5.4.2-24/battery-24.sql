@@ -563,6 +563,21 @@ SELECT pg_temp.refuses_at('P14f a mixed tree: 70 comes back, not more (Opus r4 Q
   '23514', 'at most what payment');
 SELECT pg_temp.admits('P14f2 the 70 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 70, DATE '2026-03-16')$q$);
+-- r6 (Fable r5 S2, probe FA): R23 (18), 100 to C1 (P b3): a reversal +100
+-- (b5), a row typed nsf -100 under it (b6), a second reversal +100 (b7). The
+-- undo is counted, so 100 comes back, not 200.
+SELECT pg_temp.rcpt(pg_temp.k('18'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('b3'), pg_temp.k('b4'), pg_temp.k('18'), :c1, 100);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('b5'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('b3'), pg_temp.k('b4'), 'misposted');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('b6'), pg_temp.t1(), :c1, DATE '2026-03-12', 'nsf', 'reversal entered in error', -100, 'payment', pg_temp.k('b3'), pg_temp.k('b5'), NULL);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('b7'), pg_temp.t1(), :c1, DATE '2026-03-13', 'adjustment', 'misposted again', 100, 'payment', pg_temp.k('b3'), pg_temp.k('b4'), 'misposted again');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('b5') WHERE id = pg_temp.k('b3');
+SELECT pg_temp.refuses_at('P14g a reversal, its undo typed nsf, and a second reversal: 100 comes back, not 200 (Fable r5 S2)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('18'), pg_temp.k('b3'), 100.01, DATE '2026-03-13')$q$,
+  '23514', 'at most what payment');
 -- r5 (Opus r4 S1): R20 (15) on 03-10; its payment (P20) dated 03-15 but posted
 -- on 03-10, reversed on 03-11. A return dated before the payment is refused.
 SELECT pg_temp.rcpt(pg_temp.k('15'), 100, DATE '2026-03-10');

@@ -1007,7 +1007,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_suspense_disposition() IS
-    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: dated on or after the receipt and no later than today (UTC+14); an undo names a non-undo disposition of the same receipt, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date.';
+    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment and its reversal (r5), gives back at most the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
 CREATE TRIGGER enforce_suspense_disposition AFTER INSERT ON public.suspense_receipt_dispositions
     FOR EACH ROW EXECUTE FUNCTION public.enforce_suspense_disposition();
 ALTER TABLE public.suspense_receipt_dispositions ENABLE ALWAYS TRIGGER enforce_suspense_disposition;
