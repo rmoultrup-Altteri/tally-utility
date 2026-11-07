@@ -1,0 +1,52 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ observe 
+---------
+ f
+(1 row)
+
+psql:/tmp/probe.sql:181: NOTICE:  provider receipt: expect 25000: REJECTED SQLSTATE=25000 message=a provider transaction id is written at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited for its lock (v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+psql:/tmp/probe.sql:184: NOTICE:  ordinary provider payment: expect 25000: REJECTED SQLSTATE=25000 message=a provider transaction id is written at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited for its lock (v5.4.2-24)
+INSERT 0 1
+psql:/tmp/probe.sql:188: NOTICE:  late provider assignment: expect 25000: REJECTED SQLSTATE=25000 message=a provider transaction id is written at READ COMMITTED (this transaction is serializable): it must see every row committed while it waited for its lock (v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+RESET
+ROLLBACK

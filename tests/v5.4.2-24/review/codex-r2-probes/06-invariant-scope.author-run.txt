@@ -1,0 +1,64 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ assert_suspense_pledge_guard_invariants 
+-----------------------------------------
+ 
+(1 row)
+
+SAVEPOINT
+ALTER FUNCTION
+ observe 
+---------
+ t
+(1 row)
+
+psql:/tmp/probe.sql:182: NOTICE:  invariant after provider checker made STABLE: predicted accepted: ACCEPTED SQLSTATE=00000
+ROLLBACK
+SAVEPOINT
+REVOKE
+ observe 
+---------
+ t
+(1 row)
+
+psql:/tmp/probe.sql:186: NOTICE:  invariant after required helper EXECUTE revoked: predicted accepted: ACCEPTED SQLSTATE=00000
+ROLLBACK
+SAVEPOINT
+ALTER TABLE
+ observe 
+---------
+ t
+(1 row)
+
+ROLLBACK
+psql:/tmp/probe.sql:190: NOTICE:  invariant after receipt amount NOT NULL dropped: predicted accepted: ACCEPTED SQLSTATE=00000
+RESET
+ROLLBACK

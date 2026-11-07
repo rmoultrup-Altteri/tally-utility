@@ -1,0 +1,71 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:190: NOTICE:  B1 mixed NSF and correction then full return: predicted accepted: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+  status  | return_code |           status_cause_id            
+----------+-------------+--------------------------------------
+ reversed |             | 00000000-0000-4000-8000-0000000a2483
+(1 row)
+
+ transaction_type | amount | transaction_date 
+------------------+--------+------------------
+ nsf              |  40.00 | 2026-03-05
+ adjustment       |  60.00 | 2026-03-06
+(2 rows)
+
+ amount | to_payments | disposed | held | received_on | age_days 
+--------+-------------+----------+------+-------------+----------
+ 100.00 |      200.00 |  -100.00 | 0.00 | 2026-03-02  |        5
+(1 row)
+
+ amount | received | applied | credited | refunded | remaining | repaid 
+--------+----------+---------+----------+----------+-----------+--------
+ 100.00 |   100.00 |       0 |        0 |        0 |    100.00 |   0.00
+(1 row)
+
+SET CONSTRAINTS
+RESET
+ROLLBACK

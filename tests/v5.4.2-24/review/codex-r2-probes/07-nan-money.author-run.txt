@@ -1,0 +1,63 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+psql:/tmp/probe.sql:180: NOTICE:  B3 receipt amount NaN: predicted accepted: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+ observe 
+---------
+ t
+(1 row)
+
+psql:/tmp/probe.sql:182: NOTICE:  B3 finite draw of 100000 from NaN receipt: predicted accepted: ACCEPTED SQLSTATE=00000
+ amount | to_payments | disposed | held | received_on | age_days 
+--------+-------------+----------+------+-------------+----------
+    NaN |   100000.00 |     0.00 |  NaN | 2026-03-02  |        1
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:187: NOTICE:  B3 pledge amount NaN: predicted accepted: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+ amount | paid | outstanding | pay_by |    state     
+--------+------+-------------+--------+--------------
+    NaN | 0.00 |         NaN |        | no_agreement
+(1 row)
+
+SET CONSTRAINTS
+RESET
+ROLLBACK

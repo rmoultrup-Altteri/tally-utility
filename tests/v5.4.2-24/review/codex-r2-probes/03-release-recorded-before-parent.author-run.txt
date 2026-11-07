@@ -1,0 +1,51 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:186: NOTICE:  B2 undo recorded before parent: predicted accepted: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+ amount | to_payments | disposed |  held  | received_on | age_days 
+--------+-------------+----------+--------+-------------+----------
+ 100.00 |        0.00 |  -100.00 | 200.00 | 2026-03-02  |        4
+(1 row)
+
+ amount | to_payments | disposed |  held  | received_on | age_days 
+--------+-------------+----------+--------+-------------+----------
+ 100.00 |        0.00 |     0.00 | 100.00 | 2026-03-02  |        4
+(1 row)
+
+SET CONSTRAINTS
+RESET
+ROLLBACK
