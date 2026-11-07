@@ -19,9 +19,9 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Waiting on Ryan (start here next session)
 
-1. **Roadmap R-23: who sets up and restores a utility's supervisors, now that Tally staff are read-only** (SCN-0062, Opus r3 finding 1). Today a platform administrator binds logins and switches users at any utility; the 11-05 ruling makes a Tally employee acting as themselves read-only, and impersonation can't restore a supervisor who is the one switched off. Recommended: **option 1**, user administration (binding, switching on or off, a utility's users only) is the one exception, recorded with the Tally employee and a required reason, visible to the utility. Option 2: the last active supervisor can't switch itself off and provisioning runs as a service user. Raised at session end, not answered.
+1. **Roadmap R-27 (was R-23, renumbered 2026-11-07; money already used R-23/R-24): who sets up and restores a utility's supervisors, now that Tally staff are read-only** (SCN-0062, Opus r3 finding 1). Today a platform administrator binds logins and switches users at any utility; the 11-05 ruling makes a Tally employee acting as themselves read-only, and impersonation can't restore a supervisor who is the one switched off. Recommended: **option 1**, user administration (binding, switching on or off, a utility's users only) is the one exception, recorded with the Tally employee and a required reason, visible to the utility. Option 2: the last active supervisor can't switch itself off and provisioning runs as a service user. Raised at session end, not answered.
 2. **Codex for round 3:** retry after the reset (same brief, `scenarios/review/2026-11-05/brief.md`; it now covers SCN-0060 – 0079) or waive. Raised, not answered.
-3. Then, one at a time: R-24 (is a refused attempt, or a Tally employee's plain reading, recorded for the utility to see; SCN-0061); Kyle's flags for Ryan from batch 2: (a) the dispute rule's start and end (no penalty while a bill's dispute is open; Kyle proposes raised before the due date, lasting until resolved); (b) confirm Pecan Flat's penalty base is the full amount owed excluding earlier penalties (SCN-0053, cast); (c) SCN-0033's Open: whether the corrected bill shows the lower figure, or the full figure with the extra marked as moved.
+3. Then, one at a time: R-28 (is a refused attempt, or a Tally employee's plain reading, recorded for the utility to see; SCN-0061); Kyle's flags for Ryan from batch 2: (a) the dispute rule's start and end (no penalty while a bill's dispute is open; Kyle proposes raised before the due date, lasting until resolved); (b) confirm Pecan Flat's penalty base is the full amount owed excluding earlier penalties (SCN-0053, cast); (c) SCN-0033's Open: whether the corrected bill shows the lower figure, or the full figure with the extra marked as moved.
 
 ## Waiting on Kyle
 
@@ -30,7 +30,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Not yet done (in order)
 
-1. [ ] Ryan's R-23; Codex round 3 or waiver; then R-24 and Kyle's flags, one per message.
+1. [ ] Ryan's R-27; Codex round 3 or waiver; then R-28 and Kyle's flags, one per message.
 2. [ ] Draft K-14 for Kyle.
 3. [ ] Weather normalization (likely needs Kyle on how city systems adjust).
 4. [ ] State machines, exception paths, the persona matrix.
