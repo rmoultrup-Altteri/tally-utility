@@ -226,6 +226,9 @@ SELECT pg_temp.refuses_at('U8c a receipt of a transaction already a payment',
 SELECT pg_temp.admits('U8d the same id from another source system is another transaction',
   $q$INSERT INTO public.suspense_receipts (tenant_id, receipt_number, amount, received_on, channel, source_system, provider_transaction_id, recorded_by)
      VALUES (pg_temp.t1(), 'R24-U8d', 15, DATE '2026-03-02', 'api', 'paymentus_webhook', 'pi_24_paid', pg_temp.op())$q$);
+SELECT pg_temp.admits('U8e and a receipt of a transaction id another source system''s receipt holds',
+  $q$INSERT INTO public.suspense_receipts (tenant_id, receipt_number, amount, received_on, channel, source_system, provider_transaction_id, recorded_by)
+     VALUES (pg_temp.t1(), 'R24-U8e', 5, DATE '2026-03-02', 'api', 'other_webhook', 'pi_24_dup', pg_temp.op())$q$);
 SELECT pg_temp.refuses_at('U9 the channel and source system are the payments'' vocabularies',
   $q$INSERT INTO public.suspense_receipts (tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by)
      VALUES (pg_temp.t1(), 'R24-U9', 5, DATE '2026-03-02', 'carrier_pigeon', 'internal', '1', pg_temp.op())$q$,
@@ -343,7 +346,8 @@ UPDATE public.payments SET status = 'voided', status_cause_id = NULL WHERE id = 
 SELECT pg_temp.ok('P8 a voided payment gives its share back: R1 holds 40',
   pg_temp.held(pg_temp.k('01')) = 40);
 -- R4 (50): 50 to C3 (P 14), posted. It was C4's money: reversed, then 50 to C4 (P 15).
-SELECT pg_temp.fromr(pg_temp.k('14'), pg_temp.k('84'), pg_temp.k('04'), :c3, 50);
+SELECT pg_temp.admits('P8b R4''s 50 to C3 (the voided 0.01 of P4d does not count)',
+  $q$SELECT pg_temp.fromr(pg_temp.k('14'), pg_temp.k('84'), pg_temp.k('04'), '00000000-0000-4000-8000-0000000a24c3', 50)$q$);
 SELECT pg_temp.refuses_at('P9 while C3''s payment stands, R4 has nothing for C4',
   $q$SELECT pg_temp.fromr(gen_random_uuid(), gen_random_uuid(), pg_temp.k('04'), '00000000-0000-4000-8000-0000000a24c4', 50)$q$,
   '23514', 'the receipt holds');
@@ -790,8 +794,8 @@ SELECT pg_temp.ok('S3b a receipt that holds nothing is never aged (R1, R4, R5)',
 SELECT pg_temp.ok('S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past',
   (SELECT NOT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-16', clock_timestamp()) WHERE receipt_id = pg_temp.k('06'))
   AND (SELECT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-17', clock_timestamp()) WHERE receipt_id = pg_temp.k('06')));
-SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15)',
-  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 85);
+SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5)',
+  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 90);
 SELECT pg_temp.refuses_at('S5 the receipt reader needs both coordinates',
   $q$SELECT * FROM public.suspense_receipt_position_as_of(pg_temp.k('06'), DATE '2026-12-31', NULL)$q$,
   '22004', 'both given');
