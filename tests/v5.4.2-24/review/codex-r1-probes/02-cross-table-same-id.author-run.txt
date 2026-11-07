@@ -1,0 +1,51 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+INSERT 0 1
+ observe 
+---------
+ t
+(1 row)
+
+psql:/tmp/probe.sql:176: NOTICE:  B2 same UUID in different tables: ACCEPTED SQLSTATE=00000
+               receipt                |               payment                | provider_transaction_id 
+--------------------------------------+--------------------------------------+-------------------------
+ 00000000-0000-4000-8000-0000000a2401 | 00000000-0000-4000-8000-0000000a2401 | codex-same
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:181: NOTICE:  B2 same UUID payment first: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+RESET
+ROLLBACK

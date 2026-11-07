@@ -1,0 +1,84 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+INSERT 0 1
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+ post 
+------
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+ apay 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:185: NOTICE:  agency repays customer shortfall: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+ amount | received | applied | credited | refunded | remaining | repaid 
+--------+----------+---------+----------+----------+-----------+--------
+ 100.00 |     0.00 |       0 |        0 |    30.00 |      0.00 |  30.00
+(1 row)
+
+ observe 
+---------
+ f
+(1 row)
+
+psql:/tmp/probe.sql:189: NOTICE:  cannot refund NSF target after repayment: expect rejection: REJECTED SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-0000000a2411 (nsf) for refund: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+ observe 
+---------
+ f
+(1 row)
+
+psql:/tmp/probe.sql:192: NOTICE:  cannot refund a negative refund: expect rejection: REJECTED SQLSTATE=23514 message=a row drawing on payment 00000000-0000-4000-8000-0000000a2412 (posted) for refund: money is drawn from a posted payment (a bill payment, unless it is a refund) or an active credit, and an undo only while its source has not ended (A3, R-06, K-05; v5.4.2-23)
+INSERT 0 1
+ untyped_transfer_agency 
+-------------------------
+ 
+(1 row)
+
+RESET
+ROLLBACK

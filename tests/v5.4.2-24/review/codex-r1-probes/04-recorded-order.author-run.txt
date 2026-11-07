@@ -1,0 +1,50 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ observe 
+---------
+ t
+(1 row)
+
+psql:/tmp/probe.sql:181: NOTICE:  B4 backdate a draw before the undo became known: ACCEPTED SQLSTATE=00000
+    coordinate     | amount | to_payments | disposed |  held   | received_on | age_days 
+-------------------+--------+-------------+----------+---------+-------------+----------
+ before undo known | 100.00 |      100.00 |   100.00 | -100.00 | 2026-03-02  |        4
+(1 row)
+
+    coordinate    | amount | to_payments | disposed | held | received_on | age_days 
+------------------+--------+-------------+----------+------+-------------+----------
+ after undo known | 100.00 |      100.00 |     0.00 | 0.00 | 2026-03-02  |        4
+(1 row)
+
+RESET
+ROLLBACK

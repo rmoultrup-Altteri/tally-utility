@@ -1,0 +1,66 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:178: NOTICE:  B1 set provider id after birth: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+ provider_transaction_id | provider_transaction_id 
+-------------------------+-------------------------
+ codex-late              | codex-late
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:183: NOTICE:  B1 fill previously-null instrument with different bank: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+  payment_bank  | receipt_bank 
+----------------+--------------
+ Different bank | 
+(1 row)
+
+RESET
+ROLLBACK

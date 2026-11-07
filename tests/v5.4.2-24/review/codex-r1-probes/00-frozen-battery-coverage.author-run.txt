@@ -1,0 +1,1391 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:183: NOTICE:  PASS U1 a check no one can match is recorded (CI-053: the money has a row)
+psql:/tmp/probe.sql:186: NOTICE:  PASS U1b it holds all 100 and is on no customer's ledger (it is not receivable)
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:188: NOTICE:  PASS U1c the database stamps created_at (now), whatever the app sent
+psql:/tmp/probe.sql:192: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipts" violates check constraint "suspense_receipts_evidence_check"
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:192: NOTICE:  PASS U2 a receipt with no evidence at all (blank, a tab and a no-break space): refused by suspense_receipts_evidence_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_evidence_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:196: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipts" violates check constraint "suspense_receipts_amount_check"
+psql:/tmp/probe.sql:196: NOTICE:  PASS U3 a receipt of no money: refused by suspense_receipts_amount_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_amount_check")
+psql:/tmp/probe.sql:200: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-U4 is dated 2026-11-09: money is dated no later than today (UTC+14) (v5.4.2-24)
+psql:/tmp/probe.sql:200: NOTICE:  PASS U4 a receipt dated after today (UTC+14): refused by no later than today (suspense receipt R24-U4 is dated 2026-11-09: money is dated no later than today (UTC+14) (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:204: NOTICE:  caught SQLSTATE=23502 message=null value in column "recorded_by" of relation "suspense_receipts" violates not-null constraint
+psql:/tmp/probe.sql:204: NOTICE:  PASS U5 a receipt names who recorded it: refused by recorded_by (null value in column "recorded_by" of relation "suspense_receipts" violates not-null constraint)
+psql:/tmp/probe.sql:207: NOTICE:  caught SQLSTATE=42501 message=permission denied for table suspense_receipts
+psql:/tmp/probe.sql:207: NOTICE:  PASS U6 a receipt is never edited: refused by suspense_receipts (permission denied for table suspense_receipts)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:210: NOTICE:  caught SQLSTATE=42501 message=permission denied for table suspense_receipts
+psql:/tmp/probe.sql:210: NOTICE:  PASS U6b nor deleted: refused by suspense_receipts (permission denied for table suspense_receipts)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:214: NOTICE:  caught SQLSTATE=23505 message=duplicate key value violates unique constraint "suspense_receipts_tenant_number_key"
+psql:/tmp/probe.sql:214: NOTICE:  PASS U7 a receipt number is used once per tenant: refused by suspense_receipts_tenant_number_key (duplicate key value violates unique constraint "suspense_receipts_tenant_number_key")
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:221: NOTICE:  caught SQLSTATE=23505 message=provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once (CI-055, v5.4.2-24)
+psql:/tmp/probe.sql:221: NOTICE:  PASS U8 a second receipt of the same provider transaction: refused by provider transaction (provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once)
+psql:/tmp/probe.sql:225: NOTICE:  caught SQLSTATE=23505 message=provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once (CI-055, v5.4.2-24)
+psql:/tmp/probe.sql:225: NOTICE:  PASS U8b a payment of a transaction already held as a receipt: refused by provider transaction (provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once)
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:231: NOTICE:  caught SQLSTATE=23505 message=provider transaction pi_24_paid from stripe_webhook is already recorded as a receipt or a payment: money is recorded once (CI-055, v5.4.2-24)
+psql:/tmp/probe.sql:231: NOTICE:  PASS U8c a receipt of a transaction already a payment: refused by provider transaction (provider transaction pi_24_paid from stripe_webhook is already recorded as a receipt or a payment: money is recorded onc)
+psql:/tmp/probe.sql:234: NOTICE:  PASS U8d the same id from another source system is another transaction
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:237: NOTICE:  PASS U8e and a receipt of a transaction id another source system's receipt holds
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:241: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipts" violates check constraint "suspense_receipts_channel_check"
+psql:/tmp/probe.sql:241: NOTICE:  PASS U9 the channel and source system are the payments' vocabularies: refused by suspense_receipts_channel_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_channel_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:247: NOTICE:  PASS C1 intake thought it might be C1 (0.62) or C2 (0.58)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:249: NOTICE:  PASS C1b a candidate moves no money: the receipt still holds 100, no payment exists for it
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:253: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_candidates" violates check constraint "suspense_receipt_candidates_confidence_check"
+psql:/tmp/probe.sql:253: NOTICE:  PASS C2 a confidence is between 0 and 1: refused by suspense_receipt_candidates_confidence_check (new row for relation "suspense_receipt_candidates" violates check constraint "suspense_receipt_candidates_confidence_che)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:257: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_candidates" violates check constraint "suspense_receipt_candidates_operator_check"
+psql:/tmp/probe.sql:257: NOTICE:  PASS C3 an operator's candidate names the operator: refused by suspense_receipt_candidates_operator_check (new row for relation "suspense_receipt_candidates" violates check constraint "suspense_receipt_candidates_operator_check)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:261: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "suspense_receipt_candidates" violates foreign key constraint "suspense_receipt_candidates_customer_fkey"
+psql:/tmp/probe.sql:261: NOTICE:  PASS C4 a candidate of another tenant's customer (T2's C9): refused by suspense_receipt_candidates_customer_fkey (insert or update on table "suspense_receipt_candidates" violates foreign key constraint "suspense_receipt_candidates_cus)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:264: NOTICE:  caught SQLSTATE=42501 message=permission denied for table suspense_receipt_candidates
+psql:/tmp/probe.sql:264: NOTICE:  PASS C5 candidates are never edited: refused by suspense_receipt_candidates (permission denied for table suspense_receipt_candidates)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:269: NOTICE:  PASS P1 60 of R1 becomes C1's payment, with the reason and the operator
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:272: NOTICE:  PASS P1b R1 holds 40; C1's payment reads 60 received
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:275: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 101.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:275: NOTICE:  PASS P2 41 more is past what R1 holds: refused by the receipt holds (suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 101.00, more than the 100.00 the re)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:279: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 100.01, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:279: NOTICE:  PASS P2b a pending payment counts too (it may yet post): refused by the receipt holds (suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 100.01, more than the 100.00 the re)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:285: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_suspense_resolution_check"
+psql:/tmp/probe.sql:285: NOTICE:  PASS P3 a resolution says why: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+psql:/tmp/probe.sql:291: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_suspense_resolution_check"
+psql:/tmp/probe.sql:291: NOTICE:  PASS P3b and who (a reason of blanks is no reason): refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:295: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_suspense_resolution_check"
+psql:/tmp/probe.sql:295: NOTICE:  PASS P3c no reason without a receipt: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:299: NOTICE:  caught SQLSTATE=23514 message=payment P24-bed4 is dated 2026-03-02: a payment from receipt R24-2404 is dated on or after the receipt's received_on (2026-03-03) (v5.4.2-24)
+psql:/tmp/probe.sql:299: NOTICE:  PASS P4 a payment from a receipt is not dated before the money came (R4, 50 on 03-03): refused by on or after the receipt's received_on (payment P24-bed4 is dated 2026-03-02: a payment from receipt R24-2404 is dated on or after the receipt's received_on (20)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:305: NOTICE:  caught SQLSTATE=23514 message=payment P24-P4b from receipt R24-2404 is effective 2026-03-04: a payment from a receipt is effective no later than 2026-03-03, the day the money came (CI-058, v5.4.2-24)
+psql:/tmp/probe.sql:305: NOTICE:  PASS P4b nor effective after it (the customer paid by then: CI-058): refused by effective no later than (payment P24-P4b from receipt R24-2404 is effective 2026-03-04: a payment from a receipt is effective no later than 2026-)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:312: NOTICE:  caught SQLSTATE=23514 message=payment P24-P4c from receipt R24-2404 is effective 2026-03-08: a payment from a receipt is effective no later than 2026-03-03, the day the money came (CI-058, v5.4.2-24)
+psql:/tmp/probe.sql:312: NOTICE:  PASS P4c nor posted with no effective date of its own (posting would take the later payment date): refused by effective no later than (payment P24-P4c from receipt R24-2404 is effective 2026-03-08: a payment from a receipt is effective no later than 2026-)
+psql:/tmp/probe.sql:318: NOTICE:  PASS P4d a postmark before the money came is fine (dated 03-08, effective 03-01 by postmark)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:324: NOTICE:  caught SQLSTATE=23514 message=payment P24-P5 carries the receipt's instrument: channel, source system, reference, check number, date and bank as receipt R24-2404 records them (v5.4.2-24)
+psql:/tmp/probe.sql:324: NOTICE:  PASS P5 the payment carries the receipt's instrument (another check number): refused by the receipt's instrument (payment P24-P5 carries the receipt's instrument: channel, source system, reference, check number, date and bank as recei)
+psql:/tmp/probe.sql:330: NOTICE:  caught SQLSTATE=23514 message=payment P24-P5b carries the receipt's instrument: channel, source system, reference, check number, date and bank as receipt R24-2404 records them (v5.4.2-24)
+psql:/tmp/probe.sql:330: NOTICE:  PASS P5b and its channel: refused by the receipt's instrument (payment P24-P5b carries the receipt's instrument: channel, source system, reference, check number, date and bank as rece)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:336: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_suspense_resolution_check"
+psql:/tmp/probe.sql:336: NOTICE:  PASS P5c a payment from a receipt leaves the provider id on the receipt (it is the receipt's, once): refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:338: NOTICE:  PASS P5d R2 (a Stripe receipt) becomes C3's payment with no provider id of its own
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:343: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_suspense_resolution_check"
+psql:/tmp/probe.sql:343: NOTICE:  PASS P6 a refund never names a receipt: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:346: NOTICE:  caught SQLSTATE=23001 message=payment P24-0003: suspense_receipt_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one
+psql:/tmp/probe.sql:346: NOTICE:  PASS P7 a payment's receipt is written once (here: named after insert): refused by written once (payment P24-0003: suspense_receipt_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:349: NOTICE:  caught SQLSTATE=23001 message=payment P24-2411: suspense_resolution_reason is written once, at insert (v5.4.2-24) — reverse the payment and post a new one
+psql:/tmp/probe.sql:349: NOTICE:  PASS P7b and its reason never changes: refused by written once (payment P24-2411: suspense_resolution_reason is written once, at insert (v5.4.2-24) — reverse the payment and post a new)
+ refuses_at 
+------------
+ 
+(1 row)
+
+UPDATE 0
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:353: NOTICE:  PASS P8 a voided payment gives its share back: R1 holds 40
+psql:/tmp/probe.sql:356: NOTICE:  PASS P8b R4's 50 to C3 (the voided 0.01 of P4d does not count)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:359: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2404: on 2026-03-03 its payments and dispositions would come to 100.00, more than the 50.00 the receipt holds (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:359: NOTICE:  PASS P9 while C3's payment stands, R4 has nothing for C4: refused by the receipt holds (suspense receipt R24-2404: on 2026-03-03 its payments and dispositions would come to 100.00, more than the 50.00 the rec)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ unpost 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:362: NOTICE:  PASS P9b reversed as posted to the wrong customer, C3's share comes back to R4: 50
+psql:/tmp/probe.sql:364: NOTICE:  PASS P9c and the operator posts it to C4
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:368: NOTICE:  PASS P9d R4 holds 0; C4 received 50, C3 nothing
+ ok 
+----
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:373: NOTICE:  PASS P10 an NSF payment keeps its share counted: R4 still holds 0
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:376: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2404: on 2026-03-03 its payments and dispositions would come to 50.01, more than the 50.00 the receipt holds (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:376: NOTICE:  PASS P10b so nothing more can be made from it: refused by the receipt holds (suspense receipt R24-2404: on 2026-03-03 its payments and dispositions would come to 50.01, more than the 50.00 the rece)
+psql:/tmp/probe.sql:382: NOTICE:  caught SQLSTATE=23503 message=payment P24-P11: suspense receipt 00000000-0000-4000-8000-0000000a2401 is not visible in this tenant (v5.4.2-24)
+psql:/tmp/probe.sql:382: NOTICE:  PASS P11 a receipt of another tenant (T2's operator naming T1's R1): refused by payments_suspense_receipt_fkey (payment P24-P11: suspense receipt 00000000-0000-4000-8000-0000000a2401 is not visible in this tenant (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:387: NOTICE:  PASS X1 25 of R1 goes back to whoever sent it (CI-053)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:388: NOTICE:  PASS X1b R1 holds 15
+psql:/tmp/probe.sql:390: NOTICE:  PASS X1c as of 03-31 R1 held 40 (a disposition counts from its date)
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:393: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-09-01 its payments and dispositions would come to 100.01, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:393: NOTICE:  PASS X2 15.01 more is past what R1 holds: refused by the receipt holds (suspense receipt R24-2401: on 2026-09-01 its payments and dispositions would come to 100.01, more than the 100.00 the re)
+psql:/tmp/probe.sql:397: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check"
+psql:/tmp/probe.sql:397: NOTICE:  PASS X3 a return names its outgoing instrument: refused by suspense_receipt_dispositions_kind_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:401: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check"
+psql:/tmp/probe.sql:401: NOTICE:  PASS X3b an escheat names the state and the report: refused by suspense_receipt_dispositions_kind_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:405: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check"
+psql:/tmp/probe.sql:405: NOTICE:  PASS X3c a bank return's code is an R-code: refused by suspense_receipt_dispositions_kind_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check)
+psql:/tmp/probe.sql:409: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_reason_check"
+psql:/tmp/probe.sql:409: NOTICE:  PASS X3d every disposition says why: refused by suspense_receipt_dispositions_reason_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_reason_che)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:412: NOTICE:  caught SQLSTATE=23514 message=a disposition of receipt R24-2401 is dated on or after the receipt (2026-03-02), not 2026-03-01 (v5.4.2-24)
+psql:/tmp/probe.sql:412: NOTICE:  PASS X4 a disposition before the money came: refused by on or after the receipt (a disposition of receipt R24-2401 is dated on or after the receipt (2026-03-02), not 2026-03-01 (v5.4.2-24))
+psql:/tmp/probe.sql:415: NOTICE:  caught SQLSTATE=23514 message=a disposition of receipt R24-2401 is dated 2026-11-09: money is dated no later than today (UTC+14) (v5.4.2-24)
+psql:/tmp/probe.sql:415: NOTICE:  PASS X4b nor after today (UTC+14): refused by no later than today (a disposition of receipt R24-2401 is dated 2026-11-09: money is dated no later than today (UTC+14) (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:418: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check"
+psql:/tmp/probe.sql:418: NOTICE:  PASS X5 a non-undo moves money out (a positive amount): refused by suspense_receipt_dispositions_undo_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:422: NOTICE:  caught SQLSTATE=23514 message=an undo is dated on or after what it undoes (2026-04-01), not 2026-03-31 (v5.4.2-24)
+psql:/tmp/probe.sql:422: NOTICE:  PASS X6 an undo is dated on or after what it undoes: refused by an undo is dated on or after (an undo is dated on or after what it undoes (2026-04-01), not 2026-03-31 (v5.4.2-24))
+psql:/tmp/probe.sql:425: NOTICE:  caught SQLSTATE=23514 message=disposition 00000000-0000-4000-8000-0000000a2421: its undos would come to 25.01, more than its 25.00 (v5.4.2-24)
+psql:/tmp/probe.sql:425: NOTICE:  PASS X6b an undo takes back at most what it undoes: refused by undos would come to (disposition 00000000-0000-4000-8000-0000000a2421: its undos would come to 25.01, more than its 25.00 (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:428: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "suspense_receipt_dispositions" violates foreign key constraint "suspense_receipt_dispositions_undoes_fkey"
+psql:/tmp/probe.sql:428: NOTICE:  PASS X6c an undo names a disposition of the same receipt: refused by suspense_receipt_dispositions_undoes_fkey (insert or update on table "suspense_receipt_dispositions" violates foreign key constraint "suspense_receipt_dispositions)
+psql:/tmp/probe.sql:432: NOTICE:  caught SQLSTATE=23514 message=new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check"
+psql:/tmp/probe.sql:432: NOTICE:  PASS X6d an undo names what it undoes: refused by suspense_receipt_dispositions_undo_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:434: NOTICE:  PASS X6e the return is undone on 04-20
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:437: NOTICE:  PASS X6f R1 holds 40 again from 04-20; on 04-19 it held 15
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:440: NOTICE:  caught SQLSTATE=23514 message=an undo names a disposition of the same receipt that is not itself an undo (receipt R24-2401) (v5.4.2-24)
+psql:/tmp/probe.sql:440: NOTICE:  PASS X6g an undo is never undone: refused by an undo names (an undo names a disposition of the same receipt that is not itself an undo (receipt R24-2401) (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:445: NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-04-01 its payments and dispositions would come to 125.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:445: NOTICE:  PASS X7 a payment of 40 counts from 03-02, when 25 was also out on 04-01 (40 + 25 > 50 held then): refused by the receipt holds (suspense receipt R24-2401: on 2026-04-01 its payments and dispositions would come to 125.00, more than the 100.00 the re)
+psql:/tmp/probe.sql:447: NOTICE:  PASS X7b 15 is what R1 held on its worst day: 15 to C2
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:449: NOTICE:  PASS X8 the 25 left is reported as unclaimed property (Texas, owner unknown)
+psql:/tmp/probe.sql:451: NOTICE:  PASS X8b R1 holds 0: 60 + 15 to payments, 25 escheated
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:454: NOTICE:  caught SQLSTATE=42501 message=permission denied for table suspense_receipt_dispositions
+psql:/tmp/probe.sql:454: NOTICE:  PASS X9 dispositions are never edited: refused by suspense_receipt_dispositions (permission denied for table suspense_receipt_dispositions)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:458: NOTICE:  PASS X10 the bank takes back R5's 30
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:459: NOTICE:  PASS X10b R5 holds 0
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:465: NOTICE:  PASS A1 an agency (the local CEAP provider)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:469: NOTICE:  caught SQLSTATE=23505 message=duplicate key value violates unique constraint "assistance_agencies_tenant_name_key"
+psql:/tmp/probe.sql:469: NOTICE:  PASS A1b an agency's name is used once per tenant: refused by assistance_agencies_tenant_name_key (duplicate key value violates unique constraint "assistance_agencies_tenant_name_key")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:473: NOTICE:  caught SQLSTATE=23514 message=new row for relation "assistance_agencies" violates check constraint "assistance_agencies_program_kind_check"
+psql:/tmp/probe.sql:473: NOTICE:  PASS A1c the program kinds are a fixed list: refused by assistance_agencies_program_kind_check (new row for relation "assistance_agencies" violates check constraint "assistance_agencies_program_kind_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:476: NOTICE:  PASS A2 the CEAP agreement from 2026-01-01: 45 days to pay a pledge, 5 business days of eligibility hold (VA-26)
+psql:/tmp/probe.sql:479: NOTICE:  PASS A2b a new agreement from 2026-09-01: 30 days
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:483: NOTICE:  caught SQLSTATE=23505 message=duplicate key value violates unique constraint "assistance_agency_agreements_one_per_date"
+psql:/tmp/probe.sql:483: NOTICE:  PASS A3 two agreements from one date: refused by assistance_agency_agreements_one_per_date (duplicate key value violates unique constraint "assistance_agency_agreements_one_per_date")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:487: NOTICE:  caught SQLSTATE=23514 message=new row for relation "assistance_agency_agreements" violates check constraint "assistance_agency_agreements_days_check"
+psql:/tmp/probe.sql:487: NOTICE:  PASS A3b a window of no days: refused by assistance_agency_agreements_days_check (new row for relation "assistance_agency_agreements" violates check constraint "assistance_agency_agreements_days_check")
+psql:/tmp/probe.sql:491: NOTICE:  caught SQLSTATE=23514 message=new row for relation "assistance_agency_agreements" violates check constraint "assistance_agency_agreements_source_check"
+psql:/tmp/probe.sql:491: NOTICE:  PASS A3c an agreement names its source: refused by assistance_agency_agreements_source_check (new row for relation "assistance_agency_agreements" violates check constraint "assistance_agency_agreements_source_check)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:494: NOTICE:  caught SQLSTATE=42501 message=permission denied for table assistance_agency_agreements
+psql:/tmp/probe.sql:494: NOTICE:  PASS A4 an agreement's terms are never edited: refused by assistance_agency_agreements (permission denied for table assistance_agency_agreements)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:498: NOTICE:  PASS A4b an agreement entered in error is withdrawn (reason, user), not edited
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:501: NOTICE:  PASS A4c it is stamped withdrawn, and a pledge of 06-05 takes the 01-01 agreement (45 days) instead
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:504: NOTICE:  caught SQLSTATE=23001 message=agency agreement 00000000-0000-4000-8000-0000000a2445: only its withdrawal is recorded (once, with who and why); its terms are never edited — record a new agreement (v5.4.2-24)
+psql:/tmp/probe.sql:504: NOTICE:  PASS A4d a withdrawal is not undone: refused by only its withdrawal (agency agreement 00000000-0000-4000-8000-0000000a2445: only its withdrawal is recorded (once, with who and why); its ter)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:507: NOTICE:  caught SQLSTATE=42501 message=permission denied for table assistance_agencies
+psql:/tmp/probe.sql:507: NOTICE:  PASS A5 an agency is never deleted: refused by assistance_agencies (permission denied for table assistance_agencies)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:510: NOTICE:  caught SQLSTATE=42501 message=permission denied for table assistance_agencies
+psql:/tmp/probe.sql:510: NOTICE:  PASS A5b an agency's name is not edited (retire it and record a new one): refused by assistance_agencies (permission denied for table assistance_agencies)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:516: NOTICE:  caught SQLSTATE=23514 message=payment P24-31e6: receipt R24-2408 came from an agency, so its payment is the receipt's agency's (v5.4.2-24)
+psql:/tmp/probe.sql:516: NOTICE:  PASS A6 a receipt from an agency becomes the agency's payment, not the customer's: refused by the receipt's agency (payment P24-31e6: receipt R24-2408 came from an agency, so its payment is the receipt's agency's (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:519: NOTICE:  caught SQLSTATE=23514 message=payment P24-7bd5: receipt R24-2408 came from an agency, so its payment is the receipt's agency's (v5.4.2-24)
+psql:/tmp/probe.sql:519: NOTICE:  PASS A6b nor another agency's: refused by the receipt's agency (payment P24-7bd5: receipt R24-2408 came from an agency, so its payment is the receipt's agency's (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:521: NOTICE:  PASS A6c CEAP's 45 to C4, as CEAP's payment
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:526: NOTICE:  PASS L1 a written pledge of 200 for C1
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:528: NOTICE:  PASS L1b the database chose the agreement in force on the pledge date, and pay_by = 03-10 + 45 = 04-24
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:529: NOTICE:  PASS L1c on 04-01 it reads open, nothing paid, 200 outstanding
+psql:/tmp/probe.sql:532: NOTICE:  PASS L1d on 04-24 it is open; on 04-25 overdue (fail loud: CI-056)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:534: NOTICE:  PASS L2 a pledge on 2026-09-05 takes the new agreement: pay by 10-05
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:536: NOTICE:  PASS L2b agreement 44, pay_by 2026-10-05
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:540: NOTICE:  caught SQLSTATE=23514 message=a pledge's agreement and pay_by are written by the database (the agreement in force on pledged_on); send neither (v5.4.2-24)
+psql:/tmp/probe.sql:540: NOTICE:  PASS L3 the app does not choose the pay-by date: refused by written by the database (a pledge's agreement and pay_by are written by the database (the agreement in force on pledged_on); send neither (v5.4.2)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:544: NOTICE:  caught SQLSTATE=23514 message=a pledge's agreement and pay_by are written by the database (the agreement in force on pledged_on); send neither (v5.4.2-24)
+psql:/tmp/probe.sql:544: NOTICE:  PASS L3b nor the agreement: refused by written by the database (a pledge's agreement and pay_by are written by the database (the agreement in force on pledged_on); send neither (v5.4.2)
+psql:/tmp/probe.sql:547: NOTICE:  PASS L4 a pledge with no agreement on file is still recorded (fail toward protection)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:550: NOTICE:  PASS L4b it has no agreement and no pay-by, and reads no_agreement
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:552: NOTICE:  PASS L5 two live pledges for C1 from two agencies coexist (CI-064)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:555: NOTICE:  caught SQLSTATE=23514 message=new row for relation "agency_pledges" violates check constraint "agency_pledges_amount_check"
+psql:/tmp/probe.sql:555: NOTICE:  PASS L6 a pledge of no money: refused by agency_pledges_amount_check (new row for relation "agency_pledges" violates check constraint "agency_pledges_amount_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:558: NOTICE:  caught SQLSTATE=23514 message=a pledge is dated no later than today (UTC+14), not 2026-11-09 (v5.4.2-24)
+psql:/tmp/probe.sql:558: NOTICE:  PASS L6b a pledge dated after today (UTC+14): refused by no later than today (a pledge is dated no later than today (UTC+14), not 2026-11-09 (v5.4.2-24))
+psql:/tmp/probe.sql:562: NOTICE:  caught SQLSTATE=23514 message=new row for relation "agency_pledges" violates check constraint "agency_pledges_form_check"
+psql:/tmp/probe.sql:562: NOTICE:  PASS L6c the form is written, verbal or portal: refused by agency_pledges_form_check (new row for relation "agency_pledges" violates check constraint "agency_pledges_form_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:565: NOTICE:  caught SQLSTATE=42501 message=permission denied for table agency_pledges
+psql:/tmp/probe.sql:565: NOTICE:  PASS L6d a pledge is never edited: refused by agency_pledges (permission denied for table agency_pledges)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:570: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_agency_check"
+psql:/tmp/probe.sql:570: NOTICE:  PASS L7 an agency payment names its agency: refused by payments_agency_check (new row for relation "payments" violates check constraint "payments_agency_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:574: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_agency_check"
+psql:/tmp/probe.sql:574: NOTICE:  PASS L7b and a customer's payment names none: refused by payments_agency_check (new row for relation "payments" violates check constraint "payments_agency_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:577: NOTICE:  caught SQLSTATE=23514 message=payment A24-1356: a pledge is paid by the pledge's agency and customer (pledge 00000000-0000-4000-8000-0000000a2451) (v5.4.2-24)
+psql:/tmp/probe.sql:577: NOTICE:  PASS L7c a pledge is paid by its own agency (the charity paying CEAP's pledge): refused by the pledge's agency and customer (payment A24-1356: a pledge is paid by the pledge's agency and customer (pledge 00000000-0000-4000-8000-0000000a2451) (v5)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:580: NOTICE:  caught SQLSTATE=23514 message=payment A24-07a4: a pledge is paid by the pledge's agency and customer (pledge 00000000-0000-4000-8000-0000000a2451) (v5.4.2-24)
+psql:/tmp/probe.sql:580: NOTICE:  PASS L7d for its own customer: refused by the pledge's agency and customer (payment A24-07a4: a pledge is paid by the pledge's agency and customer (pledge 00000000-0000-4000-8000-0000000a2451) (v5)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:584: NOTICE:  caught SQLSTATE=23514 message=new row for relation "payments" violates check constraint "payments_agency_pledge_check"
+psql:/tmp/probe.sql:584: NOTICE:  PASS L7e a deposit never names a pledge: refused by payments_agency_pledge_check (new row for relation "payments" violates check constraint "payments_agency_pledge_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ apay 
+------
+ 
+(1 row)
+
+ apay 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:589: NOTICE:  PASS L8 PL1 reads 120 paid, 80 outstanding: a pending payment has not cleared
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:591: NOTICE:  PASS L8b on 03-24 nothing was paid (the payment's date)
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:594: NOTICE:  caught SQLSTATE=23001 message=payment A24-2461: agency_pledge_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one
+psql:/tmp/probe.sql:594: NOTICE:  PASS L8c a payment's agency and pledge are written once: refused by written once (payment A24-2461: agency_pledge_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one)
+UPDATE 1
+ apay 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:600: NOTICE:  PASS L9 PL1 is paid in full on 04-10
+ ok 
+----
+ 
+(1 row)
+
+ bounce 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:604: NOTICE:  PASS L9b after the bounce it is open again from 04-15 (the bank took the 80 back), overdue after 04-24
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/probe.sql:614: NOTICE:  PASS L10 (PL7's pay-by is today at UTC-12)
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:618: NOTICE:  caught SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2457: its pay_by (2026-11-07) has not passed everywhere yet; a lapse waits until it has (v5.4.2-24)
+psql:/tmp/probe.sql:618: NOTICE:  PASS L10a a lapse is recorded only once pay_by has passed everywhere: refused by has not passed (pledge 00000000-0000-4000-8000-0000000a2457: its pay_by (2026-11-07) has not passed everywhere yet; a lapse waits until )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:622: NOTICE:  caught SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2451: a lapse is dated after pay_by (2026-04-24), not 2026-04-24 (v5.4.2-24)
+psql:/tmp/probe.sql:622: NOTICE:  PASS L10b a lapse is dated after pay_by (PL1 is due 04-24): refused by after pay_by (pledge 00000000-0000-4000-8000-0000000a2451: a lapse is dated after pay_by (2026-04-24), not 2026-04-24 (v5.4.2-24))
+psql:/tmp/probe.sql:626: NOTICE:  caught SQLSTATE=23514 message=new row for relation "agency_pledge_events" violates check constraint "agency_pledge_events_event_on_check"
+psql:/tmp/probe.sql:626: NOTICE:  PASS L10c a withdrawal or lapse has its date; an error has none: refused by agency_pledge_events_event_on_check (new row for relation "agency_pledge_events" violates check constraint "agency_pledge_events_event_on_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:629: NOTICE:  PASS L11 PL1 lapses with 120 of 200 paid (CEAP's 45 days passed)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:632: NOTICE:  PASS L11b from 04-25 PL1 reads lapsed, 120 paid, 80 outstanding; on 04-24 it was open
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:636: NOTICE:  caught SQLSTATE=23505 message=duplicate key value violates unique constraint "agency_pledge_events_one_per_pledge"
+psql:/tmp/probe.sql:636: NOTICE:  PASS L11c a pledge ends once: refused by agency_pledge_events_one_per_pledge (duplicate key value violates unique constraint "agency_pledge_events_one_per_pledge")
+psql:/tmp/probe.sql:638: NOTICE:  PASS L11d a late payment naming a lapsed pledge is still taken (the money is real)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:642: NOTICE:  PASS L11e from 05-02 it reads paid in full; the lapse stays on record for the agency's history
+ ok 
+----
+ 
+(1 row)
+
+ pledge 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:646: NOTICE:  PASS L12 an agency payment above its pledge is taken (CI-053: money is never refused)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:648: NOTICE:  PASS L12b PL4 reads paid, 90 paid, nothing outstanding
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:652: NOTICE:  caught SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2454 is paid in full (90.00 of 60.00): it is neither withdrawn nor lapsed (v5.4.2-24)
+psql:/tmp/probe.sql:652: NOTICE:  PASS L12c a paid pledge cannot be withdrawn: refused by paid in full (pledge 00000000-0000-4000-8000-0000000a2454 is paid in full (90.00 of 60.00): it is neither withdrawn nor lapsed (v5.4.2)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:656: NOTICE:  caught SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2454 is paid in full (90.00 of 60.00): it is neither withdrawn nor lapsed (v5.4.2-24)
+psql:/tmp/probe.sql:656: NOTICE:  PASS L12d nor lapse: refused by paid in full (pledge 00000000-0000-4000-8000-0000000a2454 is paid in full (90.00 of 60.00): it is neither withdrawn nor lapsed (v5.4.2)
+psql:/tmp/probe.sql:660: NOTICE:  caught SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2454 cannot be recorded in error: a payment names it (v5.4.2-24)
+psql:/tmp/probe.sql:660: NOTICE:  PASS L12e nor be recorded in error once a payment names it: refused by a payment names it (pledge 00000000-0000-4000-8000-0000000a2454 cannot be recorded in error: a payment names it (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:663: NOTICE:  PASS L13 PL2 is withdrawn by the agency
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:665: NOTICE:  PASS L13b PL2 reads withdrawn from 09-20, open on 09-19
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:669: NOTICE:  caught SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2456: an event is dated on or after the pledge (2026-11-07) and no later than today (UTC+14), not 2020-01-01 (v5.4.2-24)
+psql:/tmp/probe.sql:669: NOTICE:  PASS L13d a withdrawal is not dated before the pledge: refused by on or after the pledge (pledge 00000000-0000-4000-8000-0000000a2456: an event is dated on or after the pledge (2026-11-07) and no later than tod)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:673: NOTICE:  caught SQLSTATE=23514 message=new row for relation "agency_pledge_events" violates check constraint "agency_pledge_events_reason_check"
+psql:/tmp/probe.sql:673: NOTICE:  PASS L13c every event says why: refused by agency_pledge_events_reason_check (new row for relation "agency_pledge_events" violates check constraint "agency_pledge_events_reason_check")
+ pledge 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:678: NOTICE:  PASS L14 PL5 is recorded in error
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:679: NOTICE:  PASS L14b it reads void on every date
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:682: NOTICE:  caught SQLSTATE=23514 message=payment A24-ede0: pledge 00000000-0000-4000-8000-0000000a2455 was recorded in error; no payment names it (v5.4.2-24)
+psql:/tmp/probe.sql:682: NOTICE:  PASS L14c and no payment ever names it: refused by recorded in error (payment A24-ede0: pledge 00000000-0000-4000-8000-0000000a2455 was recorded in error; no payment names it (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:685: NOTICE:  PASS L15 on 04-01 the open pledges are PL1 (80 outstanding) and PL3 (no agreement); PL4 is paid, PL5 void
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:688: NOTICE:  caught SQLSTATE=22004 message=agency_pledge_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-11-07 20:40:32.195234+00) (v5.4.2-23)
+psql:/tmp/probe.sql:688: NOTICE:  PASS L16 the pledge reader needs both coordinates: refused by both given (agency_pledge_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded )
+psql:/tmp/probe.sql:691: NOTICE:  PASS L17 the charity is retired
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:694: NOTICE:  caught SQLSTATE=23514 message=agency 00000000-0000-4000-8000-0000000a2442 is retired: it takes no new pledge (v5.4.2-24)
+psql:/tmp/probe.sql:694: NOTICE:  PASS L17b a retired agency takes no new pledge: refused by is retired (agency 00000000-0000-4000-8000-0000000a2442 is retired: it takes no new pledge (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:696: NOTICE:  PASS L17c but its money is still taken (a late check for PL3)
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:699: NOTICE:  PASS L15b today only PL6 and PL7 are open (PL1 and PL3 paid, PL2 withdrawn, PL4 paid, PL5 void)
+psql:/tmp/probe.sql:702: NOTICE:  caught SQLSTATE=23001 message=assistance agency 00000000-0000-4000-8000-0000000a2442: only its retirement is recorded (active to retired, with who and why); an agency is never edited or brought back — record a new one (v5.4.2-24)
+psql:/tmp/probe.sql:702: NOTICE:  PASS L17d a retirement is not undone: refused by only its retirement (assistance agency 00000000-0000-4000-8000-0000000a2442: only its retirement is recorded (active to retired, with who and)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:709: NOTICE:  caught SQLSTATE=23514 message=refund G24-1: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency (agency_id), never to the customer or another agency (Ryan, 2026-11-07; 10 TAC 6.312(f); v5.4.2-24)
+psql:/tmp/probe.sql:709: NOTICE:  PASS G1 a refund of an agency's payment paid to the customer (Ryan 2026-11-07; 10 TAC 6.312(f)): refused by goes back to the agency (refund G24-1: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:713: NOTICE:  caught SQLSTATE=23514 message=refund G24-1b: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency (agency_id), never to the customer or another agency (Ryan, 2026-11-07; 10 TAC 6.312(f); v5.4.2-24)
+psql:/tmp/probe.sql:713: NOTICE:  PASS G1b nor to another agency: refused by goes back to the agency (refund G24-1b: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agenc)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:716: NOTICE:  PASS G2 30 refunded to CEAP
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:720: NOTICE:  caught SQLSTATE=23514 message=refund G24-3: the money is the customer's own, so a refund of it goes to the customer and names no agency (v5.4.2-24)
+psql:/tmp/probe.sql:720: NOTICE:  PASS G3 a refund of the customer's own payment names no agency: refused by goes to the customer (refund G24-3: the money is the customer's own, so a refund of it goes to the customer and names no agency (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:723: NOTICE:  PASS G3b a refund of the customer's own payment, to the customer
+ admits 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:733: NOTICE:  caught SQLSTATE=23514 message=refund G24-4: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency (agency_id), never to the customer or another agency (Ryan, 2026-11-07; 10 TAC 6.312(f); v5.4.2-24)
+psql:/tmp/probe.sql:733: NOTICE:  PASS G4 a refund of a credit that came from an agency's payment, to the customer: refused by goes back to the agency (refund G24-4: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:736: NOTICE:  PASS G4b to the agency
+ post 
+------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+ bounce 
+--------
+ 
+(1 row)
+
+INSERT 0 1
+SET CONSTRAINTS
+SET CONSTRAINTS
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:750: NOTICE:  PASS G5 (the reissue stands: 10 on CR 32, traced to CEAP)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:754: NOTICE:  caught SQLSTATE=23514 message=refund G24-5: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency (agency_id), never to the customer or another agency (Ryan, 2026-11-07; 10 TAC 6.312(f); v5.4.2-24)
+psql:/tmp/probe.sql:754: NOTICE:  PASS G5a a refund of a reissue of an agency's refund, to the customer: refused by goes back to the agency (refund G24-5: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:757: NOTICE:  PASS G5b to the agency
+INSERT 0 1
+INSERT 0 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:766: NOTICE:  caught SQLSTATE=23514 message=refund G24-6: the money is the customer's own, so a refund of it goes to the customer and names no agency (v5.4.2-24)
+psql:/tmp/probe.sql:766: NOTICE:  PASS G6 a refund of a goodwill credit names no agency: refused by goes to the customer (refund G24-6: the money is the customer's own, so a refund of it goes to the customer and names no agency (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:769: NOTICE:  caught SQLSTATE=23001 message=payment G24-2: agency_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one
+psql:/tmp/probe.sql:769: NOTICE:  PASS G7 a refund's agency is written once: refused by written once (payment G24-2: agency_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one)
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:777: NOTICE:  caught SQLSTATE=55000 message=suspense_receipts_aged_as_of: tenant 00000000-0000-4000-8000-0000000a24a1's suspense service level is not set at 2026-11-07 20:40:33.105454+00: which receipts are aged cannot be known (fail loud; -26 reads it as unevaluable) (CI-056, v5.4.2-24)
+psql:/tmp/probe.sql:777: NOTICE:  PASS S1 with no service level set, the aged reader raises (unevaluable: -26 blocks): refused by is not set (suspense_receipts_aged_as_of: tenant 00000000-0000-4000-8000-0000000a24a1's suspense service level is not set at 2026-11)
+RESET
+UPDATE 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+psql:/tmp/probe.sql:784: NOTICE:  PASS S2 the settings are recorded in the configuration history (two changes)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:788: NOTICE:  PASS S2b and read as of an instant (before the change: unset)
+ ok 
+----
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+INSERT 0 1
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:796: NOTICE:  PASS S3 on 03-30 (10 days) R6 is not aged; on 03-31 (11 days) it is, with C2 as the account to protect
+psql:/tmp/probe.sql:799: NOTICE:  PASS S3b a receipt that holds nothing is never aged (R1, R4, R5)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:802: NOTICE:  PASS S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:804: NOTICE:  PASS S4 the tenant's total held on 12-31 (R6 70 + R2's nothing + U8d's 15 + U8e's 5)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:807: NOTICE:  caught SQLSTATE=22004 message=suspense_receipt_position_as_of: a position is read at a finite money date and recorded instant, both given (on 2026-12-31, recorded ) (v5.4.2-23)
+psql:/tmp/probe.sql:807: NOTICE:  PASS S5 the receipt reader needs both coordinates: refused by both given (suspense_receipt_position_as_of: a position is read at a finite money date and recorded instant, both given (on 2026-12-)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:811: NOTICE:  caught SQLSTATE=23514 message=new row for relation "tenants" violates check constraint "tenants_suspense_days_check"
+psql:/tmp/probe.sql:811: NOTICE:  PASS S6 a setting of no days: refused by tenants_suspense_days_check (new row for relation "tenants" violates check constraint "tenants_suspense_days_check")
+psql:/tmp/probe.sql:814: NOTICE:  caught SQLSTATE=23514 message=new row for relation "tenants" violates check constraint "tenants_suspense_days_check"
+psql:/tmp/probe.sql:814: NOTICE:  PASS S6b nor a fraction, nor text: refused by tenants_suspense_days_check (new row for relation "tenants" violates check constraint "tenants_suspense_days_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:817: NOTICE:  caught SQLSTATE=23514 message=new row for relation "tenants" violates check constraint "tenants_suspense_days_check"
+psql:/tmp/probe.sql:817: NOTICE:  PASS S6c nor 10.5: refused by tenants_suspense_days_check (new row for relation "tenants" violates check constraint "tenants_suspense_days_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:823: NOTICE:  caught SQLSTATE=23514 message=program enrollment: agency_pledge is retired — a pledge is an agency_pledges row (v5.4.2-24)
+psql:/tmp/probe.sql:823: NOTICE:  PASS Y1 no new agency_pledge enrollment (a pledge is an agency_pledges row): refused by agency_pledge is retired (program enrollment: agency_pledge is retired — a pledge is an agency_pledges row (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:825: NOTICE:  PASS Y2 the type says so and is still not protective
+ ok 
+----
+ 
+(1 row)
+
+SET
+UPDATE 1
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+psql:/tmp/probe.sql:835: NOTICE:  caught SQLSTATE=23514 message=suspense_receipts: dated 2026-03-31, on or before 2026-03-31, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+psql:/tmp/probe.sql:835: NOTICE:  PASS D1 a receipt dated in a closed period (-22 P2): refused by a closed period is frozen (suspense_receipts: dated 2026-03-31, on or before 2026-03-31, the end of the tenant's last closed accounting period — a )
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:838: NOTICE:  caught SQLSTATE=23514 message=suspense_receipt_dispositions: dated 2026-03-31, on or before 2026-03-31, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+psql:/tmp/probe.sql:838: NOTICE:  PASS D2 a disposition dated in a closed period: refused by a closed period is frozen (suspense_receipt_dispositions: dated 2026-03-31, on or before 2026-03-31, the end of the tenant's last closed accounting)
+psql:/tmp/probe.sql:840: NOTICE:  PASS D3 one dated after it
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:843: NOTICE:  caught SQLSTATE=23514 message=payments: dated 2026-03-20, on or before 2026-03-31, the end of the tenant's last closed accounting period — a closed period is frozen; post the correction into an open period (D-2, v5.4.2-22)
+psql:/tmp/probe.sql:843: NOTICE:  PASS D4 a payment from a receipt dated in the closed period is refused: refused by a closed period is frozen (payments: dated 2026-03-20, on or before 2026-03-31, the end of the tenant's last closed accounting period — a closed pe)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:845: NOTICE:  PASS D4b money identified after the close is posted in the open period, effective the day it came (03-20)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:848: NOTICE:  PASS D4c R6 holds 0 (65 to C2, 5 returned); the payment is effective 03-20
+ ok 
+----
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b2
+(1 row)
+
+psql:/tmp/probe.sql:858: NOTICE:  PASS T1 T2's operator sees none of T1's receipts, candidates, dispositions, agencies, agreements, pledges or events
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:862: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "assistance_agencies"
+psql:/tmp/probe.sql:862: NOTICE:  PASS T2 nor writes one under T1: refused by row-level security (new row violates row-level security policy for table "assistance_agencies")
+INSERT 0 1
+psql:/tmp/probe.sql:868: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "agency_pledges" violates foreign key constraint "agency_pledges_customer_fkey"
+psql:/tmp/probe.sql:868: NOTICE:  PASS T3 a T2 pledge naming T1's customer: refused by agency_pledges_customer_fkey (insert or update on table "agency_pledges" violates foreign key constraint "agency_pledges_customer_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:872: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "payments" violates foreign key constraint "payments_agency_fkey"
+psql:/tmp/probe.sql:872: NOTICE:  PASS T4 a T2 payment naming T1's agency: refused by payments_agency_fkey (insert or update on table "payments" violates foreign key constraint "payments_agency_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:876: NOTICE:  caught SQLSTATE=23503 message=agency 00000000-0000-4000-8000-0000000a2441 is not visible in this tenant (v5.4.2-24)
+psql:/tmp/probe.sql:876: NOTICE:  PASS T5 a T2 pledge naming T1's agency: refused by agency_pledges_agency_fkey (agency 00000000-0000-4000-8000-0000000a2441 is not visible in this tenant (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:880: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "suspense_receipts" violates foreign key constraint "suspense_receipts_recorded_by_fkey"
+psql:/tmp/probe.sql:880: NOTICE:  PASS T6 a receipt recorded by another tenant's user: refused by suspense_receipts_recorded_by_fkey (insert or update on table "suspense_receipts" violates foreign key constraint "suspense_receipts_recorded_by_fkey")
+RESET
+psql:/tmp/probe.sql:885: NOTICE:  PASS I1 the invariants hold as applied
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:889: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-24 guard is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER enforce_suspense_disposition AFTER INSERT ON public.suspense_receipt_dispositions FOR EACH ROW EXECUTE FUNCTION enforce_suspense_disposition()
+psql:/tmp/probe.sql:889: NOTICE:  PASS I2 a guard switched off: refused by enforce_suspense_disposition (a v5.4.2-24 guard is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER enforce_suspense_disposition AFTER INSERT )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:893: NOTICE:  caught SQLSTATE=0LP01 message=suspense_receipts: tally_app may only SELECT and INSERT it (and UPDATE its retirement or withdrawal stamps), tally_core only read it, PUBLIC nothing (v5.4.2-24)
+psql:/tmp/probe.sql:893: NOTICE:  PASS I3 a grant widened: refused by suspense_receipts (suspense_receipts: tally_app may only SELECT and INSERT it (and UPDATE its retirement or withdrawal stamps), tally_core )
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:897: NOTICE:  caught SQLSTATE=0LP01 message=agency_pledges has lost its tenant_isolation policy or forced row security, or has another policy beside it (v5.4.2-24)
+psql:/tmp/probe.sql:897: NOTICE:  PASS I4 a second policy: refused by another policy beside it (agency_pledges has lost its tenant_isolation policy or forced row security, or has another policy beside it (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:901: NOTICE:  caught SQLSTATE=0LP01 message=agency_pledges has lost its tenant_isolation policy or forced row security, or has another policy beside it (v5.4.2-24)
+psql:/tmp/probe.sql:901: NOTICE:  PASS I5 RLS forced off: refused by agency_pledges (agency_pledges has lost its tenant_isolation policy or forced row security, or has another policy beside it (v5.4.2-24))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:905: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-24 key between tenant tables does not carry tenant_id on both sides (R-12: a single-column key skips row-level security): stray_fk
+psql:/tmp/probe.sql:905: NOTICE:  PASS I6 a single-column key between tenant tables (R-12): refused by stray_fk (a v5.4.2-24 key between tenant tables does not carry tenant_id on both sides (R-12: a single-column key skips row-level )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:909: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-24 guard is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER enforce_payment_suspense_pledge BEFORE INSERT OR UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION enforce_payment_suspense_pledge()
+psql:/tmp/probe.sql:909: NOTICE:  PASS I7 the payments write-once guard switched off: refused by enforce_payment_suspense_pledge (a v5.4.2-24 guard is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER enforce_payment_suspense_pledge BEFORE INS)
+ROLLBACK
