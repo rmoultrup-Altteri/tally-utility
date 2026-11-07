@@ -9,12 +9,12 @@ Review exactly these files. Check the hashes first; if one differs, stop and rep
 
 | File | md5 |
 |---|---|
-| `tests/v5.4.2-25/review/patch-25-frozen-r1.sql` | `@@PATCH@@` |
-| `tests/v5.4.2-25/review/battery-25-frozen-r1.sql` | `@@BATTERY@@` |
-| `tests/v5.4.2-25/review/disputes-25-frozen-r1.sh` | `@@RACES@@` |
-| `tests/v5.4.2-25/review/mutations-25-frozen-r1.py` | `@@MUTATIONS@@` |
-| `tests/v5.4.2-25/review/terms-25-frozen-r1.py` | `@@TERMS@@` |
-| `tests/v5.4.2-25/review/migration-25-frozen-r1.py` | `@@MIGRATION@@` |
+| `tests/v5.4.2-25/review/patch-25-frozen-r1.sql` | `6fe776110440022976c6405947b9be5f` |
+| `tests/v5.4.2-25/review/battery-25-frozen-r1.sql` | `58a94b366974e9689aeb537f419be325` |
+| `tests/v5.4.2-25/review/disputes-25-frozen-r1.sh` | `5f019c70483af460e240b18a910b29c1` |
+| `tests/v5.4.2-25/review/mutations-25-frozen-r1.py` | `8a7f860acf66a02595cd2a5e2982fa83` |
+| `tests/v5.4.2-25/review/terms-25-frozen-r1.py` | `83d1484349ef8c3ad654eb40f2264eb6` |
+| `tests/v5.4.2-25/review/migration-25-frozen-r1.py` | `55d80759b4066f5a037acc3bd104be20` |
 
 The live copies (`sql/v5.4.2-25-disputes.sql` and `tests/v5.4.2-25/`) are identical today.
 
@@ -50,12 +50,12 @@ Since the draft, Kyle's answers of 2026-11-03 and 11-05 (GBM `kyle-decisions-202
 ## Results so far (reproduce them)
 
 - **Strict apply, twice:** `search_path = ''`, `check_function_bodies = on`. The second run is skipped by its marker, the table `disputes`.
-- **`battery-25.sql`:** @@BATTERY_N@@ checks, one transaction, rolled back.
-- **`races/disputes-25.sh`:** DR1–DR9, @@RACES_N@@ results.
+- **`battery-25.sql`:** 201 checks, one transaction, rolled back.
+- **`races/disputes-25.sh`:** DR1–DR9, 12 results.
 - **`terms-25.py`:** the law documents and fixtures, 0 failures.
 - **`migration-25.py`:** P0–P4.
-- **`mutations-25.py`:** @@MUT@@ caught, each at its named check as the first failure.
-- **`tests/ci.sh`:** @@CI@@ steps, all pass, with -25, -26, -30 and -24 pending.
+- **`mutations-25.py`:** 110 of 110 caught, each at its named check as the first failure.
+- **`tests/ci.sh`:** 62 steps, all pass, with -25, -26, -30 and -24 pending.
 
 ## What to answer
 
