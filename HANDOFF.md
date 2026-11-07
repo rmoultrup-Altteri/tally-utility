@@ -29,7 +29,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | Number | Stream | What |
 |---|---|---|
 | -23 | money | cash: reversals, positions, application, overpayment credits. **Mirrored 2026-11-04** (Ryan; Opus and Fable ready on r9, Codex on r10) |
-| -24 | money | unmatched cash, agency pledges (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`; Ryan 2026-11-07: a refund of an agency's money goes to the agency). **r0 drafted 2026-11-07**; in `ci.sh` PENDING after -30 (money's battery -23 ported), ci.sh 62/62, battery 186, races 12 |
+| -24 | money | unmatched cash, agency pledges (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`; Ryan 2026-11-07: a refund of an agency's money goes to the agency). **r1 frozen 2026-11-07, in review** (Opus, Fable, Codex); in `ci.sh` PENDING after -30 (money's battery -23 ported), ci.sh 62/62, battery 188, races 12, mutations 71/71 |
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting). **Mirrored 2026-11-06** (Ryan; Opus, Fable and Codex ready on r4; r5, a narrow round before the mirror, ready from Opus and Fable, Codex waived) |
@@ -43,6 +43,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 
 1. -25 (money)
 2. -26 (money)
+3. -24 (money)
 
 -27 (money) was mirrored on 2026-11-06 (Ryan's approval), ahead of -25 and -26: none of -25, -26 or -30 redefines a function -27 re-issues, and `ci.sh --build` passes 56/56 with the three applied over the build. **For rates:** `tally` now carries -27, so re-run -30's battery on it before -30's mirror. -27 re-issues `payment_position_as_of` with a new last column (`repaid`), and adds a column (`reissues_shortfall_application_id`), a CHECK and a new `origin_type` value (`shortfall_reissue`) to `customer_credits`. Its triggers on `customer_credits`, `payments` and `account_ledger` are listed in `assert_shortfall_guard_invariants`.
 
