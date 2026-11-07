@@ -17,10 +17,20 @@
 #   SU5  A records receipt R4 of provider transaction X and holds; B records
 #        a payment of X: waits, then is refused (recorded once).
 #   SU5b the same with a payment first and a receipt second.
-#   SU6  R5 (100) made a payment of C1 and committed; then the payment is
-#        reversed (posted to the wrong customer) and committed. Read as known
-#        before the reversal, R5 held 0; now it holds 100.
+#   SU6  R5 (100) made a payment of C1 and committed; the payment reversed
+#        (posted to the wrong customer) and committed; then its misposting
+#        return committed (r2). Read as known before the return, R5 held 0
+#        (the reversal alone gives nothing back); now it holds 100.
 #   SU7  a payment from a receipt under REPEATABLE READ is refused (25000).
+#   SU8  (r2, Codex B5, Opus B3, Fable B1) a receipt with a provider id, and
+#        a payment with one, under REPEATABLE READ are refused (25000).
+#   SU9  (r2) R8's payment (100, C1) reversed and committed. A records its
+#        misposting return and holds; B makes 100 of R8 C2's payment: waits
+#        on R8's lock, then is admitted (the money came back).
+#   SU10 (r2, Codex B4) A's transaction begins; B returns 50 of R9 to its
+#        sender and commits; A makes 60 of R9 a payment: refused for retry
+#        (40001: recorded before a row of the receipt); the retry is refused
+#        by the cap, a retry of 50 admitted.
 # Every two() leg checks that session B was SEEN BLOCKED BY SESSION A.
 # Every session runs under a statement timeout. Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -67,6 +77,8 @@ $(rcpt ${P}02 R24-2 100)
 $(rcpt ${P}03 R24-3 100)
 $(rcpt ${P}05 R24-5 100)
 $(rcpt ${P}07 R24-7 100)
+$(rcpt ${P}08 R24-8 100)
+$(rcpt ${P}09 R24-9 100)
 INSERT INTO public.assistance_agencies (id, tenant_id, name, program_kind, recorded_by) VALUES ('${P}a1', '$T', 'CEAP', 'liheap_ceap', '$OP'), ('${P}a2', '$T', 'Charity', 'charity', '$OP');
 INSERT INTO public.agency_pledges (id, tenant_id, customer_id, agency_id, amount, pledged_on, form, recorded_by) VALUES
   ('${P}11', '$T', '$C1', '${P}a1', 100, DATE '2026-03-10', 'written', '$OP'),
@@ -166,7 +178,16 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = '$OP', reversed_reason = 'posted to the wrong customer', status_cause_id = '${P}32' WHERE id = '${P}21';
 COMMIT;
 SQL
-expect "SU6 as known before the reversal, R5 held 0" "$(held ${P}05 "'$T0'::timestamptz")" "0.00"
+T1=$("${PSQL[@]}" -c "SELECT clock_timestamp()")
+"${PSQL[@]}" >/tmp/r24su6c.out 2>&1 <<SQL || { echo "FAIL SU6 return: $(cat /tmp/r24su6c.out)"; fail=1; }
+BEGIN;
+$AS_OP
+INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id)
+VALUES ('$T', '${P}05', 'misposting_returned', -100, DATE '2026-03-05', 'posted to the wrong customer', '$OP', '${P}21');
+COMMIT;
+SQL
+expect "SU6 as known before the payment was reversed, R5 held 0" "$(held ${P}05 "'$T0'::timestamptz")" "0.00"
+expect "SU6a as known after the reversal, before its misposting return, R5 still held 0" "$(held ${P}05 "'$T1'::timestamptz")" "0.00"
 expect "SU6b now it holds 100 again" "$(held ${P}05 'clock_timestamp()')" "100.00"
 
 OUT=$("${PSQL[@]}" 2>&1 <<SQL
@@ -177,5 +198,76 @@ COMMIT;
 SQL
 )
 if [ $? -ne 0 ] && echo "$OUT" | grep -q "25000"; then echo "PASS SU7 a payment from a receipt under REPEATABLE READ is refused"; else echo "FAIL SU7: $OUT"; fail=1; fi
+
+for lvl in "REPEATABLE READ" "SERIALIZABLE"; do
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN ISOLATION LEVEL $lvl;
+$AS_OP
+$(rcpt ${P}0a R24-A-$RANDOM 5 pi_iso_$RANDOM)
+COMMIT;
+SQL
+)
+if [ $? -ne 0 ] && echo "$OUT" | grep -q "25000"; then echo "PASS SU8 a receipt with a provider id under $lvl is refused"; else echo "FAIL SU8 ($lvl): $OUT"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN ISOLATION LEVEL $lvl;
+$AS_OP
+INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, channel, source_system, provider_transaction_id) VALUES ('$T', 'SU8-' || left(gen_random_uuid()::text, 8), '$C1', DATE '2026-03-02', 5, 'online', 'api', 'stripe_webhook', 'pi_iso_p$RANDOM');
+COMMIT;
+SQL
+)
+if [ $? -ne 0 ] && echo "$OUT" | grep -q "25000"; then echo "PASS SU8b a payment with a provider id under $lvl is refused"; else echo "FAIL SU8b ($lvl): $OUT"; fail=1; fi
+done
+
+# SU9: R8's payment posted and reversed, committed; then the race.
+"${PSQL[@]}" >/tmp/r24su9.out 2>&1 <<SQL || { echo "FAIL SU9 setup: $(cat /tmp/r24su9.out)"; fail=1; }
+BEGIN;
+$AS_OP
+$(fromr ${P}08 $C1 100 ${P}22)
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}33', '$T', '$C1', DATE '2026-03-02', 'payment', 'posted', -100, 'payment', '${P}22');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}33' WHERE id = '${P}22';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}34', '$T', '$C1', DATE '2026-03-05', 'adjustment', 'misposted', 100, 'payment', '${P}22', '${P}33', 'misposted');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = '$OP', reversed_reason = 'misposted', status_cause_id = '${P}34' WHERE id = '${P}22';
+COMMIT;
+SQL
+two "INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id) VALUES ('$T', '${P}08', 'misposting_returned', -100, DATE '2026-03-05', 'misposted', '$OP', '${P}22');" \
+    "INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, effective_date, effective_date_method, amount, payment_method, channel, source_system, check_number, suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by) SELECT '$T', 'SU9', '$C2', DATE '2026-03-05', r.received_on, 'lockbox_receipt', 100, 'check', r.channel, r.source_system, r.check_number, r.id, 'identified', '$OP' FROM public.suspense_receipts r WHERE r.id = '${P}08';"
+if [ "${AST:-0}" -eq 0 ] && [ "${WAITED:-0}" -ge 1 ] && [ "$BST" -eq 0 ]; then echo "PASS SU9 a payment waits on R8's misposting return, then is admitted"; else echo "FAIL SU9: A=$AST waited=$WAITED B=$BST: $OUT $(cat "$A_OUT")"; fail=1; fi
+
+# SU10: A begins; B returns 50 of R9 and commits; A pays 60 from R9.
+"${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
+BEGIN;
+$AS_OP
+SELECT now();
+SELECT pg_sleep(3);
+$(fromr ${P}09 $C1 60)
+COMMIT;
+SQL
+APID=$!
+sleep 1
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$(disp ${P}09 returned_to_sender 50)
+COMMIT;
+SQL
+) || { echo "FAIL SU10 B: $OUT"; fail=1; }
+wait $APID; AST=$?
+if [ "$AST" -ne 0 ] && grep -q "40001" "$A_OUT"; then echo "PASS SU10 a payment begun before a committed return is refused for retry (40001)"; else echo "FAIL SU10: A=$AST: $(cat "$A_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$(fromr ${P}09 $C1 60)
+COMMIT;
+SQL
+)
+if [ $? -ne 0 ] && echo "$OUT" | grep -q "the receipt holds"; then echo "PASS SU10b the retry of 60 is refused by the cap"; else echo "FAIL SU10b: $OUT"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+$(fromr ${P}09 $C1 50)
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS SU10c a retry of 50 is admitted"; else echo "FAIL SU10c: $OUT"; fail=1; fi
 
 exit $fail

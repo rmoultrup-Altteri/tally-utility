@@ -31,11 +31,17 @@
 --     (payments.suspense_receipt_id, with a reason and the operator), dated
 --     on or after the money came and effective no later than that; (2)
 --     dispositions: returned_to_sender, bank_returned, escheated, and undo
---     (a negative row naming one, at most its amount, never itself undone).
---     What it holds is derived (suspense_receipt_position_as_of). The cap:
---     on every date, what went to payments (not voided or reversed) and to
---     dispositions never exceeds the receipt. A reversed payment (posted to
---     the wrong customer) gives its share back; an NSF one does not.
+--     (a negative row naming one, at most its amount, never itself undone),
+--     and r2 misposting_returned (a negative row naming a payment of the
+--     receipt reversed as posted to the wrong customer, with no bank return
+--     code, dated on or after the reversal, once). What it holds is derived
+--     (suspense_receipt_position_as_of). The cap: on every date, what went to
+--     payments (not voided) and to dispositions never exceeds the receipt. A
+--     reversal alone gives nothing back (r2: -23 lets a bank's take-back be
+--     recorded as reversed); the misposting return does, from its own date.
+--     r2: a row that spends a receipt's money is recorded no earlier than
+--     every row already on the receipt (40001 to retry, 23514 for a chosen
+--     time).
 --   * Tenant settings settings.suspense_service_level_days and settings.
 --     suspense_retention_days (whole numbers > 0, no default; recorded in
 --     tenant_configuration_history). Readers raise while unset (fail loud).
@@ -65,8 +71,25 @@
 --   L3 agency remittance batches are matched by the core (no import route).
 --   L4 the period close's snapshot carries no suspense line yet;
 --      suspense_held_as_of gives the figure.
---   L5 an agency-paid deposit's return is not yet routed to the agency by the
---      database (-15 returns a deposit by its events, not a refund payment).
+--   L5 agency money that becomes a deposit (an agency's deposit payment, or a
+--      receipt resolved as one) is returned by -15's deposit events, not by a
+--      refund payment: the database does not route it to the agency.
+--   L6 (r2) a credit of origin transfer, adjustment, deposit_refund, other
+--      (any origin but overpayment and the two reissues) carries no typed
+--      source: cash_money_agency reads it as the customer's money. The core
+--      must not move agency money into such a credit until a typed source
+--      exists. Ryan's 11-07 rule governs L5 and L6; the database enforces it
+--      on refunds of payments, overpayment credits and the two reissues.
+--   Not tested: cash_money_agency's 1,000-step bound (a 1,000-deep reissue
+--      chain needs an escheat per link; the bound is -22's depth rule).
+--
+-- Locks (r2: lesson lock-order-as-a-rule). Advisory, cash_source_lock_key
+--   with kinds suspense_receipt, agency_pledge and agency. Order: the
+--   tenant's close head (the freeze), the payment's own -23 locks, then the
+--   receipt or pledge. A multi-row statement takes them in row order, so
+--   two statements can deadlock: every writer retries 40P01 and 40001, as
+--   -23's cash contract says. Every writer that reads under a lock is
+--   pinned to READ COMMITTED (r2: the provider check too).
 --
 -- PRECONDITION. v5.4.2-23 and v5.4.2-27 applied. No agency_pledge enrollment
 --   and no agency payment exist. Applied by a superuser, under READ
@@ -159,7 +182,6 @@ CREATE TABLE public.assistance_agencies (
     created_at      timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT assistance_agencies_pkey PRIMARY KEY (id),
     CONSTRAINT assistance_agencies_id_tenant_key UNIQUE (id, tenant_id),
-    CONSTRAINT assistance_agencies_tenant_name_key UNIQUE (tenant_id, name),
     CONSTRAINT assistance_agencies_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants (id),
     CONSTRAINT assistance_agencies_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT assistance_agencies_retired_by_fkey FOREIGN KEY (retired_by, tenant_id) REFERENCES public.users (id, tenant_id),
@@ -172,6 +194,8 @@ CREATE TABLE public.assistance_agencies (
                AND (status = 'retired') = (retired_by IS NOT NULL)
                AND (status <> 'retired' OR coalesce(retired_reason ~ '[[:alnum:]]', false)))
 );
+-- r2 (Opus N1, Fable N7): a retired agency's name may be used again.
+CREATE UNIQUE INDEX assistance_agencies_tenant_name_key ON public.assistance_agencies (tenant_id, name) WHERE status = 'active';
 COMMENT ON TABLE public.assistance_agencies IS
     'v5.4.2-24 (design section 3). An outside organization that pays toward a customer''s bill: the federal energy-assistance program''s local agencies (CEAP in Texas), state crisis funds, charities, other government funds. A relative or landlord paying is the customer''s own payment. Never deleted or edited: an agency is retired by a stamp (status, retired_by, retired_reason; retired_at is the database''s). A retired agency takes no new pledge or agreement; its money is still taken.';
 
@@ -220,6 +244,7 @@ CREATE TABLE public.assistance_agency_agreements (
     CONSTRAINT assistance_agency_agreements_days_check
         CHECK (pledge_payment_days > 0 AND pledge_payment_days <= 366 AND eligibility_hold_business_days >= 0 AND eligibility_hold_business_days <= 60),
     CONSTRAINT assistance_agency_agreements_source_check CHECK (source_reference ~ '[[:alnum:]]'),
+    CONSTRAINT assistance_agency_agreements_dates_check CHECK (pg_catalog.isfinite(effective_from)),
     CONSTRAINT assistance_agency_agreements_withdrawn_check
         CHECK ((withdrawn_at IS NULL) = (withdrawn_by IS NULL)
                AND (withdrawn_at IS NULL) = (withdrawn_reason IS NULL)
@@ -320,6 +345,7 @@ CREATE TABLE public.suspense_receipts (
     CONSTRAINT suspense_receipts_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT suspense_receipts_number_check CHECK (receipt_number ~ '[[:alnum:]]'),
     CONSTRAINT suspense_receipts_amount_check CHECK (amount > 0),
+    CONSTRAINT suspense_receipts_dates_check CHECK (pg_catalog.isfinite(received_on) AND (check_date IS NULL OR pg_catalog.isfinite(check_date))),
     CONSTRAINT suspense_receipts_channel_check
         CHECK (channel = ANY (ARRAY['portal'::text, 'mobile_app'::text, 'agent_phone'::text, 'ivr'::text, 'walk_in'::text, 'mail'::text, 'auto_pay'::text, 'batch_file'::text, 'api'::text, 'lockbox'::text])),
     CONSTRAINT suspense_receipts_source_system_check
@@ -377,6 +403,7 @@ CREATE TABLE public.suspense_receipt_dispositions (
     reason                 text,
     recorded_by            uuid NOT NULL,
     undoes_disposition_id  uuid,
+    returned_payment_id    uuid,
     created_at             timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT suspense_receipt_dispositions_pkey PRIMARY KEY (id),
     CONSTRAINT suspense_receipt_dispositions_id_receipt_key UNIQUE (id, tenant_id, suspense_receipt_id),
@@ -385,21 +412,31 @@ CREATE TABLE public.suspense_receipt_dispositions (
     CONSTRAINT suspense_receipt_dispositions_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT suspense_receipt_dispositions_undoes_fkey
         FOREIGN KEY (undoes_disposition_id, tenant_id, suspense_receipt_id) REFERENCES public.suspense_receipt_dispositions (id, tenant_id, suspense_receipt_id),
+    -- r2 (Codex B3, Opus B1): the payment whose money a misposting return
+    -- gives back; a payment of the same receipt (enforce_suspense_disposition).
+    CONSTRAINT suspense_receipt_dispositions_returned_payment_fkey
+        FOREIGN KEY (returned_payment_id, tenant_id) REFERENCES public.payments (id, tenant_id),
     CONSTRAINT suspense_receipt_dispositions_not_self_check CHECK (undoes_disposition_id IS DISTINCT FROM id),
+    CONSTRAINT suspense_receipt_dispositions_dates_check CHECK (pg_catalog.isfinite(disposed_on)),
     CONSTRAINT suspense_receipt_dispositions_kind_check
         CHECK (CASE kind
                  WHEN 'returned_to_sender' THEN coalesce(instrument_reference ~ '[[:alnum:]]', false) AND return_code IS NULL AND jurisdiction IS NULL AND report_reference IS NULL
                  WHEN 'bank_returned' THEN (return_code IS NULL OR return_code ~ '^R[0-9]{2}$') AND jurisdiction IS NULL AND report_reference IS NULL
                  WHEN 'escheated' THEN coalesce(jurisdiction ~ '^[A-Z]{2}$', false) AND coalesce(report_reference ~ '[[:alnum:]]', false) AND return_code IS NULL
                  WHEN 'undo' THEN return_code IS NULL AND jurisdiction IS NULL AND report_reference IS NULL
+                 WHEN 'misposting_returned' THEN return_code IS NULL AND jurisdiction IS NULL AND report_reference IS NULL
                  ELSE false END),
     -- An undo, and only an undo, is negative and names the row it undoes.
     CONSTRAINT suspense_receipt_dispositions_undo_check
-        CHECK (amount <> 0 AND (amount < 0) = (kind = 'undo') AND (kind = 'undo') = (undoes_disposition_id IS NOT NULL)),
+        CHECK (amount <> 0 AND (amount < 0) = (kind IN ('undo', 'misposting_returned'))
+               AND (kind = 'undo') = (undoes_disposition_id IS NOT NULL)
+               AND (kind = 'misposting_returned') = (returned_payment_id IS NOT NULL)),
     CONSTRAINT suspense_receipt_dispositions_reason_check CHECK (coalesce(reason ~ '[[:alnum:]]', false))
 );
 CREATE INDEX idx_suspense_dispositions_receipt ON public.suspense_receipt_dispositions (suspense_receipt_id, disposed_on);
 CREATE INDEX idx_suspense_dispositions_undoes ON public.suspense_receipt_dispositions (undoes_disposition_id) WHERE undoes_disposition_id IS NOT NULL;
+CREATE UNIQUE INDEX suspense_receipt_dispositions_one_return_per_payment
+    ON public.suspense_receipt_dispositions (returned_payment_id) WHERE returned_payment_id IS NOT NULL;
 COMMENT ON TABLE public.suspense_receipt_dispositions IS
     'v5.4.2-24 (CI-053; design section 2.3). Money leaving a receipt other than as a payment: returned_to_sender (the outgoing instrument), bank_returned (the bank took it back while in suspense; an R-code where ACH), escheated (reported as unclaimed property: the state and the report; when is the core''s), and undo (a negative row naming one of the same receipt, dated on or after it, the undos of one at most its amount; an undo is never undone: a refund check that comes back uncashed). Every row says why and who. Add-only; disposed_on is frozen by the close. The receipt''s cap: on every date, its payments (not voided or reversed) and its dispositions never exceed it.';
 
@@ -430,6 +467,7 @@ CREATE TABLE public.agency_pledges (
     CONSTRAINT agency_pledges_invoice_fkey FOREIGN KEY (toward_invoice_id, tenant_id, customer_id) REFERENCES public.invoices (id, tenant_id, customer_id),
     CONSTRAINT agency_pledges_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT agency_pledges_amount_check CHECK (amount > 0),
+    CONSTRAINT agency_pledges_dates_check CHECK (pg_catalog.isfinite(pledged_on)),
     CONSTRAINT agency_pledges_form_check CHECK (form = ANY (ARRAY['written'::text, 'verbal'::text, 'portal'::text])),
     CONSTRAINT agency_pledges_pay_by_check CHECK ((agreement_id IS NULL) = (pay_by IS NULL) AND (pay_by IS NULL OR pay_by > pledged_on))
 );
@@ -455,7 +493,7 @@ CREATE TABLE public.agency_pledge_events (
     CONSTRAINT agency_pledge_events_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES public.agency_pledges (id, tenant_id),
     CONSTRAINT agency_pledge_events_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT agency_pledge_events_event_check CHECK (event = ANY (ARRAY['withdrawn'::text, 'lapsed'::text, 'recorded_in_error'::text])),
-    CONSTRAINT agency_pledge_events_event_on_check CHECK ((event = 'recorded_in_error') = (event_on IS NULL)),
+    CONSTRAINT agency_pledge_events_event_on_check CHECK ((event = 'recorded_in_error') = (event_on IS NULL) AND (event_on IS NULL OR pg_catalog.isfinite(event_on))),
     CONSTRAINT agency_pledge_events_reason_check CHECK (coalesce(reason ~ '[[:alnum:]]', false))
 );
 COMMENT ON TABLE public.agency_pledge_events IS
@@ -570,7 +608,7 @@ BEGIN
         SELECT e.d,
                coalesce((SELECT sum(p.amount) FROM public.payments p
                           WHERE p.suspense_receipt_id = p_receipt_id AND p.payment_date <= e.d
-                            AND p.status NOT IN ('voided', 'reversed')), 0)
+                            AND p.status <> 'voided'), 0)
              + coalesce((SELECT sum(x.amount) FROM public.suspense_receipt_dispositions x
                           WHERE x.suspense_receipt_id = p_receipt_id AND x.disposed_on <= e.d), 0) AS o
           FROM (SELECT p.payment_date AS d FROM public.payments p WHERE p.suspense_receipt_id = p_receipt_id
@@ -588,10 +626,45 @@ $$;
 REVOKE ALL ON FUNCTION public.check_suspense_receipt_cap(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.check_suspense_receipt_cap(uuid) TO tally_app;
 
+-- r2 (Codex B4; -23's check_cash_order): a row that spends a receipt's money
+-- is recorded no earlier than every row already on the receipt (its
+-- dispositions, its payments, a payment's void), so no recorded instant
+-- reads a draw without the release it spent. Called under the receipt's
+-- lock. A row whose transaction began before the other committed retries
+-- (40001); a chosen time earlier than it is refused (23514).
+CREATE OR REPLACE FUNCTION public.check_suspense_recorded_order(p_receipt_id uuid, p_self uuid, p_at timestamp with time zone, p_what text) RETURNS void
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_later timestamp with time zone;
+BEGIN
+    SELECT max(t) INTO v_later FROM (
+        SELECT d.created_at AS t FROM public.suspense_receipt_dispositions d WHERE d.suspense_receipt_id = p_receipt_id AND d.id <> p_self
+        UNION ALL SELECT p.created_at FROM public.payments p WHERE p.suspense_receipt_id = p_receipt_id AND p.id <> p_self
+        UNION ALL SELECT p.status_recorded_at FROM public.payments p WHERE p.suspense_receipt_id = p_receipt_id AND p.status = 'voided') x
+     WHERE x.t > p_at;
+    IF v_later IS NOT NULL THEN
+        IF p_at = pg_catalog.now() THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s on receipt %s: a row of the receipt was recorded at %s, after this transaction began (%s); retry (v5.4.2-24)', p_what, p_receipt_id, v_later, p_at),
+                ERRCODE = 'serialization_failure';
+        END IF;
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s on receipt %s is recorded at %s, before a row of the receipt already recorded at %s: money is spent only after what it spends is known (v5.4.2-24)', p_what, p_receipt_id, p_at, v_later),
+            ERRCODE = 'check_violation';
+    END IF;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.check_suspense_recorded_order(uuid, uuid, timestamp with time zone, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.check_suspense_recorded_order(uuid, uuid, timestamp with time zone, text) TO tally_app;
+
 -- One provider transaction across receipts and payments (CI-055). A receipt
 -- is checked against receipts and payments; a payment against receipts only
 -- (a second payment of one transaction is -19's unique index, which runs
--- after the CHECKs that name a mislabelled row first).
+-- after the CHECKs that name a mislabelled row first). r2 (Codex B2): a row is
+-- excluded only within its own table: a receipt and a payment may share a
+-- uuid.
 CREATE OR REPLACE FUNCTION public.check_provider_transaction_once(p_tenant uuid, p_source text, p_txn text, p_amount numeric, p_self uuid, p_self_is_receipt boolean) RETURNS void
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
@@ -600,12 +673,15 @@ BEGIN
     -- Money in only: a refund's provider id has its own space (-23's
     -- payments_provider_refund_once).
     IF p_txn IS NULL OR p_amount <= 0 THEN RETURN; END IF;
+    -- r2 (Codex B5, Opus B3, Fable B1): the lock orders two writers only if
+    -- each reads what the other committed.
+    PERFORM public.suspense_require_read_committed('a provider transaction id');
     PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('v5.4.2-24 txn ' || p_tenant::text || ' ' || p_source || ' ' || p_txn, 0));
     IF EXISTS (SELECT 1 FROM public.suspense_receipts r
-                WHERE r.tenant_id = p_tenant AND r.source_system = p_source AND r.provider_transaction_id = p_txn AND r.id IS DISTINCT FROM p_self)
+                WHERE r.tenant_id = p_tenant AND r.source_system = p_source AND r.provider_transaction_id = p_txn
+                  AND NOT (p_self_is_receipt AND r.id = p_self))
        OR (p_self_is_receipt AND EXISTS (SELECT 1 FROM public.payments p
-                WHERE p.tenant_id = p_tenant AND p.source_system = p_source AND p.provider_transaction_id = p_txn AND p.amount > 0
-                  AND p.id IS DISTINCT FROM p_self)) THEN
+                WHERE p.tenant_id = p_tenant AND p.source_system = p_source AND p.provider_transaction_id = p_txn AND p.amount > 0)) THEN
         RAISE EXCEPTION USING
             MESSAGE = format('provider transaction %s from %s is already recorded as a receipt or a payment: money is recorded once (CI-055, v5.4.2-24)', p_txn, p_source),
             ERRCODE = 'unique_violation';
@@ -637,9 +713,37 @@ BEGIN
                 MESSAGE = format('payment %s: %s is written once, at insert (v5.4.2-24) — reverse the payment and post a new one', OLD.payment_number, array_to_string(v_changed, ', ')),
                 ERRCODE = 'restrict_violation';
         END IF;
+        -- r2 (Codex B1, Fable B2): a provider id written later is checked
+        -- against the receipts as at insert.
+        IF OLD.provider_transaction_id IS NULL AND NEW.provider_transaction_id IS NOT NULL THEN
+            PERFORM public.check_provider_transaction_once(NEW.tenant_id, NEW.source_system, NEW.provider_transaction_id, NEW.amount, NEW.id, false);
+        END IF;
+        IF NEW.suspense_receipt_id IS NOT NULL THEN
+            SELECT * INTO r FROM public.suspense_receipts x WHERE x.id = NEW.suspense_receipt_id;
+            -- r2 (Codex B1): a receipt's payment keeps the receipt's
+            -- instrument; -23's write-once-later columns may not drift from it.
+            IF NEW.channel IS DISTINCT FROM r.channel OR NEW.source_system IS DISTINCT FROM r.source_system
+               OR NEW.reference_number IS DISTINCT FROM r.reference_number OR NEW.check_number IS DISTINCT FROM r.check_number
+               OR NEW.check_date IS DISTINCT FROM r.check_date OR NEW.check_bank_name IS DISTINCT FROM r.check_bank_name THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('payment %s carries the receipt''s instrument: channel, source system, reference, check number, date and bank as receipt %s records them, at insert and after (v5.4.2-24)', NEW.payment_number, r.receipt_number),
+                    ERRCODE = 'check_violation';
+            END IF;
+            -- r2 (Codex B3, Opus B1): a payment whose money went back to the
+            -- receipt as misposted takes no bank return code afterwards
+            -- (the receipt's lock orders this with the return).
+            IF NEW.return_code IS DISTINCT FROM OLD.return_code THEN
+                PERFORM public.suspense_require_read_committed('a return code on a receipt''s payment');
+                PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('suspense_receipt', NEW.suspense_receipt_id));
+                IF EXISTS (SELECT 1 FROM public.suspense_receipt_dispositions d WHERE d.returned_payment_id = NEW.id) THEN
+                    RAISE EXCEPTION USING
+                        MESSAGE = format('payment %s was returned to suspense as misposted: its money is the receipt''s again, so it takes no bank return code (v5.4.2-24)', NEW.payment_number),
+                        ERRCODE = 'check_violation';
+                END IF;
+            END IF;
+        END IF;
         -- The effective date of a receipt's payment, when first written.
         IF NEW.suspense_receipt_id IS NOT NULL AND NEW.effective_date IS DISTINCT FROM OLD.effective_date AND NEW.effective_date IS NOT NULL THEN
-            SELECT * INTO r FROM public.suspense_receipts x WHERE x.id = NEW.suspense_receipt_id;
             IF NEW.effective_date > r.received_on THEN
                 RAISE EXCEPTION USING
                     MESSAGE = format('payment %s from receipt %s is effective %s: a payment from a receipt is effective no later than %s, the day the money came (CI-058, v5.4.2-24)', NEW.payment_number, r.receipt_number, NEW.effective_date, r.received_on),
@@ -701,6 +805,14 @@ BEGIN
                 MESSAGE = format('payment %s: a pledge is paid by the pledge''s agency and customer (pledge %s) (v5.4.2-24)', NEW.payment_number, l.id),
                 ERRCODE = 'check_violation';
         END IF;
+        -- r2 (Codex N2; inventory L1): a pledge toward a bill is paid by a
+        -- payment restricted to that bill (D7-1: the restriction is stored on
+        -- the payment).
+        IF l.toward_invoice_id IS NOT NULL AND NEW.restricted_to_invoice_id IS DISTINCT FROM l.toward_invoice_id THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('payment %s: pledge %s is toward bill %s, so its payment is restricted to that bill (D7-1, v5.4.2-24)', NEW.payment_number, l.id, l.toward_invoice_id),
+                ERRCODE = 'check_violation';
+        END IF;
         IF EXISTS (SELECT 1 FROM public.agency_pledge_events e WHERE e.agency_pledge_id = l.id AND e.event = 'recorded_in_error') THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('payment %s: pledge %s was recorded in error; no payment names it (v5.4.2-24)', NEW.payment_number, l.id),
@@ -739,6 +851,7 @@ CREATE OR REPLACE FUNCTION public.enforce_payment_suspense_cap() RETURNS trigger
     AS $$
 BEGIN
     PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('suspense_receipt', NEW.suspense_receipt_id));
+    PERFORM public.check_suspense_recorded_order(NEW.suspense_receipt_id, NEW.id, NEW.created_at, 'a payment from a receipt');
     PERFORM public.check_suspense_receipt_cap(NEW.suspense_receipt_id);
     RETURN NULL;
 END;
@@ -773,9 +886,11 @@ CREATE OR REPLACE FUNCTION public.enforce_suspense_disposition() RETURNS trigger
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    r       public.suspense_receipts%ROWTYPE;
-    u       public.suspense_receipt_dispositions%ROWTYPE;
-    v_undos numeric;
+    r        public.suspense_receipts%ROWTYPE;
+    u        public.suspense_receipt_dispositions%ROWTYPE;
+    v_pay    public.payments%ROWTYPE;
+    v_rev_on date;
+    v_undos  numeric;
 BEGIN
     PERFORM public.suspense_require_read_committed('a suspense disposition');
     PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('suspense_receipt', NEW.suspense_receipt_id));
@@ -790,9 +905,41 @@ BEGIN
             MESSAGE = format('a disposition of receipt %s is dated %s: money is dated no later than today (UTC+14) (v5.4.2-24)', r.receipt_number, NEW.disposed_on),
             ERRCODE = 'check_violation';
     END IF;
+    IF NEW.amount > 0 THEN
+        PERFORM public.check_suspense_recorded_order(NEW.suspense_receipt_id, NEW.id, NEW.created_at, 'a disposition');
+    END IF;
+    IF NEW.kind = 'misposting_returned' THEN
+        -- r2 (Codex B3, Opus B1, B2): money comes back to suspense only by
+        -- this act, for a payment of the receipt reversed as posted to the
+        -- wrong customer: never a bank's take-back (a return code), dated on
+        -- or after the reversal, at most the payment, once (the index).
+        SELECT * INTO v_pay FROM public.payments x WHERE x.id = NEW.returned_payment_id;
+        IF NOT FOUND OR v_pay.suspense_receipt_id IS DISTINCT FROM NEW.suspense_receipt_id THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a misposting return names a payment made from receipt %s (v5.4.2-24)', r.receipt_number),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF v_pay.status <> 'reversed' OR v_pay.return_code IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('payment %s is %s%s: only a payment reversed as posted to the wrong customer gives its money back to the receipt; a bank''s take-back keeps it spent (v5.4.2-24)',
+                                 v_pay.payment_number, v_pay.status, CASE WHEN v_pay.return_code IS NOT NULL THEN ' with return code ' || v_pay.return_code ELSE '' END),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF -NEW.amount > v_pay.amount THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a misposting return gives back at most payment %s''s %s, not %s (v5.4.2-24)', v_pay.payment_number, v_pay.amount, -NEW.amount),
+                ERRCODE = 'check_violation';
+        END IF;
+        SELECT l.transaction_date INTO v_rev_on FROM public.account_ledger l WHERE l.id = v_pay.status_cause_id;
+        IF v_rev_on IS NULL OR NEW.disposed_on < v_rev_on THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a misposting return of payment %s is dated on or after its reversal (%s), not %s (v5.4.2-24)', v_pay.payment_number, v_rev_on, NEW.disposed_on),
+                ERRCODE = 'check_violation';
+        END IF;
+    END IF;
     IF NEW.kind = 'undo' THEN
         SELECT * INTO u FROM public.suspense_receipt_dispositions x WHERE x.id = NEW.undoes_disposition_id;
-        IF NOT FOUND OR u.suspense_receipt_id <> NEW.suspense_receipt_id OR u.kind = 'undo' THEN
+        IF NOT FOUND OR u.suspense_receipt_id <> NEW.suspense_receipt_id OR u.kind IN ('undo', 'misposting_returned') THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('an undo names a disposition of the same receipt that is not itself an undo (receipt %s) (v5.4.2-24)', r.receipt_number),
                 ERRCODE = 'check_violation';
@@ -851,6 +998,13 @@ BEGIN
             MESSAGE = format('agency %s is not visible in this tenant (v5.4.2-24)', NEW.agency_id),
             ERRCODE = 'foreign_key_violation', CONSTRAINT = 'agency_pledges_agency_fkey';
     END IF;
+    -- r2 (Opus N2): the customer is of the pledge's tenant, also for a load
+    -- with foreign keys off.
+    IF NOT EXISTS (SELECT 1 FROM public.customers c WHERE c.id = NEW.customer_id AND c.tenant_id = NEW.tenant_id) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('customer %s is not visible in this tenant (v5.4.2-24)', NEW.customer_id),
+            ERRCODE = 'foreign_key_violation', CONSTRAINT = 'agency_pledges_customer_fkey';
+    END IF;
     NEW.agreement_id := public.assistance_agreement_in_force(NEW.agency_id, NEW.pledged_on);
     IF NEW.agreement_id IS NOT NULL THEN
         SELECT g.pledge_payment_days INTO v_days FROM public.assistance_agency_agreements g WHERE g.id = NEW.agreement_id;
@@ -889,6 +1043,11 @@ BEGIN
     PERFORM public.suspense_require_read_committed('a pledge event');
     PERFORM pg_catalog.pg_advisory_xact_lock(public.cash_source_lock_key('agency_pledge', NEW.agency_pledge_id));
     SELECT * INTO l FROM public.agency_pledges x WHERE x.id = NEW.agency_pledge_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('pledge %s is not visible in this tenant (v5.4.2-24)', NEW.agency_pledge_id),
+            ERRCODE = 'foreign_key_violation', CONSTRAINT = 'agency_pledge_events_pledge_fkey';
+    END IF;
     IF NEW.event_on IS NOT NULL AND (NEW.event_on < l.pledged_on OR NEW.event_on > public.suspense_today_latest()) THEN
         RAISE EXCEPTION USING
             MESSAGE = format('pledge %s: an event is dated on or after the pledge (%s) and no later than today (UTC+14), not %s (v5.4.2-24)', l.id, l.pledged_on, NEW.event_on),
@@ -911,7 +1070,7 @@ BEGIN
     IF NEW.event = 'lapsed' THEN
         IF l.pay_by IS NULL THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('pledge %s has no agreement and so no pay_by: it lapses only by a date; record its agreement, or withdraw it (v5.4.2-24)', l.id),
+                MESSAGE = format('pledge %s was recorded with no agreement and so has no pay_by: it cannot lapse; withdraw it, or record it in error and record it again once its agreement is on file (v5.4.2-24)', l.id),
                 ERRCODE = 'check_violation';
         END IF;
         IF NEW.event_on <= l.pay_by THEN
@@ -942,13 +1101,18 @@ CREATE OR REPLACE FUNCTION public.suspense_days_setting_valid(p_value jsonb) RET
     SET search_path = public, pg_temp
     AS $$
     SELECT p_value IS NULL OR p_value = 'null'::jsonb
-        OR (jsonb_typeof(p_value) = 'number' AND (p_value #>> '{}') ~ '^[1-9][0-9]{0,4}$')
+        OR (jsonb_typeof(p_value) = 'number' AND (p_value #>> '{}') ~ '^[1-9][0-9]{0,3}$')
 $$;
 REVOKE ALL ON FUNCTION public.suspense_days_setting_valid(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.suspense_days_setting_valid(jsonb) TO tally_app, tally_core;
 ALTER TABLE public.tenants ADD CONSTRAINT tenants_suspense_days_check
     CHECK (public.suspense_days_setting_valid(settings -> 'suspense_service_level_days')
            AND public.suspense_days_setting_valid(settings -> 'suspense_retention_days'));
+-- r2 (Opus S2; -22's value CHECK on its own key): a row written straight into
+-- the history is held to the same rule.
+ALTER TABLE public.tenant_configuration_history ADD CONSTRAINT tenant_configuration_history_suspense_days_check
+    CHECK (config_key NOT IN ('settings.suspense_service_level_days', 'settings.suspense_retention_days')
+           OR public.suspense_days_setting_valid(new_value));
 
 CREATE OR REPLACE FUNCTION public.suspense_setting_days_as_of(p_tenant_id uuid, p_key text, p_at timestamp with time zone) RETURNS integer
     LANGUAGE plpgsql STABLE
@@ -967,8 +1131,15 @@ BEGIN
      WHERE h.tenant_id = p_tenant_id AND h.config_key = 'settings.' || p_key AND h.effective_from <= p_at
      ORDER BY h.effective_from DESC, h.seq DESC
      LIMIT 1;
-    IF v_val IS NULL OR jsonb_typeof(v_val) <> 'number' THEN
+    IF v_val IS NULL OR v_val = 'null'::jsonb THEN
         RETURN NULL;
+    END IF;
+    -- r2 (Opus S2): a value recorded outside the tenants row is held to the
+    -- same rule (the history CHECK); one that is not is raised, never cast.
+    IF NOT public.suspense_days_setting_valid(v_val) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: tenant %s''s recorded value %s is not a whole number of days from 1 to 9999 (v5.4.2-24)', p_key, p_tenant_id, v_val),
+            ERRCODE = 'invalid_parameter_value';
     END IF;
     RETURN (v_val #>> '{}')::integer;
 END;
@@ -1006,7 +1177,7 @@ BEGIN
       CROSS JOIN LATERAL (SELECT
             coalesce((SELECT sum(p.amount) FROM public.payments p
                        WHERE p.suspense_receipt_id = r.id AND p.payment_date <= p_on AND p.created_at <= p_recorded_at
-                         AND NOT (p.status IN ('voided', 'reversed') AND p.status_recorded_at <= p_recorded_at)), 0) AS pays,
+                         AND NOT (p.status = 'voided' AND p.status_recorded_at <= p_recorded_at)), 0) AS pays,
             coalesce((SELECT sum(d.amount) FROM public.suspense_receipt_dispositions d
                        WHERE d.suspense_receipt_id = r.id AND d.disposed_on <= p_on AND d.created_at <= p_recorded_at), 0) AS disp) x
      WHERE r.id = p_receipt_id AND r.received_on <= p_on AND r.created_at <= p_recorded_at;
@@ -1142,6 +1313,24 @@ CREATE TRIGGER enforce_enrollment_not_agency_pledge BEFORE INSERT OR UPDATE ON p
     FOR EACH ROW EXECUTE FUNCTION public.enforce_enrollment_not_agency_pledge();
 ALTER TABLE public.customer_program_enrollments ENABLE ALWAYS TRIGGER enforce_enrollment_not_agency_pledge;
 
+-- r2 (Codex B6): a row's recorded instant is finite and already reached, for
+-- every role: a history load keeps its own time (stamp_log_created_at), but
+-- one at infinity or in the future would hide the row from every reader.
+CREATE OR REPLACE FUNCTION public.enforce_suspense_recorded_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    IF NEW.created_at IS NULL OR NOT pg_catalog.isfinite(NEW.created_at) OR NEW.created_at > pg_catalog.clock_timestamp() THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: a row is recorded at a finite time already reached, not %s (v5.4.2-24)', TG_TABLE_NAME, NEW.created_at),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.enforce_suspense_recorded_at() FROM PUBLIC, tally_app, tally_core;
+
 -- ----------------------------------------------------------------------------
 -- 10. Shared plumbing on the new tables: stamps, add-only, retention, freeze,
 --     row-level security
@@ -1154,6 +1343,8 @@ BEGIN
                              'suspense_receipt_dispositions', 'agency_pledges', 'agency_pledge_events'] LOOP
         EXECUTE format('CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.%I FOR EACH ROW EXECUTE FUNCTION public.stamp_log_created_at()', t);
         EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER a_stamp_created_at', t);
+        EXECUTE format('CREATE TRIGGER b_enforce_recorded_at BEFORE INSERT ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_suspense_recorded_at()', t);
+        EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER b_enforce_recorded_at', t);
         EXECUTE format('CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_no_hard_delete()', t);
         EXECUTE format('ALTER TABLE public.%I ENABLE ALWAYS TRIGGER no_hard_delete', t);
         EXECUTE format('CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.%I FOR EACH STATEMENT EXECUTE FUNCTION public.enforce_no_hard_delete()', t);
@@ -1214,6 +1405,115 @@ DECLARE
         'CREATE TRIGGER enforce_enrollment_not_agency_pledge BEFORE INSERT OR UPDATE ON public.customer_program_enrollments FOR EACH ROW EXECUTE FUNCTION enforce_enrollment_not_agency_pledge()',
         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.suspense_receipts FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''received_on'')',
         'CREATE TRIGGER a_enforce_accounting_freeze BEFORE INSERT ON public.suspense_receipt_dispositions FOR EACH ROW EXECUTE FUNCTION enforce_accounting_freeze(''disposed_on'')'];
+    -- r2 (Codex S1, Opus S1, Fable S1): the constraints and unique indexes,
+    -- exactly (PostgreSQL 16's rendering), and the bodies of the guards and
+    -- readers by md5 (filled by tests/v5.4.2-24/fill-body-md5.py).
+    c_constraints CONSTANT text[] := ARRAY[
+        'agency_pledge_events agency_pledge_events_event_check CHECK ((event = ANY (ARRAY[''withdrawn''::text, ''lapsed''::text, ''recorded_in_error''::text])))',
+        'agency_pledge_events agency_pledge_events_event_on_check CHECK ((((event = ''recorded_in_error''::text) = (event_on IS NULL)) AND ((event_on IS NULL) OR isfinite(event_on))))',
+        'agency_pledge_events agency_pledge_events_one_per_pledge UNIQUE (agency_pledge_id)',
+        'agency_pledge_events agency_pledge_events_pkey PRIMARY KEY (id)',
+        'agency_pledge_events agency_pledge_events_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES agency_pledges(id, tenant_id)',
+        'agency_pledge_events agency_pledge_events_reason_check CHECK (COALESCE((reason ~ ''[[:alnum:]]''::text), false))',
+        'agency_pledge_events agency_pledge_events_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'agency_pledge_events agency_pledge_events_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'agency_pledges agency_pledges_agency_fkey FOREIGN KEY (agency_id, tenant_id) REFERENCES assistance_agencies(id, tenant_id)',
+        'agency_pledges agency_pledges_agreement_fkey FOREIGN KEY (agreement_id, tenant_id) REFERENCES assistance_agency_agreements(id, tenant_id)',
+        'agency_pledges agency_pledges_amount_check CHECK ((amount > (0)::numeric))',
+        'agency_pledges agency_pledges_customer_fkey FOREIGN KEY (customer_id, tenant_id) REFERENCES customers(id, tenant_id)',
+        'agency_pledges agency_pledges_dates_check CHECK (isfinite(pledged_on))',
+        'agency_pledges agency_pledges_form_check CHECK ((form = ANY (ARRAY[''written''::text, ''verbal''::text, ''portal''::text])))',
+        'agency_pledges agency_pledges_id_tenant_key UNIQUE (id, tenant_id)',
+        'agency_pledges agency_pledges_invoice_fkey FOREIGN KEY (toward_invoice_id, tenant_id, customer_id) REFERENCES invoices(id, tenant_id, customer_id)',
+        'agency_pledges agency_pledges_pay_by_check CHECK ((((agreement_id IS NULL) = (pay_by IS NULL)) AND ((pay_by IS NULL) OR (pay_by > pledged_on))))',
+        'agency_pledges agency_pledges_pkey PRIMARY KEY (id)',
+        'agency_pledges agency_pledges_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'agency_pledges agency_pledges_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'assistance_agencies assistance_agencies_id_tenant_key UNIQUE (id, tenant_id)',
+        'assistance_agencies assistance_agencies_name_check CHECK ((name ~ ''[[:alnum:]]''::text))',
+        'assistance_agencies assistance_agencies_pkey PRIMARY KEY (id)',
+        'assistance_agencies assistance_agencies_program_kind_check CHECK ((program_kind = ANY (ARRAY[''liheap_ceap''::text, ''state_crisis''::text, ''charity''::text, ''government_other''::text])))',
+        'assistance_agencies assistance_agencies_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'assistance_agencies assistance_agencies_retired_by_fkey FOREIGN KEY (retired_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'assistance_agencies assistance_agencies_retired_check CHECK ((((status = ''retired''::text) = (retired_at IS NOT NULL)) AND ((status = ''retired''::text) = (retired_by IS NOT NULL)) AND ((status <> ''retired''::text) OR COALESCE((retired_reason ~ ''[[:alnum:]]''::text), false))))',
+        'assistance_agencies assistance_agencies_status_check CHECK ((status = ANY (ARRAY[''active''::text, ''retired''::text])))',
+        'assistance_agencies assistance_agencies_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'assistance_agency_agreements assistance_agency_agreements_agency_fkey FOREIGN KEY (agency_id, tenant_id) REFERENCES assistance_agencies(id, tenant_id)',
+        'assistance_agency_agreements assistance_agency_agreements_dates_check CHECK (isfinite(effective_from))',
+        'assistance_agency_agreements assistance_agency_agreements_days_check CHECK (((pledge_payment_days > 0) AND (pledge_payment_days <= 366) AND (eligibility_hold_business_days >= 0) AND (eligibility_hold_business_days <= 60)))',
+        'assistance_agency_agreements assistance_agency_agreements_id_tenant_key UNIQUE (id, tenant_id)',
+        'assistance_agency_agreements assistance_agency_agreements_pkey PRIMARY KEY (id)',
+        'assistance_agency_agreements assistance_agency_agreements_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'assistance_agency_agreements assistance_agency_agreements_source_check CHECK ((source_reference ~ ''[[:alnum:]]''::text))',
+        'assistance_agency_agreements assistance_agency_agreements_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'assistance_agency_agreements assistance_agency_agreements_withdrawn_by_fkey FOREIGN KEY (withdrawn_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'assistance_agency_agreements assistance_agency_agreements_withdrawn_check CHECK ((((withdrawn_at IS NULL) = (withdrawn_by IS NULL)) AND ((withdrawn_at IS NULL) = (withdrawn_reason IS NULL)) AND ((withdrawn_reason IS NULL) OR (withdrawn_reason ~ ''[[:alnum:]]''::text))))',
+        'payments payments_agency_check CHECK (((payment_method = ''refund''::text) OR ((payer_class = ''agency''::text) = (agency_id IS NOT NULL))))',
+        'payments payments_agency_fkey FOREIGN KEY (agency_id, tenant_id) REFERENCES assistance_agencies(id, tenant_id)',
+        'payments payments_agency_pledge_check CHECK (((agency_pledge_id IS NULL) OR ((agency_id IS NOT NULL) AND (payment_method <> ''refund''::text) AND (NOT is_deposit) AND (amount > (0)::numeric))))',
+        'payments payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES agency_pledges(id, tenant_id)',
+        'payments payments_suspense_receipt_fkey FOREIGN KEY (suspense_receipt_id, tenant_id) REFERENCES suspense_receipts(id, tenant_id)',
+        'payments payments_suspense_resolution_check CHECK ((((suspense_receipt_id IS NULL) = (suspense_resolution_reason IS NULL)) AND ((suspense_receipt_id IS NULL) = (suspense_resolved_by IS NULL)) AND ((suspense_resolution_reason IS NULL) OR (suspense_resolution_reason ~ ''[[:alnum:]]''::text)) AND ((suspense_receipt_id IS NULL) OR ((payment_method <> ''refund''::text) AND (amount > (0)::numeric) AND (provider_transaction_id IS NULL)))))',
+        'payments payments_suspense_resolved_by_fkey FOREIGN KEY (suspense_resolved_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'suspense_receipt_candidates suspense_receipt_candidates_basis_check CHECK ((basis = ANY (ARRAY[''intake_match''::text, ''operator''::text])))',
+        'suspense_receipt_candidates suspense_receipt_candidates_confidence_check CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))))',
+        'suspense_receipt_candidates suspense_receipt_candidates_customer_fkey FOREIGN KEY (customer_id, tenant_id) REFERENCES customers(id, tenant_id)',
+        'suspense_receipt_candidates suspense_receipt_candidates_operator_check CHECK (((basis <> ''operator''::text) OR (recorded_by IS NOT NULL)))',
+        'suspense_receipt_candidates suspense_receipt_candidates_pkey PRIMARY KEY (id)',
+        'suspense_receipt_candidates suspense_receipt_candidates_receipt_fkey FOREIGN KEY (suspense_receipt_id, tenant_id) REFERENCES suspense_receipts(id, tenant_id)',
+        'suspense_receipt_candidates suspense_receipt_candidates_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'suspense_receipt_candidates suspense_receipt_candidates_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_dates_check CHECK (isfinite(disposed_on))',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_id_receipt_key UNIQUE (id, tenant_id, suspense_receipt_id)',
+        E'suspense_receipt_dispositions suspense_receipt_dispositions_kind_check CHECK (\nCASE kind\n    WHEN ''returned_to_sender''::text THEN (COALESCE((instrument_reference ~ ''[[:alnum:]]''::text), false) AND (return_code IS NULL) AND (jurisdiction IS NULL) AND (report_reference IS NULL))\n    WHEN ''bank_returned''::text THEN (((return_code IS NULL) OR (return_code ~ ''^R[0-9]{2}$''::text)) AND (jurisdiction IS NULL) AND (report_reference IS NULL))\n    WHEN ''escheated''::text THEN (COALESCE((jurisdiction ~ ''^[A-Z]{2}$''::text), false) AND COALESCE((report_reference ~ ''[[:alnum:]]''::text), false) AND (return_code IS NULL))\n    WHEN ''undo''::text THEN ((return_code IS NULL) AND (jurisdiction IS NULL) AND (report_reference IS NULL))\n    WHEN ''misposting_returned''::text THEN ((return_code IS NULL) AND (jurisdiction IS NULL) AND (report_reference IS NULL))\n    ELSE false\nEND)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_not_self_check CHECK ((undoes_disposition_id IS DISTINCT FROM id))',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_pkey PRIMARY KEY (id)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_reason_check CHECK (COALESCE((reason ~ ''[[:alnum:]]''::text), false))',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_receipt_fkey FOREIGN KEY (suspense_receipt_id, tenant_id) REFERENCES suspense_receipts(id, tenant_id)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_returned_payment_fkey FOREIGN KEY (returned_payment_id, tenant_id) REFERENCES payments(id, tenant_id)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_undo_check CHECK (((amount <> (0)::numeric) AND ((amount < (0)::numeric) = (kind = ANY (ARRAY[''undo''::text, ''misposting_returned''::text]))) AND ((kind = ''undo''::text) = (undoes_disposition_id IS NOT NULL)) AND ((kind = ''misposting_returned''::text) = (returned_payment_id IS NOT NULL))))',
+        'suspense_receipt_dispositions suspense_receipt_dispositions_undoes_fkey FOREIGN KEY (undoes_disposition_id, tenant_id, suspense_receipt_id) REFERENCES suspense_receipt_dispositions(id, tenant_id, suspense_receipt_id)',
+        'suspense_receipts suspense_receipts_agency_fkey FOREIGN KEY (agency_id, tenant_id) REFERENCES assistance_agencies(id, tenant_id)',
+        'suspense_receipts suspense_receipts_amount_check CHECK ((amount > (0)::numeric))',
+        'suspense_receipts suspense_receipts_channel_check CHECK ((channel = ANY (ARRAY[''portal''::text, ''mobile_app''::text, ''agent_phone''::text, ''ivr''::text, ''walk_in''::text, ''mail''::text, ''auto_pay''::text, ''batch_file''::text, ''api''::text, ''lockbox''::text])))',
+        'suspense_receipts suspense_receipts_dates_check CHECK ((isfinite(received_on) AND ((check_date IS NULL) OR isfinite(check_date))))',
+        'suspense_receipts suspense_receipts_evidence_check CHECK ((COALESCE((reference_number ~ ''[[:alnum:]]''::text), false) OR COALESCE((provider_transaction_id ~ ''[[:alnum:]]''::text), false) OR COALESCE((check_number ~ ''[[:alnum:]]''::text), false) OR COALESCE((payer_name ~ ''[[:alnum:]]''::text), false) OR COALESCE((payer_account_text ~ ''[[:alnum:]]''::text), false) OR COALESCE((evidence_reference ~ ''[[:alnum:]]''::text), false) OR (agency_id IS NOT NULL)))',
+        'suspense_receipts suspense_receipts_id_tenant_key UNIQUE (id, tenant_id)',
+        'suspense_receipts suspense_receipts_number_check CHECK ((receipt_number ~ ''[[:alnum:]]''::text))',
+        'suspense_receipts suspense_receipts_pkey PRIMARY KEY (id)',
+        'suspense_receipts suspense_receipts_recorded_by_fkey FOREIGN KEY (recorded_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'suspense_receipts suspense_receipts_source_system_check CHECK ((source_system = ANY (ARRAY[''internal''::text, ''paymentus_webhook''::text, ''stripe_webhook''::text, ''bank_lockbox''::text, ''imported''::text, ''other_webhook''::text])))',
+        'suspense_receipts suspense_receipts_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'suspense_receipts suspense_receipts_tenant_number_key UNIQUE (tenant_id, receipt_number)',
+        'tenant_configuration_history tenant_configuration_history_suspense_days_check CHECK (((config_key <> ALL (ARRAY[''settings.suspense_service_level_days''::text, ''settings.suspense_retention_days''::text])) OR suspense_days_setting_valid(new_value)))',
+        'tenants tenants_suspense_days_check CHECK ((suspense_days_setting_valid((settings -> ''suspense_service_level_days''::text)) AND suspense_days_setting_valid((settings -> ''suspense_retention_days''::text))))'];
+    c_indexes CONSTANT text[] := ARRAY[
+        'CREATE UNIQUE INDEX assistance_agencies_tenant_name_key ON public.assistance_agencies USING btree (tenant_id, name) WHERE (status = ''active''::text)',
+        'CREATE UNIQUE INDEX assistance_agency_agreements_one_per_date ON public.assistance_agency_agreements USING btree (agency_id, effective_from) WHERE (withdrawn_at IS NULL)',
+        'CREATE UNIQUE INDEX suspense_receipt_dispositions_one_return_per_payment ON public.suspense_receipt_dispositions USING btree (returned_payment_id) WHERE (returned_payment_id IS NOT NULL)',
+        'CREATE UNIQUE INDEX suspense_receipts_provider_transaction_once ON public.suspense_receipts USING btree (tenant_id, source_system, provider_transaction_id) WHERE (provider_transaction_id IS NOT NULL)'];
+    c_bodies CONSTANT text[] := ARRAY[
+        'check_suspense_receipt_cap(uuid) @e9255a17a72204568eb2c6a3a7c4fe1a',
+        'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean) @f4e411824d56f96dd58a14ee2a41266e',
+        'check_suspense_recorded_order(uuid,uuid,timestamp with time zone,text) @bd1c2850dc9e5a77c10cf470771ebbd2',
+        'cash_money_agency(uuid,uuid) @172f30f6e30c219b16925a60674aa3c8',
+        'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
+        'enforce_payment_suspense_cap() @97d373e74dde06bbb3199796f01e0592',
+        'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
+        'enforce_suspense_disposition() @7c2d552dd564d766f0d31970884fbec7',
+        'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
+        'enforce_agency_pledge_event() @0ae6ea22b51e4dec17588c2fc9be2abe',
+        'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',
+        'enforce_assistance_agency_retire() @5c45e724f14f9e08461dde409f6c8811',
+        'enforce_assistance_agreement() @081cdf4ce1a447635b61da55cc441d62',
+        'enforce_enrollment_not_agency_pledge() @e67a818838dcf71b63104d9b3fbc3536',
+        'suspense_receipt_position_as_of(uuid,date,timestamp with time zone) @852a3c343d9a2e600cdc70dc8dcd0a00',
+        'agency_pledge_position_as_of(uuid,date,timestamp with time zone) @86bae8d4e5c29c6290aaba7f46420316',
+        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone) @6bb980058626c5a9bce08c47ed3de14f',
+        'suspense_setting_days_as_of(uuid,text,timestamp with time zone) @74f4fae2c9fe2dbc72727eae00a4d7e6',
+        'suspense_days_setting_valid(jsonb) @53e567f00910dae8196a978dd5c8b305'];
 BEGIN
     -- The named guards, exactly, and ENABLE ALWAYS.
     SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
@@ -1230,6 +1530,7 @@ BEGIN
         SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
           FROM unnest(ARRAY[
                 format('CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.%s FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()', t),
+                format('CREATE TRIGGER b_enforce_recorded_at BEFORE INSERT ON public.%s FOR EACH ROW EXECUTE FUNCTION enforce_suspense_recorded_at()', t),
                 format('CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.%s FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()', t),
                 format('CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.%s FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()', t)]
                 || CASE WHEN t IN ('assistance_agencies', 'assistance_agency_agreements') THEN ARRAY[]::text[]
@@ -1276,6 +1577,47 @@ BEGIN
                 ERRCODE = 'invalid_grant_operation';
         END IF;
     END LOOP;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
+      FROM unnest(c_constraints) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k
+                        WHERE k.convalidated
+                          AND k.conrelid::regclass::text || ' ' || k.conname || ' ' || pg_catalog.pg_get_constraintdef(k.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format(E'a v5.4.2-24 constraint is missing, changed or not validated:\n  %s', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
+      FROM unnest(c_indexes) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes x
+                         JOIN pg_catalog.pg_class i ON i.relname = x.indexname AND i.relnamespace = 'public'::regnamespace
+                         JOIN pg_catalog.pg_index n ON n.indexrelid = i.oid
+                        WHERE x.schemaname = 'public' AND n.indisvalid AND x.indexdef = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format(E'a v5.4.2-24 unique index is missing, changed or not valid:\n  %s', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(split_part(d, ' @', 1), E'\n  ' ORDER BY d) INTO v_bad
+      FROM unnest(c_bodies) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc f
+                        WHERE f.oid = pg_catalog.to_regprocedure('public.' || split_part(d, ' @', 1))
+                          AND pg_catalog.md5(f.prosrc) = split_part(d, ' @', 2));
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format(E'a v5.4.2-24 function is missing or its body has changed:\n  %s', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+    -- The stamp-column UPDATE grants the setup tables need, each asked alone.
+    IF NOT has_column_privilege('tally_app', 'public.assistance_agencies', 'status', 'UPDATE')
+       OR NOT has_column_privilege('tally_app', 'public.assistance_agencies', 'retired_by', 'UPDATE')
+       OR NOT has_column_privilege('tally_app', 'public.assistance_agencies', 'retired_reason', 'UPDATE')
+       OR NOT has_column_privilege('tally_app', 'public.assistance_agency_agreements', 'withdrawn_by', 'UPDATE')
+       OR NOT has_column_privilege('tally_app', 'public.assistance_agency_agreements', 'withdrawn_reason', 'UPDATE') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = 'assistance_agencies or assistance_agency_agreements: tally_app has lost an UPDATE grant on a retirement or withdrawal stamp (v5.4.2-24)',
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
     -- R-12: every key from a new table, or from payments to one, to a table
     -- that carries tenant_id includes tenant_id on both sides, matched.
     SELECT string_agg(k.conname, ', ' ORDER BY k.conname) INTO v_bad
@@ -1299,7 +1641,9 @@ BEGIN
     IF has_function_privilege('public', 'public.check_suspense_receipt_cap(uuid)', 'EXECUTE')
        OR has_function_privilege('tally_core', 'public.check_suspense_receipt_cap(uuid)', 'EXECUTE')
        OR has_function_privilege('public', 'public.check_provider_transaction_once(uuid, text, text, numeric, uuid, boolean)', 'EXECUTE')
-       OR has_function_privilege('tally_core', 'public.check_provider_transaction_once(uuid, text, text, numeric, uuid, boolean)', 'EXECUTE') THEN
+       OR has_function_privilege('tally_core', 'public.check_provider_transaction_once(uuid, text, text, numeric, uuid, boolean)', 'EXECUTE')
+       OR has_function_privilege('public', 'public.check_suspense_recorded_order(uuid, uuid, timestamp with time zone, text)', 'EXECUTE')
+       OR has_function_privilege('tally_core', 'public.check_suspense_recorded_order(uuid, uuid, timestamp with time zone, text)', 'EXECUTE') THEN
         RAISE EXCEPTION USING
             MESSAGE = 'check_suspense_receipt_cap or check_provider_transaction_once is executable beyond tally_app (v5.4.2-24)',
             ERRCODE = 'invalid_grant_operation';
