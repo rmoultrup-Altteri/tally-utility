@@ -57,7 +57,7 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 
 ### SCN-0071 — Every figure on one bill is read at the same pair of dates
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. **The core's discipline (CI-003, REP):** the schema makes every dated lookup name both dates and binds a bill's snapshot to its run's dates, but cannot see whether one computation used one pair. The preventive net (R-16) is deferred to before the first bill-run code. Ryan ruled 2026-11-05 that a run reads every bill at one recorded instant, fixed when it starts (DECISION-LOG; roadmap R-22); a check that the run's snapshots carry that instant is not built.
+*Status:* draft (2026-11-05), not yet sent to Kyle. **The core's discipline (CI-003, REP):** the schema's money and rate lookups name both dates (the balance, payment, credit and bill-position lookups; rate items, schedules and their dependencies; tax exemptions, franchise fees, the ledger mapping, weather zones), and it binds a bill's snapshot to its run's dates, **but not every lookup takes the recorded instant** (checked on `tally` 2026-11-07, Codex r3): a premise's places and time zone, the law and tariff rule rows, rule parameters, the utility's service profile, the deposit interest row and the state-agency setting take the valid date only, and the places lookup drops a withdrawn membership even from a past date. Place lookups as known at an instant wait on v5.4.2-30 (in review, not mirrored), which still keeps a one-date form that reads as known now; the rest are not planned. The core must always use the two-date form where one exists. The schema but cannot see whether one computation used one pair. A test to add once -30 mirrors: a premise's city membership corrected while a run is in progress; the run's bills use the membership as known at the run's instant (expected to fail on today's one-date lookup). The preventive net (R-16) is deferred to before the first bill-run code. Ryan ruled 2026-11-05 that a run reads every bill at one recorded instant, fixed when it starts (DECISION-LOG; roadmap R-22); a check that the run's snapshots carry that instant is not built.
 *Rule:* a bill is computed at one pair: the date it is priced at (an ordinary bill's period's last day; a correction's elected rate date, both built, v5.4.2-10), and one recorded instant for what was known. Every bill in a billing run uses the run's instant, fixed when the run starts. A rebill is never outside a run: it sits on a correction run, which takes its own start as its instant, unless the operator elects a replay at the replaced bill's own instant (SCN-0069). Every lookup of that bill (rates, gas cost, tax, the customer's attributes, the zone) uses that same pair, and the snapshot records it. Sources: CI-003; CI-015; v5.4.2-10 (the snapshot's dates bound to its run); Ryan 11-05 (R-22).
 
 **Given** BB-02 is on R-R and BB-01 on R-U; both December bill periods run Nov 14 – Dec 13, 2026 (**invented**, the cast's mid-month periods). Bluebonnet's Oct 1, 2026 rate entry, recorded Sep 20, keyed R-R's customer charge as **$14.57** instead of the tariff's $14.75 (**invented**, as SCN-0069 does for R-U's distribution rate); the whole December period is after Oct 1, so no split method arises. The December billing run starts Wed Dec 16, 2026 at 8:00. At 9:30, while the run is going, a clerk records the correction, $14.75 in force from Oct 1.
@@ -163,12 +163,13 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 *Status:* draft (2026-11-05), not yet sent to Kyle. **Not built** (CI-004, PARTIAL): the meter's rate schedule is a single current value with no history, as are meter factors and the zone assignments. Kyle's ruling (R-09) makes the assignment a dated, add-only history with no overlaps; the rates stream's (meters, assignments). Today (c) would read the new schedule; the bill's own snapshot still holds the old one, which is why an issued bill is safe, but a correction or a back-dated query is not.
 *Rule:* which schedule a customer is billed on is a dated fact, kept as a history that is only added to, never overlapping; a computation reads the schedule in force on its date. Sources: Kyle 10-15 (R-09); CI-004.
 
-**Given** BB-02, outside the city, on schedule R-R ($14.75 a month, $3.41 per Mcf). Bluebonnet annexes BB-02's street from Mar 1, 2027 (**invented**), and the clerk moves BB-02 to R-U ($12.80, $2.96) from that date, recorded Mar 3.
+**Given** BB-02, outside the city, on schedule R-R ($14.75 a month, $3.41 per Mcf). For this scenario BB-02 reads on the last day of each month (**invented**, so the change falls on a period boundary; a change partway through a period is SCN-0001's split): the February bill covers Feb 1 – 28, 2027, the March bill Mar 1 – 31. Bluebonnet annexes BB-02's street from Mar 1, 2027 (**invented**), and the clerk moves BB-02 to R-U ($12.80, $2.96) from that date, recorded Mar 3 at 10:00.
 
-**When** (a) the March bill is computed; (b) the February bill is computed; (c) in April the February bill is found misread and rebilled, basis historical; (d) someone asks which schedule BB-02 was on in February, as known on Mar 2.
+**When** (a) the March bill is computed on Apr 1; (b) the February bill is computed on Mar 1, before the move is recorded; (c) in April the February bill is found misread and rebilled, basis historical; (d) someone asks which schedule BB-02 was on in February, as known on Mar 2; (e) someone asks which schedule BB-02 was on Mar 10, as known on Mar 2, and again as known on Mar 4.
 
 **Then**
 - (a) R-U. (b) R-R. (c) **R-R**: February is priced on the schedule in force in February. (d) R-R.
+- (e) As known on Mar 2: R-R (the move was not yet recorded). As known on Mar 4: R-U. Both answers are kept; the second does not erase the first.
 - Moving BB-02 to R-U from Mar 1 adds a record; it does not change February's.
 - A second assignment overlapping Mar 1 onwards (say, to SC-U from Mar 15 without ending R-U) is refused.
 - City sales tax follows the premise's place on each date in the same way (Kyle 11-03, answer 4; SCN-0055); that part is built (premise memberships are dated, v5.4.2-16).
@@ -180,9 +181,9 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 *Status:* draft (2026-11-05), not yet sent to Kyle. Review round 3 gap (Fable F12). **Not built** (CI-004, PARTIAL): a meter's multiplier and factors are current values with no history, like its rate schedule (SCN-0077); the rates stream's (meters, factor tables). Today (c) would read the new factor; the issued February bill's snapshot still holds the old one.
 *Rule:* a meter's multiplier and factors (pressure, heating value, temperature) are dated facts, kept as a history that is only added to; a computation reads the factor in force on its date, and every bill line shows the raw reading beside the factor that multiplied it. Sources: CI-004; Kyle 10-15 (K-02: dated zone and factor sets, assigned to the location or the meter); Ryan 11-04 (R-19: a multiplier is stored with its raw quantity).
 
-**Given** BB-03, the county courthouse (schedule G, $72.10 a month, $1.67 per Mcf; `cast.md` §2), on an elevated-pressure meter with a pressure factor of **1.0500** (**invented**). The regulator is reset on Mar 1, 2027 and the factor becomes **1.0800** (**invented**), recorded Mar 2. The February bill: raw reading 40.0 Mcf × 1.0500 = 42.0000 Mcf billed (**invented**).
+**Given** BB-03, the county courthouse (schedule G, $72.10 a month, $1.67 per Mcf; `cast.md` §2), on an elevated-pressure meter with a pressure factor of **1.0500** (**invented**). BB-03 reads on the last day of each month (**invented**, as in SCN-0077): the February bill covers Feb 1 – 28, 2027, the March bill Mar 1 – 31. The regulator is reset on Mar 1, 2027 and the factor becomes **1.0800** (**invented**), recorded Mar 2 at 9:00. The February bill: raw reading 40.0 Mcf × 1.0500 = 42.0000 Mcf billed (**invented**).
 
-**When** (a) the February bill is computed; (b) the March bill is computed; (c) in April the February bill is found misread and rebilled on the true raw reading, 38.0 Mcf (**invented**), basis historical.
+**When** (a) the February bill is computed on Mar 1, before the reset is recorded; (b) the March bill is computed on Apr 1; (c) in April the February bill is found misread and rebilled on the true raw reading, 38.0 Mcf (**invented**), basis historical.
 
 **Then**
 - (a) 1.0500: 42.0 Mcf × $1.67 = $70.14 of distribution, beside the $72.10 customer charge.
@@ -195,7 +196,7 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 
 ### SCN-0079 — A dry run computes bills and changes nothing
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. Review round 3 gap (Fable F10; the GBM bi-temporal outline's axis A5). Built (v5.4.0-05, D3C-6): a dry run's flag is fixed for life; no bill or ledger entry may name it; it may not lock a reading; it may not be approved or posted.
+*Status:* draft (2026-11-05), not yet sent to Kyle. Review round 3 gap (Fable F10; the GBM bi-temporal outline's axis A5). Built (v5.4.0-05, D3C-6): a dry run's flag is fixed for life; no bill or ledger entry may name it; it may not lock a reading; it may not be moved to approved or posted. **Except (e): a dry run can be created already approved or posted** (the status guard fires on change only, not on creation; Codex r3, checked on `tally` 2026-11-07); written to the rule, a test expected to fail. No bill or money follows from it (the bill, ledger and reading guards still hold), but the run's status would be false.
 *Rule:* a dry run computes what a cycle's bills would be, at its own instant, and issues nothing, posts nothing and locks no reading; it never becomes the real run (that is a new run), and its figures are never presented as a bill. Sources: v5.4.0-05 (D3C-6); CI-119; Ryan 11-05 (R-22: a run's one instant).
 
 **Given** Bluebonnet's December cycle (SCN-0071's facts). On Mon Dec 14 at 15:00 BB-clerk starts a dry run, **DR-12 (invented)**.
@@ -204,10 +205,12 @@ Already elsewhere, not repeated here: a void and its rebill (SCN-0002, 0003), a 
 - (a) DR-12 computes every meter in the cycle;
 - (b) BB-clerk tries to approve DR-12, or to post it, or to turn it into the real run;
 - (c) a bill is created naming DR-12, or a reading is locked to it;
-- (d) the real run starts Wed Dec 16 at 8:00, after the 9:30 correction of SCN-0071 had instead been recorded on Dec 15.
+- (d) the real run starts Wed Dec 16 at 8:00, after the 9:30 correction of SCN-0071 had instead been recorded on Dec 15;
+- (e) a dry run is created already marked approved; another, already marked posted.
 
 **Then**
 - (a) DR-12 holds an outcome per meter and the figures each bill would carry, read at Dec 14, 15:00. No bill is issued, nothing posts, no reading is locked; BB-01's December read stays free for the real run.
 - (b) Refused, each one. The real run is a new run.
 - (c) Refused.
+- (e) Refused, each one: a dry run is never approved or posted, however it is created. **Today both are accepted.**
 - (d) The real run reads at its own instant, Dec 16, 8:00, so BB-02's customer charge is $14.75 there, though DR-12 showed $14.57. The two differ, and only the real run's figures are bills.

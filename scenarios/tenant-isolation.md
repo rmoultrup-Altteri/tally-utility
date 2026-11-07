@@ -140,8 +140,8 @@ One utility never sees or changes another's records; shared platform data is rea
 
 ### SCN-0066 — A file is imported once: a re-sent or renamed copy is refused, and another utility may import the same file
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. Built (v5.4.2-19, CI-118, REP+PROT), except (d2): a failed import frees its file even when some of its rows were already posted, so a retry can post them twice (Opus r3); written to the rule, a test expected to fail.
-*Rule:* an import names its file and the file's content fingerprint; a utility can have only one live finished-or-running import of a given file's content, so the same content under another name, another job key or another import type is refused. A preview doesn't count. An import that failed or was cancelled before finishing frees the file for a retry; a finished import's status is final. The rule is per utility. Sources: CI-118; v5.4.2-19; the outline's axes A9–A11.
+*Status:* draft (2026-11-05), not yet sent to Kyle. Built (v5.4.2-19, CI-118, REP+PROT), except (d2): a failed import frees its file even when some of its rows were already posted, so a retry can post them twice (Opus r3); written to the rule, a test expected to fail. Two checks run side by side (Codex r3): the file's content fingerprint, freed when an import fails or is cancelled; and the import's job key, unique for every import the utility has ever run, failed ones included, and never freed. A key is the operator's own or, if none is given, made from the file name and content.
+*Rule:* an import names its file, the file's content fingerprint and a job key; a utility can have only one live finished-or-running import of a given file's content, so the same content under another name, another job key or another import type is refused; and a job key is used once, ever. A preview doesn't count. An import that failed or was cancelled before finishing frees the file for a retry; a finished import's status is final. The rule is per utility. Sources: CI-118; v5.4.2-19; the outline's axes A9–A11.
 
 **Given** Bluebonnet's bank sends a lockbox payment file, `lockbox-2026-11-16.csv` (**invented**), 42 payments.
 
@@ -149,16 +149,17 @@ One utility never sees or changes another's records; shared platform data is rea
 - (a) BB-clerk previews the file, then imports it;
 - (b) the bank re-sends the same file, and BB-clerk imports it again;
 - (c) BB-clerk renames it `lockbox-1116-resend.csv` and imports it;
-- (d) instead of (a): (d1) the import fails before posting anything (a malformed row the bank fixes and re-sends as the same content, **invented**), and BB-clerk imports it again; (d2) the import fails after 20 of the 42 payments posted, and BB-clerk imports the same file again;
-- (e) the bank sends a corrected file with the same name and one payment changed;
+- (d) instead of (a): (d1) the import fails before posting anything (a processing error on Bluebonnet's side, **invented**; the file itself is fine), and BB-clerk imports the same file again under a new job key; (d3) BB-clerk instead retries under the failed import's job key; (d2) the import fails after 20 of the 42 payments posted, and BB-clerk imports the same file again;
+- (e) the bank sends a corrected file with the same name and one payment changed, imported under a new job key (made from its content); (e2) the corrected file is imported under (a)'s job key;
 - (f) Pecan Flat imports a file with exactly the same content (**invented**: say, a test file both utilities were sent).
 
 **Then**
 - (a) The preview posts nothing; the import posts 42 payments.
 - (b) and (c) Refused: Bluebonnet already imported this content. Nothing posts twice.
-- (d1) Accepted: a failed import frees the file. The failed job stays on record as failed.
+- (d1) Accepted: a failed import frees the file. The failed job stays on record as failed, with its key.
+- (d3) Refused: that job key is already used, by the failed import.
 - (d2) The 20 payments already posted must not post again: that is what the rule is for. **Today the retry is accepted whole** and the 20 post twice, unless each carries the processor's transaction number (CI-055), which lockbox rows may not. How a retry posts only the remaining 22 is not ruled.
-- (e) Accepted as a new file: its content differs. Whether the 41 unchanged payments are then duplicates is for the payment matching rules (CI-055, one receipt per processor transaction), not the file check.
+- (e2) Refused: the job key is used. (e) Accepted as a new file: its content differs. Whether the 41 unchanged payments are then duplicates is for the payment matching rules (CI-055, one receipt per processor transaction), not the file check.
 - (f) Accepted: the check is per utility.
 
 ---
@@ -224,15 +225,17 @@ One utility never sees or changes another's records; shared platform data is rea
 - (a) Gulf Plains is set up; then someone tries to add a second Tally User to it;
 - (b) a Cognito login is bound to Bluebonnet's Tally User, and someone signs in as it without a session;
 - (c) BB-admin lists Bluebonnet's users, then tries to switch the Tally User off and to change its permissions;
-- (d) PL-admin opens a session as Bluebonnet's Tally User, reason "T-5600 (invented): first supervisor", and binds the login of Bluebonnet's new supervisor **BB-admin2 (invented)**; then ends the session;
-- (e) BB-admin switches itself off, the utility's last tenant administrator; a report counts Bluebonnet's users and its active supervisors;
-- (f) BB-admin2 opens Bluebonnet's change history the next day.
+- (d) BB-admin, Bluebonnet's only active supervisor, switches itself off; a report counts Bluebonnet's users and its active supervisors;
+- (e) PL-admin opens a session as Bluebonnet's Tally User, reason "T-5600 (invented): no supervisor", binds the login of Bluebonnet's new supervisor **BB-admin2 (invented)**, and ends the session; the report runs again;
+- (f) after the session ends, a further change (switching BB-clerk2 on) is attempted under it: the same request context, and another request reusing the same database connection; then PL-admin opens a new session with a reason and makes the change;
+- (g) BB-admin2 opens Bluebonnet's change history the next day.
 
 **Then**
 - (a) Gulf Plains has exactly one Tally User from the moment it exists; the second is refused.
 - (b) The binding is refused: the Tally User has no login. No sign-in can act as it outside a session.
 - (c) The Tally User is not in the list. The switch and the permission change are refused: only Tally changes it.
-- (d) Accepted. BB-admin2's binding names Bluebonnet's Tally User as who did it, and is marked with the session (PL-admin, T-5600).
-- (e) The switch is accepted, as in SCN-0062 (f): Bluebonnet has no active supervisor of its own, and the report says so (zero, not one); the user count leaves the Tally User out.
-- (f) The binding in (d) shows as Tally's: PL-admin, the reason, the session's start and end. Hidden from the user list, not from the history.
+- (d) The switch is accepted, as in SCN-0062 (f): Bluebonnet has no active supervisor of its own, and the report says so (zero, not one); the user count leaves the Tally User out.
+- (e) Accepted, though Bluebonnet has no supervisor: the Tally User's powers are Tally's. BB-admin2's binding names Bluebonnet's Tally User as who did it, and is marked with the session (PL-admin, T-5600). The report now counts one active supervisor.
+- (f) The change under the ended session is refused, and nothing changes, from either request: an ended session authorizes nothing, and a reused connection carries no Tally User context. The change in the new session is accepted and cites the new session, not T-5600's.
+- (g) The binding in (e) shows as Tally's: PL-admin, the reason, the session's start and end. Hidden from the user list, not from the history.
 
