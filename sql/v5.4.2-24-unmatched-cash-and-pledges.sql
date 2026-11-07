@@ -34,8 +34,9 @@
 --     (a negative row naming one, at most its amount, never itself undone),
 --     and r2 misposting_returned (a negative row naming a payment of the
 --     receipt reversed as posted to the wrong customer, with no bank return
---     code, dated on or after the reversal, once; r3: at most what non-NSF
---     rows reversed of it, so what the bank took stays spent). What it holds
+--     code, dated on or after the reversal and the payment, once; at most the
+--     net of the posting entry's tree with every nsf row and everything
+--     beneath one left out (r5), so what the bank took stays spent). What it holds
 --     is derived
 --     (suspense_receipt_position_as_of). The cap: on every date, what went to
 --     payments (not voided) and to dispositions never exceeds the receipt. A
@@ -896,6 +897,9 @@ ALTER TABLE public.suspense_receipts ENABLE ALWAYS TRIGGER enforce_suspense_rece
 CREATE OR REPLACE FUNCTION public.enforce_suspense_disposition() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
+    SET enable_seqscan = off
+    SET enable_hashjoin = off
+    SET enable_mergejoin = off
     AS $$
 DECLARE
     r        public.suspense_receipts%ROWTYPE;
@@ -943,22 +947,34 @@ BEGIN
                 ERRCODE = 'check_violation';
         END IF;
         -- r3 (Codex r2 probe 01): at most what was reversed as misposted.
-        -- r4 (Opus r3 B1, Fable r3 B1): each non-NSF reversal of the
-        -- payment's posting entry counts at what is left of it after its own
-        -- tree (-23's ledger_entry_remaining: a reversal undone counts 0),
-        -- and never more than the payment. What the bank took back (nsf
-        -- rows) stays spent.
-        SELECT least(v_pay.amount, greatest(0, coalesce(sum(public.ledger_entry_remaining(x.id)), 0))) INTO v_misposted
-          FROM public.account_ledger e
-          JOIN public.account_ledger x ON x.reverses_ledger_entry_id = e.id AND x.transaction_type <> 'nsf'
-         WHERE e.reference_type = 'payment' AND e.reference_id = v_pay.id AND e.reverses_ledger_entry_id IS NULL
-           AND e.transaction_type IN ('payment', 'deposit');
+        -- r4 (Opus r3 B1, Fable r3 B1): a reversal undone counts 0, and
+        -- never more than the payment. r5 (Fable r4 B1): the net of the
+        -- posting entry's whole tree with every nsf row, and everything
+        -- beneath one, left out: what the bank took back stays spent wherever
+        -- its row is attached. Walked down by the reversal link alone (-23's
+        -- walks' lesson); the tree is fixed once the payment is reversed.
+        WITH RECURSIVE e AS (
+            SELECT l.id FROM public.account_ledger l
+             WHERE l.reference_type = 'payment' AND l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL
+               AND l.transaction_type IN ('payment', 'deposit')
+        ), down(id, amount) AS (
+            SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND l.transaction_type <> 'nsf'
+            UNION ALL
+            SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'
+        )
+        SELECT least(v_pay.amount, greatest(0, coalesce(sum(d.amount), 0))) INTO v_misposted FROM down d;
         IF -NEW.amount > v_misposted THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('a misposting return gives back at most what payment %s reversed as misposted (%s of its %s; what the bank took back stays spent), not %s (v5.4.2-24)', v_pay.payment_number, v_misposted, v_pay.amount, -NEW.amount),
                 ERRCODE = 'check_violation';
         END IF;
         SELECT l.transaction_date INTO v_rev_on FROM public.account_ledger l WHERE l.id = v_pay.status_cause_id;
+        -- r5 (Opus r4 S1): and on or after the payment's own date.
+        IF NEW.disposed_on < v_pay.payment_date THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a misposting return of payment %s is dated on or after the payment (%s), not %s (v5.4.2-24)', v_pay.payment_number, v_pay.payment_date, NEW.disposed_on),
+                ERRCODE = 'check_violation';
+        END IF;
         IF v_rev_on IS NULL OR NEW.disposed_on < v_rev_on THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('a misposting return of payment %s is dated on or after its reversal (%s), not %s (v5.4.2-24)', v_pay.payment_number, v_rev_on, NEW.disposed_on),
@@ -1541,7 +1557,7 @@ DECLARE
         'enforce_enrollment_not_agency_pledge() | v | false | search_path=public, pg_temp',
         'enforce_payment_suspense_cap() | v | false | search_path=public, pg_temp',
         'enforce_payment_suspense_pledge() | v | false | search_path=public, pg_temp',
-        'enforce_suspense_disposition() | v | false | search_path=public, pg_temp',
+        'enforce_suspense_disposition() | v | false | search_path=public, pg_temp;enable_seqscan=off;enable_hashjoin=off;enable_mergejoin=off',
         'enforce_suspense_receipt() | v | false | search_path=public, pg_temp',
         'enforce_suspense_recorded_at() | v | false | search_path=public, pg_temp',
         'suspense_days_setting_valid(jsonb) | i | false | search_path=public, pg_temp',
@@ -1613,8 +1629,7 @@ DECLARE
     c_app_exec CONSTANT text[] := ARRAY['check_suspense_receipt_cap(uuid)', 'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean)',
         'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text)', 'cash_money_agency(uuid,uuid)',
         'suspense_require_read_committed(text)', 'suspense_today_latest()', 'suspense_today_earliest()', 'assistance_agreement_in_force(uuid,date)',
-        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)',
-        'ledger_entry_remaining(uuid)'];
+        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)'];
     c_bodies CONSTANT text[] := ARRAY[
         'check_suspense_receipt_cap(uuid) @f8ab512c9b9e789910161ef14547cad2',
         'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean) @f4e411824d56f96dd58a14ee2a41266e',
@@ -1623,7 +1638,7 @@ DECLARE
         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
-        'enforce_suspense_disposition() @f8a47185909c9e09b70fe09c02538eea',
+        'enforce_suspense_disposition() @a9f34c19d55dd139d4bae8c0ade86c51',
         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',

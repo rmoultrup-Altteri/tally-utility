@@ -315,7 +315,7 @@ MUTATIONS = [
     ("M97", "the order check excludes a disposition that shares the payment's uuid", "O1e",
      rep("         WHERE d.suspense_receipt_id = p_receipt_id AND NOT (NOT p_self_is_payment AND d.id = p_self)", "         WHERE d.suspense_receipt_id = p_receipt_id AND d.id <> p_self")),
     ("M98", "a misposting return counts what the bank took back", "P13",
-     rep("          JOIN public.account_ledger x ON x.reverses_ledger_entry_id = e.id AND x.transaction_type <> 'nsf'", "          JOIN public.account_ledger x ON x.reverses_ledger_entry_id = e.id")),
+     rep("SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND l.transaction_type <> 'nsf'", "SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id")),
     ("M99", "a receipt of NaN is taken", "U3b",
      both(rep("    CONSTRAINT suspense_receipts_amount_check CHECK (amount > 0 AND amount <> 'NaN'::numeric),", "    CONSTRAINT suspense_receipts_amount_check CHECK (amount > 0),"),
           unpin("suspense_receipts_amount_check"))),
@@ -334,12 +334,17 @@ MUTATIONS = [
      rep("BEGIN\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "BEGIN\n    RETURN;\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN")),
     # ---- r4
     ("M106", "a reversal's own reversal is not netted in the misposted share (r3; P14a is held by the bound at the payment)", "P14b",
-     rep("greatest(0, coalesce(sum(public.ledger_entry_remaining(x.id)), 0))", "greatest(0, coalesce(sum(x.amount), 0))")),
+     rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND false")),
     ("M107", "the order check excludes no payment's own void (r3)", "O4",
      rep("p.status IN ('voided', 'reversed') AND NOT (p_self_is_payment AND p.id = p_self)) x", "p.status IN ('voided', 'reversed')) x")),
     ("M108", "a payment of NaN may name a pledge", "L7f",
      both(rep("NOT is_deposit AND amount > 0 AND amount <> 'NaN'::numeric)),", "NOT is_deposit AND amount > 0)),"),
           unpin("payments_agency_pledge_check"))),
+    # ---- r5
+    ("M109", "an nsf row below a reversal counts as misposted (r4; Fable r4 B1)", "P14c",
+     rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id")),
+    ("M110", "a misposting return may be dated before its payment (Opus r4 S1)", "P9b11",
+     rep("        IF NEW.disposed_on < v_pay.payment_date THEN", "        IF false THEN")),
 ]
 
 def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:

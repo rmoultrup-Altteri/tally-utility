@@ -494,6 +494,48 @@ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by
 SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back (Opus r3 B1)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 0.01, DATE '2026-03-13')$q$,
   '23514', 'at most what payment');
+-- r5 (Fable r4 B1): R18 (13), 100 to C1 (P1e); a reversal +100 (f8), its
+-- undo -100 (f9), and the bank's take-back filed under the undo (fa, nsf).
+SELECT pg_temp.rcpt(pg_temp.k('13'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('1e'), pg_temp.k('fb'), pg_temp.k('13'), :c1, 100);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f8'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('1e'), pg_temp.k('fb'), 'misposted');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f9'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'entered in error', -100, 'payment', pg_temp.k('1e'), pg_temp.k('f8'), 'entered in error');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+VALUES (pg_temp.k('fa'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1e'), pg_temp.k('f9'));
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f8') WHERE id = pg_temp.k('1e');
+SELECT pg_temp.refuses_at('P14c the bank''s take-back filed under the undo of a reversal still stays spent (Fable r4 B1)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('13'), pg_temp.k('1e'), 0.01, DATE '2026-03-13')$q$,
+  '23514', 'at most what payment');
+-- R19 (14), 100 to C1 (P1f): the bank's take-back (fc, nsf) undone (fd),
+-- then a reversal as misposted (fe): 100 comes back.
+SELECT pg_temp.rcpt(pg_temp.k('14'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('1f'), pg_temp.k('ff'), pg_temp.k('14'), :c1, 100);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+VALUES (pg_temp.k('fc'), pg_temp.t1(), :c1, DATE '2026-03-11', 'nsf', 'returned', 100, 'payment', pg_temp.k('1f'), pg_temp.k('ff'));
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('fd'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'the bank paid after all', -100, 'payment', pg_temp.k('1f'), pg_temp.k('fc'), 'the bank paid after all');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('fe'), pg_temp.t1(), :c1, DATE '2026-03-13', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('1f'), pg_temp.k('ff'), 'misposted');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('fe') WHERE id = pg_temp.k('1f');
+SELECT pg_temp.admits('P14d a bank''s take-back undone, then a reversal as misposted: the 100 comes back',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('14'), pg_temp.k('1f'), 100, DATE '2026-03-13')$q$);
+-- r5 (Opus r4 S1): R20 (15) on 03-10; its payment (P20) dated 03-15 but posted
+-- on 03-10, reversed on 03-11. A return dated before the payment is refused.
+SELECT pg_temp.rcpt(pg_temp.k('15'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('20'), NULL, pg_temp.k('15'), :c1, 100, false, NULL, DATE '2026-03-15');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES (pg_temp.k('e0'), pg_temp.t1(), :c1, DATE '2026-03-10', 'payment', 'posted', -100, 'payment', pg_temp.k('20'));
+UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.k('e0') WHERE id = pg_temp.k('20');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('ef'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('20'), pg_temp.k('e0'), 'misposted');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('ef') WHERE id = pg_temp.k('20');
+SELECT pg_temp.refuses_at('P9b11 a misposting return is dated on or after the payment''s own date (Opus r4 S1)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('15'), pg_temp.k('20'), 100, DATE '2026-03-11')$q$,
+  '23514', 'on or after the payment');
+SELECT pg_temp.admits('P9b12 dated on the payment''s date, admitted',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('15'), pg_temp.k('20'), 100, DATE '2026-03-15')$q$);
 -- r2 (Codex B1): a receipt's payment keeps the receipt's instrument after insert.
 SELECT pg_temp.refuses_at('P5e a receipt''s payment takes no bank name of its own later (R1 has none)',
   $q$UPDATE public.payments SET check_bank_name = 'Different bank' WHERE id = pg_temp.k('11')$q$,
@@ -993,8 +1035,8 @@ SELECT pg_temp.ok('S3b a receipt that holds nothing is never aged (R1, R4, R5)',
 SELECT pg_temp.ok('S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past',
   (SELECT NOT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-16', clock_timestamp()) WHERE receipt_id = pg_temp.k('06'))
   AND (SELECT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-17', clock_timestamp()) WHERE receipt_id = pg_temp.k('06')));
-SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100)',
-  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 250);
+SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100 + R19''s 100 + R20''s 100)',
+  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 450);
 SELECT pg_temp.refuses_at('S5 the receipt reader needs both coordinates',
   $q$SELECT * FROM public.suspense_receipt_position_as_of(pg_temp.k('06'), DATE '2026-12-31', NULL)$q$,
   '22004', 'both given');
