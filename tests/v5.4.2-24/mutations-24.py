@@ -311,7 +311,7 @@ MUTATIONS = [
      rep("    PERFORM public.check_suspense_recorded_order(NEW.suspense_receipt_id, NEW.id, false, NEW.created_at, 'a disposition');\n",
          "    IF NEW.amount > 0 THEN PERFORM public.check_suspense_recorded_order(NEW.suspense_receipt_id, NEW.id, false, NEW.created_at, 'a disposition'); END IF;\n")),
     ("M96", "the order check does not read a reversal's recorded time", "O1g",
-     rep("         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided', 'reversed')) x", "         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided')) x")),
+     rep("         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided', 'reversed') AND NOT", "         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided') AND NOT")),
     ("M97", "the order check excludes a disposition that shares the payment's uuid", "O1e",
      rep("         WHERE d.suspense_receipt_id = p_receipt_id AND NOT (NOT p_self_is_payment AND d.id = p_self)", "         WHERE d.suspense_receipt_id = p_receipt_id AND d.id <> p_self")),
     ("M98", "a misposting return counts what the bank took back", "P13",
@@ -332,6 +332,14 @@ MUTATIONS = [
      rep("      FROM unnest(c_app_exec) d", "      FROM unnest(ARRAY[]::text[]) d")),
     ("M105", "the READ COMMITTED pin does nothing (Opus r2 S1)", "SU7",
      rep("BEGIN\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "BEGIN\n    RETURN;\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN")),
+    # ---- r4
+    ("M106", "a reversal's own reversal is not netted in the misposted share (r3)", "P14a",
+     rep("greatest(0, coalesce(sum(public.ledger_entry_remaining(x.id)), 0))", "greatest(0, coalesce(sum(x.amount), 0))")),
+    ("M107", "the order check excludes no payment's own void (r3)", "O4",
+     rep("p.status IN ('voided', 'reversed') AND NOT (p_self_is_payment AND p.id = p_self)) x", "p.status IN ('voided', 'reversed')) x")),
+    ("M108", "a payment of NaN may name a pledge", "L7f",
+     both(rep("NOT is_deposit AND amount > 0 AND amount <> 'NaN'::numeric)),", "NOT is_deposit AND amount > 0)),"),
+          unpin("payments_agency_pledge_check"))),
 ]
 
 def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:

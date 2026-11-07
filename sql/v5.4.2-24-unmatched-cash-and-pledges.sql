@@ -522,7 +522,7 @@ ALTER TABLE public.payments
     ADD CONSTRAINT payments_agency_check
         CHECK (payment_method = 'refund' OR (payer_class = 'agency') = (agency_id IS NOT NULL)),
     ADD CONSTRAINT payments_agency_pledge_check
-        CHECK (agency_pledge_id IS NULL OR (agency_id IS NOT NULL AND payment_method <> 'refund' AND NOT is_deposit AND amount > 0)),
+        CHECK (agency_pledge_id IS NULL OR (agency_id IS NOT NULL AND payment_method <> 'refund' AND NOT is_deposit AND amount > 0 AND amount <> 'NaN'::numeric)),
     -- A resolution of a receipt says why and who; the provider's transaction
     -- id stays on the receipt (it is held once).
     ADD CONSTRAINT payments_suspense_resolution_check
@@ -619,11 +619,12 @@ BEGIN
           FROM (SELECT p.payment_date AS d FROM public.payments p WHERE p.suspense_receipt_id = p_receipt_id
                 UNION SELECT x.disposed_on FROM public.suspense_receipt_dispositions x WHERE x.suspense_receipt_id = p_receipt_id) e
     ) w
-    WHERE w.o > v_amount
+    WHERE w.o > v_amount OR w.o < 0
     ORDER BY w.d LIMIT 1;
     IF v_day IS NOT NULL THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('suspense receipt %s: on %s its payments and dispositions would come to %s, more than the %s the receipt holds (CI-053, v5.4.2-24)', v_number, v_day, v_out, v_amount),
+            MESSAGE = format('suspense receipt %s: on %s its payments and dispositions would come to %s, %s the receipt holds (CI-053, v5.4.2-24)', v_number, v_day, v_out,
+                             CASE WHEN v_out < 0 THEN 'giving back more than was taken from the ' || v_amount ELSE 'more than the ' || v_amount END),
             ERRCODE = 'check_violation';
     END IF;
 END;
@@ -653,7 +654,7 @@ BEGIN
         UNION ALL SELECT p.created_at FROM public.payments p
          WHERE p.suspense_receipt_id = p_receipt_id AND NOT (p_self_is_payment AND p.id = p_self)
         UNION ALL SELECT p.status_recorded_at FROM public.payments p
-         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided', 'reversed')) x
+         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided', 'reversed') AND NOT (p_self_is_payment AND p.id = p_self)) x
      WHERE x.t > p_at;
     IF v_later IS NOT NULL THEN
         IF p_at = pg_catalog.now() THEN
@@ -941,10 +942,13 @@ BEGIN
                                  v_pay.payment_number, v_pay.status, CASE WHEN v_pay.return_code IS NOT NULL THEN ' with return code ' || v_pay.return_code ELSE '' END),
                 ERRCODE = 'check_violation';
         END IF;
-        -- r3 (Codex r2 probe 01): at most what was reversed as misposted:
-        -- the non-NSF rows reversing the payment's posting entry. What the
-        -- bank took back (nsf rows) stays spent.
-        SELECT coalesce(sum(x.amount), 0) INTO v_misposted
+        -- r3 (Codex r2 probe 01): at most what was reversed as misposted.
+        -- r4 (Opus r3 B1, Fable r3 B1): each non-NSF reversal of the
+        -- payment's posting entry counts at what is left of it after its own
+        -- tree (-23's ledger_entry_remaining: a reversal undone counts 0),
+        -- and never more than the payment. What the bank took back (nsf
+        -- rows) stays spent.
+        SELECT least(v_pay.amount, greatest(0, coalesce(sum(public.ledger_entry_remaining(x.id)), 0))) INTO v_misposted
           FROM public.account_ledger e
           JOIN public.account_ledger x ON x.reverses_ledger_entry_id = e.id AND x.transaction_type <> 'nsf'
          WHERE e.reference_type = 'payment' AND e.reference_id = v_pay.id AND e.reverses_ledger_entry_id IS NULL
@@ -1474,7 +1478,7 @@ DECLARE
         'assistance_agency_agreements assistance_agency_agreements_withdrawn_check CHECK ((((withdrawn_at IS NULL) = (withdrawn_by IS NULL)) AND ((withdrawn_at IS NULL) = (withdrawn_reason IS NULL)) AND ((withdrawn_reason IS NULL) OR (withdrawn_reason ~ ''[[:alnum:]]''::text))))',
         'payments payments_agency_check CHECK (((payment_method = ''refund''::text) OR ((payer_class = ''agency''::text) = (agency_id IS NOT NULL))))',
         'payments payments_agency_fkey FOREIGN KEY (agency_id, tenant_id) REFERENCES assistance_agencies(id, tenant_id)',
-        'payments payments_agency_pledge_check CHECK (((agency_pledge_id IS NULL) OR ((agency_id IS NOT NULL) AND (payment_method <> ''refund''::text) AND (NOT is_deposit) AND (amount > (0)::numeric))))',
+        'payments payments_agency_pledge_check CHECK (((agency_pledge_id IS NULL) OR ((agency_id IS NOT NULL) AND (payment_method <> ''refund''::text) AND (NOT is_deposit) AND (amount > (0)::numeric) AND (amount <> ''NaN''::numeric))))',
         'payments payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES agency_pledges(id, tenant_id)',
         'payments payments_suspense_receipt_fkey FOREIGN KEY (suspense_receipt_id, tenant_id) REFERENCES suspense_receipts(id, tenant_id)',
         'payments payments_suspense_resolution_check CHECK ((((suspense_receipt_id IS NULL) = (suspense_resolution_reason IS NULL)) AND ((suspense_receipt_id IS NULL) = (suspense_resolved_by IS NULL)) AND ((suspense_resolution_reason IS NULL) OR (suspense_resolution_reason ~ ''[[:alnum:]]''::text)) AND ((suspense_receipt_id IS NULL) OR ((payment_method <> ''refund''::text) AND (amount > (0)::numeric) AND (provider_transaction_id IS NULL)))))',
@@ -1609,16 +1613,17 @@ DECLARE
     c_app_exec CONSTANT text[] := ARRAY['check_suspense_receipt_cap(uuid)', 'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean)',
         'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text)', 'cash_money_agency(uuid,uuid)',
         'suspense_require_read_committed(text)', 'suspense_today_latest()', 'suspense_today_earliest()', 'assistance_agreement_in_force(uuid,date)',
-        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)'];
+        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)',
+        'ledger_entry_remaining(uuid)'];
     c_bodies CONSTANT text[] := ARRAY[
-        'check_suspense_receipt_cap(uuid) @e9255a17a72204568eb2c6a3a7c4fe1a',
+        'check_suspense_receipt_cap(uuid) @f8ab512c9b9e789910161ef14547cad2',
         'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean) @f4e411824d56f96dd58a14ee2a41266e',
-        'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text) @68c0daf12180069dac215b893f885c40',
+        'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text) @ba59ac3986d897f39fd526745fec6e6d',
         'cash_money_agency(uuid,uuid) @172f30f6e30c219b16925a60674aa3c8',
         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
-        'enforce_suspense_disposition() @2ca40bc66f0176157c050784e3aa5094',
+        'enforce_suspense_disposition() @f8a47185909c9e09b70fe09c02538eea',
         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',

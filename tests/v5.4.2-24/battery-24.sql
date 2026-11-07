@@ -388,7 +388,7 @@ SELECT pg_temp.ok('P9b a reversal alone gives nothing back: R4 still holds 0',
 SELECT pg_temp.refuses_at('P9b2 a misposting return is dated on or after the reversal (03-05)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50, DATE '2026-03-04')$q$,
   '23514', 'on or after its reversal');
-SELECT pg_temp.refuses_at('P9b3 it gives back at most the payment',
+SELECT pg_temp.refuses_at('P9b3 it gives back at most what was reversed as misposted (here the whole 50)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50.01, DATE '2026-03-05')$q$,
   '23514', 'at most what payment');
 SELECT pg_temp.refuses_at('P9b4 it names a payment of the same receipt (C1''s P11 is R1''s)',
@@ -463,6 +463,37 @@ SELECT pg_temp.refuses_at('P13 a misposting return gives back only what was reve
 SELECT pg_temp.admits('P13b the 60 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 60, DATE '2026-03-12')$q$);
 SELECT pg_temp.ok('P13c R11 holds 60', pg_temp.held(pg_temp.k('0c')) = 60);
+-- r4 (Opus r3 B1, Fable r3 B1): the misposted share nets each reversal's own
+-- tree. R16 (10): 100 to C1 (P1c); a reversal +100 (f0), its own reversal
+-- -100 (f1), a second reversal +100 (f2): 100 reversed as misposted, not 200.
+SELECT pg_temp.rcpt(pg_temp.k('10'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('1c'), pg_temp.k('f3'), pg_temp.k('10'), :c1, 100);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f0'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('1c'), pg_temp.k('f3'), 'misposted');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f1'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'reversal entered in error', -100, 'payment', pg_temp.k('1c'), pg_temp.k('f0'), 'reversal entered in error');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f2'), pg_temp.t1(), :c1, DATE '2026-03-13', 'adjustment', 'misposted after all', 100, 'payment', pg_temp.k('1c'), pg_temp.k('f3'), 'misposted after all');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f2') WHERE id = pg_temp.k('1c');
+SELECT pg_temp.refuses_at('P14a a reversal entered, undone and entered again gives back 100, not 200 (Opus r3 B1, Fable r3 B1)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100.01, DATE '2026-03-13')$q$,
+  '23514', 'at most what payment');
+SELECT pg_temp.admits('P14a2 100 comes back',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100, DATE '2026-03-13')$q$);
+-- R17 (11): 100 to C1 (P1d); a reversal +100 (f4) undone (f5), then the
+-- bank takes all 100 back (96, nsf): nothing was misposted.
+SELECT pg_temp.rcpt(pg_temp.k('11'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('1d'), pg_temp.k('f7'), pg_temp.k('11'), :c1, 100);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f4'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('1d'), pg_temp.k('f7'), 'misposted');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+VALUES (pg_temp.k('f5'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'reversal entered in error', -100, 'payment', pg_temp.k('1d'), pg_temp.k('f4'), 'reversal entered in error');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+VALUES (pg_temp.k('f6'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1d'), pg_temp.k('f7'));
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'bank return entered as a reversal', status_cause_id = pg_temp.k('f4') WHERE id = pg_temp.k('1d');
+SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back (Opus r3 B1)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 0.01, DATE '2026-03-13')$q$,
+  '23514', 'at most what payment');
 -- r2 (Codex B1): a receipt's payment keeps the receipt's instrument after insert.
 SELECT pg_temp.refuses_at('P5e a receipt''s payment takes no bank name of its own later (R1 has none)',
   $q$UPDATE public.payments SET check_bank_name = 'Different bank' WHERE id = pg_temp.k('11')$q$,
@@ -677,6 +708,9 @@ SELECT pg_temp.refuses_at('L7c a pledge is paid by its own agency (the charity p
 SELECT pg_temp.refuses_at('L7d for its own customer',
   $q$SELECT pg_temp.apay(gen_random_uuid(), gen_random_uuid(), '00000000-0000-4000-8000-0000000a24c2', pg_temp.k('41'), pg_temp.k('51'), 1, DATE '2026-03-20')$q$,
   '23514', 'the pledge''s agency and customer');
+SELECT pg_temp.refuses_at('L7f a payment of NaN never names a pledge (Opus r3 S1)',
+  $q$SELECT pg_temp.apay(gen_random_uuid(), gen_random_uuid(), '00000000-0000-4000-8000-0000000a24c1', pg_temp.k('41'), pg_temp.k('51'), 'NaN', DATE '2026-03-20', false)$q$,
+  '23514', 'payments_agency_pledge_check');
 SELECT pg_temp.refuses_at('L7e a deposit never names a pledge',
   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, payer_class, agency_id, agency_pledge_id, is_deposit)
      VALUES (pg_temp.t1(), 'A24-L7e', '00000000-0000-4000-8000-0000000a24c1', DATE '2026-03-20', 1, 'check', 'agency', pg_temp.k('41'), pg_temp.k('51'), true)$q$,
@@ -959,8 +993,8 @@ SELECT pg_temp.ok('S3b a receipt that holds nothing is never aged (R1, R4, R5)',
 SELECT pg_temp.ok('S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past',
   (SELECT NOT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-16', clock_timestamp()) WHERE receipt_id = pg_temp.k('06'))
   AND (SELECT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-17', clock_timestamp()) WHERE receipt_id = pg_temp.k('06')));
-SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60)',
-  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 150);
+SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100)',
+  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 250);
 SELECT pg_temp.refuses_at('S5 the receipt reader needs both coordinates',
   $q$SELECT * FROM public.suspense_receipt_position_as_of(pg_temp.k('06'), DATE '2026-12-31', NULL)$q$,
   '22004', 'both given');
@@ -1066,6 +1100,15 @@ SELECT pg_temp.refuses_at('O1g a misposting return recorded before the reversal 
 SELECT pg_temp.admits('O1h recorded after it, admitted',
   $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
      VALUES (pg_temp.t1(), pg_temp.k('0f'), 'misposting_returned', -100, DATE '2026-04-04', 'misposted', pg_temp.op(), pg_temp.k('1b'), '2026-04-11 12:00+00')$q$);
+-- r4 (Fable r3 S1): a history load's payment born voided, its void after
+-- its insert, is not ordered after its own void.
+INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
+VALUES (pg_temp.k('12'), pg_temp.t1(), 'R24-0012', 100, DATE '2026-04-02', 'mail', 'internal', 'CHK-12', pg_temp.op(), '2026-04-02 12:00+00');
+SELECT pg_temp.admits('O4 a payment loaded already voided (voided 04-04, recorded 04-03)',
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, channel, source_system, check_number,
+                                  suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, created_at, status, status_recorded_at)
+     VALUES (pg_temp.t1(), 'P24-O4', '00000000-0000-4000-8000-0000000a24c1', DATE '2026-04-02', 100, 'check', 'mail', 'internal', 'CHK-12',
+             pg_temp.k('12'), 'identified', pg_temp.op(), '2026-04-03 12:00+00', 'voided', '2026-04-04 12:00+00')$q$);
 -- r2 (Codex B6): clocks.
 SELECT pg_temp.refuses_at('O2 a receipt recorded at infinity',
   $q$INSERT INTO public.suspense_receipts (tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
