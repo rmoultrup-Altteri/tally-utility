@@ -45,6 +45,7 @@ PENDING=(
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
   sql/v5.4.2-30-tax-levies-and-taxability.sql:tax_levies
+  sql/v5.4.2-24-unmatched-cash-and-pledges.sql:suspense_receipts
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.
@@ -137,7 +138,7 @@ battery() {  # $1 file
   q "$BASE" -qc "VACUUM public.account_ledger, public.payments, public.customer_credits" &&
   docker cp "$1" tally-pg:/tmp/battery.sql && q "$BASE" -o /dev/null -f /tmp/battery.sql
 }
-for n in 09 10 11 12 13 14 16 19 20 21 22 23 25 26 27 28 29 30; do
+for n in 09 10 11 12 13 14 16 19 20 21 22 23 24 25 26 27 28 29 30; do
   step "battery v5.4.2-$n" battery "tests/v5.4.2-$n/battery-$n.sql"
 done
 step "battery v5.4.2-17" tests/v5.4.2-17/run-battery-17.sh "$BASE"
@@ -180,6 +181,7 @@ cstep ci_r23 "races v5.4.2-23" tests/v5.4.2-23/races/cash-23.sh ci_r23
 cstep ci_r25 "races v5.4.2-25" bash tests/v5.4.2-25/races/disputes-25.sh ci_r25
 cstep ci_r26 "races v5.4.2-26" bash tests/v5.4.2-26/races/collections-26.sh ci_r26
 cstep ci_r27 "races v5.4.2-27" tests/v5.4.2-27/races/shortfall-27.sh ci_r27
+cstep ci_r24 "races v5.4.2-24" tests/v5.4.2-24/races/suspense-24.sh ci_r24
 step "law format v5.4.2-25" env LAWC_DB="$BASE" "$LAWC_PYTHON" tests/v5.4.2-25/terms-25.py
 # The migration runs on the base as it stood before -25 (PRE25, cloned in the pending loop); once -25 is
 # mirrored the clone is never made and this is skipped.
@@ -201,6 +203,9 @@ step "wave-1 guard invariants" q "$BASE" -c "SELECT public.assert_wave1_guard_in
 step "periods guard invariants" q "$BASE" -c "SELECT public.assert_periods_guard_invariants()"
 if [ "$(q "$BASE" -c "SELECT to_regprocedure('public.assert_cash_guard_invariants()') IS NOT NULL")" = "t" ]; then
   step "cash guard invariants" q "$BASE" -c "SELECT public.assert_cash_guard_invariants()"
+fi
+if [ "$(q "$BASE" -c "SELECT to_regprocedure('public.assert_suspense_pledge_guard_invariants()') IS NOT NULL")" = "t" ]; then
+  step "suspense and pledge guard invariants" q "$BASE" -c "SELECT public.assert_suspense_pledge_guard_invariants()"
 fi
 
 printf '%s\n' "${results[@]}"

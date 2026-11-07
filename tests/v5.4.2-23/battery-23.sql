@@ -108,6 +108,9 @@ INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VAL
   ('00000000-0000-4000-8000-0000000023c1', '00000000-0000-4000-8000-0000000023a1', 'B23-C1', 'residential'),
   ('00000000-0000-4000-8000-0000000023c2', '00000000-0000-4000-8000-0000000023a1', 'B23-C2', 'residential'),
   ('00000000-0000-4000-8000-0000000023c9', '00000000-0000-4000-8000-0000000023a2', 'B23-C9', 'residential');
+-- v5.4.2-24 (ported 2026-11-07): an agency's payment names its agency.
+INSERT INTO public.assistance_agencies (id, tenant_id, name, program_kind, recorded_by) VALUES
+  ('00000000-0000-4000-8000-0000000023a9', '00000000-0000-4000-8000-0000000023a1', 'B23 Agency', 'liheap_ceap', '00000000-0000-4000-8000-0000000023b1');
 INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
   ('00000000-0000-4000-8000-0000000023d1', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c1', 'L1', '1 Main', 'Austin', 'TX', '78701'),
   ('00000000-0000-4000-8000-0000000023d2', '00000000-0000-4000-8000-0000000023a1', '00000000-0000-4000-8000-0000000023c2', 'L2', '2 Main', 'Austin', 'TX', '78701');
@@ -193,13 +196,13 @@ SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000023b1', true);
 -- r2: a payment is born pending and posted by the move naming its posting
 -- entry (post()); a goodwill credit's money is its credit_issued entry.
 INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method,
-                             is_deposit, payer_class, restricted_to_invoice_id, restricted_to_line_item_id) VALUES
-  ('00000000-0000-4000-8000-000000002361', '00000000-0000-4000-8000-0000000023a1', 'B23-P1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 100, 'check', DATE '2026-03-05', 'postmark', false, 'customer', NULL, NULL),
-  ('00000000-0000-4000-8000-000000002362', '00000000-0000-4000-8000-0000000023a1', 'B23-P2', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 20, 'ach', NULL, NULL, false, 'customer', NULL, NULL),
-  ('00000000-0000-4000-8000-000000002363', '00000000-0000-4000-8000-0000000023a1', 'B23-P3', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 75, 'check', DATE '2026-03-05', 'postmark', true, 'customer', NULL, NULL),
+                             is_deposit, payer_class, restricted_to_invoice_id, restricted_to_line_item_id, agency_id) VALUES
+  ('00000000-0000-4000-8000-000000002361', '00000000-0000-4000-8000-0000000023a1', 'B23-P1', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 100, 'check', DATE '2026-03-05', 'postmark', false, 'customer', NULL, NULL, NULL),
+  ('00000000-0000-4000-8000-000000002362', '00000000-0000-4000-8000-0000000023a1', 'B23-P2', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 20, 'ach', NULL, NULL, false, 'customer', NULL, NULL, NULL),
+  ('00000000-0000-4000-8000-000000002363', '00000000-0000-4000-8000-0000000023a1', 'B23-P3', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 75, 'check', DATE '2026-03-05', 'postmark', true, 'customer', NULL, NULL, NULL),
   ('00000000-0000-4000-8000-000000002364', '00000000-0000-4000-8000-0000000023a1', 'B23-P4', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-06', 50, 'check', DATE '2026-03-06', 'postmark', false, 'agency',
-   '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002315'),
-  ('00000000-0000-4000-8000-000000002365', '00000000-0000-4000-8000-0000000023a1', 'B23-P5', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-05', 30, 'check', DATE '2026-03-05', 'postmark', false, 'customer', NULL, NULL);
+   '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002315', '00000000-0000-4000-8000-0000000023a9'),
+  ('00000000-0000-4000-8000-000000002365', '00000000-0000-4000-8000-0000000023a1', 'B23-P5', '00000000-0000-4000-8000-0000000023c2', DATE '2026-03-05', 30, 'check', DATE '2026-03-05', 'postmark', false, 'customer', NULL, NULL, NULL);
 SELECT pg_temp.post('00000000-0000-4000-8000-000000002361', '00000000-0000-4000-8000-000000002382');
 SELECT pg_temp.post('00000000-0000-4000-8000-000000002363', '00000000-0000-4000-8000-0000000023f3');
 SELECT pg_temp.post('00000000-0000-4000-8000-000000002364', '00000000-0000-4000-8000-0000000023f4');
@@ -225,14 +228,14 @@ SELECT pg_temp.refuses_at('A6 only an agency payment carries a restriction',
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-PX', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 10, 'check', DATE '2026-03-05', 'postmark', '00000000-0000-4000-8000-000000002302')$q$,
   '23514', 'payments_restriction_agency_check');
 SELECT pg_temp.refuses_at('A6b a restricted line is a line of the restricted bill',
-  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, payer_class, restricted_to_invoice_id, restricted_to_line_item_id)
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, payer_class, restricted_to_invoice_id, restricted_to_line_item_id, agency_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-PX', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 10, 'check', DATE '2026-03-05', 'postmark', 'agency',
-             '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002311')$q$,
+             '00000000-0000-4000-8000-000000002302', '00000000-0000-4000-8000-000000002311', '00000000-0000-4000-8000-0000000023a9')$q$,
   '23503', 'payments_restricted_line_fkey');
 SELECT pg_temp.refuses_at('A6c a restricted bill is the payment''s customer''s',
-  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, payer_class, restricted_to_invoice_id)
+  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, effective_date, effective_date_method, payer_class, restricted_to_invoice_id, agency_id)
      VALUES ('00000000-0000-4000-8000-0000000023a1', 'B23-PX', '00000000-0000-4000-8000-0000000023c1', DATE '2026-03-05', 10, 'check', DATE '2026-03-05', 'postmark', 'agency',
-             '00000000-0000-4000-8000-000000002303')$q$,
+             '00000000-0000-4000-8000-000000002303', '00000000-0000-4000-8000-0000000023a9')$q$,
   '23503', 'payments_restricted_invoice_fkey');
 RESET ROLE;
 
