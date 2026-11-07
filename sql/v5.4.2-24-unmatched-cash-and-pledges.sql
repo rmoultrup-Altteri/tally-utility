@@ -951,16 +951,18 @@ BEGIN
         -- never more than the payment. r5 (Fable r4 B1): the net of the
         -- posting entry's whole tree with every nsf row, and everything
         -- beneath one, left out: what the bank took back stays spent wherever
-        -- its row is attached. Walked down by the reversal link alone (-23's
+        -- its row is attached. r6 (Opus r5 B1): a row typed nsf that gives
+        -- money back (amount < 0) is an undo of a reversal, not the bank's
+        -- take-back, and is counted. Walked down by the reversal link alone (-23's
         -- walks' lesson); the tree is fixed once the payment is reversed.
         WITH RECURSIVE e AS (
             SELECT l.id FROM public.account_ledger l
              WHERE l.reference_type = 'payment' AND l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL
                AND l.transaction_type IN ('payment', 'deposit')
         ), down(id, amount) AS (
-            SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND l.transaction_type <> 'nsf'
+            SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
             UNION ALL
-            SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'
+            SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
         )
         SELECT least(v_pay.amount, greatest(0, coalesce(sum(d.amount), 0))) INTO v_misposted FROM down d;
         IF -NEW.amount > v_misposted THEN
@@ -1638,7 +1640,7 @@ DECLARE
         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
-        'enforce_suspense_disposition() @a9f34c19d55dd139d4bae8c0ade86c51',
+        'enforce_suspense_disposition() @d700e6d63393786aef3321d166e2cb7c',
         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',
