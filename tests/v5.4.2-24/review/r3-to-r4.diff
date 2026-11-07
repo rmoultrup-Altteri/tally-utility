@@ -1,0 +1,171 @@
+--- tests/v5.4.2-24/review/patch-24-frozen-r3.sql	2026-11-07 16:05:04
++++ tests/v5.4.2-24/review/patch-24-frozen-r4.sql	2026-11-07 16:38:00
+@@ -522,7 +522,7 @@
+     ADD CONSTRAINT payments_agency_check
+         CHECK (payment_method = 'refund' OR (payer_class = 'agency') = (agency_id IS NOT NULL)),
+     ADD CONSTRAINT payments_agency_pledge_check
+-        CHECK (agency_pledge_id IS NULL OR (agency_id IS NOT NULL AND payment_method <> 'refund' AND NOT is_deposit AND amount > 0)),
++        CHECK (agency_pledge_id IS NULL OR (agency_id IS NOT NULL AND payment_method <> 'refund' AND NOT is_deposit AND amount > 0 AND amount <> 'NaN'::numeric)),
+     -- A resolution of a receipt says why and who; the provider's transaction
+     -- id stays on the receipt (it is held once).
+     ADD CONSTRAINT payments_suspense_resolution_check
+@@ -619,11 +619,12 @@
+           FROM (SELECT p.payment_date AS d FROM public.payments p WHERE p.suspense_receipt_id = p_receipt_id
+                 UNION SELECT x.disposed_on FROM public.suspense_receipt_dispositions x WHERE x.suspense_receipt_id = p_receipt_id) e
+     ) w
+-    WHERE w.o > v_amount
++    WHERE w.o > v_amount OR w.o < 0
+     ORDER BY w.d LIMIT 1;
+     IF v_day IS NOT NULL THEN
+         RAISE EXCEPTION USING
+-            MESSAGE = format('suspense receipt %s: on %s its payments and dispositions would come to %s, more than the %s the receipt holds (CI-053, v5.4.2-24)', v_number, v_day, v_out, v_amount),
++            MESSAGE = format('suspense receipt %s: on %s its payments and dispositions would come to %s, %s the receipt holds (CI-053, v5.4.2-24)', v_number, v_day, v_out,
++                             CASE WHEN v_out < 0 THEN 'giving back more than was taken from the ' || v_amount ELSE 'more than the ' || v_amount END),
+             ERRCODE = 'check_violation';
+     END IF;
+ END;
+@@ -653,7 +654,7 @@
+         UNION ALL SELECT p.created_at FROM public.payments p
+          WHERE p.suspense_receipt_id = p_receipt_id AND NOT (p_self_is_payment AND p.id = p_self)
+         UNION ALL SELECT p.status_recorded_at FROM public.payments p
+-         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided', 'reversed')) x
++         WHERE p.suspense_receipt_id = p_receipt_id AND p.status IN ('voided', 'reversed') AND NOT (p_self_is_payment AND p.id = p_self)) x
+      WHERE x.t > p_at;
+     IF v_later IS NOT NULL THEN
+         IF p_at = pg_catalog.now() THEN
+@@ -941,10 +942,13 @@
+                                  v_pay.payment_number, v_pay.status, CASE WHEN v_pay.return_code IS NOT NULL THEN ' with return code ' || v_pay.return_code ELSE '' END),
+                 ERRCODE = 'check_violation';
+         END IF;
+-        -- r3 (Codex r2 probe 01): at most what was reversed as misposted:
+-        -- the non-NSF rows reversing the payment's posting entry. What the
+-        -- bank took back (nsf rows) stays spent.
+-        SELECT coalesce(sum(x.amount), 0) INTO v_misposted
++        -- r3 (Codex r2 probe 01): at most what was reversed as misposted.
++        -- r4 (Opus r3 B1, Fable r3 B1): each non-NSF reversal of the
++        -- payment's posting entry counts at what is left of it after its own
++        -- tree (-23's ledger_entry_remaining: a reversal undone counts 0),
++        -- and never more than the payment. What the bank took back (nsf
++        -- rows) stays spent.
++        SELECT least(v_pay.amount, greatest(0, coalesce(sum(public.ledger_entry_remaining(x.id)), 0))) INTO v_misposted
+           FROM public.account_ledger e
+           JOIN public.account_ledger x ON x.reverses_ledger_entry_id = e.id AND x.transaction_type <> 'nsf'
+          WHERE e.reference_type = 'payment' AND e.reference_id = v_pay.id AND e.reverses_ledger_entry_id IS NULL
+@@ -1474,7 +1478,7 @@
+         'assistance_agency_agreements assistance_agency_agreements_withdrawn_check CHECK ((((withdrawn_at IS NULL) = (withdrawn_by IS NULL)) AND ((withdrawn_at IS NULL) = (withdrawn_reason IS NULL)) AND ((withdrawn_reason IS NULL) OR (withdrawn_reason ~ ''[[:alnum:]]''::text))))',
+         'payments payments_agency_check CHECK (((payment_method = ''refund''::text) OR ((payer_class = ''agency''::text) = (agency_id IS NOT NULL))))',
+         'payments payments_agency_fkey FOREIGN KEY (agency_id, tenant_id) REFERENCES assistance_agencies(id, tenant_id)',
+-        'payments payments_agency_pledge_check CHECK (((agency_pledge_id IS NULL) OR ((agency_id IS NOT NULL) AND (payment_method <> ''refund''::text) AND (NOT is_deposit) AND (amount > (0)::numeric))))',
++        'payments payments_agency_pledge_check CHECK (((agency_pledge_id IS NULL) OR ((agency_id IS NOT NULL) AND (payment_method <> ''refund''::text) AND (NOT is_deposit) AND (amount > (0)::numeric) AND (amount <> ''NaN''::numeric))))',
+         'payments payments_agency_pledge_fkey FOREIGN KEY (agency_pledge_id, tenant_id) REFERENCES agency_pledges(id, tenant_id)',
+         'payments payments_suspense_receipt_fkey FOREIGN KEY (suspense_receipt_id, tenant_id) REFERENCES suspense_receipts(id, tenant_id)',
+         'payments payments_suspense_resolution_check CHECK ((((suspense_receipt_id IS NULL) = (suspense_resolution_reason IS NULL)) AND ((suspense_receipt_id IS NULL) = (suspense_resolved_by IS NULL)) AND ((suspense_resolution_reason IS NULL) OR (suspense_resolution_reason ~ ''[[:alnum:]]''::text)) AND ((suspense_receipt_id IS NULL) OR ((payment_method <> ''refund''::text) AND (amount > (0)::numeric) AND (provider_transaction_id IS NULL)))))',
+@@ -1609,16 +1613,17 @@
+     c_app_exec CONSTANT text[] := ARRAY['check_suspense_receipt_cap(uuid)', 'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean)',
+         'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text)', 'cash_money_agency(uuid,uuid)',
+         'suspense_require_read_committed(text)', 'suspense_today_latest()', 'suspense_today_earliest()', 'assistance_agreement_in_force(uuid,date)',
+-        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)'];
+-    c_bodies CONSTANT text[] := ARRAY[
+-        'check_suspense_receipt_cap(uuid) @e9255a17a72204568eb2c6a3a7c4fe1a',
++        'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)',
++        'ledger_entry_remaining(uuid)'];
++    c_bodies CONSTANT text[] := ARRAY[
++        'check_suspense_receipt_cap(uuid) @f8ab512c9b9e789910161ef14547cad2',
+         'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean) @f4e411824d56f96dd58a14ee2a41266e',
+-        'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text) @68c0daf12180069dac215b893f885c40',
++        'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text) @ba59ac3986d897f39fd526745fec6e6d',
+         'cash_money_agency(uuid,uuid) @172f30f6e30c219b16925a60674aa3c8',
+         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
+         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
+         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
+-        'enforce_suspense_disposition() @2ca40bc66f0176157c050784e3aa5094',
++        'enforce_suspense_disposition() @f8a47185909c9e09b70fe09c02538eea',
+         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
+         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
+         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',
+--- tests/v5.4.2-24/review/battery-24-frozen-r3.sql	2026-11-07 16:05:04
++++ tests/v5.4.2-24/review/battery-24-frozen-r4.sql	2026-11-07 16:38:00
+@@ -388,7 +388,7 @@
+ SELECT pg_temp.refuses_at('P9b2 a misposting return is dated on or after the reversal (03-05)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50, DATE '2026-03-04')$q$,
+   '23514', 'on or after its reversal');
+-SELECT pg_temp.refuses_at('P9b3 it gives back at most the payment',
++SELECT pg_temp.refuses_at('P9b3 it gives back at most what was reversed as misposted (here the whole 50)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50.01, DATE '2026-03-05')$q$,
+   '23514', 'at most what payment');
+ SELECT pg_temp.refuses_at('P9b4 it names a payment of the same receipt (C1''s P11 is R1''s)',
+@@ -463,6 +463,37 @@
+ SELECT pg_temp.admits('P13b the 60 comes back',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 60, DATE '2026-03-12')$q$);
+ SELECT pg_temp.ok('P13c R11 holds 60', pg_temp.held(pg_temp.k('0c')) = 60);
++-- r4 (Opus r3 B1, Fable r3 B1): the misposted share nets each reversal's own
++-- tree. R16 (10): 100 to C1 (P1c); a reversal +100 (f0), its own reversal
++-- -100 (f1), a second reversal +100 (f2): 100 reversed as misposted, not 200.
++SELECT pg_temp.rcpt(pg_temp.k('10'), 100, DATE '2026-03-10');
++SELECT pg_temp.fromr(pg_temp.k('1c'), pg_temp.k('f3'), pg_temp.k('10'), :c1, 100);
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
++VALUES (pg_temp.k('f0'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('1c'), pg_temp.k('f3'), 'misposted');
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
++VALUES (pg_temp.k('f1'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'reversal entered in error', -100, 'payment', pg_temp.k('1c'), pg_temp.k('f0'), 'reversal entered in error');
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
++VALUES (pg_temp.k('f2'), pg_temp.t1(), :c1, DATE '2026-03-13', 'adjustment', 'misposted after all', 100, 'payment', pg_temp.k('1c'), pg_temp.k('f3'), 'misposted after all');
++UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f2') WHERE id = pg_temp.k('1c');
++SELECT pg_temp.refuses_at('P14a a reversal entered, undone and entered again gives back 100, not 200 (Opus r3 B1, Fable r3 B1)',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100.01, DATE '2026-03-13')$q$,
++  '23514', 'at most what payment');
++SELECT pg_temp.admits('P14a2 100 comes back',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100, DATE '2026-03-13')$q$);
++-- R17 (11): 100 to C1 (P1d); a reversal +100 (f4) undone (f5), then the
++-- bank takes all 100 back (96, nsf): nothing was misposted.
++SELECT pg_temp.rcpt(pg_temp.k('11'), 100, DATE '2026-03-10');
++SELECT pg_temp.fromr(pg_temp.k('1d'), pg_temp.k('f7'), pg_temp.k('11'), :c1, 100);
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
++VALUES (pg_temp.k('f4'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('1d'), pg_temp.k('f7'), 'misposted');
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
++VALUES (pg_temp.k('f5'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'reversal entered in error', -100, 'payment', pg_temp.k('1d'), pg_temp.k('f4'), 'reversal entered in error');
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
++VALUES (pg_temp.k('f6'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1d'), pg_temp.k('f7'));
++UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'bank return entered as a reversal', status_cause_id = pg_temp.k('f4') WHERE id = pg_temp.k('1d');
++SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back (Opus r3 B1)',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 0.01, DATE '2026-03-13')$q$,
++  '23514', 'at most what payment');
+ -- r2 (Codex B1): a receipt's payment keeps the receipt's instrument after insert.
+ SELECT pg_temp.refuses_at('P5e a receipt''s payment takes no bank name of its own later (R1 has none)',
+   $q$UPDATE public.payments SET check_bank_name = 'Different bank' WHERE id = pg_temp.k('11')$q$,
+@@ -677,6 +708,9 @@
+ SELECT pg_temp.refuses_at('L7d for its own customer',
+   $q$SELECT pg_temp.apay(gen_random_uuid(), gen_random_uuid(), '00000000-0000-4000-8000-0000000a24c2', pg_temp.k('41'), pg_temp.k('51'), 1, DATE '2026-03-20')$q$,
+   '23514', 'the pledge''s agency and customer');
++SELECT pg_temp.refuses_at('L7f a payment of NaN never names a pledge (Opus r3 S1)',
++  $q$SELECT pg_temp.apay(gen_random_uuid(), gen_random_uuid(), '00000000-0000-4000-8000-0000000a24c1', pg_temp.k('41'), pg_temp.k('51'), 'NaN', DATE '2026-03-20', false)$q$,
++  '23514', 'payments_agency_pledge_check');
+ SELECT pg_temp.refuses_at('L7e a deposit never names a pledge',
+   $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, payer_class, agency_id, agency_pledge_id, is_deposit)
+      VALUES (pg_temp.t1(), 'A24-L7e', '00000000-0000-4000-8000-0000000a24c1', DATE '2026-03-20', 1, 'check', 'agency', pg_temp.k('41'), pg_temp.k('51'), true)$q$,
+@@ -959,8 +993,8 @@
+ SELECT pg_temp.ok('S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past',
+   (SELECT NOT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-16', clock_timestamp()) WHERE receipt_id = pg_temp.k('06'))
+   AND (SELECT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-17', clock_timestamp()) WHERE receipt_id = pg_temp.k('06')));
+-SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60)',
+-  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 150);
++SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100)',
++  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 250);
+ SELECT pg_temp.refuses_at('S5 the receipt reader needs both coordinates',
+   $q$SELECT * FROM public.suspense_receipt_position_as_of(pg_temp.k('06'), DATE '2026-12-31', NULL)$q$,
+   '22004', 'both given');
+@@ -1066,6 +1100,15 @@
+ SELECT pg_temp.admits('O1h recorded after it, admitted',
+   $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
+      VALUES (pg_temp.t1(), pg_temp.k('0f'), 'misposting_returned', -100, DATE '2026-04-04', 'misposted', pg_temp.op(), pg_temp.k('1b'), '2026-04-11 12:00+00')$q$);
++-- r4 (Fable r3 S1): a history load's payment born voided, its void after
++-- its insert, is not ordered after its own void.
++INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
++VALUES (pg_temp.k('12'), pg_temp.t1(), 'R24-0012', 100, DATE '2026-04-02', 'mail', 'internal', 'CHK-12', pg_temp.op(), '2026-04-02 12:00+00');
++SELECT pg_temp.admits('O4 a payment loaded already voided (voided 04-04, recorded 04-03)',
++  $q$INSERT INTO public.payments (tenant_id, payment_number, customer_id, payment_date, amount, payment_method, channel, source_system, check_number,
++                                  suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, created_at, status, status_recorded_at)
++     VALUES (pg_temp.t1(), 'P24-O4', '00000000-0000-4000-8000-0000000a24c1', DATE '2026-04-02', 100, 'check', 'mail', 'internal', 'CHK-12',
++             pg_temp.k('12'), 'identified', pg_temp.op(), '2026-04-03 12:00+00', 'voided', '2026-04-04 12:00+00')$q$);
+ -- r2 (Codex B6): clocks.
+ SELECT pg_temp.refuses_at('O2 a receipt recorded at infinity',
+   $q$INSERT INTO public.suspense_receipts (tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)

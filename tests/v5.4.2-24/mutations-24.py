@@ -118,7 +118,7 @@ MUTATIONS = [
          "    RETURN NULL;\nEND;\n$$;\nCREATE TRIGGER enforce_payment_suspense_cap")),
     ("M14", "the cap counts a voided payment", "P8b",
      rep("                            AND p.status <> 'voided'), 0)", "                            AND true), 0)")),
-    ("M15", "the cap gives a reversed payment's share back by itself (r1's rule)", "P9c2",
+    ("M15", "the cap gives a reversed payment's share back by itself (r1's rule; the below-zero cap meets it)", "P9b6",
      rep("                            AND p.status <> 'voided'), 0)", "                            AND p.status NOT IN ('voided', 'reversed')), 0)")),
     ("M16", "the cap reads dispositions on every date at once (an undo hides the worst day)", "P9c2",
      rep("                          WHERE x.suspense_receipt_id = p_receipt_id AND x.disposed_on <= e.d), 0) AS o", "                          WHERE x.suspense_receipt_id = p_receipt_id), 0) AS o")),
@@ -333,7 +333,7 @@ MUTATIONS = [
     ("M105", "the READ COMMITTED pin does nothing (Opus r2 S1)", "SU7",
      rep("BEGIN\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "BEGIN\n    RETURN;\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN")),
     # ---- r4
-    ("M106", "a reversal's own reversal is not netted in the misposted share (r3)", "P14a",
+    ("M106", "a reversal's own reversal is not netted in the misposted share (r3; P14a is held by the bound at the payment)", "P14b",
      rep("greatest(0, coalesce(sum(public.ledger_entry_remaining(x.id)), 0))", "greatest(0, coalesce(sum(x.amount), 0))")),
     ("M107", "the order check excludes no payment's own void (r3)", "O4",
      rep("p.status IN ('voided', 'reversed') AND NOT (p_self_is_payment AND p.id = p_self)) x", "p.status IN ('voided', 'reversed')) x")),
