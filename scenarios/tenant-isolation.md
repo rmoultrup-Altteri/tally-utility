@@ -52,7 +52,7 @@ One utility never sees or changes another's records; shared platform data is rea
 - (f) Only Pecan Flat's balances.
 - (g) BB-clerk's request acts as BB-clerk and sees only Bluebonnet's rows, nothing left over from PF-clerk's.
 - A request whose login names no user, or a user switched off (SCN-0062), sees no utility's rows. Shared platform data (places, the law rows, SCN-0063) stays readable to it.
-- **Open (Ryan):** is a refused attempt itself recorded for the utility to see: a write that reached no row or was refused here, a duplicate import (SCN-0066), a double billing (SCN-0067), and a Tally employee's plain reading (SCN-0065)? The outline's axis A16: a rejection is only as good as its visibility. Nothing records one today.
+- A refused attempt (a write that reached no row or was refused here, a duplicate import, SCN-0066, a double billing, SCN-0067) is not kept for the utility to see: it goes to the application's operational logs for Tally's engineers (Ryan 2026-11-07, DECISION-LOG; roadmap R-28). The database could not keep most of them anyway: a write the isolation check hides finds no row and raises nothing, and a refusal that raises undoes its own transaction. The outline's axis A16 (a rejection is only as good as its visibility) is met by operations monitoring, not by the utility's records. Tally's reading is recorded by the application (SCN-0065).
 
 ---
 
@@ -134,7 +134,7 @@ One utility never sees or changes another's records; shared platform data is rea
 - (a) Opened; the balances of every utility, each row showing its utility.
 - (b) Refused outside a session: the change would name a Tally user on a Bluebonnet record. The refusal says to open a session as Bluebonnet's Tally User. Done in that session, with a reason, the void and the address change are accepted (SCN-0080).
 - (c) Nothing: a switched-off administrator passes no check.
-- Whether this reading is itself recorded for the utility to see is SCN-0061's Open (Ryan). Ruled for impersonation (SCN-0068), not for plain reading.
+- (a) is recorded by the application, not the database (Ryan 2026-11-07, DECISION-LOG; roadmap R-28): an access log entry for each Bluebonnet record PL-admin opens (PL-admin, Bluebonnet, BB-01 and the bill, when), kept for a set period and shown to Bluebonnet on a screen or report; no reason is asked for a read. The cross-utility balance list is a platform report and is logged as Tally's own, not shown to each utility. **Not built** (an application requirement for the core and platform work; no schema change). A query run outside the application (an engineer at a database prompt) is not in this log; that is for production access controls (platform phase).
 
 ---
 
