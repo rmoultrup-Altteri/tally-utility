@@ -29,7 +29,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | Number | Stream | What |
 |---|---|---|
 | -23 | money | cash: reversals, positions, application, overpayment credits. **Mirrored 2026-11-04** (Ryan; Opus and Fable ready on r9, Codex on r10) |
-| -24 | money | unmatched cash, agency pledges (not drafted) |
+| -24 | money | unmatched cash, agency pledges. **Design 2026-11-07** (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`); tests next |
 | -25 | money | disputes (drafted, not reviewed) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting). **Mirrored 2026-11-06** (Ryan; Opus, Fable and Codex ready on r4; r5, a narrow round before the mirror, ready from Opus and Fable, Codex waived) |
