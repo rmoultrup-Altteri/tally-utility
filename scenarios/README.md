@@ -43,6 +43,6 @@ The cases the C# core must pass, one file per family. Kyle checks the dollar fig
 | `backbilling.md` | how far back a correction may reach | SCN-0013 – 0019, 0031, 0035 – 0041, 0058, 0059 |
 | `periods-and-aging.md` | periods, the close, GL mapping, aging, write-off recovery | SCN-0020 – 0026, 0034, 0049 – 0052 |
 | `date-tracking-and-immutability.md` | two time axes, corrections and retractions, one time basis per bill, stale saves, issued bills and money never edited, nothing deleted, the bill snapshot, dated meter factors, dry runs | SCN-0069 – 0079 |
-| `tenant-isolation.md` | one utility's records kept from another's; shared platform data; identifiers, imports and billing runs not duplicated | SCN-0060 – 0068 |
+| `tenant-isolation.md` | one utility's records kept from another's; shared platform data; identifiers, imports and billing runs not duplicated | SCN-0060 – 0068, 0080 |
 
-**Next free ID: SCN-0080.**
+**Next free ID: SCN-0081.**

@@ -58,8 +58,8 @@ One utility never sees or changes another's records; shared platform data is rea
 
 ### SCN-0062 — A user switched off sees nothing, and only a supervisor binds a login or switches a user on or off
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. Built (v5.4.2-21 r1–r4). **In conflict with the 11-05 read-only ruling** (SCN-0065): the rule below lets a platform administrator bind and switch a utility's users, which is how a utility's first supervisor is provisioned and its last one restored (f); a Tally employee acting as themselves may no longer change a utility's records, and impersonating the supervisor can't help when the supervisor is the one switched off (Opus r3). Open (Ryan), below. Each step names the session it runs in; where the acting session cannot see the row, the result is that nothing changes, not a refusal.
-*Rule:* only an active user passes the isolation check; binding a login to a user, switching a user on or off, and demoting an administrator are a supervisor's acts (the utility's tenant administrator, or a platform administrator), and a platform administrator's binding and switch are a platform administrator's; once bound, a login never changes. Sources: v5.4.2-21 (R1); AC-43 (binding).
+*Status:* draft (2026-11-05), not yet sent to Kyle. Built (v5.4.2-21 r1–r4) for (a)–(e). **(f) is written to Ryan's 2026-11-07 ruling (DECISION-LOG; roadmap R-27), not built:** today a platform administrator restores a supervisor acting as themselves; under the ruling, Tally does it in a session as the utility's Tally User (SCN-0080), and that user is not counted as the utility's supervisor. Each step names the session it runs in; where the acting session cannot see the row, the result is that nothing changes, not a refusal.
+*Rule:* only an active user passes the isolation check; binding a login to a user, switching a user on or off, and demoting an administrator are a supervisor's acts (the utility's tenant administrator, or Tally acting through the utility's Tally User, SCN-0080), and a platform administrator's binding and switch are a platform administrator's; once bound, a login never changes. Sources: v5.4.2-21 (R1); AC-43 (binding); Ryan 11-07 (the Tally User).
 
 **Given** Bluebonnet's users BB-clerk and BB-admin; **BB-clerk2 (invented)**, a second clerk, just provisioned, not yet bound to a login.
 
@@ -77,8 +77,7 @@ One utility never sees or changes another's records; shared platform data is rea
 - (c) The binding is refused with an error: not a supervisor (this is how a clerk would otherwise promote itself). Switching itself back on changes nothing: a switched-off user cannot reach any user row, its own included.
 - (d) The binding is accepted; the later change is refused.
 - (e) Nothing changes: PL-admin's user row belongs to Tally's own tenant, so BB-admin's session cannot reach it. (Were it reachable, the switch would be refused: only a platform administrator switches a platform administrator on or off.)
-- (f) Accepted; Bluebonnet then has no supervisor until a platform administrator restores one (AC-43), which the read-only ruling would forbid.
-- **Open (Ryan):** under the read-only ruling, who provisions a new utility's first supervisor and restores one after the last has switched itself off? Either user administration (binding, switching on or off, a utility's users only) is an exception to Tally staff being read-only, recorded like an impersonated change; or a utility's last active supervisor cannot switch itself off, and provisioning runs as a dedicated service user.
+- (f) Accepted; Bluebonnet then has no supervisor of its own (its Tally User does not count, SCN-0080). On Bluebonnet's request, a Tally employee opens a session as Bluebonnet's Tally User, with a reason, and switches BB-admin back on; the change shows in Bluebonnet's history as Tally's, with the employee and the reason (SCN-0068, SCN-0080). A new utility's first supervisor is bound the same way.
 
 ---
 
@@ -122,10 +121,10 @@ One utility never sees or changes another's records; shared platform data is rea
 
 ---
 
-### SCN-0065 — A Tally employee reads across utilities, and changes nothing without impersonating
+### SCN-0065 — A Tally employee reads across utilities, and changes a utility's records only in a recorded session
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. Reads built (the isolation check lets a platform administrator through, Q-11). **The read-only rule is not built:** today the same check also lets an active platform administrator write any utility's rows (case b is accepted today). Ruled by Ryan 2026-11-05 (DECISION-LOG; roadmap R-21).
-*Rule:* Tally's own staff (platform administrators) may read every utility's records, for support; acting as themselves, they change no utility's records. A change goes through the utility's own users, or through impersonation (SCN-0068). Sources: Ryan 11-05; Q-11 (2026-05-29); v5.4.2-21 (only an active platform administrator).
+*Status:* draft (2026-11-05), not yet sent to Kyle. Reads built (the isolation check lets a platform administrator through, Q-11). **(b) is not built:** today the same check also lets an active platform administrator write any utility's rows as themselves (case b is accepted today). Ruled by Ryan 2026-11-05 and 2026-11-07 (DECISION-LOG; roadmap R-21, R-27). Not a limit on what Tally may do (Ryan 11-07: Tally's staff get as much freedom as possible): a change made as the Tally employee would stamp a utility's record with a user of another tenant, which the two-column keys refuse (SCN-0064, R-12); the same change made through a session is accepted (SCN-0068, SCN-0080).
+*Rule:* Tally's own staff (platform administrators) may read every utility's records, for support, without a session. A change to a utility's records is made in an impersonation session, as the utility's Tally User (SCN-0080, Tally's permissions) or as a named user of the utility (that user's permissions) (SCN-0068), so the record names a user of the utility and the session names the employee. Sources: Ryan 11-05, 11-07; Q-11 (2026-05-29); v5.4.2-21 (only an active platform administrator).
 
 **Given** PL-admin, active; a support request from Bluebonnet about BB-01's November bill.
 
@@ -133,7 +132,7 @@ One utility never sees or changes another's records; shared platform data is rea
 
 **Then**
 - (a) Opened; the balances of every utility, each row showing its utility.
-- (b) Refused: a Tally employee acting as themselves changes nothing in a utility's records. The refusal says to impersonate a user of the utility.
+- (b) Refused outside a session: the change would name a Tally user on a Bluebonnet record. The refusal says to open a session as Bluebonnet's Tally User. Done in that session, with a reason, the void and the address change are accepted (SCN-0080).
 - (c) Nothing: a switched-off administrator passes no check.
 - Whether this reading is itself recorded for the utility to see is SCN-0061's Open (Ryan). Ruled for impersonation (SCN-0068), not for plain reading.
 
@@ -188,8 +187,8 @@ One utility never sees or changes another's records; shared platform data is rea
 
 ### SCN-0068 — A Tally employee impersonates a utility's user: the record says both who acted and as whom
 
-*Status:* draft (2026-11-05), not yet sent to Kyle. Ruled by Ryan 2026-11-05 (DECISION-LOG; roadmap R-21); **not built** (no impersonation record exists; the schema owner is unassigned, board).
-*Rule:* a Tally employee may impersonate a user of a utility and act on their behalf, on Tally's own decision, without the utility's permission. The database records each session (which Tally employee, which utility user, start, end, a required reason) and marks every change made in it, so the utility's history shows the change as the user's, made by the named Tally employee under that session; the utility can see every session and its changes. The session has exactly the impersonated user's permissions; a platform administrator cannot be impersonated; a supervisor's act needs the utility's supervisor to be the one impersonated. Sources: Ryan 11-05; AC-43 (the acting user comes from the verified login); memory rule "an app-written log is not a guard".
+*Status:* draft (2026-11-05), not yet sent to Kyle. Ruled by Ryan 2026-11-05, amended 2026-11-07 (DECISION-LOG; roadmap R-21, R-27); **not built** (no impersonation record exists; the schema owner is unassigned, board).
+*Rule:* a Tally employee may impersonate a user of a utility and act on their behalf, on Tally's own decision, without the utility's permission. The database records each session (which Tally employee, which utility user, start, end, a required reason) and marks every change made in it, so the utility's history shows the change as the user's, made by the named Tally employee under that session; the utility can see every session and its changes. A session as a named user has exactly that user's permissions; a session as the utility's Tally User has the permissions Tally gives it, supervisor acts and user administration included (SCN-0080); a platform administrator cannot be impersonated. Sources: Ryan 11-05, 11-07; AC-43 (the acting user comes from the verified login); memory rule "an app-written log is not a guard".
 
 **Given** PL-admin; Bluebonnet's BB-clerk (a clerk) and BB-admin (its supervisor); support ticket **T-5521 (invented)**: BB-clerk can't void BB-01's misread November bill (SCN-0002).
 
@@ -197,7 +196,7 @@ One utility never sees or changes another's records; shared platform data is rea
 - (a) PL-admin starts a session as BB-clerk with no reason;
 - (b) PL-admin starts a session as BB-clerk, reason "T-5521", voids the November bill and issues the correction, then ends the session;
 - (c) within that session PL-admin tries to close Bluebonnet's October period, or to switch BB-clerk2 on;
-- (d) PL-admin starts a session as BB-admin, reason "T-5521: close October", and closes the period;
+- (d) PL-admin starts a session as Bluebonnet's Tally User, reason "T-5521: close October", and closes the period;
 - (e) PL-admin tries to impersonate another platform administrator;
 - (f) during (b), PL-admin opens a Pecan Flat customer;
 - (g) BB-admin reviews the utility's history the next day.
@@ -205,10 +204,35 @@ One utility never sees or changes another's records; shared platform data is rea
 **Then**
 - (a) Refused: a session needs a reason.
 - (b) Accepted. The void and the correction are BB-clerk's acts in every respect the rules check (Bluebonnet's tenant, a clerk's permissions, BB-clerk named as who did it), and each is marked by the database with the session: PL-admin, as BB-clerk, for T-5521, started and ended when.
-- (c) Refused, as for BB-clerk: closing a period and switching a user on are a supervisor's acts (SCN-0020, SCN-0062).
-- (d) Accepted, recorded as BB-admin's close, by PL-admin under the session.
+- (c) Refused, as for BB-clerk: a session as BB-clerk has BB-clerk's permissions, and closing a period and switching a user on are a supervisor's acts (SCN-0020, SCN-0062). PL-admin opens a session as the Tally User instead, (d).
+- (d) Accepted, recorded as the Tally User's close, by PL-admin under the session; BB-admin is not involved.
 - (e) Refused.
 - (f) Nothing found: the session sees only what BB-clerk sees (SCN-0061).
-- (g) BB-admin sees both sessions, who opened them, their reasons, and every change made in them, beside BB-clerk's own changes and told apart from them.
+- (g) BB-admin sees both sessions, who opened them, their reasons, and every change made in them, beside BB-clerk's own changes and told apart from them; the close in (d) shows as Tally's (PL-admin, T-5521), not as an unnamed user's.
 - Every link the session writes names a Bluebonnet user, so every link between tables can be tied to the utility (SCN-0064, R-12).
+
+---
+
+### SCN-0080 — Every utility has one hidden Tally User, reachable only through a recorded session
+
+*Status:* draft (2026-11-07), not yet sent to Kyle. Ruled by Ryan 2026-11-07 (DECISION-LOG; roadmap R-27), his own proposal, with four conditions; **not built** (no Tally User, guards or session record; the schema owner is unassigned, board).
+*Rule:* when a utility is set up, the database gives it exactly one Tally User: a user of that utility, so every change made through it names a user of the utility (SCN-0064). Its permissions are Tally's to set, supervisor acts and user administration included. (1) It has no login: it is reached only through an impersonation session (which Tally employee, start, end, a required reason), and every change is marked with the session (SCN-0068). (2) It is hidden from the utility's user list, never from its records. (3) The utility cannot change it, switch it off or bind a login to it; only Tally can. (4) It is not one of the utility's own staff: a rule about the utility's supervisors or a count of its users leaves it out. Sources: Ryan 11-07; R-12 (two-column keys); AC-43 (the acting user comes from the verified login).
+
+**Given** Bluebonnet, BB-admin, PL-admin; **Gulf Plains** set up on the platform (Jan 2026, `cast.md`).
+
+**When**
+- (a) Gulf Plains is set up; then someone tries to add a second Tally User to it;
+- (b) a Cognito login is bound to Bluebonnet's Tally User, and someone signs in as it without a session;
+- (c) BB-admin lists Bluebonnet's users, then tries to switch the Tally User off and to change its permissions;
+- (d) PL-admin opens a session as Bluebonnet's Tally User, reason "T-5600 (invented): first supervisor", and binds the login of Bluebonnet's new supervisor **BB-admin2 (invented)**; then ends the session;
+- (e) BB-admin switches itself off, the utility's last tenant administrator; a report counts Bluebonnet's users and its active supervisors;
+- (f) BB-admin2 opens Bluebonnet's change history the next day.
+
+**Then**
+- (a) Gulf Plains has exactly one Tally User from the moment it exists; the second is refused.
+- (b) The binding is refused: the Tally User has no login. No sign-in can act as it outside a session.
+- (c) The Tally User is not in the list. The switch and the permission change are refused: only Tally changes it.
+- (d) Accepted. BB-admin2's binding names Bluebonnet's Tally User as who did it, and is marked with the session (PL-admin, T-5600).
+- (e) The switch is accepted, as in SCN-0062 (f): Bluebonnet has no active supervisor of its own, and the report says so (zero, not one); the user count leaves the Tally User out.
+- (f) The binding in (d) shows as Tally's: PL-admin, the reason, the session's start and end. Hidden from the user list, not from the history.
 
