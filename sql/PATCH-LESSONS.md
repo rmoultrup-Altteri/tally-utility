@@ -53,6 +53,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [every-branch-and-stated-default-tested](#every-branch-and-stated-default-tested) — a guard's exempt branch and any behaviour a header states need a fixture that takes them; -23 r2's refund exemption and K2 default had none
 - [rule-table-fixture-notes](#rule-table-fixture-notes) — Notes from building -25: facets and owner types stored sorted; flush deferred checks as the owner; drop guard pieces another check always beats
 - [rule-table-keys-are-text-codes](#rule-table-keys-are-text-codes) — a rule-template area key must be a text code (no uuid); key a place by kind and code, which also survives the place's succession; terms numbers canonical (1, not 1.0)
+- [check-names-its-own-guard](#check-names-its-own-guard) — when two guards share a tag (a BEFORE guard and its commit-time backup), a battery check matching the tag alone still passes with either guard gone; match wording only one writes. A mutation that empties an already-empty list changes nothing
 
 **Review process**
 - [freeze-hash-before-reviews](#freeze-hash-before-reviews) — Do not edit the patch file while the two reviewers are testing it — freeze the hash at launch, batch all fixes into the next round
@@ -470,3 +471,14 @@ v5.4.2-30 r2 recorded each premise's state in a history stamped `now()` (the tra
 
 **How to apply:** name a deferred check that reads another trigger's write so it sorts after that trigger (`zz_…` after `z_…`). In a battery, set the constraint back to DEFERRED after forcing it, and debug a silent pass by printing what the trigger sees.
 
+## check-names-its-own-guard
+
+Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
+
+- **Shared tags.** -25 refuses an amount or a determination on a resolved dispute twice: a BEFORE guard reading the status, and a commit-time check reading the events (for the same-statement shapes). Both messages carry [D2e] and [D4k]. Battery checks D2m and D4k matched the tag, so with the BEFORE guard mutated away the backup refused instead, and the checks still passed (M43, M55). Words they share ("nothing is recorded on it after") don't separate them either.
+- **Empty lists.** M120 emptied `c_col_acls`, the list the unlisted-grant leg subtracts. That list was already empty, so the mutation changed nothing.
+- **The wrong leg.** M124 removed the policy check's leg for a listed policy that changed or went missing, while its check, H16f, adds an unlisted policy.
+
+**Why:** a check that passes whichever guard fires proves neither guard. A mutation that changes nothing, or changes a leg its check never reaches, reads as a missed guard that isn't one.
+
+**How to apply:** when two guards can refuse the same row, give each battery check a phrase that only its guard writes, and keep the shape the backup guard holds as a separate check. Mutate the leg that the named check's shape actually reaches. When a list in the manifest is empty, mutate the query that finds extras, not the list. Run the full mutation suite once before a round freezes: that run is what catches these. Related: [checks-narrower-than-their-claim](#checks-narrower-than-their-claim), [rule-table-fixture-notes](#rule-table-fixture-notes).
