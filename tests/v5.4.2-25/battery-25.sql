@@ -652,6 +652,11 @@ SELECT pg_temp.refuses_at('D2c2 … a credit line is not a charge to dispute',
 SELECT pg_temp.refuses_at('D2d an amount of zero',
   pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 0, 'customer_claim', DATE '2026-03-12'),
   '23514', 'dispute_amounts_amount_check');
+SELECT pg_temp.refuses_at('D2g r2 (Opus S3): an amount above the bill''s positive charges (100.01 of 60 + 40)',
+  pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 100.01, 'customer_claim', DATE '2026-03-12'),
+  '23514', '[D2g]');
+SELECT pg_temp.admits_undone('D2g2 … the whole 100 is admitted',
+  pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 100, 'customer_claim', DATE '2026-03-12'));
 SELECT pg_temp.refuses_at('D2e a determiner that is not the customer, an agreement, the utility or a regulator''s interim estimate',
   pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'court', DATE '2026-03-12'),
   '23514', 'dispute_amounts_determined_by_check');
@@ -868,7 +873,7 @@ SELECT pg_temp.refuses_at('D4k2 a resolution and then a superseding determinatio
                   '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D4k]');
 SELECT pg_temp.refuses_at('D2m2 a resolution and then a new amount in one statement (a writable CTE)',
   'WITH r AS (' || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained') || ' RETURNING 1) ' ||
-  regexp_replace(pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 999, 'agreed', DATE '2026-04-10'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D2e]');
+  regexp_replace(pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-10'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D2e]');
 SELECT pg_temp.admits('D5m C1''s I1 dispute is resolved: the bill is sustained, April 10',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained',
                  NULL, NULL, NULL, '00000000-0000-4000-8000-000000002561'));

@@ -1878,6 +1878,9 @@ SELECT public.rule_row_seed('public.dispute_rules', $law${"commission_jurisdicti
 -- 5. The dispute record: tables (D1, D2, D3, D5)
 -- ----------------------------------------------------------------------------
 -- One sequence orders every dispute record in recording order.
+-- r2 (Opus S5, Fable S5; R-12): the key a determination's tariff link names
+-- with its tenant.
+ALTER TABLE public.dispute_tariffs ADD CONSTRAINT dispute_tariffs_id_tenant_key UNIQUE (id, tenant_id);
 CREATE SEQUENCE public.dispute_record_seq;
 
 CREATE TABLE public.disputes (
@@ -1902,7 +1905,7 @@ CREATE TABLE public.disputes (
     CONSTRAINT disputes_invoice_fkey FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES public.invoices (id, tenant_id, customer_id),
     CONSTRAINT disputes_reading_fkey FOREIGN KEY (reading_id, tenant_id) REFERENCES public.meter_readings (id, tenant_id),
     CONSTRAINT disputes_subject_fkey FOREIGN KEY (subject) REFERENCES public.dispute_subjects (subject_code),
-    CONSTRAINT disputes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),
+    CONSTRAINT disputes_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT disputes_target_check CHECK (invoice_id IS NOT NULL OR reading_id IS NOT NULL),
     CONSTRAINT disputes_channel_check CHECK (channel = ANY (ARRAY['written', 'oral', 'portal', 'regulator_referral'])),
     CONSTRAINT disputes_status_check CHECK (status = ANY (ARRAY['open', 'resolved', 'withdrawn'])),
@@ -1931,7 +1934,7 @@ CREATE TABLE public.dispute_amounts (
     CONSTRAINT dispute_amounts_id_tenant_id_key UNIQUE (id, tenant_id),
     CONSTRAINT dispute_amounts_id_dispute_id_key UNIQUE (id, dispute_id),
     CONSTRAINT dispute_amounts_dispute_fkey FOREIGN KEY (dispute_id, tenant_id) REFERENCES public.disputes (id, tenant_id),
-    CONSTRAINT dispute_amounts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),
+    CONSTRAINT dispute_amounts_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT dispute_amounts_amount_check CHECK (amount > 0),
     CONSTRAINT dispute_amounts_determined_by_check
         CHECK (determined_by = ANY (ARRAY['customer_claim', 'agreed', 'utility', 'regulator_interim']))
@@ -1996,12 +1999,12 @@ CREATE TABLE public.dispute_determinations (
     CONSTRAINT dispute_determinations_dispute_fkey FOREIGN KEY (dispute_id, tenant_id) REFERENCES public.disputes (id, tenant_id),
     CONSTRAINT dispute_determinations_amount_fkey FOREIGN KEY (dispute_amount_id, dispute_id) REFERENCES public.dispute_amounts (id, dispute_id),
     CONSTRAINT dispute_determinations_rule_fkey FOREIGN KEY (rule_id) REFERENCES public.dispute_rules (id),
-    CONSTRAINT dispute_determinations_tariff_fkey FOREIGN KEY (tariff_id) REFERENCES public.dispute_tariffs (id),
+    CONSTRAINT dispute_determinations_tariff_fkey FOREIGN KEY (tariff_id, tenant_id) REFERENCES public.dispute_tariffs (id, tenant_id),
     CONSTRAINT dispute_determinations_class_fkey FOREIGN KEY (state_code, service_type, customer_class)
         REFERENCES public.dispute_customer_classes (state_code, service_type, class_code),
     CONSTRAINT dispute_determinations_system_fkey FOREIGN KEY (system_kind) REFERENCES public.utility_system_kinds (system_kind),
     CONSTRAINT dispute_determinations_supersedes_fkey FOREIGN KEY (supersedes_id, dispute_id) REFERENCES public.dispute_determinations (id, dispute_id),
-    CONSTRAINT dispute_determinations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),
+    CONSTRAINT dispute_determinations_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT dispute_determinations_outcome_check CHECK (outcome = ANY (ARRAY['sheltered', 'not_sheltered', 'no_terms'])),
     CONSTRAINT dispute_determinations_amounts_check CHECK (sheltered_amount >= 0 AND (must_pay_amount IS NULL OR must_pay_amount >= 0)),
     CONSTRAINT dispute_determinations_inputs_check CHECK (jsonb_typeof(inputs) = 'object' AND inputs_fingerprint ~ '[[:alnum:]]'),
@@ -2035,10 +2038,10 @@ CREATE TABLE public.dispute_events (
     CONSTRAINT dispute_events_id_dispute_id_key UNIQUE (id, dispute_id),
     CONSTRAINT dispute_events_dispute_fkey FOREIGN KEY (dispute_id, tenant_id) REFERENCES public.disputes (id, tenant_id),
     CONSTRAINT dispute_events_decider_fkey FOREIGN KEY (decider_user_id, tenant_id) REFERENCES public.users (id, tenant_id),
-    CONSTRAINT dispute_events_ledger_fkey FOREIGN KEY (correction_ledger_entry_id) REFERENCES public.account_ledger (id),
-    CONSTRAINT dispute_events_credit_fkey FOREIGN KEY (correction_credit_id) REFERENCES public.customer_credits (id),
-    CONSTRAINT dispute_events_invoice_fkey FOREIGN KEY (correction_invoice_id) REFERENCES public.invoices (id),
-    CONSTRAINT dispute_events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),
+    CONSTRAINT dispute_events_ledger_fkey FOREIGN KEY (correction_ledger_entry_id, tenant_id) REFERENCES public.account_ledger (id, tenant_id),
+    CONSTRAINT dispute_events_credit_fkey FOREIGN KEY (correction_credit_id, tenant_id) REFERENCES public.customer_credits (id, tenant_id),
+    CONSTRAINT dispute_events_invoice_fkey FOREIGN KEY (correction_invoice_id, tenant_id) REFERENCES public.invoices (id, tenant_id),
+    CONSTRAINT dispute_events_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT dispute_events_type_check
         CHECK (event_type = ANY (ARRAY['opened', 'stage_entered', 'escalated', 'decided', 'resolved', 'withdrawn'])),
     CONSTRAINT dispute_events_escalated_to_check
@@ -2311,6 +2314,14 @@ BEGIN
                              NEW.effective_on, d.received_on),
             ERRCODE = 'check_violation';
     END IF;
+    -- r2 (Opus S3): an amount on a bill is at most the bill's positive
+    -- charges, so no line reads more sheltered than it charges [D2g].
+    IF d.invoice_id IS NOT NULL AND NEW.amount > coalesce((SELECT sum(li.amount) FROM public.invoice_line_items li
+                                                            WHERE li.invoice_id = d.invoice_id AND li.amount > 0), 0) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('disputed amount %s is more than the positive charges of dispute %s''s bill [D2g] (v5.4.2-25)', NEW.amount, d.id),
+            ERRCODE = 'check_violation';
+    END IF;
     NEW.recorded_txid := txid_current();
     NEW.record_seq    := nextval('public.dispute_record_seq');
     BEGIN
@@ -2322,7 +2333,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_dispute_amount() IS
-    'v5.4.2-25 (D2). BEFORE INSERT on dispute_amounts: the writer''s own tenant; under the dispute''s lock (READ COMMITTED), the dispute is open [D2e]; effective on or after it was received and not after today, recorded no earlier than the dispute [D2d]; stamps created_by, recorded_txid (its lines are written in this transaction) and record_seq.';
+    'v5.4.2-25 (D2). BEFORE INSERT on dispute_amounts: the writer''s own tenant; under the dispute''s lock (READ COMMITTED), the dispute is open [D2e]; effective on or after it was received and not after today, recorded no earlier than the dispute [D2d]; r2: on a bill, at most its positive charges [D2g]; stamps created_by, recorded_txid (its lines are written in this transaction) and record_seq.';
 REVOKE ALL ON FUNCTION public.enforce_dispute_amount() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_dispute_amount BEFORE INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_amount();
 ALTER TABLE public.dispute_amounts ENABLE ALWAYS TRIGGER b_enforce_dispute_amount;
