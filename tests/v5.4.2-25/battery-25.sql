@@ -918,9 +918,12 @@ SELECT pg_temp.refuses_at('D5p any event after the resolution',
 SELECT pg_temp.refuses_at('D4k a determination after the resolution',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 30, 90, 'm1', NULL,
-                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), '23514', '[D4k]');
+                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), '23514', 'nothing is determined after it [D4k]');
+-- D4k and D2m name the BEFORE guard's own message: the commit-time check from
+-- the events carries the same tag (it holds D4k2 and D2m2), and would pass a
+-- tag-only match with the BEFORE guard gone (mutations M43, M55).
 SELECT pg_temp.refuses_at('D2m an amount after the resolution',
-  pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-12'), '23514', '[D2e]');
+  pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-12'), '23514', 'is resolved — nothing is recorded on it after [D2e]');
 SELECT pg_temp.admits('D5q C1''s I2 dispute is resolved adjusted, naming the adjustment entry that produced',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002532', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'adjusted',
                  '00000000-0000-4000-8000-000000002582'));
@@ -1104,6 +1107,8 @@ SELECT pg_temp.refuses_at('H16e … a constraint dropped',
   $q$ALTER TABLE public.dispute_amounts DROP CONSTRAINT dispute_amounts_created_by_fkey; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'dispute_amounts_created_by_fkey');
 SELECT pg_temp.refuses_at('H16f … a second policy',
   $q$CREATE POLICY wide ON public.disputes USING (true); SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'unlisted');
+SELECT pg_temp.refuses_at('H16f2 … a listed policy dropped',
+  $q$DROP POLICY tenant_isolation ON public.disputes; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'disputes | tenant_isolation | ALL');
 SELECT pg_temp.refuses_at('H16g … a NOT NULL dropped',
   $q$ALTER TABLE public.disputes ALTER COLUMN received_on DROP NOT NULL; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'lost NOT NULL');
 

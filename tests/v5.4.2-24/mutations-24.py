@@ -333,7 +333,7 @@ MUTATIONS = [
     ("M105", "the READ COMMITTED pin does nothing (Opus r2 S1)", "SU7",
      rep("BEGIN\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN", "BEGIN\n    RETURN;\n    IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN")),
     # ---- r4
-    ("M106", "a reversal's own reversal is not netted in the misposted share (r3; P14a is held by the bound at the payment)", "P14b",
+    ("M106", "a reversal's own reversal is not netted in the misposted share (r3; r6: the bound at the payment cannot be reached under -23's caps, r6 plan item 3)", "P14b",
      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND false")),
     ("M107", "the order check excludes no payment's own void (r3)", "O4",
      rep("p.status IN ('voided', 'reversed') AND NOT (p_self_is_payment AND p.id = p_self)) x", "p.status IN ('voided', 'reversed')) x")),
