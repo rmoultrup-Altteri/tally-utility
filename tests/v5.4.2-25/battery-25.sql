@@ -1082,6 +1082,12 @@ SELECT pg_temp.ok('H15 the comments say the core decides, not the database',
   (SELECT bool_and(obj_description(t, 'pg_class') ~* 'core')
      FROM unnest(ARRAY['public.dispute_rules'::regclass, 'public.dispute_tariffs'::regclass, 'public.dispute_determinations'::regclass]) t));
 
+-- r2 (Opus N): a superuser load with foreign keys off cannot cross tenants.
+SELECT pg_temp.refuses_at('H17 a T2 dispute of T1''s bill, loaded with foreign keys off',
+  $q$SET LOCAL session_replication_role = replica;
+     INSERT INTO public.disputes (tenant_id, customer_id, invoice_id, subject, received_on, channel)
+     VALUES ('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-0000000025c5', '00000000-0000-4000-8000-000000002501', 'calculation', DATE '2026-03-12', 'written')$q$,
+  '23503', 'disputes_invoice_fkey');
 -- r2 (Fable S4): -25's own guard invariant.
 SELECT pg_temp.admits('H16 -25''s guard invariant holds as built', $q$SELECT public.assert_dispute_guard_invariants()$q$);
 SELECT pg_temp.refuses_at('H16a … and catches a guard switched off',

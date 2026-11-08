@@ -2183,6 +2183,8 @@ DECLARE
     v_date      date;
     v_issued    timestamp with time zone;
     v_holder    uuid;
+    v_tenant    uuid;
+    v_cust      uuid;
 BEGIN
     -- Another tenant's dispute is row security's to refuse: the bill and the
     -- reading of another tenant are not visible here, so nothing below
@@ -2204,8 +2206,14 @@ BEGIN
     END IF;
     -- A bill another customer's or tenant's is the composite FK's to refuse.
     IF NEW.invoice_id IS NOT NULL THEN
-        SELECT i.invoice_date, i.first_issued_at INTO v_date, v_issued FROM public.invoices i WHERE i.id = NEW.invoice_id;
+        SELECT i.invoice_date, i.first_issued_at, i.tenant_id, i.customer_id INTO v_date, v_issued, v_tenant, v_cust FROM public.invoices i WHERE i.id = NEW.invoice_id;
         IF FOUND THEN
+            -- r2 (Opus N): also for a load with foreign keys off.
+            IF v_tenant <> NEW.tenant_id OR v_cust <> NEW.customer_id THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('disputes: bill %s is not of this tenant and customer (v5.4.2-25)', NEW.invoice_id),
+                    ERRCODE = 'foreign_key_violation', CONSTRAINT = 'disputes_invoice_fkey';
+            END IF;
             IF v_issued IS NULL THEN
                 RAISE EXCEPTION USING
                     MESSAGE = format('dispute: bill %s was never issued — a draft is corrected, not disputed [D1b] (v5.4.2-25)', NEW.invoice_id),
@@ -2219,13 +2227,13 @@ BEGIN
         END IF;
     END IF;
     IF NEW.reading_id IS NOT NULL THEN
-        SELECT r.reading_date, l.customer_id INTO v_date, v_holder
+        SELECT r.reading_date, l.customer_id, r.tenant_id INTO v_date, v_holder, v_tenant
           FROM public.meter_readings r
           JOIN public.meters m ON m.id = r.meter_id
           JOIN public.service_locations l ON l.id = m.location_id
          WHERE r.id = NEW.reading_id;
         IF FOUND THEN
-            IF v_holder IS DISTINCT FROM NEW.customer_id THEN
+            IF v_holder IS DISTINCT FROM NEW.customer_id OR v_tenant <> NEW.tenant_id THEN
                 RAISE EXCEPTION USING
                     MESSAGE = format('dispute: reading %s is at a location of another customer [D1c] (v5.4.2-25)', NEW.reading_id),
                     ERRCODE = 'check_violation';
@@ -3410,7 +3418,7 @@ DECLARE
         'enforce_dispute_amount_lines_sum() @9abd8a4e51a1171bc32b2e5c4467f3c7',
         'enforce_dispute_determination() @717624257648e45c4237c74af9eafcc7',
         'enforce_dispute_event() @45d165a1116228add6748ea8993b2cbe',
-        'enforce_dispute_insert() @58128113eba33e6a80bf92893e9d9a50',
+        'enforce_dispute_insert() @8b95d05590ff7c32ab9c3977952ca68f',
         'enforce_dispute_nothing_after_close() @626ce893d49ad8f9770a296b06a2f66a',
         'enforce_dispute_reading_released() @66a2a6b667427822f92c0fb67f4675ae',
         'enforce_dispute_update() @23b35cc9e6a360d9799bb630c7bf06dc',

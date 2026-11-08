@@ -42,8 +42,8 @@ def rep(old: str, new: str) -> Callable[[str], str]:
 
 def tail(sql: str) -> Callable[[str], str]:
     """Append statements just before the patch's own invariant run."""
-    return rep("DO $$ BEGIN\n    PERFORM public.assert_cash_guard_invariants();",
-               sql + "\nDO $$ BEGIN\n    PERFORM public.assert_cash_guard_invariants();")
+    return rep("DO $$ BEGIN\n    PERFORM public.assert_dispute_guard_invariants();",
+               sql + "\nDO $$ BEGIN\n    PERFORM public.assert_dispute_guard_invariants();")
 
 
 # Anchors that occur more than once carry the message line that follows them.
@@ -144,7 +144,7 @@ MUTATIONS = [
      rep("            IF NEW.received_on < v_date THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('dispute: received %s, before the bill''s date",
          "            IF NEW.received_on <= v_date THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('dispute: received %s, before the bill''s date")),
     ("M35", "a reading of another customer's location", "D1i",
-     rep("            IF v_holder IS DISTINCT FROM NEW.customer_id THEN", "            IF false THEN")),
+     rep("            IF v_holder IS DISTINCT FROM NEW.customer_id OR v_tenant <> NEW.tenant_id THEN", "            IF false THEN")),
     ("M36", "a dispute received before its reading", "D1k",
      rep("            IF NEW.received_on < v_date THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('dispute: received %s, before the reading",
          "            IF false THEN\n                RAISE EXCEPTION USING\n                    MESSAGE = format('dispute: received %s, before the reading")),
@@ -328,6 +328,37 @@ MUTATIONS = [
      rep("    IF NEW.status = 'disputed' AND NOT v_open THEN", "    IF false THEN")),
     ("M110", "a reading unmarked while its dispute is open", "T2d",
      rep("    IF OLD.status = 'disputed' AND v_open THEN", "    IF false THEN")),
+    # ---- r2
+    ("M111", "a record in the same statement as the resolution is admitted (r1)", "D5r",
+     rep("       AND e.record_seq < NEW.record_seq;\n    IF FOUND THEN", "       AND e.record_seq < NEW.record_seq;\n    IF false THEN")),
+    ("M112", "an amount may exceed its bill's positive charges", "D2g",
+     rep("    IF d.invoice_id IS NOT NULL AND NEW.amount > coalesce(", "    IF false AND NEW.amount > coalesce(")),
+    ("M113", "a tariff may drop a duty the law requires", "N9a",
+     rep("         WHERE NOT coalesce((v_t #> '{duties,codes}') ? c, false);", "         WHERE false;")),
+    ("M114", "a tariff may drop a stage the law requires", "N9b",
+     rep("         WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(v_t -> 'stages', '[]')) y WHERE y ->> 'decider' = w.c);", "         WHERE false;")),
+    ("M115", "a shelter under a counted end may run past it", "D4p",
+     rep("        IF NEW.shelter_ends_on IS NULL OR v_last IS NULL OR NEW.shelter_ends_on > v_last THEN", "        IF false THEN")),
+    ("M116", "the law alone may be cited while the utility's policy is in force", "D4q",
+     rep("    IF r.terms ->> 'governs' = 'law' AND NEW.tariff_id IS NULL\n", "    IF false AND NEW.tariff_id IS NULL\n")),
+    ("M117", "a closed dispute may leave its reading marked disputed", "T2e0",
+     rep("       AND NOT EXISTS (SELECT 1 FROM public.disputes x WHERE x.reading_id = v_reading AND x.status = 'open') THEN", "       AND false THEN")),
+    ("M118", "a dispute may name another tenant's bill in a load with foreign keys off", "H17",
+     rep("            IF v_tenant <> NEW.tenant_id OR v_cust <> NEW.customer_id THEN", "            IF false THEN")),
+    ("M119", "the invariant checks no trigger", "H16a",
+     rep("    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(c_triggers) d", "    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(ARRAY[]::text[]) d")),
+    ("M120", "the invariant checks no column grant", "H16b",
+     rep("         EXCEPT SELECT unnest(c_col_acls))", "         EXCEPT SELECT x FROM (SELECT NULL::text) z(x) WHERE false)")),
+    ("M121", "the invariant checks no function body", "H16c",
+     rep("    SELECT string_agg(split_part(d, ' @', 1), E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(c_bodies) d", "    SELECT string_agg(split_part(d, ' @', 1), E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(ARRAY[]::text[]) d")),
+    ("M122", "the invariant checks no function owner or attribute", "H16d",
+     rep("    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(c_attrs) d", "    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(ARRAY[]::text[]) d")),
+    ("M123", "the invariant checks no constraint", "H16e",
+     rep("    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(c_constraints) d", "    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(ARRAY[]::text[]) d")),
+    ("M124", "the invariant checks no policy", "H16f",
+     rep("        SELECT d FROM unnest(c_policies) d", "        SELECT d FROM unnest(ARRAY[]::text[]) d")),
+    ("M125", "the invariant checks no NOT NULL", "H16g",
+     rep("    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(c_notnull) d", "    SELECT string_agg(d, E'\\n  ' ORDER BY d) INTO v_bad FROM unnest(ARRAY[]::text[]) d")),
 ]
 
 
