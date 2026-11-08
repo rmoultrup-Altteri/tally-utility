@@ -3218,7 +3218,471 @@ COMMENT ON INDEX public.idx_readings_disputed IS
 -- ----------------------------------------------------------------------------
 -- 9. The invariants
 -- ----------------------------------------------------------------------------
+-- r2 (Fable S4; -24's model): -25's own guard invariant, every list exact and
+-- regenerated from a build by tests/v5.4.2-25/fill-manifest.py.
+CREATE OR REPLACE FUNCTION public.assert_dispute_guard_invariants() RETURNS void
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $fn$
+DECLARE
+    v_bad text;
+    c_triggers CONSTANT text[] := ARRAY[
+        'CREATE CONSTRAINT TRIGGER z_enforce_dispute_amount_lines_sum AFTER INSERT ON public.dispute_amount_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_dispute_amount_lines_sum()',
+        'CREATE CONSTRAINT TRIGGER zz_dispute_reading_released AFTER INSERT ON public.dispute_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((new.event_type = ANY (ARRAY[''resolved''::text, ''withdrawn''::text]))) EXECUTE FUNCTION enforce_dispute_reading_released()',
+        'CREATE TRIGGER a_enforce_enrollment_not_pending_dispute BEFORE INSERT OR UPDATE ON public.customer_program_enrollments FOR EACH ROW EXECUTE FUNCTION enforce_enrollment_not_pending_dispute()',
+        'CREATE TRIGGER a_enforce_reading_dispute_status BEFORE INSERT OR UPDATE OF status ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_reading_dispute_status()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_amount_lines FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_blocks FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_customer_classes FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_duties FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.dispute_subjects FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.dispute_amount_lines FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.disputes FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER b_enforce_dispute_amount BEFORE INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION enforce_dispute_amount()',
+        'CREATE TRIGGER b_enforce_dispute_amount_line BEFORE INSERT ON public.dispute_amount_lines FOR EACH ROW EXECUTE FUNCTION enforce_dispute_amount_line()',
+        'CREATE TRIGGER b_enforce_dispute_determination BEFORE INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION enforce_dispute_determination()',
+        'CREATE TRIGGER b_enforce_dispute_event BEFORE INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION enforce_dispute_event()',
+        'CREATE TRIGGER b_enforce_dispute_insert BEFORE INSERT ON public.disputes FOR EACH ROW EXECUTE FUNCTION enforce_dispute_insert()',
+        'CREATE TRIGGER b_enforce_dispute_update BEFORE UPDATE ON public.disputes FOR EACH ROW EXECUTE FUNCTION enforce_dispute_update()',
+        'CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.disputes FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_amount_lines FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_amounts FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_blocks FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_customer_classes FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_determinations FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_duties FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_events FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.disputes FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_subjects FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER rule_row_history BEFORE DELETE OR UPDATE ON public.dispute_rules FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_history()',
+        'CREATE TRIGGER rule_row_history BEFORE DELETE OR UPDATE ON public.dispute_tariffs FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_history()',
+        'CREATE TRIGGER rule_row_insert BEFORE INSERT ON public.dispute_rules FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_insert()',
+        'CREATE TRIGGER rule_row_insert BEFORE INSERT ON public.dispute_tariffs FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_insert()',
+        'CREATE TRIGGER rule_row_no_truncate BEFORE TRUNCATE ON public.dispute_rules FOR EACH STATEMENT EXECUTE FUNCTION enforce_rule_registry_no_truncate()',
+        'CREATE TRIGGER rule_row_no_truncate BEFORE TRUNCATE ON public.dispute_tariffs FOR EACH STATEMENT EXECUTE FUNCTION enforce_rule_registry_no_truncate()',
+        'CREATE TRIGGER trg_enforce_reading_validation_workflow BEFORE UPDATE ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_reading_validation_workflow()',
+        'CREATE TRIGGER z_dispute_move_status AFTER INSERT ON public.dispute_events FOR EACH ROW WHEN ((new.event_type = ANY (ARRAY[''resolved''::text, ''withdrawn''::text]))) EXECUTE FUNCTION dispute_move_status()',
+        'CREATE TRIGGER z_dispute_opened_event AFTER INSERT ON public.disputes FOR EACH ROW EXECUTE FUNCTION dispute_opened_event()',
+        'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()',
+        'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()',
+        'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()'];
+    c_constraints CONSTANT text[] := ARRAY[
+        'dispute_amount_lines dispute_amount_lines_amount_check CHECK ((amount > (0)::numeric))',
+        'dispute_amount_lines dispute_amount_lines_amount_fkey FOREIGN KEY (dispute_amount_id, tenant_id) REFERENCES dispute_amounts(id, tenant_id)',
+        'dispute_amount_lines dispute_amount_lines_line_fkey FOREIGN KEY (invoice_line_item_id, invoice_id) REFERENCES invoice_line_items(id, invoice_id)',
+        'dispute_amount_lines dispute_amount_lines_one_per_line UNIQUE (dispute_amount_id, invoice_line_item_id)',
+        'dispute_amount_lines dispute_amount_lines_pkey PRIMARY KEY (id)',
+        'dispute_amount_lines z_enforce_dispute_amount_lines_sum TRIGGER DEFERRABLE INITIALLY DEFERRED',
+        'dispute_amounts dispute_amounts_amount_check CHECK ((amount > (0)::numeric))',
+        'dispute_amounts dispute_amounts_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'dispute_amounts dispute_amounts_determined_by_check CHECK ((determined_by = ANY (ARRAY[''customer_claim''::text, ''agreed''::text, ''utility''::text, ''regulator_interim''::text])))',
+        'dispute_amounts dispute_amounts_dispute_fkey FOREIGN KEY (dispute_id, tenant_id) REFERENCES disputes(id, tenant_id)',
+        'dispute_amounts dispute_amounts_id_dispute_id_key UNIQUE (id, dispute_id)',
+        'dispute_amounts dispute_amounts_id_tenant_id_key UNIQUE (id, tenant_id)',
+        'dispute_amounts dispute_amounts_pkey PRIMARY KEY (id)',
+        'dispute_blocks dispute_blocks_code_check CHECK ((block_code ~ ''^[a-z][a-z0-9_]*$''::text))',
+        'dispute_blocks dispute_blocks_description_check CHECK ((description ~ ''[[:alnum:]]''::text))',
+        'dispute_blocks dispute_blocks_pkey PRIMARY KEY (block_code)',
+        'dispute_customer_classes dispute_customer_classes_code_check CHECK ((class_code ~ ''^[a-z][a-z0-9_]*$''::text))',
+        'dispute_customer_classes dispute_customer_classes_description_check CHECK ((description ~ ''[[:alnum:]]''::text))',
+        'dispute_customer_classes dispute_customer_classes_pkey PRIMARY KEY (state_code, service_type, class_code)',
+        'dispute_customer_classes dispute_customer_classes_service_type_check CHECK ((service_type = ANY (ARRAY[''water''::text, ''sewer''::text, ''electric''::text, ''gas''::text, ''stormwater''::text, ''trash''::text, ''reclaimed_water''::text])))',
+        'dispute_customer_classes dispute_customer_classes_source_note_check CHECK ((source_note ~ ''[[:alnum:]]''::text))',
+        'dispute_customer_classes dispute_customer_classes_state_code_check CHECK ((state_code ~ ''^[A-Z]{2}$''::text))',
+        'dispute_determinations dispute_determinations_amount_fkey FOREIGN KEY (dispute_amount_id, dispute_id) REFERENCES dispute_amounts(id, dispute_id)',
+        'dispute_determinations dispute_determinations_amounts_check CHECK (((sheltered_amount >= (0)::numeric) AND ((must_pay_amount IS NULL) OR (must_pay_amount >= (0)::numeric))))',
+        'dispute_determinations dispute_determinations_calculated_by_check CHECK ((calculated_by ~ ''[[:alnum:]]''::text))',
+        'dispute_determinations dispute_determinations_class_fkey FOREIGN KEY (state_code, service_type, customer_class) REFERENCES dispute_customer_classes(state_code, service_type, class_code)',
+        'dispute_determinations dispute_determinations_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'dispute_determinations dispute_determinations_dispute_fkey FOREIGN KEY (dispute_id, tenant_id) REFERENCES disputes(id, tenant_id)',
+        'dispute_determinations dispute_determinations_id_dispute_id_key UNIQUE (id, dispute_id)',
+        'dispute_determinations dispute_determinations_id_tenant_id_key UNIQUE (id, tenant_id)',
+        'dispute_determinations dispute_determinations_inputs_check CHECK (((jsonb_typeof(inputs) = ''object''::text) AND (inputs_fingerprint ~ ''[[:alnum:]]''::text)))',
+        'dispute_determinations dispute_determinations_outcome_check CHECK ((outcome = ANY (ARRAY[''sheltered''::text, ''not_sheltered''::text, ''no_terms''::text])))',
+        'dispute_determinations dispute_determinations_pkey PRIMARY KEY (id)',
+        'dispute_determinations dispute_determinations_rule_fkey FOREIGN KEY (rule_id) REFERENCES dispute_rules(id)',
+        'dispute_determinations dispute_determinations_supersedes_fkey FOREIGN KEY (supersedes_id, dispute_id) REFERENCES dispute_determinations(id, dispute_id)',
+        'dispute_determinations dispute_determinations_supersedes_key UNIQUE (supersedes_id)',
+        'dispute_determinations dispute_determinations_system_fkey FOREIGN KEY (system_kind) REFERENCES utility_system_kinds(system_kind)',
+        'dispute_determinations dispute_determinations_tariff_fkey FOREIGN KEY (tariff_id, tenant_id) REFERENCES dispute_tariffs(id, tenant_id)',
+        'dispute_duties dispute_duties_code_check CHECK ((duty_code ~ ''^[a-z][a-z0-9_]*$''::text))',
+        'dispute_duties dispute_duties_description_check CHECK ((description ~ ''[[:alnum:]]''::text))',
+        'dispute_duties dispute_duties_pkey PRIMARY KEY (duty_code)',
+        'dispute_events dispute_events_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'dispute_events dispute_events_credit_fkey FOREIGN KEY (correction_credit_id, tenant_id) REFERENCES customer_credits(id, tenant_id)',
+        'dispute_events dispute_events_decider_fkey FOREIGN KEY (decider_user_id, tenant_id) REFERENCES users(id, tenant_id)',
+        'dispute_events dispute_events_decider_role_check CHECK (((decider_role IS NULL) OR (decider_role = ANY (ARRAY[''designated_employee''::text, ''supervisor''::text, ''manager''::text, ''executive''::text, ''governing_body''::text, ''regulator''::text]))))',
+        'dispute_events dispute_events_dispute_fkey FOREIGN KEY (dispute_id, tenant_id) REFERENCES disputes(id, tenant_id)',
+        'dispute_events dispute_events_escalated_to_check CHECK ((((event_type = ''escalated''::text) = (escalated_to IS NOT NULL)) AND ((escalated_to IS NULL) OR (escalated_to = ANY (ARRAY[''regulator''::text, ''governing_body''::text])))))',
+        'dispute_events dispute_events_id_dispute_id_key UNIQUE (id, dispute_id)',
+        'dispute_events dispute_events_invoice_fkey FOREIGN KEY (correction_invoice_id, tenant_id) REFERENCES invoices(id, tenant_id)',
+        'dispute_events dispute_events_ledger_fkey FOREIGN KEY (correction_ledger_entry_id, tenant_id) REFERENCES account_ledger(id, tenant_id)',
+        'dispute_events dispute_events_outcome_check CHECK ((((event_type = ''resolved''::text) = (outcome IS NOT NULL)) AND ((outcome IS NULL) OR (outcome = ANY (ARRAY[''sustained''::text, ''adjusted''::text, ''waived''::text])))))',
+        'dispute_events dispute_events_pkey PRIMARY KEY (id)',
+        'dispute_events dispute_events_type_check CHECK ((event_type = ANY (ARRAY[''opened''::text, ''stage_entered''::text, ''escalated''::text, ''decided''::text, ''resolved''::text, ''withdrawn''::text])))',
+        'dispute_events zz_dispute_reading_released TRIGGER DEFERRABLE INITIALLY DEFERRED',
+        'dispute_rules dispute_rules_customer_class_fkey FOREIGN KEY (state_code, service_type, customer_class) REFERENCES dispute_customer_classes(state_code, service_type, class_code)',
+        'dispute_rules dispute_rules_pkey PRIMARY KEY (id)',
+        'dispute_rules dispute_rules_rule_kind_check CHECK ((terms_kind = ''dispute''::text))',
+        'dispute_rules dispute_rules_rule_no_overlap EXCLUDE USING gist (state_code WITH =, service_type WITH =, owner_span WITH &&, system_span WITH &&, jurisdiction_span WITH &&, customer_class WITH =, daterange(effective_from, effective_to, ''[)''::text) WITH &&)',
+        'dispute_rules dispute_rules_rule_range_check CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))',
+        'dispute_rules dispute_rules_rule_schema_fkey FOREIGN KEY (terms_kind, terms_version) REFERENCES rule_term_schemas(terms_kind, terms_version)',
+        'dispute_rules dispute_rules_rule_service_check CHECK ((service_type = ANY (ARRAY[''water''::text, ''sewer''::text, ''electric''::text, ''gas''::text, ''stormwater''::text, ''trash''::text, ''reclaimed_water''::text])))',
+        'dispute_rules dispute_rules_rule_source_check CHECK ((source_note ~ ''[[:alnum:]]''::text))',
+        'dispute_rules dispute_rules_rule_state_check CHECK ((state_code ~ ''^[A-Z]{2}$''::text))',
+        'dispute_subjects dispute_subjects_code_check CHECK ((subject_code ~ ''^[a-z][a-z0-9_]*$''::text))',
+        'dispute_subjects dispute_subjects_description_check CHECK ((description ~ ''[[:alnum:]]''::text))',
+        'dispute_subjects dispute_subjects_pkey PRIMARY KEY (subject_code)',
+        'dispute_tariffs dispute_tariffs_id_tenant_key UNIQUE (id, tenant_id)',
+        'dispute_tariffs dispute_tariffs_pkey PRIMARY KEY (id)',
+        'dispute_tariffs dispute_tariffs_rule_closed_by_fkey FOREIGN KEY (closed_by) REFERENCES users(id)',
+        'dispute_tariffs dispute_tariffs_rule_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id)',
+        'dispute_tariffs dispute_tariffs_rule_kind_check CHECK ((terms_kind = ''dispute_tariff''::text))',
+        'dispute_tariffs dispute_tariffs_rule_no_overlap EXCLUDE USING gist (tenant_id WITH =, state_code WITH =, service_type WITH =, system_kind WITH =, daterange(effective_from, effective_to, ''[)''::text) WITH &&)',
+        'dispute_tariffs dispute_tariffs_rule_range_check CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))',
+        'dispute_tariffs dispute_tariffs_rule_reference_check CHECK ((tariff_reference ~ ''[[:alnum:]]''::text))',
+        'dispute_tariffs dispute_tariffs_rule_schema_fkey FOREIGN KEY (terms_kind, terms_version) REFERENCES rule_term_schemas(terms_kind, terms_version)',
+        'dispute_tariffs dispute_tariffs_rule_service_check CHECK ((service_type = ANY (ARRAY[''water''::text, ''sewer''::text, ''electric''::text, ''gas''::text, ''stormwater''::text, ''trash''::text, ''reclaimed_water''::text])))',
+        'dispute_tariffs dispute_tariffs_rule_state_check CHECK ((state_code ~ ''^[A-Z]{2}$''::text))',
+        'dispute_tariffs dispute_tariffs_rule_system_fkey FOREIGN KEY (system_kind) REFERENCES utility_system_kinds(system_kind)',
+        'dispute_tariffs dispute_tariffs_rule_tenant_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
+        'disputes disputes_channel_check CHECK ((channel = ANY (ARRAY[''written''::text, ''oral''::text, ''portal''::text, ''regulator_referral''::text])))',
+        'disputes disputes_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'disputes disputes_customer_fkey FOREIGN KEY (customer_id, tenant_id) REFERENCES customers(id, tenant_id)',
+        'disputes disputes_id_tenant_id_key UNIQUE (id, tenant_id)',
+        'disputes disputes_invoice_fkey FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES invoices(id, tenant_id, customer_id)',
+        'disputes disputes_pkey PRIMARY KEY (id)',
+        'disputes disputes_reading_fkey FOREIGN KEY (reading_id, tenant_id) REFERENCES meter_readings(id, tenant_id)',
+        'disputes disputes_status_cause_check CHECK ((((status = ''open''::text) = (status_cause_id IS NULL)) AND ((status_cause_id IS NULL) = (status_recorded_at IS NULL))))',
+        'disputes disputes_status_cause_fkey FOREIGN KEY (status_cause_id, id) REFERENCES dispute_events(id, dispute_id)',
+        'disputes disputes_status_check CHECK ((status = ANY (ARRAY[''open''::text, ''resolved''::text, ''withdrawn''::text])))',
+        'disputes disputes_subject_fkey FOREIGN KEY (subject) REFERENCES dispute_subjects(subject_code)',
+        'disputes disputes_target_check CHECK (((invoice_id IS NOT NULL) OR (reading_id IS NOT NULL)))',
+        'disputes disputes_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenants(id)'];
+    c_indexes CONSTANT text[] := ARRAY[
+        'CREATE UNIQUE INDEX dispute_amount_lines_one_per_line ON public.dispute_amount_lines USING btree (dispute_amount_id, invoice_line_item_id)',
+        'CREATE UNIQUE INDEX dispute_amount_lines_pkey ON public.dispute_amount_lines USING btree (id)',
+        'CREATE UNIQUE INDEX dispute_amounts_id_dispute_id_key ON public.dispute_amounts USING btree (id, dispute_id)',
+        'CREATE UNIQUE INDEX dispute_amounts_id_tenant_id_key ON public.dispute_amounts USING btree (id, tenant_id)',
+        'CREATE UNIQUE INDEX dispute_amounts_pkey ON public.dispute_amounts USING btree (id)',
+        'CREATE UNIQUE INDEX dispute_blocks_pkey ON public.dispute_blocks USING btree (block_code)',
+        'CREATE UNIQUE INDEX dispute_customer_classes_pkey ON public.dispute_customer_classes USING btree (state_code, service_type, class_code)',
+        'CREATE UNIQUE INDEX dispute_determinations_id_dispute_id_key ON public.dispute_determinations USING btree (id, dispute_id)',
+        'CREATE UNIQUE INDEX dispute_determinations_id_tenant_id_key ON public.dispute_determinations USING btree (id, tenant_id)',
+        'CREATE UNIQUE INDEX dispute_determinations_pkey ON public.dispute_determinations USING btree (id)',
+        'CREATE UNIQUE INDEX dispute_determinations_supersedes_key ON public.dispute_determinations USING btree (supersedes_id)',
+        'CREATE UNIQUE INDEX dispute_duties_pkey ON public.dispute_duties USING btree (duty_code)',
+        'CREATE UNIQUE INDEX dispute_events_id_dispute_id_key ON public.dispute_events USING btree (id, dispute_id)',
+        'CREATE UNIQUE INDEX dispute_events_one_closing ON public.dispute_events USING btree (dispute_id) WHERE (event_type = ANY (ARRAY[''resolved''::text, ''withdrawn''::text]))',
+        'CREATE UNIQUE INDEX dispute_events_one_opened ON public.dispute_events USING btree (dispute_id) WHERE (event_type = ''opened''::text)',
+        'CREATE UNIQUE INDEX dispute_events_pkey ON public.dispute_events USING btree (id)',
+        'CREATE UNIQUE INDEX dispute_rules_pkey ON public.dispute_rules USING btree (id)',
+        'CREATE UNIQUE INDEX disputes_id_tenant_id_key ON public.disputes USING btree (id, tenant_id)',
+        'CREATE UNIQUE INDEX disputes_pkey ON public.disputes USING btree (id)',
+        'CREATE UNIQUE INDEX dispute_subjects_pkey ON public.dispute_subjects USING btree (subject_code)',
+        'CREATE UNIQUE INDEX dispute_tariffs_id_tenant_key ON public.dispute_tariffs USING btree (id, tenant_id)',
+        'CREATE UNIQUE INDEX dispute_tariffs_pkey ON public.dispute_tariffs USING btree (id)'];
+    c_bodies CONSTANT text[] := ARRAY[
+        'dispute_determination_terms(uuid,uuid) @fc5e9c53bf8830abe3c59c7dc7d3db77',
+        'dispute_line_shelter_as_of(uuid,date,timestamp with time zone) @5b197312b31f64670daa0dc43ccd3cae',
+        'dispute_live_determination(uuid) @dd4d728ec00196740e4c3d16c1e840a5',
+        'dispute_lock(uuid,text) @d4d50fc09105df338b763b9e733764e1',
+        'dispute_lock_key(uuid) @48473d783c1d4585d7dbbe7547968154',
+        'dispute_move_status() @c1dc1583123e10c3554cfed7886416bf',
+        'dispute_opened_event() @f37a5d70a3e77b786d203cde1c5ce37e',
+        'dispute_rule_close_floor(uuid) @0a9f2b4f8de5eb1adfda198f749bc9a5',
+        'dispute_rule_insert_check(jsonb) @4587dedf46c10127140443eb34173972',
+        'dispute_shelter_as_of(uuid,date,timestamp with time zone) @b2426c66663f996c951d9c2959855faf',
+        'dispute_subjects_admitted(jsonb) @1b5a024bfdb603d05b419084e8f44a42',
+        'dispute_tariff_close_floor(uuid) @4a80839446f3510d63fb9cc4e118aff9',
+        'dispute_tariff_compare(jsonb,jsonb) @c4cd716713e47958659e6cf574a34f81',
+        'dispute_tariff_insert_check(jsonb) @637164b15f1a7f2983964dafa3c41b89',
+        'dispute_tenant_check(text,uuid) @67fa787a3162c95f44eb4be63c758d63',
+        'dispute_terms_check(text,jsonb) @fd00cdb4f3292c8c59b19e63b30bdd98',
+        'enforce_dispute_amount() @2598d7b4a699403bbb09a683ea62cec6',
+        'enforce_dispute_amount_line() @7226c83d938f8d5b7e25646c640bede2',
+        'enforce_dispute_amount_lines_sum() @9abd8a4e51a1171bc32b2e5c4467f3c7',
+        'enforce_dispute_determination() @717624257648e45c4237c74af9eafcc7',
+        'enforce_dispute_event() @45d165a1116228add6748ea8993b2cbe',
+        'enforce_dispute_insert() @58128113eba33e6a80bf92893e9d9a50',
+        'enforce_dispute_nothing_after_close() @626ce893d49ad8f9770a296b06a2f66a',
+        'enforce_dispute_reading_released() @66a2a6b667427822f92c0fb67f4675ae',
+        'enforce_dispute_update() @23b35cc9e6a360d9799bb630c7bf06dc',
+        'enforce_enrollment_not_pending_dispute() @7fe658b78d6e6c4684198f163f6c1a5a',
+        'enforce_reading_dispute_status() @6ab05df5a3be34c7803e99572b544863',
+        'enforce_reading_validation_workflow() @6a3697aeaa1d73bd84deb021d15a1bd2'];
+    c_attrs CONSTANT text[] := ARRAY[
+        'dispute_determination_terms(uuid,uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_line_shelter_as_of(uuid,date,timestamp with time zone) | s | false | tally | search_path=public, pg_temp',
+        'dispute_live_determination(uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_lock(uuid,text) | v | false | tally | search_path=public, pg_temp',
+        'dispute_lock_key(uuid) | i | false | tally | search_path=public, pg_temp',
+        'dispute_move_status() | v | true | tally | search_path=public, pg_temp',
+        'dispute_opened_event() | v | false | tally | search_path=public, pg_temp',
+        'dispute_rule_close_floor(uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_rule_insert_check(jsonb) | s | false | tally | search_path=public, pg_temp',
+        'dispute_shelter_as_of(uuid,date,timestamp with time zone) | s | false | tally | search_path=public, pg_temp',
+        'dispute_subjects_admitted(jsonb) | s | false | tally | search_path=public, pg_temp',
+        'dispute_tariff_close_floor(uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_tariff_compare(jsonb,jsonb) | s | false | tally | search_path=public, pg_temp',
+        'dispute_tariff_insert_check(jsonb) | s | false | tally | search_path=public, pg_temp',
+        'dispute_tenant_check(text,uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_terms_check(text,jsonb) | s | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_amount() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_amount_line() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_amount_lines_sum() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_determination() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_event() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_insert() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_nothing_after_close() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_reading_released() | v | false | tally | search_path=public, pg_temp',
+        'enforce_dispute_update() | v | false | tally | search_path=public, pg_temp',
+        'enforce_enrollment_not_pending_dispute() | v | false | tally | search_path=public, pg_temp',
+        'enforce_reading_dispute_status() | v | false | tally | search_path=public, pg_temp',
+        'enforce_reading_validation_workflow() | v | false | tally | search_path=public, pg_temp'];
+    c_notnull CONSTANT text[] := ARRAY[
+        'dispute_amount_lines.amount',
+        'dispute_amount_lines.created_at',
+        'dispute_amount_lines.dispute_amount_id',
+        'dispute_amount_lines.id',
+        'dispute_amount_lines.invoice_line_item_id',
+        'dispute_amount_lines.tenant_id',
+        'dispute_amounts.amount',
+        'dispute_amounts.created_at',
+        'dispute_amounts.determined_by',
+        'dispute_amounts.dispute_id',
+        'dispute_amounts.effective_on',
+        'dispute_amounts.id',
+        'dispute_amounts.tenant_id',
+        'dispute_blocks.block_code',
+        'dispute_blocks.created_at',
+        'dispute_blocks.description',
+        'dispute_customer_classes.class_code',
+        'dispute_customer_classes.created_at',
+        'dispute_customer_classes.description',
+        'dispute_customer_classes.service_type',
+        'dispute_customer_classes.source_note',
+        'dispute_customer_classes.state_code',
+        'dispute_determinations.blocks',
+        'dispute_determinations.calculated_by',
+        'dispute_determinations.created_at',
+        'dispute_determinations.customer_class',
+        'dispute_determinations.dispute_amount_id',
+        'dispute_determinations.dispute_id',
+        'dispute_determinations.id',
+        'dispute_determinations.inputs',
+        'dispute_determinations.inputs_fingerprint',
+        'dispute_determinations.outcome',
+        'dispute_determinations.rule_id',
+        'dispute_determinations.service_type',
+        'dispute_determinations.sheltered_amount',
+        'dispute_determinations.state_code',
+        'dispute_determinations.system_kind',
+        'dispute_determinations.tenant_id',
+        'dispute_duties.created_at',
+        'dispute_duties.description',
+        'dispute_duties.duty_code',
+        'dispute_events.created_at',
+        'dispute_events.dispute_id',
+        'dispute_events.event_type',
+        'dispute_events.id',
+        'dispute_events.occurred_on',
+        'dispute_events.tenant_id',
+        'dispute_rules.block_codes',
+        'dispute_rules.created_at',
+        'dispute_rules.customer_class',
+        'dispute_rules.effective_from',
+        'dispute_rules.excluded_subject_codes',
+        'dispute_rules.id',
+        'dispute_rules.jurisdiction_span',
+        'dispute_rules.must_pay_ids',
+        'dispute_rules.owner_span',
+        'dispute_rules.service_type',
+        'dispute_rules.source_note',
+        'dispute_rules.stage_ids',
+        'dispute_rules.state_code',
+        'dispute_rules.subject_codes',
+        'dispute_rules.system_span',
+        'dispute_rules.terms',
+        'dispute_rules.terms_kind',
+        'dispute_rules.terms_source',
+        'dispute_rules.terms_version',
+        'dispute_subjects.created_at',
+        'dispute_subjects.description',
+        'dispute_subjects.subject_code',
+        'dispute_tariffs.block_codes',
+        'dispute_tariffs.created_at',
+        'dispute_tariffs.effective_from',
+        'dispute_tariffs.excluded_subject_codes',
+        'dispute_tariffs.id',
+        'dispute_tariffs.must_pay_ids',
+        'dispute_tariffs.service_type',
+        'dispute_tariffs.stage_ids',
+        'dispute_tariffs.state_code',
+        'dispute_tariffs.subject_codes',
+        'dispute_tariffs.system_kind',
+        'dispute_tariffs.tariff_reference',
+        'dispute_tariffs.tenant_id',
+        'dispute_tariffs.terms',
+        'dispute_tariffs.terms_kind',
+        'dispute_tariffs.terms_source',
+        'dispute_tariffs.terms_version',
+        'disputes.channel',
+        'disputes.created_at',
+        'disputes.customer_id',
+        'disputes.id',
+        'disputes.received_on',
+        'disputes.status',
+        'disputes.subject',
+        'disputes.tenant_id'];
+    c_tables CONSTANT text[] := ARRAY[
+        'dispute_amount_lines | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'dispute_amounts | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'dispute_blocks | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+        'dispute_customer_classes | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+        'dispute_determinations | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'dispute_duties | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+        'dispute_events | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'dispute_rules | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+        'dispute_subjects | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+        'dispute_tariffs | {tally=arwdDxt/tally,tally_app=arw/tally,tally_core=r/tally} | true | true',
+        'disputes | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true'];
+    c_policies CONSTANT text[] := ARRAY[
+        'dispute_amount_lines | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -',
+        'dispute_amounts | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -',
+        'dispute_determinations | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -',
+        'dispute_events | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -',
+        'dispute_tariffs | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -',
+        'disputes | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -'];
+    c_func_acls CONSTANT text[] := ARRAY[
+        'dispute_determination_terms(uuid,uuid) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_line_shelter_as_of(uuid,date,timestamp with time zone) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_live_determination(uuid) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_lock_key(uuid) | {tally=X/tally,tally_app=X/tally}',
+        'dispute_lock(uuid,text) | {tally=X/tally,tally_app=X/tally}',
+        'dispute_move_status() | {tally=X/tally}',
+        'dispute_opened_event() | {tally=X/tally}',
+        'dispute_rule_close_floor(uuid) | {tally=X/tally}',
+        'dispute_rule_insert_check(jsonb) | {tally=X/tally}',
+        'dispute_shelter_as_of(uuid,date,timestamp with time zone) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_subjects_admitted(jsonb) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_tariff_close_floor(uuid) | {tally=X/tally,tally_app=X/tally}',
+        'dispute_tariff_compare(jsonb,jsonb) | {tally=X/tally,tally_app=X/tally}',
+        'dispute_tariff_insert_check(jsonb) | {tally=X/tally,tally_app=X/tally}',
+        'dispute_tenant_check(text,uuid) | {tally=X/tally,tally_app=X/tally}',
+        'dispute_terms_check(text,jsonb) | {tally=X/tally,tally_app=X/tally}',
+        'enforce_dispute_amount_lines_sum() | {tally=X/tally}',
+        'enforce_dispute_amount_line() | {tally=X/tally}',
+        'enforce_dispute_amount() | {tally=X/tally}',
+        'enforce_dispute_determination() | {tally=X/tally}',
+        'enforce_dispute_event() | {tally=X/tally}',
+        'enforce_dispute_insert() | {tally=X/tally}',
+        'enforce_dispute_nothing_after_close() | {tally=X/tally}',
+        'enforce_dispute_reading_released() | {tally=X/tally}',
+        'enforce_dispute_update() | {tally=X/tally}',
+        'enforce_enrollment_not_pending_dispute() | {tally=X/tally}',
+        'enforce_reading_dispute_status() | {tally=X/tally}',
+        'enforce_reading_validation_workflow() | {=X/tally,tally=X/tally,tally_app=X/tally,tally_core=X/tally}'];
+    c_col_acls CONSTANT text[] := ARRAY[]::text[];
+BEGIN
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_triggers) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g WHERE NOT g.tgisinternal AND g.tgenabled = 'A' AND pg_catalog.pg_get_triggerdef(g.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 trigger is missing, changed, or not ENABLE ALWAYS:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_constraints) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k
+                        WHERE k.convalidated AND k.conrelid::regclass::text || ' ' || k.conname || ' ' || pg_catalog.pg_get_constraintdef(k.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 constraint is missing, changed or not validated:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_indexes) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes x
+                         JOIN pg_catalog.pg_class i ON i.relname = x.indexname AND i.relnamespace = 'public'::regnamespace
+                         JOIN pg_catalog.pg_index n ON n.indexrelid = i.oid
+                        WHERE x.schemaname = 'public' AND n.indisvalid AND x.indexdef = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 unique index is missing, changed or not valid:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(split_part(d, ' @', 1), E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_bodies) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc f
+                        WHERE f.oid = pg_catalog.to_regprocedure('public.' || split_part(d, ' @', 1)) AND pg_catalog.md5(f.prosrc) = split_part(d, ' @', 2));
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 function is missing or its body has changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_attrs) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc f
+                        WHERE f.oid = pg_catalog.to_regprocedure('public.' || split_part(d, ' | ', 1))
+                          AND split_part(d, ' | ', 1) || ' | ' || f.provolatile::text || ' | ' || f.prosecdef::text || ' | ' || pg_catalog.pg_get_userbyid(f.proowner)
+                              || ' | ' || coalesce(array_to_string(f.proconfig, ';'), '-') = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 function''s volatility, security, owner or settings have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_func_acls) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc f
+                        WHERE f.oid = pg_catalog.to_regprocedure('public.' || split_part(d, ' | ', 1))
+                          AND split_part(d, ' | ', 1) || ' | ' || coalesce(f.proacl::text, '-') = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 function''s EXECUTE grants have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_notnull) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a
+                        WHERE a.attrelid = pg_catalog.to_regclass('public.' || split_part(d, '.', 1)) AND a.attname = split_part(d, '.', 2) AND a.attnotnull AND NOT a.attisdropped);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 column has lost NOT NULL:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    -- Each table's privileges and row security, exactly.
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_tables) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+                        WHERE c.oid = pg_catalog.to_regclass('public.' || split_part(d, ' | ', 1))
+                          AND split_part(d, ' | ', 1) || ' | ' || coalesce(c.relacl::text, '-') || ' | ' || c.relrowsecurity::text || ' | ' || c.relforcerowsecurity::text = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 table''s grants or row security have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    -- Column grants (a column's own ACL), exactly, and no other.
+    SELECT string_agg(x, E'\n  ' ORDER BY x) INTO v_bad FROM (
+        (SELECT c.relname || '.' || a.attname || ' | ' || a.attacl::text AS x
+           FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+          WHERE c.relnamespace = 'public'::regnamespace AND c.relname = ANY (SELECT split_part(t, ' | ', 1) FROM unnest(c_tables) t)
+            AND a.attnum > 0 AND NOT a.attisdropped AND a.attacl IS NOT NULL
+         EXCEPT SELECT unnest(c_col_acls))
+        UNION ALL
+        (SELECT unnest(c_col_acls)
+         EXCEPT
+         SELECT c.relname || '.' || a.attname || ' | ' || a.attacl::text
+           FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+          WHERE c.relnamespace = 'public'::regnamespace AND a.attnum > 0 AND NOT a.attisdropped AND a.attacl IS NOT NULL)) w;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 table''s column grants have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    -- Its policies, exactly, and no other.
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM (
+        SELECT d FROM unnest(c_policies) d
+         WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_policies p
+                            WHERE p.schemaname = 'public' AND p.tablename || ' | ' || p.policyname || ' | ' || p.cmd || ' | ' || p.permissive || ' | ' || p.roles::text
+                                  || ' | ' || coalesce(p.qual, '-') || ' | ' || coalesce(p.with_check, '-') = d)
+        UNION ALL
+        SELECT p.tablename || ' | ' || p.policyname || ' (unlisted)' FROM pg_catalog.pg_policies p
+         WHERE p.schemaname = 'public' AND p.tablename = ANY (SELECT split_part(t, ' | ', 1) FROM unnest(c_tables) t)
+           AND NOT p.tablename || ' | ' || p.policyname || ' | ' || p.cmd || ' | ' || p.permissive || ' | ' || p.roles::text
+                   || ' | ' || coalesce(p.qual, '-') || ' | ' || coalesce(p.with_check, '-') = ANY (c_policies)) x;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-25 table''s row-security policies have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+END;
+$fn$;
+COMMENT ON FUNCTION public.assert_dispute_guard_invariants() IS
+    'v5.4.2-25 r2 (Fable S4). Raises unless every v5.4.2-25 trigger exists exactly as defined and ENABLE ALWAYS; its constraints and unique indexes exactly as defined and valid; every function it defines has its body (md5), volatility, security, owner, settings and EXECUTE grants unchanged (the status move''s SECURITY DEFINER among them, residual R7); its tables'' NOT NULL columns, grants, row security and policies exactly as built. Regenerated by tests/v5.4.2-25/fill-manifest.py. Run in the patch tail and in CI.';
+REVOKE ALL ON FUNCTION public.assert_dispute_guard_invariants() FROM PUBLIC, tally_app, tally_core;
+
 DO $$ BEGIN
+    PERFORM public.assert_dispute_guard_invariants();
     PERFORM public.assert_cash_guard_invariants();
     PERFORM public.assert_periods_guard_invariants();
     PERFORM public.assert_seal_role_invariants();

@@ -204,6 +204,9 @@ step "periods guard invariants" q "$BASE" -c "SELECT public.assert_periods_guard
 if [ "$(q "$BASE" -c "SELECT to_regprocedure('public.assert_cash_guard_invariants()') IS NOT NULL")" = "t" ]; then
   step "cash guard invariants" q "$BASE" -c "SELECT public.assert_cash_guard_invariants()"
 fi
+if [ "$(q "$BASE" -c "SELECT to_regprocedure('public.assert_dispute_guard_invariants()') IS NOT NULL")" = "t" ]; then
+  step "dispute guard invariants" q "$BASE" -c "SELECT public.assert_dispute_guard_invariants()"
+fi
 if [ "$(q "$BASE" -c "SELECT to_regprocedure('public.assert_suspense_pledge_guard_invariants()') IS NOT NULL")" = "t" ]; then
   step "suspense and pledge guard invariants" q "$BASE" -c "SELECT public.assert_suspense_pledge_guard_invariants()"
 fi

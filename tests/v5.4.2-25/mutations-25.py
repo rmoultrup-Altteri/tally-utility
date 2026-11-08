@@ -361,6 +361,12 @@ def main() -> int:
         ran += 1
         try:
             patched = mut(base)
+            # r2: -25's guard invariant runs in the patch tail and would
+            # refuse every mutation at apply. A behavioural mutation drops that
+            # one call; the battery's H16 still runs it, last, so a mutation
+            # only the invariant catches is reported as missed.
+            if not check.startswith("APPLY"):
+                patched = patched.replace("    PERFORM public.assert_dispute_guard_invariants();\n", "", 1)
         except AssertionError as exc:
             print(f"{mid} ANCHOR-ERROR: {exc}")
             missed += 1

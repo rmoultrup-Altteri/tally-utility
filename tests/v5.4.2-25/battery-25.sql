@@ -1082,5 +1082,24 @@ SELECT pg_temp.ok('H15 the comments say the core decides, not the database',
   (SELECT bool_and(obj_description(t, 'pg_class') ~* 'core')
      FROM unnest(ARRAY['public.dispute_rules'::regclass, 'public.dispute_tariffs'::regclass, 'public.dispute_determinations'::regclass]) t));
 
+-- r2 (Fable S4): -25's own guard invariant.
+SELECT pg_temp.admits('H16 -25''s guard invariant holds as built', $q$SELECT public.assert_dispute_guard_invariants()$q$);
+SELECT pg_temp.refuses_at('H16a … and catches a guard switched off',
+  $q$ALTER TABLE public.dispute_events DISABLE TRIGGER z_enforce_dispute_nothing_after_close; SELECT public.assert_dispute_guard_invariants()$q$,
+  '0LP01', 'z_enforce_dispute_nothing_after_close');
+SELECT pg_temp.refuses_at('H16b … an UPDATE granted on disputes',
+  $q$GRANT UPDATE (status) ON public.disputes TO tally_app; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
+SELECT pg_temp.refuses_at('H16c … a guard''s body replaced',
+  $q$CREATE OR REPLACE FUNCTION public.enforce_dispute_reading_released() RETURNS trigger LANGUAGE plpgsql SET search_path = public, pg_temp AS $b$ BEGIN RETURN NULL; END $b$;
+     SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'enforce_dispute_reading_released');
+SELECT pg_temp.refuses_at('H16d … the status move''s owner changed',
+  $q$ALTER FUNCTION public.dispute_move_status() OWNER TO tally_core; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'owner');
+SELECT pg_temp.refuses_at('H16e … a constraint dropped',
+  $q$ALTER TABLE public.dispute_amounts DROP CONSTRAINT dispute_amounts_created_by_fkey; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'dispute_amounts_created_by_fkey');
+SELECT pg_temp.refuses_at('H16f … a second policy',
+  $q$CREATE POLICY wide ON public.disputes USING (true); SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'unlisted');
+SELECT pg_temp.refuses_at('H16g … a NOT NULL dropped',
+  $q$ALTER TABLE public.disputes ALTER COLUMN received_on DROP NOT NULL; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'lost NOT NULL');
+
 SELECT 'battery-25: all checks passed' AS result;
 ROLLBACK;
