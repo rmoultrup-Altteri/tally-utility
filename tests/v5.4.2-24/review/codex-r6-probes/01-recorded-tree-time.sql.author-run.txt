@@ -1,0 +1,107 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:<stdin>:173: NOTICE:  PASS B1 prerequisite: later recorded reversal
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:175: NOTICE:  PASS B1 prerequisite: reversal timestamp really exceeds now()
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:177: NOTICE:  PASS B1 prerequisite: default status time remains transaction start
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:180: NOTICE:  PASS B1 prerequisite: status precedes reversal recording
+ ok 
+----
+ 
+(1 row)
+
+SAVEPOINT
+psql:<stdin>:183: NOTICE:  PASS B1 predicted bypass: return before its ledger evidence was recorded
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:186: NOTICE:  PASS B1 predicted double recognition: at transaction start, suspense held 100 and original payment received 100
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:188: NOTICE:  PASS B1 predicted second posting at the early recorded instant
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:192: NOTICE:  PASS B1 predicted two customers received 200 at the same coordinates from receipt 100
+ ok 
+----
+ 
+(1 row)
+
+psql:<stdin>:196: NOTICE:  PASS B1 current knowledge is not inflated: total received now 100
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK
+psql:<stdin>:201: NOTICE:  PASS B1 control: later recorded return
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:204: NOTICE:  PASS B1 control: at transaction start suspense holds zero; at current knowledge it holds 100
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

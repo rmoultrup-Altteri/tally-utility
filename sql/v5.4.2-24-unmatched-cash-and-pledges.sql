@@ -35,7 +35,8 @@
 --     and r2 misposting_returned (a negative row naming a payment of the
 --     receipt reversed as posted to the wrong customer, with no bank return
 --     code, dated on or after the reversal, the payment and every row under
---     its posting entry (r6), once; at most the net of the posting entry's
+--     its posting entry, and recorded no earlier than every row of it (r6),
+--     once; at most the net of the posting entry's
 --     tree with every nsf row that takes money, and everything beneath one,
 --     left out (r5, r6), so what the bank took stays spent). What it holds
 --     is derived
@@ -906,8 +907,8 @@ DECLARE
     r        public.suspense_receipts%ROWTYPE;
     u        public.suspense_receipt_dispositions%ROWTYPE;
     v_pay    public.payments%ROWTYPE;
-    v_rev_on date;
     v_tree_last date;
+    v_tree_recorded timestamp with time zone;
     v_undos  numeric;
     v_misposted numeric;
 BEGIN
@@ -972,16 +973,10 @@ BEGIN
                 MESSAGE = format('a misposting return gives back at most what payment %s reversed as misposted (%s of its %s; what the bank took back stays spent), not %s (v5.4.2-24)', v_pay.payment_number, v_misposted, v_pay.amount, -NEW.amount),
                 ERRCODE = 'check_violation';
         END IF;
-        SELECT l.transaction_date INTO v_rev_on FROM public.account_ledger l WHERE l.id = v_pay.status_cause_id;
         -- r5 (Opus r4 S1): and on or after the payment's own date.
         IF NEW.disposed_on < v_pay.payment_date THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('a misposting return of payment %s is dated on or after the payment (%s), not %s (v5.4.2-24)', v_pay.payment_number, v_pay.payment_date, NEW.disposed_on),
-                ERRCODE = 'check_violation';
-        END IF;
-        IF v_rev_on IS NULL OR NEW.disposed_on < v_rev_on THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('a misposting return of payment %s is dated on or after its reversal (%s), not %s (v5.4.2-24)', v_pay.payment_number, v_rev_on, NEW.disposed_on),
                 ERRCODE = 'check_violation';
         END IF;
         -- r6 (Codex r5 B1): and on or after every row under the posting
@@ -989,20 +984,36 @@ BEGIN
         -- row of the tree (an undo, a second reversal) the payment still held
         -- money the return would give back, so one receipt counted twice.
         -- Every row, nsf ones included, by the link alone (the tree is fixed
-        -- once the payment is reversed).
+        -- once the payment is reversed). The reversal the payment names is a
+        -- row of the tree, so this also dates the return on or after it (r6,
+        -- Codex r6 S1: r5's separate check of the reversal's date removed).
+        -- r6 (Codex r6 B1): and recorded no earlier than every row of the
+        -- tree, so a read at any recorded instant that sees the return sees
+        -- what it gives back; the payment's status time alone does not show it
+        -- (a superuser's history load may record a tree row after it).
         WITH RECURSIVE e AS (
-            SELECT l.id, l.transaction_date FROM public.account_ledger l
+            SELECT l.id, l.transaction_date, l.created_at FROM public.account_ledger l
              WHERE l.reference_type = 'payment' AND l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL
                AND l.transaction_type IN ('payment', 'deposit')
-        ), t(id, transaction_date) AS (
-            SELECT e.id, e.transaction_date FROM e
+        ), t(id, transaction_date, created_at) AS (
+            SELECT e.id, e.transaction_date, e.created_at FROM e
             UNION ALL
-            SELECT l.id, l.transaction_date FROM t JOIN public.account_ledger l ON l.reverses_ledger_entry_id = t.id
+            SELECT l.id, l.transaction_date, l.created_at FROM t JOIN public.account_ledger l ON l.reverses_ledger_entry_id = t.id
         )
-        SELECT max(t.transaction_date) INTO v_tree_last FROM t;
+        SELECT max(t.transaction_date), max(t.created_at) INTO v_tree_last, v_tree_recorded FROM t;
         IF NEW.disposed_on < v_tree_last THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('a misposting return of payment %s is dated on or after the last row under its posting entry (%s), not %s: before then the payment still holds what the return would give back (v5.4.2-24)', v_pay.payment_number, v_tree_last, NEW.disposed_on),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.created_at < v_tree_recorded THEN
+            IF NEW.created_at = pg_catalog.now() THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('a misposting return of payment %s: a row under its posting entry was recorded at %s, after this transaction began (%s); retry (v5.4.2-24)', v_pay.payment_number, v_tree_recorded, NEW.created_at),
+                    ERRCODE = 'serialization_failure';
+            END IF;
+            RAISE EXCEPTION USING
+                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry recorded at %s: money comes back only after what gives it back is known (v5.4.2-24)', v_pay.payment_number, NEW.created_at, v_tree_recorded),
                 ERRCODE = 'check_violation';
         END IF;
     END IF;
@@ -1030,7 +1041,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_suspense_disposition() IS
-    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment, its reversal (r5) and every row under its posting entry (r6), gives back at most the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
+    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment, its reversal (r5) and every row under its posting entry, and recorded no earlier than every row of it (r6), gives back at most the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
 CREATE TRIGGER enforce_suspense_disposition AFTER INSERT ON public.suspense_receipt_dispositions
     FOR EACH ROW EXECUTE FUNCTION public.enforce_suspense_disposition();
 ALTER TABLE public.suspense_receipt_dispositions ENABLE ALWAYS TRIGGER enforce_suspense_disposition;
@@ -1663,7 +1674,7 @@ DECLARE
         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
-        'enforce_suspense_disposition() @eac03f6e1581331b570232da34d5e380',
+        'enforce_suspense_disposition() @885503e246bf54139455c377d3688cee',
         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',
@@ -1800,7 +1811,7 @@ BEGIN
     END IF;
     SELECT string_agg(d, ', ' ORDER BY d) INTO v_bad
       FROM unnest(c_app_exec) d
-     WHERE NOT has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE');
+     WHERE NOT coalesce(has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE'), false);  -- r6 (Codex r6 S2): a missing function is listed
     IF v_bad IS NOT NULL THEN
         RAISE EXCEPTION USING
             MESSAGE = format('tally_app has lost EXECUTE on a function its writes'' guards call: %s (v5.4.2-24)', v_bad),

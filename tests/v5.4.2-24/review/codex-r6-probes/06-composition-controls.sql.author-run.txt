@@ -1,0 +1,127 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:<stdin>:176: NOTICE:  PASS credit prerequisite
+ admits 
+--------
+ 
+(1 row)
+
+ unpost 
+--------
+ 
+(1 row)
+
+ mret 
+------
+ 
+(1 row)
+
+psql:<stdin>:181: NOTICE:  PASS ordinary held credit loses its money when payment reversed; suspense holds 100
+ ok 
+----
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:<stdin>:190: NOTICE:  PASS posted refund prerequisite
+ admits 
+--------
+ 
+(1 row)
+
+ unpost 
+--------
+ 
+(1 row)
+
+ mret 
+------
+ 
+(1 row)
+
+psql:<stdin>:195: NOTICE:  PASS posted refund persists as debt while suspense gets misposted amount
+ ok 
+----
+ 
+(1 row)
+
+ amount | received | applied | credited | refunded | remaining | repaid 
+--------+----------+---------+----------+----------+-----------+--------
+ 100.00 |     0.00 |       0 |        0 |   100.00 |   -100.00 |   0.00
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:203: NOTICE:  PASS deposit payment prerequisite
+ unpost 
+--------
+ 
+(1 row)
+
+ mret 
+------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+RESET
+psql:<stdin>:208: NOTICE:  PASS deposit posting entry is counted by return; no positive payment balance remains
+ROLLBACK

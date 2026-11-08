@@ -1,0 +1,9 @@
+BEGIN
+psql:<stdin>:12: NOTICE:  S2 baseline SQLSTATE=00000 message=invariant returned
+DO
+SAVEPOINT
+psql:<stdin>:23: NOTICE:  S2 DROP SQLSTATE=00000 message=helper removed locally
+psql:<stdin>:23: NOTICE:  S2 predicted blind spot SQLSTATE=00000 message=invariant accepted missing required app helper
+DO
+ROLLBACK
+ROLLBACK

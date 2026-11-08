@@ -1,0 +1,118 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+GRANT
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+psql:<stdin>:184: NOTICE:  multi-row cap: expect 23514: REJECTED SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 110.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+psql:<stdin>:192: NOTICE:  writable CTE cap: expect 23514: REJECTED SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 110.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+RESET
+psql:<stdin>:208: NOTICE:  COPY cap: SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 110.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24) (expect 23514 receipt cap)
+DO
+SET
+psql:<stdin>:210: NOTICE:  core SELECT allowed: ACCEPTED SQLSTATE=00000
+ observe 
+---------
+ t
+(1 row)
+
+psql:<stdin>:211: NOTICE:  core INSERT denied: expect 42501: REJECTED SQLSTATE=42501 message=permission denied for table suspense_receipts
+ observe 
+---------
+ f
+(1 row)
+
+RESET
+INSERT 0 1
+INSERT 0 1
+ observe 
+---------
+ f
+(1 row)
+
+psql:<stdin>:217: NOTICE:  owner agreement terms edit: expect 23001: REJECTED SQLSTATE=23001 message=agency agreement 00000000-0000-4000-8000-0000000a2443: only its withdrawal is recorded (once, with who and why); its terms are never edited — record a new agreement (v5.4.2-24)
+UPDATE 1
+psql:<stdin>:219: NOTICE:  owner resurrect agency: expect 23001: REJECTED SQLSTATE=23001 message=assistance agency 00000000-0000-4000-8000-0000000a2441: only its retirement is recorded (active to retired, with who and why); an agency is never edited or brought back — record a new one (v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+psql:<stdin>:220: NOTICE:  owner receipt edit: expect rejection: REJECTED SQLSTATE=23001 message=suspense_receipts is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+ observe 
+---------
+ f
+(1 row)
+
+RESET
+INSERT 0 1
+ pledge 
+--------
+ 
+(1 row)
+
+ pledge 
+--------
+ 
+(1 row)
+
+SET
+psql:<stdin>:234: NOTICE:  CTE event then payment: expect 23514 recorded in error: REJECTED SQLSTATE=23514 message=payment cte-pledge-1: pledge 00000000-0000-4000-8000-0000000a2451 was recorded in error; no payment names it (v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+psql:<stdin>:240: NOTICE:  CTE payment then event: expect 23514 payment names it: REJECTED SQLSTATE=23514 message=pledge 00000000-0000-4000-8000-0000000a2452 cannot be recorded in error: a payment names it (v5.4.2-24)
+ observe 
+---------
+ f
+(1 row)
+
+RESET
+ROLLBACK

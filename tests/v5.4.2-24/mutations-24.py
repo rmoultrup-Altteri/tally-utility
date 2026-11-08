@@ -261,8 +261,8 @@ MUTATIONS = [
      rep("        IF v_pay.status <> 'reversed' OR v_pay.return_code IS NOT NULL THEN", "        IF v_pay.return_code IS NOT NULL THEN")),
     ("M73", "a misposting return may exceed its payment", "P9b3",
      rep("        IF -NEW.amount > v_misposted THEN", "        IF false THEN")),
-    ("M74", "a misposting return may precede the reversal", "P9b2",
-     rep("        IF v_rev_on IS NULL OR NEW.disposed_on < v_rev_on THEN", "        IF false THEN")),
+    # M74 removed (r6, Codex r6 S1): r5's check of the reversal's date was
+    # always beaten by the tree-date rule (M112, P9b2 and P14h), and is gone.
     ("M75", "a misposting return may name another receipt's payment", "P9b4",
      rep("        IF NOT FOUND OR v_pay.suspense_receipt_id IS DISTINCT FROM NEW.suspense_receipt_id THEN", "        IF NOT FOUND THEN")),
     ("M76", "a payment may be returned to suspense twice", "APPLY:a v5.4.2-24 unique index is missing",
@@ -346,8 +346,13 @@ MUTATIONS = [
     ("M110", "a misposting return may be dated before its payment (Opus r4 S1)", "P9b11",
      rep("        IF NEW.disposed_on < v_pay.payment_date THEN", "        IF false THEN")),
     # ---- r6
-    ("M112", "a misposting return may be dated before the last row under its posting entry (r6; Codex r5 B1)", "P14h",
+    ("M112", "a misposting return may be dated before the last row under its posting entry (r6; Codex r5 B1; first met at P9b2, the reversal's own date, since r6 removed that separate check)", "P9b2",
      rep("        IF NEW.disposed_on < v_tree_last THEN", "        IF false THEN")),
+    ("M113", "a misposting return may be recorded before a row under its posting entry (r6; Codex r6 B1)", "P14i",
+     rep("        IF NEW.created_at < v_tree_recorded THEN", "        IF false THEN")),
+    ("M114", "the invariant passes over a missing helper its guards call (r6; Codex r6 S2)", "I9d2",
+     rep("     WHERE NOT coalesce(has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE'), false);",
+         "     WHERE NOT has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE');")),
     ("M111", "an nsf row giving money back is left out of the misposted share (r5; Opus r5 B1)", "P14e",
      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'")),
 ]

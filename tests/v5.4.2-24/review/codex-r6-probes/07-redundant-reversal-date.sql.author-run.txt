@@ -1,0 +1,68 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ unpost 
+--------
+ 
+(1 row)
+
+psql:<stdin>:174: NOTICE:  caught SQLSTATE=23514 message=a misposting return of payment P24-241c is dated on or after its reversal (2026-03-11), not 2026-03-10 (v5.4.2-24)
+ refuses_at 
+------------
+ 
+(1 row)
+
+SAVEPOINT
+psql:<stdin>:174: NOTICE:  PASS S1 original: early return refused by cause-date rule: refused by on or after its reversal (a misposting return of payment P24-241c is dated on or after its reversal (2026-03-11), not 2026-03-10 (v5.4.2-24))
+psql:<stdin>:188: NOTICE:  S1 local M74 edit SQLSTATE=00000 message=applied inside savepoint
+DO
+psql:<stdin>:191: NOTICE:  caught SQLSTATE=23514 message=a misposting return of payment P24-241c is dated on or after the last row under its posting entry (2026-03-11), not 2026-03-10: before then the payment still holds what the return would give back (v5.4.2-24)
+psql:<stdin>:191: NOTICE:  PASS S1 M74: same illegal return STILL refused, now by whole-tree rule: refused by last row under its posting entry (a misposting return of payment P24-241c is dated on or after the last row under its posting entry (2026-03-11), not 2026)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:<stdin>:193: NOTICE:  PASS S1 M74: valid boundary still accepted
+ admits 
+--------
+ 
+(1 row)
+
+ROLLBACK
+ROLLBACK

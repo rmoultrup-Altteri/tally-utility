@@ -385,9 +385,9 @@ SELECT pg_temp.unpost(pg_temp.k('14'), pg_temp.k('84'), DATE '2026-03-05');
 -- misposting return does, from its own date.
 SELECT pg_temp.ok('P9b a reversal alone gives nothing back: R4 still holds 0',
   pg_temp.held(pg_temp.k('04')) = 0);
-SELECT pg_temp.refuses_at('P9b2 a misposting return is dated on or after the reversal (03-05)',
+SELECT pg_temp.refuses_at('P9b2 a misposting return is dated on or after the reversal (03-05; r6: the tree-date rule, which covers it)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50, DATE '2026-03-04')$q$,
-  '23514', 'on or after its reversal');
+  '23514', 'the last row under its posting entry');
 SELECT pg_temp.refuses_at('P9b3 it gives back at most what was reversed as misposted (here the whole 50)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50.01, DATE '2026-03-05')$q$,
   '23514', 'at most what payment');
@@ -1087,6 +1087,31 @@ SELECT pg_temp.refuses_at('G7 a refund''s agency is written once',
   '23001', 'written once');
 RESET ROLE;
 
+-- r6 (Codex r6 B1, probe 01): an owner's history load. R25 (9a) on 03-10,
+-- 100 to C1 (P 9b, posted 9c); its reversal (9d) recorded at
+-- clock_timestamp(), after this transaction began; the payment's move to
+-- reversed is stamped at the transaction's start, before it. A return
+-- stamped at the transaction's start would be seen, by a read at that
+-- instant, without the reversal that gives the money back.
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000a24b1', true);
+SELECT pg_temp.rcpt(pg_temp.k('9a'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.k('9b'), pg_temp.k('9c'), pg_temp.k('9a'), :c1, 100);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason, created_at)
+VALUES (pg_temp.k('9d'), pg_temp.t1(), :c1, DATE '2026-03-11', 'adjustment', 'misposted', 100, 'payment', pg_temp.k('9b'), pg_temp.k('9c'), 'misposted', clock_timestamp());
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('9d') WHERE id = pg_temp.k('9b');
+SELECT pg_temp.ok('P14i0 the shape holds: the payment''s status is stamped before its reversal was recorded',
+  (SELECT p.status_recorded_at = now() AND p.status_recorded_at < l.created_at
+     FROM public.payments p JOIN public.account_ledger l ON l.id = p.status_cause_id WHERE p.id = pg_temp.k('9b')));
+SELECT pg_temp.refuses_at('P14i a misposting return stamped before a row under the posting entry was recorded retries (Codex r6 B1)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('9a'), pg_temp.k('9b'), 100, DATE '2026-03-11')$q$,
+  '40001', 'a row under its posting entry was recorded at');
+SELECT pg_temp.admits('P14i2 recorded after it, admitted',
+  $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
+     VALUES (pg_temp.t1(), pg_temp.k('9a'), 'misposting_returned', -100, DATE '2026-03-11', 'posted to the wrong customer', pg_temp.op(), pg_temp.k('9b'), clock_timestamp())$q$);
+SELECT pg_temp.ok('P14i3 so at the transaction''s start the receipt holds nothing; now it holds 100',
+  (SELECT held = 0 FROM public.suspense_receipt_position_as_of(pg_temp.k('9a'), DATE '2026-03-11', now()))
+  AND (SELECT held = 100 FROM public.suspense_receipt_position_as_of(pg_temp.k('9a'), DATE '2026-03-11', clock_timestamp())));
+
 -- ============================================================== S settings and the suspense readers
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000a24b1', true);
@@ -1118,8 +1143,41 @@ SELECT pg_temp.ok('S3b a receipt that holds nothing is never aged (R1, R4, R5)',
 SELECT pg_temp.ok('S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past',
   (SELECT NOT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-16', clock_timestamp()) WHERE receipt_id = pg_temp.k('06'))
   AND (SELECT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-17', clock_timestamp()) WHERE receipt_id = pg_temp.k('06')));
-SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100 + R19''s 100 + R20''s 100 + R21''s 50 + R22''s 70 + R24''s 100)',
-  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 670);
+SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100 + R19''s 100 + R20''s 100 + R21''s 50 + R22''s 70 + R24''s 100 + R25''s 100)',
+  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 770);
+-- r7 (Fable r6 S1, its probe FH, widened to recorded instants for Codex r6
+-- B1): money is never in two places. For every receipt of T1, every date
+-- anything of T1 is dated on and every instant anything of T1 was recorded
+-- at (positions step only there), what the receipt holds, plus what its
+-- payments still hold on the ledger, plus what left it to a sender, a bank or
+-- a state, never exceeds the receipt.
+SELECT pg_temp.ok('S4b conservation: no receipt''s money counts twice at any date and recorded instant (Fable r6 S1)',
+  NOT EXISTS (
+    WITH ds AS (
+      SELECT received_on AS d FROM public.suspense_receipts WHERE tenant_id = pg_temp.t1()
+      UNION SELECT payment_date FROM public.payments WHERE tenant_id = pg_temp.t1()
+      UNION SELECT disposed_on FROM public.suspense_receipt_dispositions WHERE tenant_id = pg_temp.t1()
+      UNION SELECT transaction_date FROM public.account_ledger WHERE tenant_id = pg_temp.t1()
+    ), ats AS (
+      SELECT created_at AS at FROM public.suspense_receipts WHERE tenant_id = pg_temp.t1()
+      UNION SELECT created_at FROM public.payments WHERE tenant_id = pg_temp.t1()
+      UNION SELECT status_recorded_at FROM public.payments WHERE tenant_id = pg_temp.t1() AND status_recorded_at IS NOT NULL
+      UNION SELECT created_at FROM public.suspense_receipt_dispositions WHERE tenant_id = pg_temp.t1()
+      UNION SELECT created_at FROM public.account_ledger WHERE tenant_id = pg_temp.t1()
+      UNION SELECT clock_timestamp()
+    )
+    SELECT 1
+      FROM public.suspense_receipts r CROSS JOIN ds CROSS JOIN ats
+      CROSS JOIN LATERAL (SELECT coalesce((SELECT x.held FROM public.suspense_receipt_position_as_of(r.id, ds.d, ats.at) x), 0) AS held) h
+      CROSS JOIN LATERAL (SELECT coalesce(sum(y.received), 0) AS on_ledger
+                            FROM public.payments p CROSS JOIN LATERAL public.payment_position_as_of(p.id, ds.d, ats.at) y
+                           WHERE p.suspense_receipt_id = r.id) l
+      CROSS JOIN LATERAL (SELECT coalesce(sum(x.amount), 0) AS left_it
+                            FROM public.suspense_receipt_dispositions x
+                           WHERE x.suspense_receipt_id = r.id AND x.kind <> 'misposting_returned'
+                             AND x.disposed_on <= ds.d AND x.created_at <= ats.at) o
+     WHERE r.tenant_id = pg_temp.t1() AND r.received_on <= ds.d AND r.created_at <= ats.at
+       AND h.held + l.on_ledger + o.left_it > r.amount));
 SELECT pg_temp.refuses_at('S5 the receipt reader needs both coordinates',
   $q$SELECT * FROM public.suspense_receipt_position_as_of(pg_temp.k('06'), DATE '2026-12-31', NULL)$q$,
   '22004', 'both given');
@@ -1397,6 +1455,10 @@ SELECT pg_temp.refuses_at('I9d tally_app''s EXECUTE on a helper revoked',
   $q$REVOKE EXECUTE ON FUNCTION public.suspense_today_latest() FROM tally_app;
      SELECT public.assert_suspense_pledge_guard_invariants()$q$,
   '0LP01', 'lost EXECUTE');
+SELECT pg_temp.refuses_at('I9d2 a helper its guards call dropped (r6, Codex r6 S2: -23''s lock key, not body-pinned here)',
+  $q$DROP FUNCTION public.cash_source_lock_key(text, uuid);
+     SELECT public.assert_suspense_pledge_guard_invariants()$q$,
+  '0LP01', 'cash_source_lock_key');
 SELECT pg_temp.refuses_at('I9e a NOT NULL dropped',
   $q$ALTER TABLE public.agency_pledges ALTER COLUMN amount DROP NOT NULL;
      SELECT public.assert_suspense_pledge_guard_invariants()$q$,
