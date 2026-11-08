@@ -41,6 +41,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [succession-checks-at-commit](#succession-checks-at-commit) — a "never closed from under X" check on code-keyed rows must run at commit (deferred constraint trigger, ALWAYS, all-tenants role), or it refuses every close-then-successor
 - [count-guards-need-lock-handshake](#count-guards-need-lock-handshake) — A guard that counts rows can be defeated by an in-flight writer (phantom); pair it with a lock handshake — prefer a row-version mutex (UPDATE) over a bare lock, FOR KEY SHARE on heartbeated rows, and pin READ COMMITTED only where no row version can be written
 - [lock-order-as-a-rule](#lock-order-as-a-rule) — State a lock order as a rule over the rows taken in order, plus "every writer retries 40P01"; never as a list of shapes
+- [constraint-trigger-name-order](#constraint-trigger-name-order) — a deferred constraint trigger that reads what another AFTER trigger writes must sort after it by name: once a battery has run SET CONSTRAINTS ALL IMMEDIATE it fires at statement end, in name order, before the writer
 - [race-barriers-clear-stat-snapshot](#race-barriers-clear-stat-snapshot) — two-session race barriers polling pg_stat_activity must call pg_stat_clear_snapshot() each poll; never edit test files while mutations-22.py runs
 
 **Performance**
@@ -460,3 +461,12 @@ v5.4.2-30 r2 recorded each premise's state in a history stamped `now()` (the tra
 -16's places are closed once and continued by a successor row of the same kind, state and code, and a code's rows never overlap. So the successor can only be inserted *after* the close. A rule like "a place is never closed while a levy keyed by its code runs past it" cannot be checked at the close: it would refuse every succession (-30 r2).
 
 **How to apply:** make it a `DEFERRABLE INITIALLY DEFERRED` constraint trigger (`AFTER UPDATE OF effective_to`, `ENABLE ALWAYS`) that measures coverage across all the code's rows at commit. A close and its successor in one transaction pass; a dissolution waits for the dependent row's own close. The check runs under whatever role holds the session at COMMIT, so it must itself require the all-tenants role the close required (Fable r2 S1). The writer of the dependent row takes each found row's lock shared and then re-reads the rows, refusing (40001) if one was committed while it waited (-16's race R19 rule). In a battery, plant stamps before any close: `ALTER TABLE` is refused while deferred trigger events are pending.
+
+## constraint-trigger-name-order
+
+**Lesson (2026-11-07, -25 r2).** A deferred constraint trigger normally fires at commit, after every AFTER trigger of the statement. Once anything in the transaction has run `SET CONSTRAINTS ALL IMMEDIATE` (a battery's deferred-check helper does), it fires at statement end with the other AFTER triggers, in trigger-name order. -25's `enforce_dispute_reading_released` (reading the dispute's status) sorted before `z_dispute_move_status` (writing it), so it saw the dispute still open and passed a case it should refuse; the test passed nothing and looked like a broken guard.
+
+**Why:** the firing point of a deferred trigger depends on the transaction's constraint mode, not only on its declaration.
+
+**How to apply:** name a deferred check that reads another trigger's write so it sorts after that trigger (`zz_…` after `z_…`). In a battery, set the constraint back to DEFERRED after forcing it, and debug a silent pass by printing what the trigger sees.
+
