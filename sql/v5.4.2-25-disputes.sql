@@ -2745,6 +2745,41 @@ CREATE TRIGGER z_dispute_move_status AFTER INSERT ON public.dispute_events FOR E
     WHEN (NEW.event_type = ANY (ARRAY['resolved'::text, 'withdrawn'::text])) EXECUTE FUNCTION public.dispute_move_status();
 ALTER TABLE public.dispute_events ENABLE ALWAYS TRIGGER z_dispute_move_status;
 
+-- r2 (Opus B1, Fable B1; lesson projection-checks-lag-in-one-statement): the
+-- "nothing after the resolution" rule judged from the events, not from the
+-- status the move above writes at the end of the statement. AFTER INSERT, so
+-- every row of the statement is in: a row of the dispute numbered after its
+-- resolution or withdrawal is refused, whatever statement carried them.
+CREATE OR REPLACE FUNCTION public.enforce_dispute_nothing_after_close() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_close public.dispute_events%ROWTYPE;
+    v_tag   text := CASE TG_TABLE_NAME WHEN 'dispute_amounts' THEN 'D2e' WHEN 'dispute_determinations' THEN 'D4k' ELSE 'D5f' END;
+BEGIN
+    SELECT * INTO v_close FROM public.dispute_events e
+     WHERE e.dispute_id = NEW.dispute_id AND e.event_type IN ('resolved', 'withdrawn') AND e.id IS DISTINCT FROM NEW.id
+       AND e.record_seq < NEW.record_seq;
+    IF FOUND THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: dispute %s was %s by event %s, recorded before this row — nothing is recorded on it after [%s] (v5.4.2-25)',
+                             TG_TABLE_NAME, NEW.dispute_id, v_close.event_type, v_close.id, v_tag),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_dispute_nothing_after_close() IS
+    'v5.4.2-25 r2 (D2e, D4k, D5f). AFTER INSERT on dispute_amounts, dispute_determinations and dispute_events, for every role: a row numbered (record_seq) after its dispute''s resolution or withdrawal is refused, also when both are in one statement (the status is written only after the statement''s rows).';
+REVOKE ALL ON FUNCTION public.enforce_dispute_nothing_after_close() FROM PUBLIC, tally_app, tally_core;
+CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
+ALTER TABLE public.dispute_amounts ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;
+CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
+ALTER TABLE public.dispute_determinations ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;
+CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
+ALTER TABLE public.dispute_events ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;
+
 
 -- ----------------------------------------------------------------------------
 -- 7. The readers (D6)

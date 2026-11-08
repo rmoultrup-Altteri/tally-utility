@@ -851,6 +851,24 @@ SELECT pg_temp.refuses_at('D5w T2 writes no event on T1''s dispute',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'escalated', DATE '2026-03-20', NULL, NULL, 'regulator'),
   '42501', 'row-level security');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b1', true);
+-- r2 (Opus B1, Fable B1): a record in the same statement as the resolution.
+SELECT pg_temp.refuses_at('D5r a resolution and an escalation in one multi-row insert',
+  $q$INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on, outcome, escalated_to)
+     VALUES ('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', 'sustained', NULL),
+            ('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'escalated', DATE '2026-04-10', NULL, 'regulator')$q$, '23514', '[D5f]');
+SELECT pg_temp.refuses_at('D5r2 a withdrawal and an escalation in one multi-row insert',
+  $q$INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on, outcome, escalated_to)
+     VALUES ('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'withdrawn', DATE '2026-04-10', NULL, NULL),
+            ('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'escalated', DATE '2026-04-10', NULL, 'regulator')$q$, '23514', '[D5f]');
+-- The CTE's resolution runs first: the row inserted reads it (FROM r).
+SELECT pg_temp.refuses_at('D4k2 a resolution and then a superseding determination in one statement (a writable CTE)',
+  'WITH r AS (' || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained') || ' RETURNING 1) ' ||
+  regexp_replace(pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 30, 90, 'm1', NULL,
+                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D4k]');
+SELECT pg_temp.refuses_at('D2m2 a resolution and then a new amount in one statement (a writable CTE)',
+  'WITH r AS (' || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained') || ' RETURNING 1) ' ||
+  regexp_replace(pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 999, 'agreed', DATE '2026-04-10'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D2e]');
 SELECT pg_temp.admits('D5m C1''s I1 dispute is resolved: the bill is sustained, April 10',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained',
                  NULL, NULL, NULL, '00000000-0000-4000-8000-000000002561'));
