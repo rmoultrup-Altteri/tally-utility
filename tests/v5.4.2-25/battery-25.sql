@@ -1027,10 +1027,16 @@ SELECT pg_temp.admits('T2c a reading marked disputed under its open dispute (C1'
   $q$UPDATE public.meter_readings SET status = 'disputed' WHERE id = '00000000-0000-4000-8000-000000002571'$q$);
 SELECT pg_temp.refuses_at('T2d … and not unmarked while that dispute is open',
   $q$UPDATE public.meter_readings SET status = 'active' WHERE id = '00000000-0000-4000-8000-000000002571'$q$, '23514', '[T2]');
+SELECT pg_temp.refuses_at('T2e0 r2 (Opus S4): the dispute withdrawn and the reading left marked is refused at commit',
+  pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002534', 'withdrawn', DATE '2026-03-21')
+  || '; SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE', '23514', '[T2c]');
+SET CONSTRAINTS public.zz_dispute_reading_released DEFERRED;
 SELECT pg_temp.admits('T2e the dispute is withdrawn …',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002534', 'withdrawn', DATE '2026-03-21'));
-SELECT pg_temp.admits('T2f … and the reading may be unmarked',
-  $q$UPDATE public.meter_readings SET status = 'active' WHERE id = '00000000-0000-4000-8000-000000002571'$q$);
+SELECT pg_temp.admits('T2f … and the reading unmarked in the same transaction, so the commit check passes',
+  $q$UPDATE public.meter_readings SET status = 'active' WHERE id = '00000000-0000-4000-8000-000000002571';
+     SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;
+     SET CONSTRAINTS public.zz_dispute_reading_released DEFERRED$q$);
 RESET ROLE;
 SELECT pg_temp.ok('T2g the disputed-reading index stands, on the status',
   EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_readings_disputed' AND indexdef ~ 'status'

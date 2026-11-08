@@ -76,7 +76,9 @@
 --   * pending_dispute stops protecting the account and takes no new
 --     enrollment: a dispute is a disputes row.
 --   * meter_readings.dispute_* (six columns) go. A reading's status
---     'disputed' needs an open dispute naming it, and stays while one does.
+--     'disputed' needs an open dispute naming it, and stays while one does;
+--     r2: when the last such dispute closes, the reading leaves disputed in
+--     the same transaction (checked at commit).
 --
 -- ----------------------------------------------------------------------------
 -- Lock order and isolation (a rule)
@@ -3180,6 +3182,35 @@ REVOKE ALL ON FUNCTION public.enforce_reading_dispute_status() FROM PUBLIC, tall
 CREATE TRIGGER a_enforce_reading_dispute_status BEFORE INSERT OR UPDATE OF status ON public.meter_readings
     FOR EACH ROW EXECUTE FUNCTION public.enforce_reading_dispute_status();
 ALTER TABLE public.meter_readings ENABLE ALWAYS TRIGGER a_enforce_reading_dispute_status;
+-- r2 (Opus S4): a dispute that closes leaves no reading it names marked
+-- disputed with no open dispute naming it. Checked at commit, so the closing
+-- event and the reading's move out of disputed go in one transaction (the
+-- move needs the dispute closed first) [T2c]. Named zz_ so that, when the
+-- constraints are immediate, it runs after z_dispute_move_status.
+CREATE OR REPLACE FUNCTION public.enforce_dispute_reading_released() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_reading uuid;
+BEGIN
+    SELECT d.reading_id INTO v_reading FROM public.disputes d WHERE d.id = NEW.dispute_id;
+    IF v_reading IS NOT NULL
+       AND EXISTS (SELECT 1 FROM public.meter_readings m WHERE m.id = v_reading AND m.status = 'disputed')
+       AND NOT EXISTS (SELECT 1 FROM public.disputes x WHERE x.reading_id = v_reading AND x.status = 'open') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('dispute %s closed, and its reading %s is still marked disputed with no open dispute naming it — move the reading out of disputed in the same transaction [T2c] (v5.4.2-25)', NEW.dispute_id, v_reading),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_dispute_reading_released() IS
+    'v5.4.2-25 r2 (T2; Opus S4). Deferred, at commit, for a resolved or withdrawn dispute event: the dispute''s reading, if it names one, is not left in status disputed with no open dispute naming it.';
+REVOKE ALL ON FUNCTION public.enforce_dispute_reading_released() FROM PUBLIC, tally_app, tally_core;
+CREATE CONSTRAINT TRIGGER zz_dispute_reading_released AFTER INSERT ON public.dispute_events DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW WHEN (NEW.event_type = ANY (ARRAY['resolved'::text, 'withdrawn'::text])) EXECUTE FUNCTION public.enforce_dispute_reading_released();
+ALTER TABLE public.dispute_events ENABLE ALWAYS TRIGGER zz_dispute_reading_released;
 COMMENT ON INDEX public.idx_readings_disputed IS
     'Readings in status disputed or under_review. v5.4.2-25: on the status alone (the dispute notes are gone; a disputed reading names its open dispute through disputes.reading_id).';
 
