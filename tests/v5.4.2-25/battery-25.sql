@@ -465,11 +465,14 @@ SELECT pg_temp.admits_undone('N4c the law''s own 60 days, and the law''s own cap
     '{"shelter_earned": {"kind": "before_delinquency"}, "shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 60, "from": "issue"},
       "must_pay": {"strategy": "average_usage_cap", "version": 1, "id": "m1", "history_years": 2, "no_history": "similar_customers"},
       "blocks": {"codes": ["disconnect_order", "disconnect_execute", "late_fee"]}}')));
-SELECT pg_temp.admits('N1b … and every block plus more, a wider start (before termination), a later end (resolution), undisputed charges only',
-  pg_temp.tariff_sql('00000000-0000-4000-8000-0000000025ac', '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc()));
-SELECT pg_temp.ok('N6 the admitted tariff is the one in force for T2',
-  public.rule_tariff_row_as_of('public.dispute_tariffs', '00000000-0000-4000-8000-0000000025a2', 'gas', 'distribution', 'TX', '{}', DATE '2026-03-15')
-    = '00000000-0000-4000-8000-0000000025ac');
+-- r2: undone, so T2 later shelters under its law alone (D4x; D4q needs a
+-- policy in force to be cited).
+SELECT pg_temp.admits_undone('N1b … and every block plus more, a wider start (before termination), a later end (resolution), undisputed charges only; N6 it is then the one in force for T2',
+  pg_temp.tariff_sql('00000000-0000-4000-8000-0000000025ac', '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc())
+  || $q$; DO $d$ BEGIN
+       IF public.rule_tariff_row_as_of('public.dispute_tariffs', '00000000-0000-4000-8000-0000000025a2', 'gas', 'distribution', 'TX', '{}', DATE '2026-03-15')
+          IS DISTINCT FROM '00000000-0000-4000-8000-0000000025ac' THEN RAISE EXCEPTION 'N6: not the tariff in force'; END IF;
+     END $d$$q$);
 -- N7: T4 is a special district; its law is X8's row (shelter within 21 days of receipt, withhold up to 1.1).
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b5', true);
 SELECT pg_temp.refuses_at('N7a a shorter window: 20 days of receipt against 21',
@@ -802,6 +805,23 @@ SELECT pg_temp.refuses_at('D4v a determination is never edited',
 SELECT pg_temp.refuses_at('D4w nor deleted',
   $q$DELETE FROM public.dispute_determinations WHERE id = '00000000-0000-4000-8000-000000002551'$q$, '42501', 'dispute_determinations');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b2', true);
+-- r2 (Fable S1): under 16 TAC 7.45 the shelter ends by day 60 counting the
+-- issue day (April 29 for a March 1 bill), and a shelter says so.
+SELECT pg_temp.refuses_at('D4p a shelter under 7.45 with no end',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002535', '00000000-0000-4000-8000-000000002545',
+                  'protected', pg_temp.law('investor_owned', 'protected'), NULL, 'sheltered', 40, 50, 'm1', NULL,
+                  '{disconnect_order,disconnect_execute,late_fee}'), '23514', '[D4p]');
+SELECT pg_temp.refuses_at('D4p2 … or ending after day 60 (April 30)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002535', '00000000-0000-4000-8000-000000002545',
+                  'protected', pg_temp.law('investor_owned', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2026-04-30',
+                  '{disconnect_order,disconnect_execute,late_fee}'), '23514', '[D4p]');
+-- r2 (Opus S2): T2's own policy in force (written in the same undone
+-- statement) is cited where the law governs.
+SELECT pg_temp.refuses_at('D4q the law alone, while the utility''s own wider policy is in force',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc()) || '; ' || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002535', '00000000-0000-4000-8000-000000002545',
+                  'protected', pg_temp.law('investor_owned', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2026-04-29',
+                  '{disconnect_order,disconnect_execute,late_fee}'),
+  '23514', '[D4q]');
 SELECT pg_temp.admits('D4x T2: C5''s dispute is sheltered by 16 TAC 7.45 (protected class): 40 sheltered, 50 to pay (the average cap), until April 29 (60 days from issue)',
   pg_temp.det_sql('00000000-0000-4000-8000-000000002555', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002535', '00000000-0000-4000-8000-000000002545',
                   'protected', pg_temp.law('investor_owned', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2026-04-29',

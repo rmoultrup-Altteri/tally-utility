@@ -2457,6 +2457,8 @@ DECLARE
     v_expected  uuid;
     v_msg       text;
     v_doc       jsonb;
+    v_anchor    date;
+    v_last      date;
     v_blocks    text[];
 BEGIN
     -- An outcome outside the three is the CHECK's to refuse: each check
@@ -2554,6 +2556,16 @@ BEGIN
         END IF;
     END IF;
 
+    -- r2 (Opus S2; never looser, K-07): where the law governs, a utility with
+    -- its own policy in force shelters under it (the policy is never
+    -- narrower than the law), so the determination cites it [D4q].
+    IF r.terms ->> 'governs' = 'law' AND NEW.tariff_id IS NULL
+       AND public.rule_tariff_row_as_of('public.dispute_tariffs', NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code, '{}'::jsonb, d.received_on) IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('dispute determination: the utility has its own dispute policy in force on %s, never narrower than the law — cite it [D4q] (v5.4.2-25)', d.received_on),
+            ERRCODE = 'check_violation';
+    END IF;
+
     -- The outcome's shape (contract 5).
     IF NEW.outcome = 'no_terms' AND (NEW.sheltered_amount <> 0 OR NEW.must_pay_amount IS NOT NULL OR NEW.must_pay_component IS NOT NULL
                                      OR NEW.shelter_ends_on IS NOT NULL OR cardinality(NEW.blocks) > 0 OR NEW.tariff_id IS NOT NULL
@@ -2602,6 +2614,22 @@ BEGIN
             MESSAGE = format('dispute determination: the shelter ends on %s, before the dispute was received on %s [D4o] (v5.4.2-25)', NEW.shelter_ends_on, d.received_on),
             ERRCODE = 'check_violation';
     END IF;
+    -- r2 (Fable S1): where the cited document ends the shelter at the
+    -- earlier of the resolution and a count of days, a shelter records its
+    -- last day, no later than the document's (the anchor's day counted).
+    IF NEW.outcome = 'sheltered' AND v_doc #>> '{shelter_ends,kind}' = 'earlier_of_resolution_and_days' THEN
+        v_anchor := CASE v_doc #>> '{shelter_ends,from}'
+                      WHEN 'issue' THEN (SELECT i.invoice_date FROM public.invoices i WHERE i.id = d.invoice_id)
+                      ELSE d.received_on END;
+        v_last := v_anchor + ((v_doc #>> '{shelter_ends,days}')::integer - 1);
+        IF NEW.shelter_ends_on IS NULL OR v_last IS NULL OR NEW.shelter_ends_on > v_last THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('dispute determination: the shelter ends on %s; the cited document ends it by %s (%s days from %s) [D4p] (v5.4.2-25)',
+                                 coalesce(NEW.shelter_ends_on::text, 'no date'), coalesce(v_last::text, 'an unknown day'),
+                                 v_doc #>> '{shelter_ends,days}', v_doc #>> '{shelter_ends,from}'),
+                ERRCODE = 'check_violation';
+        END IF;
+    END IF;
 
     NEW.recorded_txid := txid_current();
     NEW.record_seq    := nextval('public.dispute_record_seq');
@@ -2614,7 +2642,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_dispute_determination() IS
-    'v5.4.2-25 (D3, D4). BEFORE INSERT on dispute_determinations — record integrity, not evaluation (the core''s): the writer''s own tenant; under the dispute''s lock (READ COMMITTED) the dispute is open [D4k]; the amount row is the dispute''s, recorded before [D4j]; one live row — a first row, or a successor of the live row [D4m]; the class is the state''s (23503); the law row is the one in force for the utility''s profile in the recorded state, service and system, for the recorded class, on the received date (rule_law_row_cite) [D4a]; a tariff is the utility''s own policy for that state, service and system [D4f] and in force on the received date (rule_row_cite) [D4c]; under a delegation with no tariff, only "no terms" [D4d], and only when no policy is in force [D4e]; the outcome''s shape [D4n]; the must-pay component [D4g] and, for a shelter, the blocks [D4h] are the cited document''s (the tariff''s when one applied); sheltered between 0 and the amount, to pay at least 0 [D4i]; the shelter ends no earlier than the received date [D4o]. Stamps created_by, recorded_txid and record_seq.';
+    'v5.4.2-25 (D3, D4). BEFORE INSERT on dispute_determinations — record integrity, not evaluation (the core''s): the writer''s own tenant; under the dispute''s lock (READ COMMITTED) the dispute is open [D4k]; the amount row is the dispute''s, recorded before [D4j]; one live row — a first row, or a successor of the live row [D4m]; the class is the state''s (23503); the law row is the one in force for the utility''s profile in the recorded state, service and system, for the recorded class, on the received date (rule_law_row_cite) [D4a]; a tariff is the utility''s own policy for that state, service and system [D4f] and in force on the received date (rule_row_cite) [D4c]; under a delegation with no tariff, only "no terms" [D4d], and only when no policy is in force [D4e]; r2: where the law governs, the utility''s policy in force is cited [D4q]; the outcome''s shape [D4n]; the must-pay component [D4g] and, for a shelter, the blocks [D4h] are the cited document''s (the tariff''s when one applied); sheltered between 0 and the amount, to pay at least 0 [D4i]; the shelter ends no earlier than the received date [D4o]; r2: under a document that ends it at the earlier of the resolution and a count of days, a shelter records its last day, no later than the document''s [D4p]. Stamps created_by, recorded_txid and record_seq.';
 REVOKE ALL ON FUNCTION public.enforce_dispute_determination() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_dispute_determination BEFORE INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_determination();
 ALTER TABLE public.dispute_determinations ENABLE ALWAYS TRIGGER b_enforce_dispute_determination;
