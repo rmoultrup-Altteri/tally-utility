@@ -8,9 +8,9 @@
 #        payment: waits, then is refused.
 #   SU2b A makes 70 of R3 (100) a payment and holds; B escheats 40: waits,
 #        then is refused.
-#   SU3  A posts an agency payment naming pledge L1 and holds; B records L1
+#   SU3  A inserts a pending agency payment naming pledge L1 and holds; B records L1
 #        in error: waits on L1's lock, then is refused (a payment names it).
-#   SU3b A records L2 in error and holds; B posts a payment naming L2: waits,
+#   SU3b A records L2 in error and holds; B inserts a payment naming L2: waits,
 #        then is refused (recorded in error).
 #   SU4  A retires agency G2 and holds; B records a pledge from G2: waits on
 #        G2's lock, then is refused (retired).

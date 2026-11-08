@@ -346,6 +346,8 @@ MUTATIONS = [
     ("M110", "a misposting return may be dated before its payment (Opus r4 S1)", "P9b11",
      rep("        IF NEW.disposed_on < v_pay.payment_date THEN", "        IF false THEN")),
     # ---- r6
+    ("M112", "a misposting return may be dated before the last row under its posting entry (r6; Codex r5 B1)", "P14h",
+     rep("        IF NEW.disposed_on < v_tree_last THEN", "        IF false THEN")),
     ("M111", "an nsf row giving money back is left out of the misposted share (r5; Opus r5 B1)", "P14e",
      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'")),
 ]

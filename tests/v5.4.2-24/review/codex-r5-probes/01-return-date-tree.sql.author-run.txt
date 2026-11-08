@@ -1,0 +1,88 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+psql:<stdin>:179: NOTICE:  PASS B1 prerequisite: earlier direct reversal may be status cause
+ admits 
+--------
+ 
+(1 row)
+
+SAVEPOINT
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:182: NOTICE:  PASS B1 predicted bypass: return before the final reversal
+psql:<stdin>:185: NOTICE:  PASS B1 predicted double recognition on March 12: suspense holds 100 and old payment received 100
+ ok 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:187: NOTICE:  PASS B1 predicted bypass: spend the released 100 on a second customer on March 12
+psql:<stdin>:189: NOTICE:  PASS B1 predicted two customers received 200 on March 12 from one receipt of 100
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK
+psql:<stdin>:192: NOTICE:  PASS B1 control: return on March 13 after the final reversal
+ admits 
+--------
+ 
+(1 row)
+
+psql:<stdin>:195: NOTICE:  PASS B1 control: March 12 holds zero; March 13 holds 100
+ ok 
+----
+ 
+(1 row)
+
+RESET
+ROLLBACK

@@ -34,9 +34,10 @@
 --     (a negative row naming one, at most its amount, never itself undone),
 --     and r2 misposting_returned (a negative row naming a payment of the
 --     receipt reversed as posted to the wrong customer, with no bank return
---     code, dated on or after the reversal and the payment, once; at most the
---     net of the posting entry's tree with every nsf row and everything
---     beneath one left out (r5), so what the bank took stays spent). What it holds
+--     code, dated on or after the reversal, the payment and every row under
+--     its posting entry (r6), once; at most the net of the posting entry's
+--     tree with every nsf row that takes money, and everything beneath one,
+--     left out (r5, r6), so what the bank took stays spent). What it holds
 --     is derived
 --     (suspense_receipt_position_as_of). The cap: on every date, what went to
 --     payments (not voided) and to dispositions never exceeds the receipt. A
@@ -906,6 +907,7 @@ DECLARE
     u        public.suspense_receipt_dispositions%ROWTYPE;
     v_pay    public.payments%ROWTYPE;
     v_rev_on date;
+    v_tree_last date;
     v_undos  numeric;
     v_misposted numeric;
 BEGIN
@@ -982,6 +984,27 @@ BEGIN
                 MESSAGE = format('a misposting return of payment %s is dated on or after its reversal (%s), not %s (v5.4.2-24)', v_pay.payment_number, v_rev_on, NEW.disposed_on),
                 ERRCODE = 'check_violation';
         END IF;
+        -- r6 (Codex r5 B1): and on or after every row under the posting
+        -- entry. The share is the tree's final net; on a date before a later
+        -- row of the tree (an undo, a second reversal) the payment still held
+        -- money the return would give back, so one receipt counted twice.
+        -- Every row, nsf ones included, by the link alone (the tree is fixed
+        -- once the payment is reversed).
+        WITH RECURSIVE e AS (
+            SELECT l.id, l.transaction_date FROM public.account_ledger l
+             WHERE l.reference_type = 'payment' AND l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL
+               AND l.transaction_type IN ('payment', 'deposit')
+        ), t(id, transaction_date) AS (
+            SELECT e.id, e.transaction_date FROM e
+            UNION ALL
+            SELECT l.id, l.transaction_date FROM t JOIN public.account_ledger l ON l.reverses_ledger_entry_id = t.id
+        )
+        SELECT max(t.transaction_date) INTO v_tree_last FROM t;
+        IF NEW.disposed_on < v_tree_last THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('a misposting return of payment %s is dated on or after the last row under its posting entry (%s), not %s: before then the payment still holds what the return would give back (v5.4.2-24)', v_pay.payment_number, v_tree_last, NEW.disposed_on),
+                ERRCODE = 'check_violation';
+        END IF;
     END IF;
     IF NEW.kind = 'undo' THEN
         SELECT * INTO u FROM public.suspense_receipt_dispositions x WHERE x.id = NEW.undoes_disposition_id;
@@ -1007,7 +1030,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_suspense_disposition() IS
-    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment and its reversal (r5), gives back at most the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
+    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment, its reversal (r5) and every row under its posting entry (r6), gives back at most the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
 CREATE TRIGGER enforce_suspense_disposition AFTER INSERT ON public.suspense_receipt_dispositions
     FOR EACH ROW EXECUTE FUNCTION public.enforce_suspense_disposition();
 ALTER TABLE public.suspense_receipt_dispositions ENABLE ALWAYS TRIGGER enforce_suspense_disposition;
@@ -1640,7 +1663,7 @@ DECLARE
         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
-        'enforce_suspense_disposition() @d700e6d63393786aef3321d166e2cb7c',
+        'enforce_suspense_disposition() @eac03f6e1581331b570232da34d5e380',
         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',

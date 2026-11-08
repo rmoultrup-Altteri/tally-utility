@@ -29,7 +29,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 | Number | Stream | What |
 |---|---|---|
 | -23 | money | cash: reversals, positions, application, overpayment credits. **Mirrored 2026-11-04** (Ryan; Opus and Fable ready on r9, Codex on r10) |
-| -24 | money | unmatched cash, agency pledges (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`; Ryan 2026-11-07: a refund of an agency's money goes to the agency; limits L5/L6). Five review rounds 2026-11-07 (plans r2–r5); r5: Opus not yet, Fable ready, Codex pending (19:15). **r6 built, not frozen**; in `ci.sh` PENDING after -30, battery 265, races 24, mutations 112 |
+| -24 | money | unmatched cash, agency pledges (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`; Ryan 2026-11-07: a refund of an agency's money goes to the agency; limits L5/L6). Six review rounds 2026-11-07 (plans r2–r6); r5: Opus not yet, Fable ready, Codex not yet (its probe confirmed). **r6 frozen 2026-11-07, in review**; in `ci.sh` PENDING after -30, battery 269, races 24, mutations 113 |
 | -25 | money | disputes (drafted 2026-10-18). r1 frozen and reviewed 2026-11-07 (Opus and Fable not yet; Codex not yet run); **r2 built, not frozen** (`application/wave3-build-2026-10-18/v5.4.2-25-r2-plan.md`), battery 222, mutations 126 of 126; item 9 held for Ryan's dispute ruling (board) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting). **Mirrored 2026-11-06** (Ryan; Opus, Fable and Codex ready on r4; r5, a narrow round before the mirror, ready from Opus and Fable, Codex waived) |
