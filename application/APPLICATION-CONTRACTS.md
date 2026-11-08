@@ -444,6 +444,19 @@ A rate carries at most four decimals as stored (Kyle K-06). For a percentage rat
 - The `decimal` unit is not used for new rates. It stays in the schema's list for now; retiring it is a later rates patch.
 ---
 
+## Disputes (v5.4.2-25)
+
+### AC-46 — Assess no late penalty on a bill while a dispute of it is open — TRUSTED
+*Decided 2026-11-07 (Ryan, option 1; Kyle 2026-11-05 answer 1, its start and end flagged for Ryan).*
+
+A platform rule every customer gets, not a utility's tariff term (so K-07's "no default" does not apply). The penalty engine reads it from -25's record (`disputes`, `dispute_events`; `dispute_shelter_as_of` returns every open dispute of a bill).
+- **When it holds:** for a dispute of the bill received on or before the bill's due date.
+- **From and until:** from the dispute's received date until its resolution or withdrawal.
+- **What it stops:** any late penalty on that bill not yet assessed. One already assessed is not reversed by the dispute (its resolution decides that).
+- **The whole bill, not only the disputed amount:** a law's or tariff's `late_fee` block, which covers the sheltered amount, is narrower and does not replace this rule.
+- The database does not enforce it: assessing a penalty is the core's act. A test in the core's suite pins it (scenario SCN-0033).
+---
+
 ## Meter test history
 
 ### AC-33 — Record meter tests as raw readings in `meter_tests`; never write the meter's test columns; the cutover date is the platform's — REJECTS
