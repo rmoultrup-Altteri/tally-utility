@@ -1783,6 +1783,23 @@ BEGIN
             v_problem := v_problem || format('blocks: %s blocks %s; the tariff does not', v_law, v_bad);
         END IF;
 
+        -- r2 (Opus S1, Fable S2): duties, every duty of the law's
+        SELECT string_agg(c, ', ' ORDER BY c) INTO v_bad
+          FROM jsonb_array_elements_text(v_l #> '{duties,codes}') c
+         WHERE NOT coalesce((v_t #> '{duties,codes}') ? c, false);
+        IF v_bad IS NOT NULL THEN
+            v_problem := v_problem || format('duties: %s requires %s; the tariff does not', v_law, v_bad);
+        END IF;
+
+        -- r2: stages, a stage of each decider the law's stages have (the
+        -- regulator's among them); deadlines within a stage are not compared
+        SELECT string_agg(c, ', ' ORDER BY c) INTO v_bad
+          FROM (SELECT DISTINCT x ->> 'decider' AS c FROM jsonb_array_elements(coalesce(v_l -> 'stages', '[]')) x) w
+         WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(v_t -> 'stages', '[]')) y WHERE y ->> 'decider' = w.c);
+        IF v_bad IS NOT NULL THEN
+            v_problem := v_problem || format('stages: %s has a stage decided by %s; the tariff does not', v_law, v_bad);
+        END IF;
+
         -- subjects: every subject the law admits
         SELECT string_agg(c, ', ' ORDER BY c) INTO v_bad
           FROM unnest(public.dispute_subjects_admitted(v_l -> 'subjects')) c
@@ -1848,7 +1865,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.dispute_tariff_compare(jsonb, jsonb) IS
-    'v5.4.2-25 (L6). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused when its blocks lack one of the law''s; it admits fewer subjects; its shelter starts narrower (any_time, before_termination, before_delinquency in that order; within_days against its own kind only, the same anchor and at least the days; any other pair not comparable); its shelter ends sooner (resolution beats earlier-of-resolution-and-days; days against days; any other pair not comparable); or its must-pay asks more (undisputed_charges asks no more than any strategy, a law of full_bill or unruled is never exceeded, equal strategies compare figures — withholding by fraction, the average cap only when equal — and any other pair is not comparable). Not comparable is refused (fail toward protection). A delegation compares nothing. Stages and duties are not compared.';
+    'v5.4.2-25 (L6). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused when its blocks lack one of the law''s; it admits fewer subjects; its shelter starts narrower (any_time, before_termination, before_delinquency in that order; within_days against its own kind only, the same anchor and at least the days; any other pair not comparable); its shelter ends sooner (resolution beats earlier-of-resolution-and-days; days against days; any other pair not comparable); or its must-pay asks more (undisputed_charges asks no more than any strategy, a law of full_bill or unruled is never exceeded, equal strategies compare figures — withholding by fraction, the average cap only when equal — and any other pair is not comparable). Not comparable is refused (fail toward protection). A delegation compares nothing. r2: its duties lack one of the law''s, or its stages lack a stage of a decider the law''s have (a stage''s deadlines are not compared).';
 
 DO $register$
 BEGIN

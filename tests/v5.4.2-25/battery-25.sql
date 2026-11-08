@@ -230,10 +230,11 @@ CREATE FUNCTION pg_temp.tdoc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE s
            "shelter_earned": {"kind": "before_termination"},
            "must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m1"},
            "shelter_ends": {"kind": "resolution"},
-           "stages": [{"id": "s1", "decider": "manager", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
-                      {"id": "s2", "decider": "executive", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 90}, "final": true}],
+           "stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                      {"id": "s2", "decider": "executive", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 90}, "final": false},
+                      {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": true}],
            "blocks": {"codes": ["notice_issue", "disconnect_order", "disconnect_execute", "late_fee"]},
-           "duties": {"codes": ["investigate", "report_result"]}}'::jsonb || p_over
+           "duties": {"codes": ["investigate", "report_result", "inform_complaint_route"]}}'::jsonb || p_over
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.tariff_sql(text, text, date, jsonb), pg_temp.tdoc(jsonb) TO tally_app;
 
@@ -449,6 +450,15 @@ SELECT pg_temp.refuses_at('N5c a withholding cap against an average-usage cap (n
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
     pg_temp.tdoc('{"must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.1}}')),
   '23514', 'must_pay');
+-- r2 (Opus S1, Fable S2): duties and stages are compared too.
+SELECT pg_temp.refuses_at('N9a a tariff without a duty the law requires (telling the customer the complaint route)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"duties": {"codes": ["investigate", "report_result"]}}')),
+  '23514', 'duties');
+SELECT pg_temp.refuses_at('N9b a tariff without the regulator''s review stage',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc(
+    '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                 {"id": "s2", "decider": "executive", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 90}, "final": true}]}')),
+  '23514', 'stages');
 -- the other side of each boundary
 SELECT pg_temp.admits_undone('N4c the law''s own 60 days, and the law''s own cap and start (equal is not looser)',
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc(
