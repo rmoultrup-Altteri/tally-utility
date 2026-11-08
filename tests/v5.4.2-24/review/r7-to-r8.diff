@@ -1,0 +1,174 @@
+--- patch-24-frozen-r7.sql	2026-11-07 20:36:49
++++ patch-24-frozen-r8.sql	2026-11-07 21:22:50
+@@ -36,7 +36,7 @@
+ --     receipt reversed as posted to the wrong customer, with no bank return
+ --     code, dated on or after the reversal, the payment and every row under
+ --     its posting entry, and recorded no earlier than every row of it (r6),
+---     once; at most the net of the posting entry's
++--     once; exactly the net of the posting entry's (r7)
+ --     tree with every nsf row that takes money, and everything beneath one,
+ --     left out (r5, r6), so what the bank took stays spent). What it holds
+ --     is derived
+@@ -968,9 +968,12 @@
+             SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
+         )
+         SELECT least(v_pay.amount, greatest(0, coalesce(sum(d.amount), 0))) INTO v_misposted FROM down d;
+-        IF -NEW.amount > v_misposted THEN
++        -- r7 (Opus r6 S1): exactly the share. A short return could never be
++        -- topped up (once per payment, never undone), and the rest would be
++        -- held nowhere (CI-053: held, never dropped).
++        IF -NEW.amount <> v_misposted THEN
+             RAISE EXCEPTION USING
+-                MESSAGE = format('a misposting return gives back at most what payment %s reversed as misposted (%s of its %s; what the bank took back stays spent), not %s (v5.4.2-24)', v_pay.payment_number, v_misposted, v_pay.amount, -NEW.amount),
++                MESSAGE = format('a misposting return gives back exactly what payment %s reversed as misposted (%s of its %s; what the bank took back stays spent), not %s (v5.4.2-24)', v_pay.payment_number, v_misposted, v_pay.amount, -NEW.amount),
+                 ERRCODE = 'check_violation';
+         END IF;
+         -- r5 (Opus r4 S1): and on or after the payment's own date.
+@@ -1041,7 +1044,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.enforce_suspense_disposition() IS
+-    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment, its reversal (r5) and every row under its posting entry, and recorded no earlier than every row of it (r6), gives back at most the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
++    'v5.4.2-24. AFTER INSERT on suspense_receipt_dispositions, for every role, READ COMMITTED, under the receipt''s lock: the receipt is of the row''s tenant (r3); dated on or after the receipt and no later than today (UTC+14); every disposition recorded no earlier than every row of the receipt (r2, r3: check_suspense_recorded_order); a misposting return (r2) names a payment of the receipt reversed with no return code, is dated on or after the payment, its reversal (r5) and every row under its posting entry, and recorded no earlier than every row of it (r6), gives back exactly (r7) the net of the posting entry''s tree with every nsf row that takes money, and what is beneath it, left out (r4-r6), never more than the payment, once (the unique index); an undo names a disposition of the same receipt that is neither an undo nor a misposting return, is dated on or after it, and the undos of one never exceed it; then the receipt''s cap on every date, above the receipt or below nothing (r4).';
+ CREATE TRIGGER enforce_suspense_disposition AFTER INSERT ON public.suspense_receipt_dispositions
+     FOR EACH ROW EXECUTE FUNCTION public.enforce_suspense_disposition();
+ ALTER TABLE public.suspense_receipt_dispositions ENABLE ALWAYS TRIGGER enforce_suspense_disposition;
+@@ -1674,7 +1677,7 @@
+         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
+         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
+         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
+-        'enforce_suspense_disposition() @885503e246bf54139455c377d3688cee',
++        'enforce_suspense_disposition() @8eb423ac1f404a942d69ac7e41de3eed',
+         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
+         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
+         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',
+--- battery-24-frozen-r7.sql	2026-11-07 20:36:49
++++ battery-24-frozen-r8.sql	2026-11-07 21:22:50
+@@ -388,9 +388,12 @@
+ SELECT pg_temp.refuses_at('P9b2 a misposting return is dated on or after the reversal (03-05; r6: the tree-date rule, which covers it)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50, DATE '2026-03-04')$q$,
+   '23514', 'the last row under its posting entry');
+-SELECT pg_temp.refuses_at('P9b3 it gives back at most what was reversed as misposted (here the whole 50)',
++SELECT pg_temp.refuses_at('P9b3 it gives back no more than what was reversed as misposted (here the whole 50)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50.01, DATE '2026-03-05')$q$,
+-  '23514', 'at most what payment');
++  '23514', 'exactly what payment');
++SELECT pg_temp.refuses_at('P9b3b nor less: a short return could never be topped up, and the rest would be held nowhere (r7, Opus r6 S1)',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 49.99, DATE '2026-03-05')$q$,
++  '23514', 'exactly what payment');
+ SELECT pg_temp.refuses_at('P9b4 it names a payment of the same receipt (C1''s P11 is R1''s)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('11'), 1, DATE '2026-03-05')$q$,
+   '23514', 'names a payment made from receipt');
+@@ -459,7 +462,7 @@
+  WHERE id = pg_temp.k('1a');
+ SELECT pg_temp.refuses_at('P13 a misposting return gives back only what was reversed as misposted (60 of 100; the bank took 40)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 100, DATE '2026-03-12')$q$,
+-  '23514', 'at most what payment');
++  '23514', 'exactly what payment');
+ SELECT pg_temp.admits('P13b the 60 comes back',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 60, DATE '2026-03-12')$q$);
+ SELECT pg_temp.ok('P13c R11 holds 60', pg_temp.held(pg_temp.k('0c')) = 60);
+@@ -477,7 +480,7 @@
+ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f2') WHERE id = pg_temp.k('1c');
+ SELECT pg_temp.refuses_at('P14a a reversal entered, undone and entered again gives back 100, not 200 (Opus r3 B1, Fable r3 B1)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100.01, DATE '2026-03-13')$q$,
+-  '23514', 'at most what payment');
++  '23514', 'exactly what payment');
+ SELECT pg_temp.admits('P14a2 100 comes back',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100, DATE '2026-03-13')$q$);
+ -- R17 (11): 100 to C1 (P1d); a reversal +100 (f4) undone (f5), then the
+@@ -491,9 +494,9 @@
+ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+ VALUES (pg_temp.k('f6'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1d'), pg_temp.k('f7'));
+ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'bank return entered as a reversal', status_cause_id = pg_temp.k('f4') WHERE id = pg_temp.k('1d');
+-SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back (Opus r3 B1)',
+-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 0.01, DATE '2026-03-13')$q$,
+-  '23514', 'at most what payment');
++SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back, not 100 (Opus r3 B1; r8: the amount the old rule gave, as a return must now be exact)',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 100, DATE '2026-03-13')$q$,
++  '23514', 'exactly what payment');
+ -- r5 (Fable r4 B1): R18 (13), 100 to C1 (P1e); a reversal +100 (f8), its
+ -- undo -100 (f9), and the bank's take-back filed under the undo (fa, nsf).
+ SELECT pg_temp.rcpt(pg_temp.k('13'), 100, DATE '2026-03-10');
+@@ -505,9 +508,9 @@
+ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
+ VALUES (pg_temp.k('fa'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1e'), pg_temp.k('f9'));
+ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f8') WHERE id = pg_temp.k('1e');
+-SELECT pg_temp.refuses_at('P14c the bank''s take-back filed under the undo of a reversal still stays spent (Fable r4 B1)',
+-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('13'), pg_temp.k('1e'), 0.01, DATE '2026-03-13')$q$,
+-  '23514', 'at most what payment');
++SELECT pg_temp.refuses_at('P14c the bank''s take-back filed under the undo of a reversal still stays spent: not 100 (Fable r4 B1; r8: the old rule''s amount)',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('13'), pg_temp.k('1e'), 100, DATE '2026-03-13')$q$,
++  '23514', 'exactly what payment');
+ -- R19 (14), 100 to C1 (P1f): the bank's take-back (fc, nsf) undone (fd),
+ -- then a reversal as misposted (fe): 100 comes back.
+ SELECT pg_temp.rcpt(pg_temp.k('14'), 100, DATE '2026-03-10');
+@@ -536,8 +539,8 @@
+ VALUES (pg_temp.k('d6'), pg_temp.t1(), :c1, DATE '2026-03-14', 'adjustment', 'misposted again', 50, 'payment', pg_temp.k('d1'), pg_temp.k('d2'), 'misposted again');
+ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('d6') WHERE id = pg_temp.k('d1');
+ SELECT pg_temp.refuses_at('P14e an undo typed nsf is counted: 50 comes back, not 100 (Opus r5 B1)',
+-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 50.01, DATE '2026-03-14')$q$,
+-  '23514', 'at most what payment');
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 100, DATE '2026-03-14')$q$,
++  '23514', 'exactly what payment');
+ SELECT pg_temp.admits('P14e2 the 50 comes back',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 50, DATE '2026-03-14')$q$);
+ -- R22 (17), 100 to C1 (P d7; Opus r4 Q4): nsf +40 (d9) and its undo -40 (da);
+@@ -558,9 +561,9 @@
+ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
+ VALUES (pg_temp.k('de'), pg_temp.t1(), :c1, DATE '2026-03-16', 'adjustment', 'misposted', 20, 'payment', pg_temp.k('d7'), pg_temp.k('d8'), 'misposted');
+ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('de') WHERE id = pg_temp.k('d7');
+-SELECT pg_temp.refuses_at('P14f a mixed tree: 70 comes back, not more (Opus r4 Q4)',
+-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 70.01, DATE '2026-03-16')$q$,
+-  '23514', 'at most what payment');
++SELECT pg_temp.refuses_at('P14f a mixed tree: 70 comes back, not 90 (Opus r4 Q4)',
++  $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 90, DATE '2026-03-16')$q$,
++  '23514', 'exactly what payment');
+ SELECT pg_temp.admits('P14f2 the 70 comes back',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 70, DATE '2026-03-16')$q$);
+ -- r6 (Fable r5 S2, probe FA): R23 (18), 100 to C1 (P b3): a reversal +100
+@@ -577,7 +580,7 @@
+ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('b5') WHERE id = pg_temp.k('b3');
+ SELECT pg_temp.refuses_at('P14g a reversal, its undo typed nsf, and a second reversal: 100 comes back, not 200 (Fable r5 S2)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('18'), pg_temp.k('b3'), 100.01, DATE '2026-03-13')$q$,
+-  '23514', 'at most what payment');
++  '23514', 'exactly what payment');
+ -- r5 (Opus r4 S1): R20 (15) on 03-10; its payment (P20) dated 03-15 but posted
+ -- on 03-10, reversed on 03-11. A return dated before the payment is refused.
+ SELECT pg_temp.rcpt(pg_temp.k('15'), 100, DATE '2026-03-10');
+@@ -1105,6 +1108,12 @@
+ SELECT pg_temp.refuses_at('P14i a misposting return stamped before a row under the posting entry was recorded retries (Codex r6 B1)',
+   $q$SELECT pg_temp.mret(NULL, pg_temp.k('9a'), pg_temp.k('9b'), 100, DATE '2026-03-11')$q$,
+   '40001', 'a row under its posting entry was recorded at');
++SELECT pg_temp.refuses_at('P14i4 … and a time the owner chooses between the payment''s status and the reversal is refused (r7, Opus r6 S2)',
++  $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
++     SELECT pg_temp.t1(), pg_temp.k('9a'), 'misposting_returned', -100, DATE '2026-03-11', 'posted to the wrong customer', pg_temp.op(), pg_temp.k('9b'),
++            now() + (l.created_at - now()) / 2
++       FROM public.account_ledger l WHERE l.id = pg_temp.k('9d')$q$,
++  '23514', 'before a row under its posting entry recorded at');
+ SELECT pg_temp.admits('P14i2 recorded after it, admitted',
+   $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
+      VALUES (pg_temp.t1(), pg_temp.k('9a'), 'misposting_returned', -100, DATE '2026-03-11', 'posted to the wrong customer', pg_temp.op(), pg_temp.k('9b'), clock_timestamp())$q$);
+--- mutations-24-frozen-r7.py	2026-11-07 20:36:49
++++ mutations-24-frozen-r8.py	2026-11-07 21:22:50
+@@ -260,7 +260,7 @@
+     ("M72", "a payment not reversed may be returned to suspense", "P9b5",
+      rep("        IF v_pay.status <> 'reversed' OR v_pay.return_code IS NOT NULL THEN", "        IF v_pay.return_code IS NOT NULL THEN")),
+     ("M73", "a misposting return may exceed its payment", "P9b3",
+-     rep("        IF -NEW.amount > v_misposted THEN", "        IF false THEN")),
++     rep("        IF -NEW.amount <> v_misposted THEN", "        IF false THEN")),
+     # M74 removed (r6, Codex r6 S1): r5's check of the reversal's date was
+     # always beaten by the tree-date rule (M112, P9b2 and P14h), and is gone.
+     ("M75", "a misposting return may name another receipt's payment", "P9b4",
+@@ -353,6 +353,11 @@
+     ("M114", "the invariant passes over a missing helper its guards call (r6; Codex r6 S2)", "I9d2",
+      rep("     WHERE NOT coalesce(has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE'), false);",
+          "     WHERE NOT has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE');")),
++    ("M115", "a misposting return may be short of the share (r7; Opus r6 S1)", "P9b3b",
++     rep("        IF -NEW.amount <> v_misposted THEN", "        IF -NEW.amount > v_misposted THEN")),
++    ("M116", "a chosen time before a row under the posting entry is admitted (r7; Opus r6 S2)", "P14i4",
++     rep("            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry",
++         "            RETURN NULL;\n            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry")),
+     ("M111", "an nsf row giving money back is left out of the misposted share (r5; Opus r5 B1)", "P14e",
+      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'")),
+ ]

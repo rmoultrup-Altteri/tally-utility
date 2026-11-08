@@ -260,7 +260,7 @@ MUTATIONS = [
     ("M72", "a payment not reversed may be returned to suspense", "P9b5",
      rep("        IF v_pay.status <> 'reversed' OR v_pay.return_code IS NOT NULL THEN", "        IF v_pay.return_code IS NOT NULL THEN")),
     ("M73", "a misposting return may exceed its payment", "P9b3",
-     rep("        IF -NEW.amount > v_misposted THEN", "        IF false THEN")),
+     rep("        IF -NEW.amount <> v_misposted THEN", "        IF false THEN")),
     # M74 removed (r6, Codex r6 S1): r5's check of the reversal's date was
     # always beaten by the tree-date rule (M112, P9b2 and P14h), and is gone.
     ("M75", "a misposting return may name another receipt's payment", "P9b4",
@@ -353,6 +353,11 @@ MUTATIONS = [
     ("M114", "the invariant passes over a missing helper its guards call (r6; Codex r6 S2)", "I9d2",
      rep("     WHERE NOT coalesce(has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE'), false);",
          "     WHERE NOT has_function_privilege('tally_app', pg_catalog.to_regprocedure('public.' || d), 'EXECUTE');")),
+    ("M115", "a misposting return may be short of the share (r7; Opus r6 S1)", "P9b3b",
+     rep("        IF -NEW.amount <> v_misposted THEN", "        IF -NEW.amount > v_misposted THEN")),
+    ("M116", "a chosen time before a row under the posting entry is admitted (r7; Opus r6 S2)", "P14i4",
+     rep("            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry",
+         "            RETURN NULL;\n            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry")),
     ("M111", "an nsf row giving money back is left out of the misposted share (r5; Opus r5 B1)", "P14e",
      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'")),
 ]

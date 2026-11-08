@@ -479,6 +479,8 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 - **Empty lists.** M120 emptied `c_col_acls`, the list the unlisted-grant leg subtracts. That list was already empty, so the mutation changed nothing.
 - **The wrong leg.** M124 removed the policy check's leg for a listed policy that changed or went missing, while its check, H16f, adds an unlisted policy.
 
+- **A rule made exact.** -24 r8 made a misposting return equal the share exactly (it had been "at most"). The checks that proved the share by refusing share + 0.01 then passed under any wrong share, since every amount but the right one is refused; three mutations went missed (M106, M109, M111). Each such check now offers the amount the wrong rule would give.
+
 **Why:** a check that passes whichever guard fires proves neither guard. A mutation that changes nothing, or changes a leg its check never reaches, reads as a missed guard that isn't one.
 
 **How to apply:** when two guards can refuse the same row, give each battery check a phrase that only its guard writes, and keep the shape the backup guard holds as a separate check. Mutate the leg that the named check's shape actually reaches. When a list in the manifest is empty, mutate the query that finds extras, not the list. Run the full mutation suite once before a round freezes: that run is what catches these. Related: [checks-narrower-than-their-claim](#checks-narrower-than-their-claim), [rule-table-fixture-notes](#rule-table-fixture-notes).

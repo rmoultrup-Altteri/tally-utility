@@ -388,9 +388,12 @@ SELECT pg_temp.ok('P9b a reversal alone gives nothing back: R4 still holds 0',
 SELECT pg_temp.refuses_at('P9b2 a misposting return is dated on or after the reversal (03-05; r6: the tree-date rule, which covers it)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50, DATE '2026-03-04')$q$,
   '23514', 'the last row under its posting entry');
-SELECT pg_temp.refuses_at('P9b3 it gives back at most what was reversed as misposted (here the whole 50)',
+SELECT pg_temp.refuses_at('P9b3 it gives back no more than what was reversed as misposted (here the whole 50)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 50.01, DATE '2026-03-05')$q$,
-  '23514', 'at most what payment');
+  '23514', 'exactly what payment');
+SELECT pg_temp.refuses_at('P9b3b nor less: a short return could never be topped up, and the rest would be held nowhere (r7, Opus r6 S1)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 49.99, DATE '2026-03-05')$q$,
+  '23514', 'exactly what payment');
 SELECT pg_temp.refuses_at('P9b4 it names a payment of the same receipt (C1''s P11 is R1''s)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('11'), 1, DATE '2026-03-05')$q$,
   '23514', 'names a payment made from receipt');
@@ -459,7 +462,7 @@ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by
  WHERE id = pg_temp.k('1a');
 SELECT pg_temp.refuses_at('P13 a misposting return gives back only what was reversed as misposted (60 of 100; the bank took 40)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 100, DATE '2026-03-12')$q$,
-  '23514', 'at most what payment');
+  '23514', 'exactly what payment');
 SELECT pg_temp.admits('P13b the 60 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 60, DATE '2026-03-12')$q$);
 SELECT pg_temp.ok('P13c R11 holds 60', pg_temp.held(pg_temp.k('0c')) = 60);
@@ -477,7 +480,7 @@ VALUES (pg_temp.k('f2'), pg_temp.t1(), :c1, DATE '2026-03-13', 'adjustment', 'mi
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f2') WHERE id = pg_temp.k('1c');
 SELECT pg_temp.refuses_at('P14a a reversal entered, undone and entered again gives back 100, not 200 (Opus r3 B1, Fable r3 B1)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100.01, DATE '2026-03-13')$q$,
-  '23514', 'at most what payment');
+  '23514', 'exactly what payment');
 SELECT pg_temp.admits('P14a2 100 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('10'), pg_temp.k('1c'), 100, DATE '2026-03-13')$q$);
 -- R17 (11): 100 to C1 (P1d); a reversal +100 (f4) undone (f5), then the
@@ -491,9 +494,9 @@ VALUES (pg_temp.k('f5'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 're
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
 VALUES (pg_temp.k('f6'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1d'), pg_temp.k('f7'));
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'bank return entered as a reversal', status_cause_id = pg_temp.k('f4') WHERE id = pg_temp.k('1d');
-SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back (Opus r3 B1)',
-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 0.01, DATE '2026-03-13')$q$,
-  '23514', 'at most what payment');
+SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back, not 100 (Opus r3 B1; r8: the amount the old rule gave, as a return must now be exact)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 100, DATE '2026-03-13')$q$,
+  '23514', 'exactly what payment');
 -- r5 (Fable r4 B1): R18 (13), 100 to C1 (P1e); a reversal +100 (f8), its
 -- undo -100 (f9), and the bank's take-back filed under the undo (fa, nsf).
 SELECT pg_temp.rcpt(pg_temp.k('13'), 100, DATE '2026-03-10');
@@ -505,9 +508,9 @@ VALUES (pg_temp.k('f9'), pg_temp.t1(), :c1, DATE '2026-03-12', 'adjustment', 'en
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id)
 VALUES (pg_temp.k('fa'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned', 100, 'payment', pg_temp.k('1e'), pg_temp.k('f9'));
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f8') WHERE id = pg_temp.k('1e');
-SELECT pg_temp.refuses_at('P14c the bank''s take-back filed under the undo of a reversal still stays spent (Fable r4 B1)',
-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('13'), pg_temp.k('1e'), 0.01, DATE '2026-03-13')$q$,
-  '23514', 'at most what payment');
+SELECT pg_temp.refuses_at('P14c the bank''s take-back filed under the undo of a reversal still stays spent: not 100 (Fable r4 B1; r8: the old rule''s amount)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('13'), pg_temp.k('1e'), 100, DATE '2026-03-13')$q$,
+  '23514', 'exactly what payment');
 -- R19 (14), 100 to C1 (P1f): the bank's take-back (fc, nsf) undone (fd),
 -- then a reversal as misposted (fe): 100 comes back.
 SELECT pg_temp.rcpt(pg_temp.k('14'), 100, DATE '2026-03-10');
@@ -536,8 +539,8 @@ INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date,
 VALUES (pg_temp.k('d6'), pg_temp.t1(), :c1, DATE '2026-03-14', 'adjustment', 'misposted again', 50, 'payment', pg_temp.k('d1'), pg_temp.k('d2'), 'misposted again');
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('d6') WHERE id = pg_temp.k('d1');
 SELECT pg_temp.refuses_at('P14e an undo typed nsf is counted: 50 comes back, not 100 (Opus r5 B1)',
-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 50.01, DATE '2026-03-14')$q$,
-  '23514', 'at most what payment');
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 100, DATE '2026-03-14')$q$,
+  '23514', 'exactly what payment');
 SELECT pg_temp.admits('P14e2 the 50 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 50, DATE '2026-03-14')$q$);
 -- R22 (17), 100 to C1 (P d7; Opus r4 Q4): nsf +40 (d9) and its undo -40 (da);
@@ -558,9 +561,9 @@ VALUES (pg_temp.k('dd'), pg_temp.t1(), :c1, DATE '2026-03-15', 'nsf', 'part ente
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason)
 VALUES (pg_temp.k('de'), pg_temp.t1(), :c1, DATE '2026-03-16', 'adjustment', 'misposted', 20, 'payment', pg_temp.k('d7'), pg_temp.k('d8'), 'misposted');
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('de') WHERE id = pg_temp.k('d7');
-SELECT pg_temp.refuses_at('P14f a mixed tree: 70 comes back, not more (Opus r4 Q4)',
-  $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 70.01, DATE '2026-03-16')$q$,
-  '23514', 'at most what payment');
+SELECT pg_temp.refuses_at('P14f a mixed tree: 70 comes back, not 90 (Opus r4 Q4)',
+  $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 90, DATE '2026-03-16')$q$,
+  '23514', 'exactly what payment');
 SELECT pg_temp.admits('P14f2 the 70 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 70, DATE '2026-03-16')$q$);
 -- r6 (Fable r5 S2, probe FA): R23 (18), 100 to C1 (P b3): a reversal +100
@@ -577,7 +580,7 @@ VALUES (pg_temp.k('b7'), pg_temp.t1(), :c1, DATE '2026-03-13', 'adjustment', 'mi
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('b5') WHERE id = pg_temp.k('b3');
 SELECT pg_temp.refuses_at('P14g a reversal, its undo typed nsf, and a second reversal: 100 comes back, not 200 (Fable r5 S2)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('18'), pg_temp.k('b3'), 100.01, DATE '2026-03-13')$q$,
-  '23514', 'at most what payment');
+  '23514', 'exactly what payment');
 -- r5 (Opus r4 S1): R20 (15) on 03-10; its payment (P20) dated 03-15 but posted
 -- on 03-10, reversed on 03-11. A return dated before the payment is refused.
 SELECT pg_temp.rcpt(pg_temp.k('15'), 100, DATE '2026-03-10');
@@ -1105,6 +1108,12 @@ SELECT pg_temp.ok('P14i0 the shape holds: the payment''s status is stamped befor
 SELECT pg_temp.refuses_at('P14i a misposting return stamped before a row under the posting entry was recorded retries (Codex r6 B1)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('9a'), pg_temp.k('9b'), 100, DATE '2026-03-11')$q$,
   '40001', 'a row under its posting entry was recorded at');
+SELECT pg_temp.refuses_at('P14i4 … and a time the owner chooses between the payment''s status and the reversal is refused (r7, Opus r6 S2)',
+  $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
+     SELECT pg_temp.t1(), pg_temp.k('9a'), 'misposting_returned', -100, DATE '2026-03-11', 'posted to the wrong customer', pg_temp.op(), pg_temp.k('9b'),
+            now() + (l.created_at - now()) / 2
+       FROM public.account_ledger l WHERE l.id = pg_temp.k('9d')$q$,
+  '23514', 'before a row under its posting entry recorded at');
 SELECT pg_temp.admits('P14i2 recorded after it, admitted',
   $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
      VALUES (pg_temp.t1(), pg_temp.k('9a'), 'misposting_returned', -100, DATE '2026-03-11', 'posted to the wrong customer', pg_temp.op(), pg_temp.k('9b'), clock_timestamp())$q$);
