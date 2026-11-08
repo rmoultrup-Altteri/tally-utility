@@ -6,6 +6,28 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-07, evening (money) — -24 rounds 5 to 8 (r9 built); -25's mutation suite repaired (126/126)
+
+**What was done:**
+- **The background jobs from the afternoon** had ended with that session; re-run: ci.sh 63/63, -24 mutations 112/112.
+- **-25:** the first full mutation run caught 121 of 125. Four tests were weak, not the schema: two checks matched a tag shared by two guards, one mutation emptied an already-empty list, one broke the wrong half of the policy check. Repaired, plus H16f2 and M126: battery 222, mutations 126/126. PATCH-LESSONS `check-names-its-own-guard`.
+- **-24, round by round** (each settled by rule; plans r6–r9):
+  - r5: Opus not yet (an undo typed nsf left out), Fable ready, Codex not yet: a return dated before a later undo counted one receipt of 100 as 200 received on the dates between (its probe confirmed). Fixed in r6: the return is dated on or after every row under the posting entry.
+  - r6: Opus and Fable ready; Codex not yet: in an owner's history load the return could be recorded before the reversal it rests on (confirmed). Fixed in r7: recorded no earlier than every tree row (40001/23514). Also: a redundant date check removed, the invariant lists a missing helper, and Fable's conservation sweep S4b over every date and recorded instant (shown to flag both Codex shapes).
+  - r7: Fable ready; Opus not yet: a short return stranded the rest (now exactly the share) and an untested half of the r7 rule; Codex did not start (usage limit).
+  - r8: Fable ready (the refusal checks now pin the share); Opus not yet: money awaiting a return showed up nowhere. r9 adds `suspense_misposted_share` and `suspense_misposting_returns_due_as_of`. r9 is built: battery 282, mutations 119, not frozen.
+- Every Codex probe (r5: six; r6: nine) was run by the author on fresh clones (`*.author-run.txt`); every prediction held.
+
+**Decisions:** none of Ryan's this session; all review findings settled by rule.
+
+**Lessons:** PATCH-LESSONS `check-names-its-own-guard` (shared tags, an empty list, the wrong leg; a rule made exact).
+
+**Failed approaches:** see `handoffs/schema-money.md` (business date alone; "at most" for a once-only release; editing tests during a run).
+
+**Next:** confirm r9's CI and mutations; Ryan: wait for Codex (resets 00:15 on 11-08) or waive; freeze and review -24 r9; the dispute ruling, then -25 r2.
+
+---
+
 ## 2026-11-07 (money) — -24 built and taken through five review rounds; -25 re-tested, reviewed (r1) and its r2 built; Ryan: agency refunds to the agency, two limits, and a dispute-penalty rule (held: it conflicts with scenarios')
 
 **What was done:**

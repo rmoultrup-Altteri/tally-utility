@@ -393,7 +393,7 @@ SELECT pg_temp.refuses_at('P9b3 it gives back no more than what was reversed as 
   '23514', 'exactly what payment');
 SELECT pg_temp.refuses_at('P9b3b nor less: a short return could never be topped up, and the rest would be held nowhere (r7, Opus r6 S1)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('14'), 49.99, DATE '2026-03-05')$q$,
-  '23514', 'exactly what payment');
+  '23514', 'reversed as misposted (50.00 of its 50.00');
 SELECT pg_temp.refuses_at('P9b4 it names a payment of the same receipt (C1''s P11 is R1''s)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('04'), pg_temp.k('11'), 1, DATE '2026-03-05')$q$,
   '23514', 'names a payment made from receipt');
@@ -462,7 +462,7 @@ UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by
  WHERE id = pg_temp.k('1a');
 SELECT pg_temp.refuses_at('P13 a misposting return gives back only what was reversed as misposted (60 of 100; the bank took 40)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 100, DATE '2026-03-12')$q$,
-  '23514', 'exactly what payment');
+  '23514', 'reversed as misposted (60.00 of its 100.00');
 SELECT pg_temp.admits('P13b the 60 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('0c'), pg_temp.k('1a'), 60, DATE '2026-03-12')$q$);
 SELECT pg_temp.ok('P13c R11 holds 60', pg_temp.held(pg_temp.k('0c')) = 60);
@@ -496,7 +496,7 @@ VALUES (pg_temp.k('f6'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned'
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'bank return entered as a reversal', status_cause_id = pg_temp.k('f4') WHERE id = pg_temp.k('1d');
 SELECT pg_temp.refuses_at('P14b a reversal undone, then the bank''s take-back: nothing comes back, not 100 (Opus r3 B1; r8: the amount the old rule gave, as a return must now be exact)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('11'), pg_temp.k('1d'), 100, DATE '2026-03-13')$q$,
-  '23514', 'exactly what payment');
+  '23514', 'reversed as misposted (0 of its 100.00');
 -- r5 (Fable r4 B1): R18 (13), 100 to C1 (P1e); a reversal +100 (f8), its
 -- undo -100 (f9), and the bank's take-back filed under the undo (fa, nsf).
 SELECT pg_temp.rcpt(pg_temp.k('13'), 100, DATE '2026-03-10');
@@ -510,7 +510,7 @@ VALUES (pg_temp.k('fa'), pg_temp.t1(), :c1, DATE '2026-03-13', 'nsf', 'returned'
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('f8') WHERE id = pg_temp.k('1e');
 SELECT pg_temp.refuses_at('P14c the bank''s take-back filed under the undo of a reversal still stays spent: not 100 (Fable r4 B1; r8: the old rule''s amount)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('13'), pg_temp.k('1e'), 100, DATE '2026-03-13')$q$,
-  '23514', 'exactly what payment');
+  '23514', 'reversed as misposted (0 of its 100.00');
 -- R19 (14), 100 to C1 (P1f): the bank's take-back (fc, nsf) undone (fd),
 -- then a reversal as misposted (fe): 100 comes back.
 SELECT pg_temp.rcpt(pg_temp.k('14'), 100, DATE '2026-03-10');
@@ -540,7 +540,7 @@ VALUES (pg_temp.k('d6'), pg_temp.t1(), :c1, DATE '2026-03-14', 'adjustment', 'mi
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('d6') WHERE id = pg_temp.k('d1');
 SELECT pg_temp.refuses_at('P14e an undo typed nsf is counted: 50 comes back, not 100 (Opus r5 B1)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 100, DATE '2026-03-14')$q$,
-  '23514', 'exactly what payment');
+  '23514', 'reversed as misposted (50.00 of its 100.00');
 SELECT pg_temp.admits('P14e2 the 50 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('16'), pg_temp.k('d1'), 50, DATE '2026-03-14')$q$);
 -- R22 (17), 100 to C1 (P d7; Opus r4 Q4): nsf +40 (d9) and its undo -40 (da);
@@ -563,7 +563,7 @@ VALUES (pg_temp.k('de'), pg_temp.t1(), :c1, DATE '2026-03-16', 'adjustment', 'mi
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'misposted', status_cause_id = pg_temp.k('de') WHERE id = pg_temp.k('d7');
 SELECT pg_temp.refuses_at('P14f a mixed tree: 70 comes back, not 90 (Opus r4 Q4)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 90, DATE '2026-03-16')$q$,
-  '23514', 'exactly what payment');
+  '23514', 'reversed as misposted (70.00 of its 100.00');
 SELECT pg_temp.admits('P14f2 the 70 comes back',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('17'), pg_temp.k('d7'), 70, DATE '2026-03-16')$q$);
 -- r6 (Fable r5 S2, probe FA): R23 (18), 100 to C1 (P b3): a reversal +100
@@ -1154,6 +1154,21 @@ SELECT pg_temp.ok('S3c past retention: 180 days after 03-20 is 09-16; on 09-16 n
   AND (SELECT past_retention FROM public.suspense_receipts_aged_as_of(pg_temp.t1(), DATE '2026-09-17', clock_timestamp()) WHERE receipt_id = pg_temp.k('06')));
 SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100 + R19''s 100 + R20''s 100 + R21''s 50 + R22''s 70 + R24''s 100 + R25''s 100)',
   public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 770);
+-- r8 (Opus r7 S1): a payment reversed as misposted whose share has not come
+-- back to its receipt is listed, with what is owed: P b3 (R23, P14g) is
+-- reversed on 03-11 with a share of 100 and was never returned.
+SELECT pg_temp.ok('S8 a reversed payment whose misposted share has not come back is listed, with its share, its reversal''s date and past the service level',
+  EXISTS (SELECT 1 FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) x
+           WHERE x.payment_id = pg_temp.k('b3') AND x.receipt_id = pg_temp.k('18') AND x.owed = 100 AND x.reversed_on = DATE '2026-03-11'
+             AND x.service_level_days = 10 AND x.past_service_level));
+SELECT pg_temp.ok('S8b a payment whose share has come back is not listed (P14''s C3 payment, returned at P9b6)',
+  NOT EXISTS (SELECT 1 FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) x WHERE x.payment_id = pg_temp.k('14')));
+SELECT pg_temp.ok('S8c nor one with no share (P14b''s: the bank took it all)',
+  NOT EXISTS (SELECT 1 FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) x WHERE x.payment_id = pg_temp.k('1d')));
+SELECT pg_temp.ok('S8d nor one read before its reversal''s date',
+  NOT EXISTS (SELECT 1 FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-03-10', clock_timestamp()) x WHERE x.payment_id = pg_temp.k('b3')));
+SELECT pg_temp.ok('S8e the shared share agrees with what came back (P14e: 50)',
+  public.suspense_misposted_share(pg_temp.k('d1')) = 50);
 -- r7 (Fable r6 S1, its probe FH, widened to recorded instants for Codex r6
 -- B1): money is never in two places. For every receipt of T1, every date
 -- anything of T1 is dated on and every instant anything of T1 was recorded

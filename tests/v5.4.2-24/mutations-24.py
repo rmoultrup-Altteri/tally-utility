@@ -358,6 +358,12 @@ MUTATIONS = [
     ("M116", "a chosen time before a row under the posting entry is admitted (r7; Opus r6 S2)", "P14i4",
      rep("            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry",
          "            RETURN NULL;\n            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry")),
+    ("M117", "the returns-due reader lists a payment whose share has come back (r8; Opus r7 S1)", "S8b",
+     rep("WHERE d.returned_payment_id = p.id AND d.disposed_on <= p_on", "WHERE false AND d.returned_payment_id = p.id AND d.disposed_on <= p_on")),
+    ("M118", "the returns-due reader lists a payment with no share (r8)", "S8c",
+     rep("       AND s.owed > 0\n", "")),
+    ("M119", "the returns-due reader lists a payment before its reversal's date (r8)", "S8d",
+     rep("       AND l.transaction_date <= p_on\n", "")),
     ("M111", "an nsf row giving money back is left out of the misposted share (r5; Opus r5 B1)", "P14e",
      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'")),
 ]

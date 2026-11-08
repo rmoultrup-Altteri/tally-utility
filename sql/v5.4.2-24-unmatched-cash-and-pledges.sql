@@ -446,7 +446,7 @@ CREATE INDEX idx_suspense_dispositions_undoes ON public.suspense_receipt_disposi
 CREATE UNIQUE INDEX suspense_receipt_dispositions_one_return_per_payment
     ON public.suspense_receipt_dispositions (returned_payment_id) WHERE returned_payment_id IS NOT NULL;
 COMMENT ON TABLE public.suspense_receipt_dispositions IS
-    'v5.4.2-24 (CI-053; design section 2.3). Money leaving a receipt other than as a payment: returned_to_sender (the outgoing instrument), bank_returned (the bank took it back while in suspense; an R-code where ACH), escheated (reported as unclaimed property: the state and the report; when is the core''s), and undo (a negative row naming one of the same receipt, dated on or after it, the undos of one at most its amount; an undo is never undone: a refund check that comes back uncashed). Every row says why and who. Add-only; disposed_on is frozen by the close. misposting_returned (r2): a negative row naming a payment of the receipt reversed as posted to the wrong customer, with no bank return code, at most what non-NSF rows reversed of it, dated on or after the reversal, once, never undone. The receipt''s cap: on every date, its payments (not voided) and its dispositions never exceed it.';
+    'v5.4.2-24 (CI-053; design section 2.3). Money leaving a receipt other than as a payment: returned_to_sender (the outgoing instrument), bank_returned (the bank took it back while in suspense; an R-code where ACH), escheated (reported as unclaimed property: the state and the report; when is the core''s), and undo (a negative row naming one of the same receipt, dated on or after it, the undos of one at most its amount; an undo is never undone: a refund check that comes back uncashed). Every row says why and who. Add-only; disposed_on is frozen by the close. misposting_returned (r2): a negative row naming a payment of the receipt reversed as posted to the wrong customer, with no bank return code, giving back exactly the misposted share (r7: suspense_misposted_share, the net of the payment''s posting entry''s tree with every nsf row that takes money, and what is beneath it, left out, never more than the payment), dated on or after the payment and every row of that tree and recorded no earlier than every row of it (r6), once, never undone. Until it is recorded, the payment is listed by suspense_misposting_returns_due_as_of (r8). The receipt''s cap: on every date, its payments (not voided) and its dispositions never exceed it.';
 
 -- ----------------------------------------------------------------------------
 -- 3. Agency pledges (design section 4)
@@ -896,6 +896,46 @@ CREATE TRIGGER enforce_suspense_receipt BEFORE INSERT ON public.suspense_receipt
     FOR EACH ROW EXECUTE FUNCTION public.enforce_suspense_receipt();
 ALTER TABLE public.suspense_receipts ENABLE ALWAYS TRIGGER enforce_suspense_receipt;
 
+-- r8 (Opus r7 S1): the misposted share of a payment made from a receipt,
+-- shared by the misposting return's guard and the reader of returns still
+-- due. The net of the payment's posting entry's whole tree with every nsf row
+-- that takes money (amount > 0), and everything beneath one, left out (r5,
+-- r6), bounded by 0 and the payment (r4). Walked down by the reversal link
+-- alone with the plan pinned (-23's walks' lesson); bounded by -22's lineage
+-- rule. The tree is fixed once the payment is reversed.
+CREATE OR REPLACE FUNCTION public.suspense_misposted_share(p_payment_id uuid) RETURNS numeric
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    SET enable_seqscan = off
+    SET enable_hashjoin = off
+    SET enable_mergejoin = off
+    AS $$
+DECLARE
+    v_amount numeric;
+    v_share  numeric;
+BEGIN
+    SELECT p.amount INTO v_amount FROM public.payments p WHERE p.id = p_payment_id;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+        WITH RECURSIVE e AS (
+            SELECT l.id FROM public.account_ledger l
+             WHERE l.reference_type = 'payment' AND l.reference_id = p_payment_id AND l.reverses_ledger_entry_id IS NULL
+               AND l.transaction_type IN ('payment', 'deposit')
+        ), down(id, amount) AS (
+            SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
+            UNION ALL
+            SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
+        )
+        SELECT least(v_amount, greatest(0, coalesce(sum(d.amount), 0))) INTO v_share FROM down d;
+    RETURN v_share;
+END;
+$$;
+COMMENT ON FUNCTION public.suspense_misposted_share(uuid) IS
+    'v5.4.2-24 r8 (Opus r7 S1). What a payment made from a receipt gives back to it when reversed as posted to the wrong customer: the net of its posting entry''s whole tree with every nsf row that takes money, and what is beneath it, left out, bounded by 0 and the payment. A misposting return gives back exactly this; suspense_misposting_returns_due_as_of lists it until then. NULL for an unknown payment.';
+REVOKE ALL ON FUNCTION public.suspense_misposted_share(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.suspense_misposted_share(uuid) TO tally_app, tally_core;
+
 CREATE OR REPLACE FUNCTION public.enforce_suspense_disposition() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path = public, pg_temp
@@ -936,7 +976,8 @@ BEGIN
         -- r2 (Codex B3, Opus B1, B2): money comes back to suspense only by
         -- this act, for a payment of the receipt reversed as posted to the
         -- wrong customer: never a bank's take-back (a return code), dated on
-        -- or after the reversal, at most the payment, once (the index).
+        -- or after the reversal, at most the payment, once (the index). r7:
+        -- exactly the misposted share (below).
         SELECT * INTO v_pay FROM public.payments x WHERE x.id = NEW.returned_payment_id;
         IF NOT FOUND OR v_pay.suspense_receipt_id IS DISTINCT FROM NEW.suspense_receipt_id THEN
             RAISE EXCEPTION USING
@@ -958,16 +999,9 @@ BEGIN
         -- money back (amount < 0) is an undo of a reversal, not the bank's
         -- take-back, and is counted. Walked down by the reversal link alone (-23's
         -- walks' lesson); the tree is fixed once the payment is reversed.
-        WITH RECURSIVE e AS (
-            SELECT l.id FROM public.account_ledger l
-             WHERE l.reference_type = 'payment' AND l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL
-               AND l.transaction_type IN ('payment', 'deposit')
-        ), down(id, amount) AS (
-            SELECT l.id, l.amount FROM e JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
-            UNION ALL
-            SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)
-        )
-        SELECT least(v_pay.amount, greatest(0, coalesce(sum(d.amount), 0))) INTO v_misposted FROM down d;
+        -- r8 (Opus r7 S1): the walk is suspense_misposted_share, shared with
+        -- the reader of returns still due.
+        v_misposted := public.suspense_misposted_share(v_pay.id);
         -- r7 (Opus r6 S1): exactly the share. A short return could never be
         -- topped up (once per payment, never undone), and the rest would be
         -- held nowhere (CI-053: held, never dropped).
@@ -1359,14 +1393,45 @@ $$;
 COMMENT ON FUNCTION public.agency_pledges_open_as_of(uuid, date, timestamp with time zone) IS
     'v5.4.2-24 (CI-056: fail loud). Every pledge of the tenant not ended at the coordinates (open, overdue, or with no agreement), soonest pay_by first and those with none before all.';
 
+CREATE OR REPLACE FUNCTION public.suspense_misposting_returns_due_as_of(p_tenant_id uuid, p_on date, p_recorded_at timestamp with time zone)
+    RETURNS TABLE (payment_id uuid, receipt_id uuid, customer_id uuid, owed numeric, reversed_on date, age_days integer,
+                   service_level_days integer, past_service_level boolean)
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_level integer;
+BEGIN
+    PERFORM public.cash_coordinates_required('suspense_misposting_returns_due_as_of', p_on, p_recorded_at);
+    v_level := public.suspense_service_level_days_as_of(p_tenant_id, p_recorded_at);
+    RETURN QUERY
+    SELECT p.id, p.suspense_receipt_id, p.customer_id, s.owed::numeric(12,2), l.transaction_date, (p_on - l.transaction_date)::integer, v_level,
+           CASE WHEN v_level IS NULL THEN NULL ELSE (p_on - l.transaction_date) > v_level END
+      FROM public.payments p
+      JOIN public.account_ledger l ON l.id = p.status_cause_id
+      CROSS JOIN LATERAL (SELECT public.suspense_misposted_share(p.id) AS owed) s
+     WHERE p.tenant_id = p_tenant_id AND p.suspense_receipt_id IS NOT NULL
+       AND p.status = 'reversed' AND p.return_code IS NULL AND p.status_recorded_at <= p_recorded_at
+       AND l.transaction_date <= p_on
+       AND s.owed > 0
+       AND NOT EXISTS (SELECT 1 FROM public.suspense_receipt_dispositions d
+                        WHERE d.returned_payment_id = p.id AND d.disposed_on <= p_on AND d.created_at <= p_recorded_at)
+     ORDER BY l.transaction_date, p.id;
+END;
+$$;
+COMMENT ON FUNCTION public.suspense_misposting_returns_due_as_of(uuid, date, timestamp with time zone) IS
+    'v5.4.2-24 r8 (Opus r7 S1; CI-053 held, never dropped; CI-056 fail loud). Every payment of the tenant made from a receipt, reversed as posted to the wrong customer (no bank return code) at the coordinates, whose misposted share (suspense_misposted_share, above 0) has not yet come back to the receipt by a misposting return: the money is then on no customer''s account and not yet on the receipt. With what is owed back, the reversal''s date, the age in days from it, and whether it is past the suspense service level (NULL while the level is unset). Oldest first. The share is read at current knowledge: the tree is fixed once the payment is reversed.';
+
 REVOKE ALL ON FUNCTION public.suspense_receipt_position_as_of(uuid, date, timestamp with time zone),
     public.suspense_held_as_of(uuid, date, timestamp with time zone),
     public.suspense_receipts_aged_as_of(uuid, date, timestamp with time zone),
+    public.suspense_misposting_returns_due_as_of(uuid, date, timestamp with time zone),
     public.agency_pledge_position_as_of(uuid, date, timestamp with time zone),
     public.agency_pledges_open_as_of(uuid, date, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.suspense_receipt_position_as_of(uuid, date, timestamp with time zone),
     public.suspense_held_as_of(uuid, date, timestamp with time zone),
     public.suspense_receipts_aged_as_of(uuid, date, timestamp with time zone),
+    public.suspense_misposting_returns_due_as_of(uuid, date, timestamp with time zone),
     public.agency_pledge_position_as_of(uuid, date, timestamp with time zone),
     public.agency_pledges_open_as_of(uuid, date, timestamp with time zone) TO tally_app, tally_core;
 
@@ -1601,6 +1666,8 @@ DECLARE
         'enforce_suspense_recorded_at() | v | false | search_path=public, pg_temp',
         'suspense_days_setting_valid(jsonb) | i | false | search_path=public, pg_temp',
         'suspense_held_as_of(uuid,date,timestamp with time zone) | s | false | search_path=public, pg_temp',
+        'suspense_misposted_share(uuid) | s | false | search_path=public, pg_temp;enable_seqscan=off;enable_hashjoin=off;enable_mergejoin=off',
+        'suspense_misposting_returns_due_as_of(uuid,date,timestamp with time zone) | s | false | search_path=public, pg_temp',
         'suspense_receipt_position_as_of(uuid,date,timestamp with time zone) | s | false | search_path=public, pg_temp',
         'suspense_receipts_aged_as_of(uuid,date,timestamp with time zone) | s | false | search_path=public, pg_temp',
         'suspense_require_read_committed(text) | s | false | search_path=public, pg_temp',
@@ -1665,7 +1732,7 @@ DECLARE
         'suspense_receipts.source_system',
         'suspense_receipts.tenant_id'];
     -- tally_app's EXECUTE on what its writes' guards call.
-    c_app_exec CONSTANT text[] := ARRAY['check_suspense_receipt_cap(uuid)', 'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean)',
+    c_app_exec CONSTANT text[] := ARRAY['check_suspense_receipt_cap(uuid)', 'suspense_misposted_share(uuid)', 'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean)',
         'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text)', 'cash_money_agency(uuid,uuid)',
         'suspense_require_read_committed(text)', 'suspense_today_latest()', 'suspense_today_earliest()', 'assistance_agreement_in_force(uuid,date)',
         'agency_pledge_paid_as_of(uuid,date,timestamp with time zone)', 'suspense_days_setting_valid(jsonb)', 'cash_source_lock_key(text,uuid)'];
@@ -1677,7 +1744,7 @@ DECLARE
         'enforce_payment_suspense_pledge() @3f97702adb20ca84505bf5aa6c859efc',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
-        'enforce_suspense_disposition() @8eb423ac1f404a942d69ac7e41de3eed',
+        'enforce_suspense_disposition() @64261dbce6e6aad4eab7bb3564ac4656',
         'enforce_agency_pledge() @9ab7987e031b634c161190219079be7b',
         'enforce_agency_pledge_event() @eeaaf1f19888de139f6d9c14a7f6b0e9',
         'enforce_suspense_recorded_at() @1f6aba268189d7afac83a701d6926395',
@@ -1694,6 +1761,8 @@ DECLARE
         'suspense_today_earliest() @f7162772955993b965f05b31d336962e',
         'assistance_agreement_in_force(uuid,date) @7a4c890653c0c03610665887f3977725',
         'suspense_receipts_aged_as_of(uuid,date,timestamp with time zone) @464f481edb97078165c3aafb282ff1a8',
+        'suspense_misposting_returns_due_as_of(uuid,date,timestamp with time zone) @4d906fce540deb5fbb392756bc40d882',
+        'suspense_misposted_share(uuid) @7a9e41eb151a007d0491c9415c146464',
         'agency_pledges_open_as_of(uuid,date,timestamp with time zone) @f49d0a5f289ecc1bd40cd2fa58f299cc',
         'suspense_held_as_of(uuid,date,timestamp with time zone) @388046c125756584179848dc79fba179',
         'suspense_service_level_days_as_of(uuid,timestamp with time zone) @9bbc69148dc26e6dfb7737a18cfa3589',
