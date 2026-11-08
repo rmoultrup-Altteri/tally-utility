@@ -6,6 +6,33 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-07 (money) — -24 built and taken through five review rounds; -25 re-tested, reviewed (r1) and its r2 built; Ryan: agency refunds to the agency, two limits, and a dispute-penalty rule (held: it conflicts with scenarios')
+
+**What was done:**
+- **-24 (unmatched cash, agency pledges):** source inventory and design; tests first; the patch. Unmatched receipts, candidates, dispositions and payments naming them, with the cap on every date. Agencies and their dated agreements. Typed pledges with a database-chosen pay-by. Refunds of agency money routed to the agency. The `agency_pledge` program type retired. Battery -23 ported.
+- **-24's review rounds:**
+  - r1: all three not yet.
+  - r2: Opus and Fable not yet; Codex hit its usage limit, and the author ran its nine probes.
+  - r3: both not yet.
+  - r4: Opus ready, Fable not yet.
+  - r5: Opus not yet, Fable ready.
+
+  Every finding was settled by rule (plans r2–r5). r6 is built: battery 265, races 24, mutations 112.
+- **-25 (disputes):** re-tested on today's base (mutations 110/110, every CI step passing), frozen r1, and reviewed by Opus and Fable (both not yet, the same blocker). r2 is built: records written in the same statement as the resolution are refused; duties and stages compared; the shelter's end tied to its document; the utility's tariff cited; the amount capped; the reading released at commit; R-12 keys; a new exact invariant (`fill-manifest.py`). Battery 221, mutations 125.
+
+**Decisions:** DECISION-LOG 2026-11-07 (money):
+- a refund of an agency's money goes to the agency, for every agency (10 TAC 6.312(f));
+- agency money in a deposit or an untyped credit stays known limits L5 and L6;
+- no late penalty while a bill's dispute is open is a platform rule (AC-46). **Held:** it conflicts with Ryan's rulings to the scenarios stream the same day, and the scenarios stream asks him.
+
+**Lessons:** PATCH-LESSONS `constraint-trigger-name-order`.
+
+**Failed approaches:** see `handoffs/schema-money.md`: the status label, the four ledger-tree rules, self-exclusion by id across tables, an AFTER-trigger projection, and a CTE that doesn't read its CTE.
+
+**Next:** Codex's -24 r5 review (it started at 19:15) and its probes; -24 r6 freeze; the dispute ruling; -25 r2 freeze and full review; then -26.
+
+---
+
 ## 2026-11-07 (scenarios) — Tally staff access settled (the hidden Tally User, reads logged); Codex round 3 applied; four dispute rulings, one in conflict with money's
 
 **What was done:**
