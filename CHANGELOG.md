@@ -6,6 +6,22 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-07 (scenarios) — Tally staff access settled (the hidden Tally User, reads logged); Codex round 3 applied; four dispute rulings, one in conflict with money's
+
+**What was done:**
+- **Tally's access to a utility (R-27, R-28; renumbered from R-23/R-24, which money had used):** Ryan corrected the premise that Tally staff are read-only, and proposed a hidden Tally User in each utility, impersonated through a recorded session. Recorded with four conditions (no login, never hidden from the change history, the utility can't change it, not counted as staff); new SCN-0080; SCN-0062, 0065, 0068 updated. Tally's reads are logged by the application and shown to the utility (SCN-0061, 0065).
+- **Codex round 3** (6 findings; report restored from its log into `scenarios/review/2026-11-05/codex.md`): every finding checked on live `tally` and settled by rule (SCN-0066 job key vs content fingerprint; SCN-0071 which lookups take both dates; SCN-0077/0078 month-end cycles and computation instants; SCN-0079 a dry run created already approved).
+- **Disputes (Kyle's flag 1):** a silent city's default (before the due date; until resolved or 60 days after issue); a city's own rule wins; the default protects the disputed amount only. Bluebonnet's "Bill disputes" cast row from Brenham's rules of service; SCN-0033; four board notes to money.
+- **Conflict found at wrap-up:** the money session's later ruling (AC-46: a platform rule, whole bill, no 60-day end) disagrees on three points. Board note to money; first item for next session.
+
+**Decisions:** DECISION-LOG 2026-11-07 (scenarios), five entries plus two correction bullets.
+
+**Failed approaches:** told Ryan Brenham had no written dispute rule after searching only rate PDFs and the code of ordinances; the rule was already in `law/dispute/examples/` (corrected the same session; memory saved). `timeout` doesn't exist on macOS; Codex's `-o` overwrote the report it had written.
+
+**Next:** put the dispute conflict to Ryan; then the pending day-60 question, customer classes, Kyle's flags (b) and (c); draft K-14.
+
+---
+
 ## 2026-11-06 (rates) — v5.4.2-30 into CI, then three review rounds: r3 ready from Opus and Fable, Codex pending; Kyle's franchise answers in
 
 **What was done:**
