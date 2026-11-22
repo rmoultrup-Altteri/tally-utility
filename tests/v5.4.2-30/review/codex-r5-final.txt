@@ -1,0 +1,5 @@
+Verdict: **ready**. No blocking items. Round-4 S1 is closed for the named mutation catches.
+
+[Full review](tests/v5.4.2-30/review/codex-r5.md) · [Author-run probes](tests/v5.4.2-30/review/codex-r5-probes/00-battery-and-boundaries.sql)
+
+All frozen hashes matched. Source-only review; no database tests executed.

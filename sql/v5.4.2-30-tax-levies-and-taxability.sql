@@ -96,24 +96,29 @@
 --   L7. "As known at an instant" means "by every transaction that began by
 --       it". Every stamp is the writer's transaction start (now()): the
 --       template's created_at and closed_at, and those of places and
---       memberships (-16). So a read at an instant is settled only once
---       every transaction that began by then has finished:
+--       memberships (-16). So a read at an instant can change until every
+--       transaction that began by then has finished, and the answer it
+--       settles on can be one that was never true:
 --       (a) two reads at one instant can silently differ, by whether a write
 --           whose transaction began by the instant (a row, a close, a void, a
---           change of the premise's state) had committed when each ran;
+--           change of the premise's state) had committed when each ran, or
+--           one of them can refuse (P0002);
 --       (b) a read can refuse (21000: "2 rows" of a levy; two places of one
 --           exclusive group, r3; more than one answer for one place, r4), or
 --           answer a row beside its replacement (two stacking districts),
 --           where a successor's writer began before its predecessor's close
---           or void: the instant never had one answer. A read at now() is
---           such a read in a transaction begun between the two writers.
+--           or void. This outlasts the writers: once they finish, every
+--           later read at that instant refuses or answers both, though a
+--           read made at the instant answered one. A read at now() is such a
+--           read in a transaction begun between the two writers.
 --       Every as-of read since v5.4.1 has (a). clock_timestamp() in the
 --       template would narrow (b), not close (a) (board, unassigned). The
 --       three-argument form of premise_places_as_of is outside both: it reads
 --       what is committed, as -16 did (r5). A replay's lasting remedy is the
 --       core's: a bill records the levies and places it used (L5), which says
 --       what it used, not that it was right; or it is computed at an instant
---       every writer begun by then has finished. The premise's state history
+--       when no transaction begun earlier was still open (waiting for them
+--       afterwards does not help). The premise's state history
 --       is outside (b): its recorder refuses the overlapping writer (r3).
 --
 -- Preconditions (a real database): no rate item version yet (each would need
@@ -885,7 +890,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.premise_places_as_of(uuid, date, text, timestamp with time zone) IS
-    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. The answer for an instant is settled once every transaction begun by then has finished; two reads at one instant can differ while one is open (known limit L7), so the places a bill used are the ones it recorded, not a replay. Refuses a premise not yet recorded then, and (21000) one with more than one answer for one place or within two places of one exclusive group; at now() a new transaction answers. The premise''s own state row is taken as found (a state''s succession is the platform''s). Every argument required.';
+    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. The answer for an instant is settled once every transaction begun by then has finished; settled is not the same as right: a row and its replacement can both be known then; two reads at one instant can differ while one is open (known limit L7), so the places a bill used are the ones it recorded, not a replay. Refuses a premise not yet recorded then, and (21000) one with more than one answer for one place or within two places of one exclusive group; at now() a new transaction answers. The premise''s own state row is taken as found (a state''s succession is the platform''s). Every argument required.';
 
 CREATE OR REPLACE FUNCTION public.premise_places_as_of(p_service_location_id uuid, p_on date, p_axis text)
     RETURNS TABLE (place_id uuid, kind_code text, state_code text, place_code text, name text, specificity integer, relation text, distance_miles numeric)
