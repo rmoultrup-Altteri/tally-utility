@@ -1,0 +1,7 @@
+Verdict: **ready**. No blocking items.
+
+One should-fix remains: unrelated SQL or connection errors can still count as expected race-mutation catches.
+
+[Full review](tests/v5.4.2-30/review/codex-r4.md) · [Rollback-only probe](tests/v5.4.2-30/review/codex-r4-probes/00-battery-and-boundaries.sql)
+
+All frozen hashes matched. Database probes await author execution.

@@ -48,7 +48,7 @@
 --   7. premise_places_as_of() gains a recorded-at instant: the premise's
 --      state, memberships and places as known then. The premise's state is
 --      recorded on change by the database (service_location_state_history,
---      r2). The three-argument form reads at now().
+--      r2). The three-argument form reads what is committed (r5).
 --   8. customers.state_agency_basis: required while is_state_agency is true,
 --      logged in the attribute history.
 --   9. A place is never closed from under a levy: checked at commit, so a
@@ -96,23 +96,25 @@
 --   L7. "As known at an instant" means "by every transaction that began by
 --       it". Every stamp is the writer's transaction start (now()): the
 --       template's created_at and closed_at, and those of places and
---       memberships (-16). So a read at an instant is stable only once every
---       transaction that began by then has finished. Until then, and for
---       that instant for good:
---       (a) a replay can differ, silently, from a live read made then: it
---           adds a row whose writer was still open at the instant, or drops
---           one whose close or void began before the row was recorded;
---       (b) a read can refuse ("2 rows" of a levy; two places of one
---           exclusive group, r3; more than one answer for one place, r4)
+--       memberships (-16). So a read at an instant is settled only once
+--       every transaction that began by then has finished:
+--       (a) two reads at one instant can silently differ, by whether a write
+--           whose transaction began by the instant (a row, a close, a void, a
+--           change of the premise's state) had committed when each ran;
+--       (b) a read can refuse (21000: "2 rows" of a levy; two places of one
+--           exclusive group, r3; more than one answer for one place, r4), or
+--           answer a row beside its replacement (two stacking districts),
 --           where a successor's writer began before its predecessor's close
---           or void.
+--           or void: the instant never had one answer. A read at now() is
+--           such a read in a transaction begun between the two writers.
 --       Every as-of read since v5.4.1 has (a). clock_timestamp() in the
 --       template would narrow (b), not close (a) (board, unassigned). The
---       lasting remedy is the core's: a bill records the levies and places
---       it used (L5), and that record, not a replay, is what the bill saw;
---       or a bill is computed at an instant every writer begun by then has
---       finished. The premise's state history is outside (b): its recorder
---       refuses the overlapping writer (r3).
+--       three-argument form of premise_places_as_of is outside both: it reads
+--       what is committed, as -16 did (r5). A replay's lasting remedy is the
+--       core's: a bill records the levies and places it used (L5), which says
+--       what it used, not that it was right; or it is computed at an instant
+--       every writer begun by then has finished. The premise's state history
+--       is outside (b): its recorder refuses the overlapping writer (r3).
 --
 -- Preconditions (a real database): no rate item version yet (each would need
 -- its penalty-base answer decided, not defaulted); no exemption without
@@ -798,6 +800,7 @@ CREATE OR REPLACE FUNCTION public.premise_places_as_of(p_service_location_id uui
 DECLARE
     v_state text;
     v_state_place uuid;
+    v_live uuid[];
     v_two_answers boolean;
     v_two_places boolean;
 BEGIN
@@ -830,6 +833,20 @@ BEGIN
             MESSAGE = format('premise_places_as_of: premise %s is not found (or not visible), or its state %s is no state known on %s; its places cannot be read (v5.4.2-16)', p_service_location_id, coalesce(v_state, 'NULL'), p_on),
             ERRCODE = 'no_data_found';
     END IF;
+    -- The memberships that count, picked once (r5; review r4, Fable S1): the
+    -- refusals and the answer below read the same rows.
+    SELECT coalesce(array_agg(m.id), ARRAY[]::uuid[]) INTO v_live
+      FROM public.premise_place_memberships m
+      JOIN public.places p ON p.id = m.place_id
+     WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
+       -- v5.4.2-30: as known at p_recorded_at — recorded by then, not voided by
+       -- then, and its end only if its close was recorded by then.
+       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
+       AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
+       -- defence in depth: the place in force on the date, of the premise's state, as known then
+       AND p.created_at <= p_recorded_at
+       AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+       AND p.state_code = v_state;
     -- r3, r4 (review r2: Opus S1; r3: Codex B1, Fable S1): -16's constraints
     -- forbid two live memberships of one place, and two within places of one
     -- exclusive group, on one date; as known at an instant, overlapping
@@ -839,14 +856,8 @@ BEGIN
     -- The same place recorded twice alike is one answer (DISTINCT below).
     WITH live AS (
         SELECT p.id, p.kind_code AS kind, p.place_code AS code, m.relation AS rel, m.distance_miles AS miles, m.exclusivity_group AS grp
-          FROM public.premise_place_memberships m
-          JOIN public.places p ON p.id = m.place_id
-         WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
-           AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
-           AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
-           AND p.created_at <= p_recorded_at
-           AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
-           AND p.state_code = v_state)
+          FROM public.premise_place_memberships m JOIN public.places p ON p.id = m.place_id
+         WHERE m.id = ANY (v_live))
     SELECT EXISTS (SELECT 1 FROM live l GROUP BY l.kind, l.code HAVING count(DISTINCT (l.id, l.rel, l.miles)) > 1),
            EXISTS (SELECT 1 FROM live l WHERE l.rel = 'within' AND l.grp IS NOT NULL
                     GROUP BY l.grp HAVING count(DISTINCT (l.kind, l.code)) > 1)
@@ -866,15 +877,7 @@ BEGIN
       FROM public.premise_place_memberships m
       JOIN public.places p ON p.id = m.place_id
       JOIN public.place_kinds k ON k.kind_code = p.kind_code
-     WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
-       -- v5.4.2-30: as known at p_recorded_at — recorded by then, not voided by
-       -- then, and its end only if its close was recorded by then.
-       AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
-       AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
-       -- defence in depth: the place in force on the date, of the premise's state, as known then
-       AND p.created_at <= p_recorded_at
-       AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
-       AND p.state_code = v_state
+     WHERE m.id = ANY (v_live)
     UNION ALL
     SELECT p.id, p.kind_code, p.state_code, p.place_code, p.name, k.specificity, 'within'::text, NULL::numeric
       FROM public.places p JOIN public.place_kinds k ON k.kind_code = p.kind_code
@@ -882,17 +885,17 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.premise_places_as_of(uuid, date, text, timestamp with time zone) IS
-    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. The answer for an instant is settled once every transaction begun by then has finished; a bill computed while one was open can have seen different places (known limit L7), so the places a bill used are the ones it recorded, not a replay. Refuses a premise not yet recorded then, one with more than one answer for one place, and one within two places of one exclusive group. Every argument required.';
+    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. The answer for an instant is settled once every transaction begun by then has finished; two reads at one instant can differ while one is open (known limit L7), so the places a bill used are the ones it recorded, not a replay. Refuses a premise not yet recorded then, and (21000) one with more than one answer for one place or within two places of one exclusive group; at now() a new transaction answers. The premise''s own state row is taken as found (a state''s succession is the platform''s). Every argument required.';
 
 CREATE OR REPLACE FUNCTION public.premise_places_as_of(p_service_location_id uuid, p_on date, p_axis text)
     RETURNS TABLE (place_id uuid, kind_code text, state_code text, place_code text, name text, specificity integer, relation text, distance_miles numeric)
     LANGUAGE sql STABLE
     SET search_path = public, pg_temp
     AS $$
-    SELECT * FROM public.premise_places_as_of(p_service_location_id, p_on, p_axis, now())
+    SELECT * FROM public.premise_places_as_of(p_service_location_id, p_on, p_axis, 'infinity'::timestamptz)
 $$;
 COMMENT ON FUNCTION public.premise_places_as_of(uuid, date, text) IS
-    'v5.4.2-16; since v5.4.2-30 the four-argument form read at now(): the places a premise is related to on a date, on an axis (regulatory or tax), as known now.';
+    'v5.4.2-16; since v5.4.2-30 the four-argument form read at infinity: the places a premise is related to on a date, on an axis (regulatory or tax), as committed when the statement runs, whatever the writers'' transaction starts (the reading v5.4.2-16 gave; r5). A caller that must read again at the same instant gives one, to the four-argument form.';
 REVOKE ALL ON FUNCTION public.premise_places_as_of(uuid, date, text, timestamp with time zone) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.premise_places_as_of(uuid, date, text, timestamp with time zone) TO tally_app, tally_core;
 

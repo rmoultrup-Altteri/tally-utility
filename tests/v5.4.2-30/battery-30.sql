@@ -133,7 +133,11 @@ INSERT INTO public.service_locations (id, tenant_id, customer_id, location_numbe
   ('00000000-0000-4000-8000-0000000030d4', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L4', '4 Main', 'Battery City', 'TX', '78701'),
   ('00000000-0000-4000-8000-0000000030d6', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L6', '6 Main', 'Battery City', 'TX', '78701'),
   ('00000000-0000-4000-8000-0000000030d7', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L7', '7 Main', 'Battery City', 'TX', '78701'),
-  ('00000000-0000-4000-8000-0000000030d8', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L8', '8 Main', 'Battery City', 'TX', '78701');
+  ('00000000-0000-4000-8000-0000000030d8', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L8', '8 Main', 'Battery City', 'TX', '78701'),
+  ('00000000-0000-4000-8000-0000000030d9', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L9', '9 Main', 'Battery City', 'TX', '78701'),
+  ('00000000-0000-4000-8000-0000000030dc', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L10', '10 Main', 'Battery City', 'TX', '78701'),
+  ('00000000-0000-4000-8000-0000000030dd', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L11', '11 Main', 'Battery City', 'TX', '78701'),
+  ('00000000-0000-4000-8000-0000000030de', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030c1', 'L12', '12 Main', 'Battery City', 'TX', '78701');
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, effective_from, source_note)
 VALUES ('00000000-0000-4000-8000-0000000030e9', 'state', 'NM', 'NM', 'New Mexico (battery 30)', DATE '1900-01-01', 'battery-30 fixture');
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, effective_to, source_note)
@@ -149,11 +153,19 @@ SELECT v.id, 'special_purpose_district', 'TX', v.code, v.name, p.id, v.f, v.t, '
   FROM public.places p, (VALUES ('00000000-0000-4000-8000-000000306001'::uuid, 'TX-B30-D1', 'District 30-1', DATE '2000-01-01', NULL::date),
                                 ('00000000-0000-4000-8000-000000306002'::uuid, 'TX-B30-D2', 'District 30-2', DATE '2000-01-01', NULL::date),
                                 ('00000000-0000-4000-8000-000000306003'::uuid, 'TX-B30-DS', 'District 30-S (first row)', DATE '2000-01-01', DATE '2026-05-01'),
-                                ('00000000-0000-4000-8000-000000306004'::uuid, 'TX-B30-DS', 'District 30-S', DATE '2026-05-01', NULL::date)) v(id, code, name, f, t)
+                                ('00000000-0000-4000-8000-000000306004'::uuid, 'TX-B30-DS', 'District 30-S', DATE '2026-05-01', NULL::date),
+                                ('00000000-0000-4000-8000-000000306006'::uuid, 'TX-B30-D6', 'District 30-6 (from 2030)', DATE '2030-01-01', NULL::date),
+                                ('00000000-0000-4000-8000-000000306007'::uuid, 'TX-B30-D7', 'District 30-7 (recorded now)', DATE '2000-01-01', NULL::date)) v(id, code, name, f, t)
  WHERE p.kind_code = 'state' AND p.place_code = 'TX' AND p.effective_to IS NULL;
 INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
 SELECT '00000000-0000-4000-8000-0000000030eb', 'county', 'TX', '48998', 'Battery County 30b', id, DATE '1900-01-01', 'battery-30 fixture (M12)'
   FROM public.places WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL;
+-- M12i, M12j: a city and its limited-purpose area of one code. M14b: a New Mexico district.
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT '00000000-0000-4000-8000-000000306008', 'municipality', 'TX', 'TX-B30-K', 'City 30-K', id, DATE '2000-01-01', 'battery-30 fixture' FROM b30 WHERE k = 'tx';
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note) VALUES
+  ('00000000-0000-4000-8000-000000306009', 'limited_purpose_area', 'TX', 'TX-B30-K', 'City 30-K limited-purpose area', '00000000-0000-4000-8000-000000306008', DATE '2000-01-01', 'battery-30 fixture'),
+  ('00000000-0000-4000-8000-000000306005', 'special_purpose_district', 'NM', 'NM-B30-D5', 'District 30-5 (New Mexico)', '00000000-0000-4000-8000-0000000030e9', DATE '2000-01-01', 'battery-30 fixture');
 INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, place_kind, valid_from, evidence_kind, evidence_reference, evidence_date) VALUES
   ('00000000-0000-4000-8000-0000000030aa', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d2', '00000000-0000-4000-8000-0000000030e3', 'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
   ('00000000-0000-4000-8000-0000000030ab', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d3', '00000000-0000-4000-8000-0000000030e3', 'tax', 'county', DATE '2020-01-01', 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
@@ -164,7 +176,8 @@ INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id
 ALTER TABLE public.service_location_state_history DISABLE TRIGGER append_only;
 UPDATE public.service_location_state_history SET recorded_at = now() - interval '2 days'
  WHERE service_location_id IN ('00000000-0000-4000-8000-0000000030d1', '00000000-0000-4000-8000-0000000030d2', '00000000-0000-4000-8000-0000000030d3', '00000000-0000-4000-8000-0000000030d4',
-                               '00000000-0000-4000-8000-0000000030d6', '00000000-0000-4000-8000-0000000030d7', '00000000-0000-4000-8000-0000000030d8');
+                               '00000000-0000-4000-8000-0000000030d6', '00000000-0000-4000-8000-0000000030d7', '00000000-0000-4000-8000-0000000030d8',
+                               '00000000-0000-4000-8000-0000000030d9', '00000000-0000-4000-8000-0000000030dc', '00000000-0000-4000-8000-0000000030dd', '00000000-0000-4000-8000-0000000030de');
 ALTER TABLE public.service_location_state_history ENABLE ALWAYS TRIGGER append_only;
 
 -- ---------------------------------------------------------------------------
@@ -552,7 +565,8 @@ ALTER TABLE public.places DISABLE TRIGGER a_enforce_place;
 UPDATE public.places SET created_at = now() - interval '2 days'
  WHERE id IN ('00000000-0000-4000-8000-0000000030e1', '00000000-0000-4000-8000-0000000030e2', '00000000-0000-4000-8000-0000000030e3',
               '00000000-0000-4000-8000-0000000030e8', '00000000-0000-4000-8000-0000000030e9', '00000000-0000-4000-8000-0000000030eb',
-              '00000000-0000-4000-8000-000000306001', '00000000-0000-4000-8000-000000306002', '00000000-0000-4000-8000-000000306003', '00000000-0000-4000-8000-000000306004');
+              '00000000-0000-4000-8000-000000306001', '00000000-0000-4000-8000-000000306002', '00000000-0000-4000-8000-000000306003', '00000000-0000-4000-8000-000000306004',
+              '00000000-0000-4000-8000-000000306005', '00000000-0000-4000-8000-000000306006', '00000000-0000-4000-8000-000000306008', '00000000-0000-4000-8000-000000306009');
 -- M12g: District 30-S's first row was closed now (planted), its successor recorded before.
 UPDATE public.places SET closed_at = now() WHERE id = '00000000-0000-4000-8000-000000306003';
 ALTER TABLE public.places ENABLE ALWAYS TRIGGER a_enforce_place;
@@ -563,19 +577,19 @@ INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id
   ('00000000-0000-4000-8000-0000000030a9', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d1', '00000000-0000-4000-8000-0000000030e2',
    'tax', 'limited_purpose_area', DATE '2026-04-01', 'ordinance', 'Battery City Ord. 30-3 (disannexation to limited purpose)', DATE '2026-03-01');
 
-SELECT pg_temp.ok('M1 on 2026-06-01, as known now: below the state, the limited-purpose area only',
-  (SELECT array_agg(place_id ORDER BY place_id) = ARRAY['00000000-0000-4000-8000-0000000030e2'::uuid]
-     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now()) WHERE kind_code <> 'state'));
-SELECT pg_temp.ok('M2 on 2026-06-01, as known a moment ago: the city (not yet closed) and the county (not yet voided), not the area (not yet recorded)',
-  (SELECT array_agg(place_id ORDER BY place_id) = ARRAY['00000000-0000-4000-8000-0000000030e1'::uuid, '00000000-0000-4000-8000-0000000030e3'::uuid]
-     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now() - interval '1 second') WHERE kind_code <> 'state'));
+SELECT pg_temp.ok_q('M1 on 2026-06-01, as known now: below the state, the limited-purpose area only',
+ $q$SELECT (SELECT array_agg(place_id ORDER BY place_id) = ARRAY['00000000-0000-4000-8000-0000000030e2'::uuid]
+     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now()) WHERE kind_code <> 'state')$q$);
+SELECT pg_temp.ok_q('M2 on 2026-06-01, as known a moment ago: the city (not yet closed) and the county (not yet voided), not the area (not yet recorded)',
+ $q$SELECT (SELECT array_agg(place_id ORDER BY place_id) = ARRAY['00000000-0000-4000-8000-0000000030e1'::uuid, '00000000-0000-4000-8000-0000000030e3'::uuid]
+     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', now() - interval '1 second') WHERE kind_code <> 'state')$q$);
 SELECT pg_temp.refuses_at('M3 as known before the premise was recorded: its places cannot be read',
   format($f$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', %L::timestamptz)$f$,
          (SELECT min(recorded_at) - interval '1 second' FROM public.service_location_state_history WHERE service_location_id = '00000000-0000-4000-8000-0000000030d1')),
   'P0002', 'not yet recorded');
-SELECT pg_temp.ok('M4 the three-argument form still reads as known now',
-  (SELECT array_agg(place_id) = ARRAY['00000000-0000-4000-8000-0000000030e2'::uuid]
-     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax') WHERE kind_code <> 'state'));
+SELECT pg_temp.ok_q('M4 the three-argument form still reads as known now',
+ $q$SELECT (SELECT array_agg(place_id) = ARRAY['00000000-0000-4000-8000-0000000030e2'::uuid]
+     FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax') WHERE kind_code <> 'state')$q$);
 SELECT pg_temp.refuses_at('M5 no recorded instant',
   $q$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d1', DATE '2026-06-01', 'tax', NULL)$q$,
   '22004', 'a recorded-at instant is required');
@@ -584,7 +598,7 @@ SELECT pg_temp.refuses_at('M5 no recorded instant',
 -- is voided now and its state then corrected to New Mexico, with every guard on.
 UPDATE public.premise_place_memberships SET void_reason = 'premise keyed in the wrong state' WHERE id = '00000000-0000-4000-8000-0000000030aa';
 UPDATE public.service_locations SET state = 'NM' WHERE id = '00000000-0000-4000-8000-0000000030d2';
-SELECT pg_temp.ok_q('M6 d2 on 2026-06-01, as known a moment ago: Texas and its county, as a bill then saw them',
+SELECT pg_temp.ok_q('M6 d2 on 2026-06-01, as known a moment ago: Texas and its county, as recorded then',
   $q$SELECT (SELECT array_agg(place_code ORDER BY place_code) = ARRAY['48996', 'TX']
                FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d2', DATE '2026-06-01', 'tax', now() - interval '1 second'))$q$);
 SELECT pg_temp.ok_q('M7 d2 as known now: New Mexico only',
@@ -723,6 +737,53 @@ SELECT pg_temp.refuses_at('M12g two successive rows of one district as known a m
   '21000', 'more than one answer for one place');
 SELECT pg_temp.ok_q('M12g2 as known now: the successor row only',
   $q$SELECT (SELECT array_agg(place_id) = ARRAY['00000000-0000-4000-8000-000000306004'::uuid] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d8', DATE '2026-06-01', 'tax', now()) WHERE kind_code <> 'state')$q$);
+-- M12h-M12j, M14 (r5; review r4: Fable S1, Opus S4). de: a county on each axis,
+-- not the same one. dc: outside a city and within the limited-purpose area of
+-- the same code. dd: the city voided now, the area recorded a day ago.
+INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, relation, distance_miles, place_kind, valid_from, valid_to, evidence_kind, evidence_reference, evidence_date) VALUES
+  ('00000000-0000-4000-8000-000000306201', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030de', '00000000-0000-4000-8000-0000000030e3', 'tax', 'within', NULL, 'county', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306202', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030de', '00000000-0000-4000-8000-0000000030eb', 'regulatory', 'within', NULL, 'county', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306203', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030dc', '00000000-0000-4000-8000-000000306008', 'tax', 'outside', NULL, 'municipality', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306204', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030dc', '00000000-0000-4000-8000-000000306009', 'tax', 'within', NULL, 'limited_purpose_area', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306205', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030dd', '00000000-0000-4000-8000-000000306008', 'tax', 'within', NULL, 'municipality', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306207', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d9', '00000000-0000-4000-8000-000000306007', 'tax', 'within', NULL, 'special_purpose_district', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306210', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d9', '00000000-0000-4000-8000-000000306001', 'tax', 'within', NULL, 'special_purpose_district', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01');
+UPDATE public.premise_place_memberships SET void_reason = 'in the limited-purpose area' WHERE id = '00000000-0000-4000-8000-000000306205';
+INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, relation, distance_miles, place_kind, valid_from, valid_to, evidence_kind, evidence_reference, evidence_date) VALUES
+  ('00000000-0000-4000-8000-000000306206', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030dd', '00000000-0000-4000-8000-000000306009', 'tax', 'within', NULL, 'limited_purpose_area', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01');
+-- Planted (the guard lifted): memberships -16 would refuse, for the read's own
+-- filters: a district of another state (208) and one not in force until 2030 (209).
+ALTER TABLE public.premise_place_memberships DISABLE TRIGGER a_enforce_premise_place_membership;
+INSERT INTO public.premise_place_memberships (id, tenant_id, service_location_id, place_id, axis, relation, distance_miles, place_kind, valid_from, valid_to, evidence_kind, evidence_reference, evidence_date) VALUES
+  ('00000000-0000-4000-8000-000000306208', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d9', '00000000-0000-4000-8000-000000306005', 'tax', 'within', NULL, 'special_purpose_district', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01'),
+  ('00000000-0000-4000-8000-000000306209', '00000000-0000-4000-8000-0000000030a1', '00000000-0000-4000-8000-0000000030d9', '00000000-0000-4000-8000-000000306006', 'tax', 'within', NULL, 'special_purpose_district', DATE '2020-01-01', NULL, 'address_lookup', 'Comptroller address file 2020Q1', DATE '2020-01-01');
+UPDATE public.premise_place_memberships SET created_at = now() - interval '2 days'
+ WHERE id IN ('00000000-0000-4000-8000-000000306201', '00000000-0000-4000-8000-000000306202', '00000000-0000-4000-8000-000000306203', '00000000-0000-4000-8000-000000306204', '00000000-0000-4000-8000-000000306205', '00000000-0000-4000-8000-000000306207', '00000000-0000-4000-8000-000000306208', '00000000-0000-4000-8000-000000306209', '00000000-0000-4000-8000-000000306210');
+UPDATE public.premise_place_memberships SET created_at = now() - interval '1 day' WHERE id = '00000000-0000-4000-8000-000000306206';
+ALTER TABLE public.premise_place_memberships ENABLE ALWAYS TRIGGER a_enforce_premise_place_membership;
+SELECT pg_temp.ok_q('M12h a county on the tax axis and another on the regulatory one: each axis answers its own',
+  $q$SELECT (SELECT array_agg(place_code) = ARRAY['48996'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030de', DATE '2026-06-01', 'tax', now()) WHERE kind_code = 'county')
+        AND (SELECT array_agg(place_code) = ARRAY['48998'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030de', DATE '2026-06-01', 'regulatory', now()) WHERE kind_code = 'county')$q$);
+SELECT pg_temp.ok_q('M12i outside a city and within the limited-purpose area of the same code: two places, both answered',
+  $q$SELECT (SELECT array_agg(kind_code || '/' || relation ORDER BY kind_code) = ARRAY['limited_purpose_area/within', 'municipality/outside'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030dc', DATE '2026-06-01', 'tax', now()) WHERE place_code = 'TX-B30-K')$q$);
+SELECT pg_temp.refuses_at('M12j within a city and its limited-purpose area of the same code as known a moment ago: two places, refused',
+  $q$SELECT * FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030dd', DATE '2026-06-01', 'tax', now() - interval '1 second')$q$,
+  '21000', 'two places of one exclusive group');
+SELECT pg_temp.ok_q('M14 as known a moment ago: the one district recorded, in force and of the premise''s state (not District 30-7, recorded now)',
+  $q$SELECT (SELECT array_agg(place_code) = ARRAY['TX-B30-D1'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d9', DATE '2026-06-01', 'tax', now() - interval '1 second') WHERE kind_code <> 'state')$q$);
+SELECT pg_temp.ok_q('M14b as known now: not New Mexico''s district, nor the one in force from 2030',
+  $q$SELECT (SELECT array_agg(place_code ORDER BY place_code) = ARRAY['TX-B30-D1', 'TX-B30-D7'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d9', DATE '2026-06-01', 'tax', now()) WHERE kind_code <> 'state')$q$);
+-- M15 (r5; review r4, Opus S1): a void stamped after this transaction began
+-- (planted: a later-begun writer that committed). The three-argument form
+-- reads what is committed, as -16 did; the four-argument form at now(), as known then.
+UPDATE public.premise_place_memberships SET void_reason = 'wrong district keyed' WHERE id = '00000000-0000-4000-8000-000000306210';
+ALTER TABLE public.premise_place_memberships DISABLE TRIGGER a_enforce_premise_place_membership;
+UPDATE public.premise_place_memberships SET voided_at = now() + interval '1 hour' WHERE id = '00000000-0000-4000-8000-000000306210';
+ALTER TABLE public.premise_place_memberships ENABLE ALWAYS TRIGGER a_enforce_premise_place_membership;
+SELECT pg_temp.ok_q('M15 a void committed by a later-begun transaction: the three-argument form no longer answers it',
+  $q$SELECT (SELECT array_agg(place_code) = ARRAY['TX-B30-D7'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d9', DATE '2026-06-01', 'tax') WHERE kind_code <> 'state')$q$);
+SELECT pg_temp.ok_q('M15b the four-argument form at now() still does',
+  $q$SELECT (SELECT array_agg(place_code ORDER BY place_code) = ARRAY['TX-B30-D1', 'TX-B30-D7'] FROM public.premise_places_as_of('00000000-0000-4000-8000-0000000030d9', DATE '2026-06-01', 'tax', now()) WHERE kind_code <> 'state')$q$);
 
 -- ---------------------------------------------------------------------------
 -- A  a state agency's basis

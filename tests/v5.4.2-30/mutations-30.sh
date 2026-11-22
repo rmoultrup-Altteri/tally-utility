@@ -7,11 +7,9 @@
 #                                fails that case (the guards that fire only on a
 #                                database holding data `tally` does not)
 #   RACE:<leg>:<how>             the mutated patch applies on a clone (r30m) and
-#                                races/levy-30.sh fails first at that leg, with
-#                                that reason: waited (the wrong result after a
-#                                lock wait), nowait (the wrong result, no wait)
-#                                or read. A leg that broke or ran in order
-#                                prints BROKEN / SEQUENTIAL, never a catch (r4)
+#                                races/levy-30.sh fails first at that leg with
+#                                that bracket (see there): the wait, and the
+#                                damage read back, the SQLSTATE or the answer
 # A catch elsewhere fails the run. EXTRA: a JSON list of further [old, new]
 # edits, each matching exactly once.
 #   tests/v5.4.2-30/mutations-30.sh [patch]    (uses m30 and m30p; one run at a time)
@@ -23,6 +21,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"; docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "DROP DATABASE IF EXISTS r30m" >/dev/null 2>&1' EXIT
 docker cp "$B" tally-pg:/tmp/b30m.sql >/dev/null
 fail=0; n=0; caught=0
+"$ROOT/tests/v5.4.2-30/races/levy-30.sh" selftest || { echo "SETUP: the race test's verdicts are wrong"; exit 1; }
 
 mut() {  # $1 label, $2 expected, $3 old text (exactly once), $4 new text
   n=$((n + 1)); local exp=$2 got=""
@@ -43,7 +42,7 @@ open(sys.argv[4], "w").write(s)' "$P" "$3" "$4" "$TMP/m.sql"; then
       docker exec tally-pg psql -U tally -d r30m -qc "REVOKE TEMP ON DATABASE r30m FROM PUBLIC" -qc "REVOKE TEMP ON DATABASE r30m FROM tally_app" -qc "REVOKE TEMP ON DATABASE r30m FROM tally_core" >/dev/null
       docker cp "$TMP/m.sql" tally-pg:/tmp/r30m.sql >/dev/null
       if docker exec -e PGOPTIONS="-c search_path= -c check_function_bodies=on" tally-pg psql -U tally -d r30m -v ON_ERROR_STOP=1 -q -o /dev/null -f /tmp/r30m.sql >/dev/null 2>&1; then
-        got="RACE:$(tests/v5.4.2-30/races/levy-30.sh r30m 2>&1 | grep -m1 -E '^(FAIL|BROKEN|SEQUENTIAL|SETUP)' | sed -E 's/^FAIL (R[0-9a-z]+) \[([a-z]+)\].*/\1:\2/')"
+        got="RACE:$(tests/v5.4.2-30/races/levy-30.sh r30m 2>&1 | grep -m1 -E '^(FAIL|BROKEN|SEQUENTIAL|SETUP)' | sed -E 's/^FAIL (R[0-9a-z]+) \[([^]]+)\].*/\1:\2/')"
       else got="APPLY (race clone)"; fi ;;
     *)
       docker exec tally-pg psql -U tally -d postgres -qc "DROP DATABASE IF EXISTS m30" -qc "CREATE DATABASE m30 TEMPLATE tally" >/dev/null 2>&1
@@ -252,11 +251,14 @@ mut "N50 the coverage check run under any role" C5 \
 mut "N51 two changes in one transaction read in the wrong order" M8c \
   "     ORDER BY h.recorded_at DESC, h.seq DESC LIMIT 1;" "     ORDER BY h.recorded_at DESC, h.seq LIMIT 1;"
 # Race-only guards: caught by tests/v5.4.2-30/races/levy-30.sh (RACE:<leg>).
-mut "N52 a levy insert takes no place lock" RACE:R1:nowait \
+mut "N52 a levy insert takes no place lock" RACE:R1:nowait:damage \
   "        PERFORM pg_advisory_xact_lock_shared(public.place_lock_key(v_place));" "        NULL;"
-mut "N53 a place row committed while the levy waited trusted unlocked" RACE:R5:waited \
+mut "N53 a levy whose city's rows changed while it waited told it is not in force, not to retry" RACE:R5:waited:23514 \
   "    IF v_now <> v_locked THEN" "    IF false THEN"
-mut "N54 an overlapping correction recorded (between sessions)" RACE:R3:waited \
+EXTRA='[["       AND p.id = ANY (v_locked);", "       ;"]]' \
+mut "N53b a place row committed while the levy waited trusted unlocked (both guards gone)" RACE:R5:waited:damage \
+  "    IF v_now <> v_locked THEN" "    IF false THEN"
+mut "N54 an overlapping correction recorded (between sessions)" RACE:R3:waited:damage \
   "    IF TG_OP = 'UPDATE' AND EXISTS (SELECT 1 FROM public.service_location_state_history h" \
   "    IF false AND EXISTS (SELECT 1 FROM public.service_location_state_history h"
 
@@ -282,12 +284,32 @@ mut "N62 one place recorded twice alike refused" M12d \
   "HAVING count(DISTINCT (l.id, l.rel, l.miles)) > 1" "HAVING count(*) > 1"
 mut "N63 a premise dated in the future backfilled then" PRE:C6b \
   "least(l.created_at, now())" "l.created_at"
-mut "N64 one place both within and outside answered (between sessions)" RACE:R7:read \
+mut "N64 one place both within and outside answered (between sessions)" RACE:R7:read:outside,within \
   "    IF v_two_answers THEN" "    IF false THEN"
-mut "N65 one place re-recorded by overlapping sessions answered twice" RACE:R6:read \
+mut "N65 one place re-recorded by overlapping sessions answered twice" RACE:R6:read:within,within \
   "    SELECT DISTINCT p.id, p.kind_code, p.state_code" "    SELECT p.id, p.kind_code, p.state_code"
-# No mutation removes the coverage read's own-rows clause (r4, Opus N1): the
-# window is between two statements of one function; stated, not tested.
+
+# --- r5 (the round-4 findings)
+mut "N66 a limited-purpose area and its city of one code taken for one place" M12i \
+  "GROUP BY l.kind, l.code HAVING" "GROUP BY l.code HAVING"
+mut "N67 two kinds of one code in one exclusive group counted as one place" M12j \
+  "count(DISTINCT (l.kind, l.code))" "count(DISTINCT l.code)"
+mut "N68 a membership read on either axis" M12h \
+  "     WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis" "     WHERE m.service_location_id = p_service_location_id"
+mut "N69 a place recorded after the instant read" M14 \
+  "       AND p.created_at <= p_recorded_at
+       AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+       AND p.state_code = v_state" "       AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+       AND p.state_code = v_state"
+mut "N70 a place of another state answered" M14 \
+  "       AND p.state_code = v_state;" "       ;"
+mut "N71 a place not in force on the date answered" M14 \
+  "       AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+       AND p.state_code = v_state" "       AND p.state_code = v_state"
+mut "N72 the plain read blind to a void committed after its transaction began" M15 \
+  "p_on, p_axis, 'infinity'::timestamptz)" "p_on, p_axis, now())"
+mut "N73 the same, between three sessions" RACE:R8:read:R30-D,R30-D2 \
+  "p_on, p_axis, 'infinity'::timestamptz)" "p_on, p_axis, now())"
 
 echo "mutations-30: $caught of $n caught"
 [ $fail -eq 0 ] && [ $caught -eq $n ]

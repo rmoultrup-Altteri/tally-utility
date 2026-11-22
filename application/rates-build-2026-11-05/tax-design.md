@@ -57,7 +57,7 @@ So the mechanism is one, shared by every base: each rate item version states, fo
 
 ### 2.5 Places and memberships as known at a past instant (schema; additive)
 
-A rebill must see the tax jurisdictions the original bill saw (CI-001, CI-004). `premise_places_as_of` gains a recorded-at coordinate: a membership closed or voided after that instant still counts, and one recorded after it does not. Places and place facts likewise (they carry close stamps). The one-date form stays for today's readers.
+A rebill must be able to read the tax jurisdictions as recorded at the original bill's instant (CI-001, CI-004). *(Corrected 2026-11-22, -30 r4: this is not a guarantee that it sees what the bill saw; a writer open at that instant can make the two differ, so a bill records the places it used. -30 known limit L7.)* `premise_places_as_of` gains a recorded-at coordinate: a membership closed or voided after that instant still counts, and one recorded after it does not. Places and place facts likewise (they carry close stamps). The one-date form stays for today's readers; it reads what is committed, as -16 did.
 
 ### 2.6 The size-tier defect on rate items (schema; changes a default)
 
