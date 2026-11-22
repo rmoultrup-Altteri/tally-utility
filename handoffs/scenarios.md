@@ -4,7 +4,7 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 **Generated**: 2026-11-07, end of the fourth scenarios session.
 **Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (he also posts in his Slack DM, D0B0GRDQYLR).
-**Status**: 80 scenarios (SCN-0001 – 0080) in eight families. Codex's round-3 review done and applied. Ryan settled Tally's access (the hidden Tally User; reads logged by the application) and four dispute questions. **A conflict between two of Ryan's dispute rulings, made the same day in two sessions, must be put to him first** (below).
+**Status**: 80 scenarios (SCN-0001 – 0080) in eight families. Codex's round-3 review done and applied. Ryan settled Tally's access (the hidden Tally User; reads logged by the application) and four dispute questions. The dispute rulings' conflict is settled (2026-11-22, below).
 
 ## Goal
 
@@ -17,25 +17,20 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 - Families: billing pipeline (0001, 0048, 0053–0055), cancel-rebill (0002–0006, 0027, 0028, 0030, 0033), deposits (0007–0012, 0029, 0032, 0042–0047, 0056, 0057), backbilling (0013–0019, 0031, 0035–0041, 0058, 0059), periods and aging (0020–0026, 0034, 0049–0052), tenant isolation (0060–0068, **0080 the Tally User**), date-tracking and immutability (0069–0079).
 - Reviews: `scenarios/review/2026-11-02/`, `2026-11-04/`, `2026-11-05/` (round 3 now has codex.md).
 
-## Waiting on Ryan (start here next session)
+## Waiting on Ryan
 
-1. **Two dispute rulings disagree; ask Ryan which stands, before anything else on disputes.** Both 2026-11-07, both in the DECISION-LOG:
-   - *This stream's session* (four entries, "(scenarios)"): a city's own dispute rule wins (Bluebonnet's rule: the disputed bill should still be paid, so a penalty posts); only a city with no rule gets a platform default; the default counts a dispute raised before the due date and protects **the disputed amount only** until the earlier of resolution and **60 days after issue**.
-   - *The money session, about an hour later* ("(money, -25 r1 review)", AC-46, -25 r2 plan item 9, board note money → scenarios): no late penalty while a dispute is open is a **platform rule for every customer**, covering **the whole bill**, from receipt **until resolution or withdrawal** (no 60-day end).
-   - They differ on three points: whether a city's own rule overrides it, whole bill or disputed amount, and whether protection ends at 60 days. The money session's ruling was answered without the scenarios rulings in front of it (it was asked before they were recorded). Lay out both side by side in plain words and ask which he means; record a dated correction under whichever entry yields, update AC-46 or SCN-0033 to match, and leave a board note for money (-25 r2 depends on it). Don't edit money's files beyond what the board's rules allow; ask money via the board if AC-46 needs changing.
-2. **Then the pending question (asked at session end, unanswered; Ryan will answer next session):** when the default's protection ends with the dispute unresolved (day 60), is the disputed amount penalized at once, or moved to the next bill with that bill's due date (recommended; it mirrors Kyle's answer for the extra a billing error hid), or never penalized for that bill? Example: BB-01's November bill issued Nov 16, due Dec 1, $13.23 disputed on Nov 25 and unpaid; protection ends Jan 15. Moot if Ryan picks the money ruling (no 60-day end).
-3. Still open on the default: which customer classes it reaches (Texas protects residential and small commercial only; Kyle named none).
-4. Kyle's flags for Ryan from batch 2: (b) confirm Pecan Flat's penalty base is the full amount owed excluding earlier penalties (SCN-0053, cast); (c) SCN-0033's Open: whether the corrected bill shows the lower figure ($65.83), or the full figure ($79.06) with the $13.23 marked as moved.
-5. Offered, not asked for: check whether Stinnett (Pecan Flat's model) has a written dispute rule. Check its rules of service and billing page, not only the rate PDFs (memory: check own sources before claiming absence).
+- Settled 2026-11-22 (DECISION-LOG): the dispute conflict (the scenarios version stands), day 60 (the next bill's due date), Pecan Flat's penalty base and the once-or-monthly setting, how a corrected bill shows the hidden extra. The money session settled the customer classes (all) and the blocked disconnection steps.
+- Send K-14 (Slack draft in Kyle's DM).
+- Offered, not asked for: check whether Stinnett (Pecan Flat's model) has a written dispute rule; its article 12.02 text did not load in the tariff survey.
 
 ## Waiting on Kyle
 
-- **K-14, the third batch: not yet sent.** `grep -n "Open (Kyle" scenarios/*.md`: whether a utility-error rebill's hidden extra goes on the next bill for every upward correction (SCN-0027 a, 0028, 0033, 0069); whether answer 12's month-by-month pre-go-live refund applies where §7.45 binds (SCN-0039); his own flag 6 (recheck batch 2's figures); the new dollar figures of SCN-0069, 0070, 0078 and the penalty re-basing ($6.59 on the reference bill); and, **once item 1 above is settled**, how his answer 1 (no penalty while disputed) was applied. Not to build until ruled: bank-error returned checks (SCN-0045) and the senior's proof details (SCN-0011), his flag 2. Draft for Ryan to send (Slack drafts only), one line per question.
+- **K-14, the third batch: drafted in Slack 2026-11-22 (9 questions and a figure check), not yet sent.** Sources: `grep -n "Open (Kyle" scenarios/*.md`. Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
 
 ## Not yet done (in order)
 
-1. [ ] The dispute conflict, then the pending dispute questions and Kyle's flags (b), (c), one per message.
-2. [ ] Draft K-14 for Kyle.
+1. [x] The dispute conflict, the pending dispute questions and Kyle's flags (b), (c) (2026-11-22).
+2. [x] Draft K-14 for Kyle (Ryan to send).
 3. [ ] Weather normalization (likely needs Kyle on how city systems adjust).
 4. [ ] State machines, exception paths, the persona matrix.
 5. [ ] Families after their patches mirror: cash (-23 mirrored), disputes (-25, after item 1), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
