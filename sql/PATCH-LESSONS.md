@@ -36,6 +36,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [temporal-helper-no-live-fallback](#temporal-helper-no-live-fallback) — Standing rule for any as-of/temporal lookup function in tu.sql — no live-value fallback, NULL coordinate raises, NULL result means unknowable
 - [date-from-snapshot-knowledge-from-now](#date-from-snapshot-knowledge-from-now) — issue-time checks classify at the snapshot's bound valid_at but under now(); the snapshot's recorded_at is caller-chosen and hides retractions
 - [history-stamped-at-xact-start](#history-stamped-at-xact-start) — a history read latest-first by a now() stamp goes permanently wrong when the earlier-begun writer commits last; refuse that writer (40001), don't switch to clock_timestamp()
+- [as-of-readers-take-no-final-figure](#as-of-readers-take-no-final-figure) — a reader with date and instant coordinates must compute every figure at them: a tree that is fixed now was not the same at an earlier date; add it to the conservation sweep, both directions
 
 **Concurrency**
 - [succession-checks-at-commit](#succession-checks-at-commit) — a "never closed from under X" check on code-keyed rows must run at commit (deferred constraint trigger, ALWAYS, all-tenants role), or it refuses every close-then-successor
@@ -484,3 +485,11 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 **Why:** a check that passes whichever guard fires proves neither guard. A mutation that changes nothing, or changes a leg its check never reaches, reads as a missed guard that isn't one.
 
 **How to apply:** when two guards can refuse the same row, give each battery check a phrase that only its guard writes, and keep the shape the backup guard holds as a separate check. Mutate the leg that the named check's shape actually reaches. When a list in the manifest is empty, mutate the query that finds extras, not the list. Run the full mutation suite once before a round freezes: that run is what catches these. Related: [checks-narrower-than-their-claim](#checks-narrower-than-their-claim), [rule-table-fixture-notes](#rule-table-fixture-notes).
+
+## as-of-readers-take-no-final-figure
+
+-24 r9's new reader took a payment's final misposted share and filtered by the date of the row its status names, on the reasoning that the tree is fixed once the payment has ended. It is fixed now; on a date while an undo stood, the customer's account held the same money. All three reviewers found it, and the conservation sweep did not, because the new reader's amount was not in its sum.
+
+- Compute at the coordinates (`transaction_date <= p_on AND created_at <= p_recorded_at` on every row read), the payment's own date and recorded time included. A figure a write guard uses (final, undated) is not the reader's.
+- A new place where money can be goes into the conservation sweep in the same round, in both directions: never in two places, never in none.
+- An ordering check must not compare `array_agg(x)` with `array_agg(x ORDER BY x)`: PostgreSQL 16 sorts the input for both. Number the rows with `WITH ORDINALITY`.

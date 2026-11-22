@@ -1,0 +1,513 @@
+00000000-0000-4000-8000-0000000a24b1
+
+NOTICE:  PASS U1 a check no one can match is recorded (CI-053: the money has a row)
+NOTICE:  PASS U1b it holds all 100 and is on no customer's ledger (it is not receivable)
+
+NOTICE:  PASS U1c the database stamps created_at (now), whatever the app sent
+
+
+NOTICE:  PASS U2 a receipt with no evidence at all (blank, a tab and a no-break space): refused by suspense_receipts_evidence_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_evidence_check")
+NOTICE:  PASS U3 a receipt of no money: refused by suspense_receipts_amount_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_amount_check")
+
+
+NOTICE:  PASS U3b nor of NaN (NaN exceeds every number: r3, Codex r2 probe 07): refused by suspense_receipts_amount_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_amount_check")
+NOTICE:  PASS U4 a receipt dated after today (UTC+14): refused by no later than today (suspense receipt R24-U4 is dated 2026-11-24: money is dated no later than today (UTC+14) (v5.4.2-24))
+
+NOTICE:  PASS U5 a receipt names who recorded it: refused by recorded_by (null value in column "recorded_by" of relation "suspense_receipts" violates not-null constraint)
+
+NOTICE:  PASS U6 a receipt is never edited: refused by suspense_receipts (permission denied for table suspense_receipts)
+
+NOTICE:  PASS U6b nor deleted: refused by suspense_receipts (permission denied for table suspense_receipts)
+
+NOTICE:  PASS U7 a receipt number is used once per tenant: refused by suspense_receipts_tenant_number_key (duplicate key value violates unique constraint "suspense_receipts_tenant_number_key")
+
+NOTICE:  PASS U8 a second receipt of the same provider transaction: refused by provider transaction (provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once)
+
+NOTICE:  PASS U8b a payment of a transaction already held as a receipt: refused by provider transaction (provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once)
+
+NOTICE:  PASS U8c a receipt of a transaction already a payment: refused by provider transaction (provider transaction pi_24_paid from stripe_webhook is already recorded as a receipt or a payment: money is recorded onc)
+
+NOTICE:  PASS U8d the same id from another source system is another transaction
+
+NOTICE:  PASS U8f a payment sharing a receipt's uuid is still a second recording of its transaction (Codex B2): refused by provider transaction (provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once)
+
+NOTICE:  PASS U8g and a receipt sharing a payment's uuid: refused by provider transaction (provider transaction pi_24_paid from stripe_webhook is already recorded as a receipt or a payment: money is recorded onc)
+
+NOTICE:  PASS U8h a payment given a receipt's transaction id later (Codex B1, Fable B2): refused by provider transaction (provider transaction pi_24_dup from stripe_webhook is already recorded as a receipt or a payment: money is recorded once)
+
+NOTICE:  PASS U8e and a receipt of a transaction id another source system's receipt holds
+
+
+NOTICE:  PASS U9 the channel and source system are the payments' vocabularies: refused by suspense_receipts_channel_check (new row for relation "suspense_receipts" violates check constraint "suspense_receipts_channel_check")
+
+NOTICE:  PASS C1 intake thought it might be C1 (0.62) or C2 (0.58)
+NOTICE:  PASS C1b a candidate moves no money: the receipt still holds 100, no payment exists for it
+
+NOTICE:  PASS C2 a confidence is between 0 and 1: refused by suspense_receipt_candidates_confidence_check (new row for relation "suspense_receipt_candidates" violates check constraint "suspense_receipt_candidates_confidence_che)
+
+NOTICE:  PASS C3 an operator's candidate names the operator: refused by suspense_receipt_candidates_operator_check (new row for relation "suspense_receipt_candidates" violates check constraint "suspense_receipt_candidates_operator_check)
+
+NOTICE:  PASS C4 a candidate of another tenant's customer (T2's C9): refused by suspense_receipt_candidates_customer_fkey (insert or update on table "suspense_receipt_candidates" violates foreign key constraint "suspense_receipt_candidates_cus)
+
+NOTICE:  PASS C5 candidates are never edited: refused by suspense_receipt_candidates (permission denied for table suspense_receipt_candidates)
+
+
+NOTICE:  PASS P1 60 of R1 becomes C1's payment, with the reason and the operator
+NOTICE:  PASS P1b R1 holds 40; C1's payment reads 60 received
+
+NOTICE:  PASS P2 41 more is past what R1 holds: refused by the receipt holds (suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 101.00, more than the 100.00 the re)
+
+NOTICE:  PASS P2b a pending payment counts too (it may yet post): refused by the receipt holds (suspense receipt R24-2401: on 2026-03-02 its payments and dispositions would come to 100.01, more than the 100.00 the re)
+
+NOTICE:  PASS P3 a resolution says why: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+
+NOTICE:  PASS P3a and who: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+
+NOTICE:  PASS P3b a reason of blanks is no reason: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+
+NOTICE:  PASS P3c no reason without a receipt: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+
+
+
+NOTICE:  PASS P4 a payment from a receipt is not dated before the money came (R4, 50 on 03-03): refused by on or after the receipt's received_on (payment P24-fb5e is dated 2026-03-02: a payment from receipt R24-2404 is dated on or after the receipt's received_on (20)
+NOTICE:  PASS P4b nor effective after it (the customer paid by then: CI-058): refused by effective no later than (payment P24-P4b from receipt R24-2404 is effective 2026-03-04: a payment from a receipt is effective no later than 2026-)
+
+NOTICE:  PASS P4c nor effective after it when the effective date is written at posting (the helper writes the payment date, 03-08): refused by effective no later than (payment P24-P4c from receipt R24-2404 is effective 2026-03-08: a payment from a receipt is effective no later than 2026-)
+
+NOTICE:  PASS P4d a postmark before the money came is fine (dated 03-08, effective 03-01 by postmark)
+
+NOTICE:  PASS P5 the payment carries the receipt's instrument (another check number): refused by the receipt's instrument (payment P24-P5 carries the receipt's instrument: channel, source system, reference, check number, date and bank as recei)
+
+
+NOTICE:  PASS P5b and its channel: refused by the receipt's instrument (payment P24-P5b carries the receipt's instrument: channel, source system, reference, check number, date and bank as rece)
+NOTICE:  PASS P5c a payment from a receipt leaves the provider id on the receipt (it is the receipt's, once): refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+
+
+NOTICE:  PASS P5d R2 (a Stripe receipt) becomes C3's payment with no provider id of its own
+NOTICE:  PASS P6 a refund never names a receipt: refused by payments_suspense_resolution_check (new row for relation "payments" violates check constraint "payments_suspense_resolution_check")
+
+NOTICE:  PASS P7 a payment's receipt is written once (here: named after insert): refused by written once (payment P24-0003: suspense_receipt_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one)
+
+NOTICE:  PASS P7b and its reason never changes: refused by written once (payment P24-2411: suspense_resolution_reason is written once, at insert (v5.4.2-24) — reverse the payment and post a new)
+
+NOTICE:  PASS P8 a voided payment gives its share back: R1 holds 40
+
+
+NOTICE:  PASS P8b R4's 50 to C3 (the voided 0.01 of P4d does not count)
+NOTICE:  PASS P9 while C3's payment stands, R4 has nothing for C4: refused by the receipt holds (suspense receipt R24-2404: on 2026-03-03 its payments and dispositions would come to 100.00, more than the 50.00 the rec)
+
+
+
+NOTICE:  PASS P9b a reversal alone gives nothing back: R4 still holds 0
+
+NOTICE:  PASS P9b2 a misposting return is dated on or after the reversal (03-05; r6: the tree-date rule, which covers it): refused by the last row under its posting entry (a misposting return of payment P24-2414 is dated on or after the last row under its posting entry (2026-03-05), not 2026)
+NOTICE:  PASS P9b3 it gives back no more than what was reversed as misposted (here the whole 50): refused by exactly what payment (a misposting return gives back exactly what payment P24-2414 reversed as misposted (50.00 of its 50.00; what the bank to)
+
+
+NOTICE:  PASS P9b3b nor less: a short return could never be topped up, and the rest would be held nowhere (r7, Opus r6 S1): refused by reversed as misposted (50.00 of its 50.00 (a misposting return gives back exactly what payment P24-2414 reversed as misposted (50.00 of its 50.00; what the bank to)
+NOTICE:  PASS P9b4 it names a payment of the same receipt (C1's P11 is R1's): refused by names a payment made from receipt (a misposting return names a payment made from receipt R24-2404 (v5.4.2-24))
+
+
+NOTICE:  PASS P9b5 and a reversed one (P13 is posted): refused by only a payment reversed as posted to the wrong customer (payment P24-2413 is posted: only a payment reversed as posted to the wrong customer gives its money back to the receipt;)
+NOTICE:  PASS P9b6 C3's 50 goes back to R4 as misposted, on 03-05
+
+
+NOTICE:  PASS P9b7 R4 holds 50 from 03-05, and 0 on 03-04 (the money was on C3's ledger then)
+NOTICE:  PASS P9b8 once per payment: refused by suspense_receipt_dispositions_one_return_per_payment (duplicate key value violates unique constraint "suspense_receipt_dispositions_one_return_per_payment")
+
+NOTICE:  PASS P9b9 and the payment takes no bank return code afterwards: refused by returned to suspense as misposted (payment P24-2414 was returned to suspense as misposted: its money is the receipt's again, so it takes no bank return cod)
+
+NOTICE:  PASS P9b10 a misposting return is never undone: refused by an undo names (an undo names a disposition of the same receipt that is not itself an undo (receipt R24-2404) (v5.4.2-24))
+
+NOTICE:  PASS P9c2 the money is not re-posted on a date before it came back (03-04): refused by the receipt holds (suspense receipt R24-2404: on 2026-03-04 its payments and dispositions would come to 100.00, more than the 50.00 the rec)
+
+
+NOTICE:  PASS P9c and the operator posts it to C4, on 03-05
+NOTICE:  PASS P9d R4 holds 0; C4 received 50, C3 nothing
+
+
+NOTICE:  PASS P10 an NSF payment keeps its share counted: R4 still holds 0
+
+NOTICE:  PASS P10b so nothing more can be made from it: refused by the receipt holds (suspense receipt R24-2404: on 2026-03-03 its payments and dispositions would come to 50.01, more than the 50.00 the rece)
+
+
+
+NOTICE:  PASS P12 a bank's take-back recorded as reversed (R10) gives nothing back: R9 holds 0
+
+NOTICE:  PASS P12b no misposting return for it: refused by a bank's take-back keeps it spent (payment P24-2419 is reversed with return code R10: only a payment reversed as posted to the wrong customer gives its mon)
+
+NOTICE:  PASS P12c so the 100 cannot go to another customer: refused by the receipt holds (suspense receipt R24-2409: on 2026-03-13 its payments and dispositions would come to 200.00, more than the 100.00 the re)
+
+NOTICE:  PASS P12d nor back to the sender: refused by the receipt holds (suspense receipt R24-2409: on 2026-03-13 its payments and dispositions would come to 200.00, more than the 100.00 the re)
+
+
+
+NOTICE:  PASS P13 a misposting return gives back only what was reversed as misposted (60 of 100; the bank took 40): refused by reversed as misposted (60.00 of its 100.00 (a misposting return gives back exactly what payment P24-241a reversed as misposted (60.00 of its 100.00; what the bank t)
+
+NOTICE:  PASS P13b the 60 comes back
+
+
+NOTICE:  PASS P13c R11 holds 60
+
+
+
+NOTICE:  PASS P14a a reversal entered, undone and entered again gives back 100, not 200 (Opus r3 B1, Fable r3 B1): refused by exactly what payment (a misposting return gives back exactly what payment P24-241c reversed as misposted (100.00 of its 100.00; what the bank )
+NOTICE:  PASS P14a2 100 comes back
+
+
+
+NOTICE:  PASS P14b a reversal undone, then the bank's take-back: nothing comes back, not 100 (Opus r3 B1; r8: the amount the old rule gave, as a return must now be exact): refused by reversed as misposted (0 of its 100.00 (a misposting return gives back exactly what payment P24-241d reversed as misposted (0 of its 100.00; what the bank took )
+
+
+
+NOTICE:  PASS P14c the bank's take-back filed under the undo of a reversal still stays spent: not 100 (Fable r4 B1; r8: the old rule's amount): refused by reversed as misposted (0 of its 100.00 (a misposting return gives back exactly what payment P24-241e reversed as misposted (0 of its 100.00; what the bank took )
+
+
+
+NOTICE:  PASS P14d a bank's take-back undone, then a reversal as misposted: the 100 comes back
+
+
+
+NOTICE:  PASS P14e an undo typed nsf is counted: 50 comes back, not 100 (Opus r5 B1): refused by reversed as misposted (50.00 of its 100.00 (a misposting return gives back exactly what payment P24-24d1 reversed as misposted (50.00 of its 100.00; what the bank t)
+
+NOTICE:  PASS P14e2 the 50 comes back
+
+
+
+NOTICE:  PASS P14f a mixed tree: 70 comes back, not 90 (Opus r4 Q4): refused by reversed as misposted (70.00 of its 100.00 (a misposting return gives back exactly what payment P24-24d7 reversed as misposted (70.00 of its 100.00; what the bank t)
+
+NOTICE:  PASS P14f2 the 70 comes back
+
+
+
+NOTICE:  PASS P14g a reversal, its undo typed nsf, and a second reversal: 100 comes back, not 200 (Fable r5 S2): refused by exactly what payment (a misposting return gives back exactly what payment P24-24b3 reversed as misposted (100.00 of its 100.00; what the bank )
+
+
+
+NOTICE:  PASS P9b11 a misposting return is dated on or after the payment's own date (Opus r4 S1): refused by on or after the payment (a misposting return of payment P24-2420 is dated on or after the payment (2026-03-15), not 2026-03-11 (v5.4.2-24))
+
+NOTICE:  PASS P9b12 dated on the payment's date, admitted
+
+
+
+NOTICE:  PASS P14h a misposting return dated before the last row under the posting entry (Codex r5 B1): refused by the last row under its posting entry (a misposting return of payment P24-247b is dated on or after the last row under its posting entry (2026-03-13), not 2026)
+
+NOTICE:  PASS P14h2 … the day before it, too: refused by the last row under its posting entry (a misposting return of payment P24-247b is dated on or after the last row under its posting entry (2026-03-13), not 2026)
+
+NOTICE:  PASS P14h3 dated on the last row's date, admitted
+
+NOTICE:  PASS P14h4 so on 03-12 the receipt holds nothing and the payment its 100; on 03-13 the receipt holds 100
+
+NOTICE:  PASS P5e a receipt's payment takes no bank name of its own later (R1 has none): refused by at insert and after (payment P24-2411 carries the receipt's instrument: channel, source system, reference, check number, date and bank as rec)
+
+NOTICE:  PASS P11 a receipt of another tenant (T2's operator naming T1's R1): refused by payments_suspense_receipt_fkey (payment P24-P11: suspense receipt 00000000-0000-4000-8000-0000000a2401 is not visible in this tenant (v5.4.2-24))
+
+NOTICE:  PASS X1 25 of R1 goes back to whoever sent it (CI-053)
+
+NOTICE:  PASS X1b R1 holds 15
+
+NOTICE:  PASS X1c as of 03-31 R1 held 40 (a disposition counts from its date)
+
+NOTICE:  PASS X2 15.01 more is past what R1 holds: refused by the receipt holds (suspense receipt R24-2401: on 2026-09-01 its payments and dispositions would come to 100.01, more than the 100.00 the re)
+
+NOTICE:  PASS X3 a return names its outgoing instrument: refused by suspense_receipt_dispositions_kind_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check)
+
+NOTICE:  PASS X3b an escheat names the state and the report: refused by suspense_receipt_dispositions_kind_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check)
+
+NOTICE:  PASS X3c a bank return's code is an R-code: refused by suspense_receipt_dispositions_kind_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_kind_check)
+
+NOTICE:  PASS X3d every disposition says why: refused by suspense_receipt_dispositions_reason_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_reason_che)
+
+NOTICE:  PASS X4 a disposition before the money came: refused by on or after the receipt (a disposition of receipt R24-2401 is dated on or after the receipt (2026-03-02), not 2026-03-01 (v5.4.2-24))
+
+NOTICE:  PASS X4b nor after today (UTC+14): refused by no later than today (a disposition of receipt R24-2401 is dated 2026-11-24: money is dated no later than today (UTC+14) (v5.4.2-24))
+
+NOTICE:  PASS X5b a disposition of NaN: refused by suspense_receipt_dispositions_undo_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check)
+
+NOTICE:  PASS X5 a non-undo moves money out (a positive amount): refused by suspense_receipt_dispositions_undo_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check)
+
+NOTICE:  PASS X6 an undo is dated on or after what it undoes: refused by an undo is dated on or after (an undo is dated on or after what it undoes (2026-04-01), not 2026-03-31 (v5.4.2-24))
+
+NOTICE:  PASS X6b an undo takes back at most what it undoes: refused by undos would come to (disposition 00000000-0000-4000-8000-0000000a2421: its undos would come to 25.01, more than its 25.00 (v5.4.2-24))
+
+NOTICE:  PASS X6c an undo names a disposition of the same receipt: refused by suspense_receipt_dispositions_undoes_fkey (insert or update on table "suspense_receipt_dispositions" violates foreign key constraint "suspense_receipt_dispositions)
+
+NOTICE:  PASS X6d an undo names what it undoes: refused by suspense_receipt_dispositions_undo_check (new row for relation "suspense_receipt_dispositions" violates check constraint "suspense_receipt_dispositions_undo_check)
+
+NOTICE:  PASS X6e the return is undone on 04-20
+
+NOTICE:  PASS X6f R1 holds 40 again from 04-20; on 04-19 it held 15
+
+
+NOTICE:  PASS X6g an undo is never undone: refused by an undo names (an undo names a disposition of the same receipt that is not itself an undo (receipt R24-2401) (v5.4.2-24))
+NOTICE:  PASS X7 a payment of 40 counts from 03-02, when 25 was also out on 04-01 (40 + 25 > 50 held then): refused by the receipt holds (suspense receipt R24-2401: on 2026-04-01 its payments and dispositions would come to 125.00, more than the 100.00 the re)
+
+NOTICE:  PASS X7b 15 is what R1 held on its worst day: 15 to C2
+
+NOTICE:  PASS X8 the 25 left is reported as unclaimed property (Texas, owner unknown)
+
+NOTICE:  PASS X8b R1 holds 0: 60 + 15 to payments, 25 escheated
+
+NOTICE:  PASS X9 dispositions are never edited: refused by suspense_receipt_dispositions (permission denied for table suspense_receipt_dispositions)
+
+
+NOTICE:  PASS X10 the bank takes back R5's 30
+
+NOTICE:  PASS X10b R5 holds 0
+
+
+NOTICE:  PASS A1 an agency (the local CEAP provider)
+NOTICE:  PASS A1b an agency's name is used once per tenant: refused by assistance_agencies_tenant_name_key (duplicate key value violates unique constraint "assistance_agencies_tenant_name_key")
+
+NOTICE:  PASS A1c the program kinds are a fixed list: refused by assistance_agencies_program_kind_check (new row for relation "assistance_agencies" violates check constraint "assistance_agencies_program_kind_check")
+
+NOTICE:  PASS A2 the CEAP agreement from 2026-01-01: 45 days to pay a pledge, 5 business days of eligibility hold (VA-26)
+
+NOTICE:  PASS A2b a new agreement from 2026-09-01: 30 days
+
+
+NOTICE:  PASS A3 two agreements from one date: refused by assistance_agency_agreements_one_per_date (duplicate key value violates unique constraint "assistance_agency_agreements_one_per_date")
+
+NOTICE:  PASS A3b a window of no days: refused by assistance_agency_agreements_days_check (new row for relation "assistance_agency_agreements" violates check constraint "assistance_agency_agreements_days_check")
+NOTICE:  PASS A3c an agreement names its source: refused by assistance_agency_agreements_source_check (new row for relation "assistance_agency_agreements" violates check constraint "assistance_agency_agreements_source_check)
+
+NOTICE:  PASS A4 an agreement's terms are never edited: refused by assistance_agency_agreements (permission denied for table assistance_agency_agreements)
+
+NOTICE:  PASS A4b an agreement entered in error is withdrawn (reason, user), not edited
+
+NOTICE:  PASS A4c it is stamped withdrawn, and a pledge of 06-05 takes the 01-01 agreement (45 days) instead
+
+NOTICE:  PASS A4d a withdrawal is not undone: refused by only its withdrawal (agency agreement 00000000-0000-4000-8000-0000000a2445: only its withdrawal is recorded (once, with who and why); its ter)
+
+NOTICE:  PASS A5 an agency is never deleted: refused by assistance_agencies (permission denied for table assistance_agencies)
+
+NOTICE:  PASS A5b an agency's name is not edited (retire it and record a new one): refused by assistance_agencies (permission denied for table assistance_agencies)
+
+
+NOTICE:  PASS A6 a receipt from an agency becomes the agency's payment, not the customer's: refused by the receipt's agency (payment P24-e350: receipt R24-2408 came from an agency, so its payment is the receipt's agency's (v5.4.2-24))
+
+NOTICE:  PASS A6b nor another agency's: refused by the receipt's agency (payment P24-f11c: receipt R24-2408 came from an agency, so its payment is the receipt's agency's (v5.4.2-24))
+
+NOTICE:  PASS A6c CEAP's 45 to C4, as CEAP's payment
+
+NOTICE:  PASS L1 a written pledge of 200 for C1
+
+NOTICE:  PASS L1b the database chose the agreement in force on the pledge date, and pay_by = 03-10 + 45 = 04-24
+
+NOTICE:  PASS L1c on 04-01 it reads open, nothing paid, 200 outstanding
+
+
+NOTICE:  PASS L1d on 04-24 it is open; on 04-25 overdue (fail loud: CI-056)
+
+NOTICE:  PASS L2 a pledge on 2026-09-05 takes the new agreement: pay by 10-05
+
+NOTICE:  PASS L2b agreement 44, pay_by 2026-10-05
+NOTICE:  PASS L3 the app does not choose the pay-by date: refused by written by the database (a pledge's agreement and pay_by are written by the database (the agreement in force on pledged_on); send neither (v5.4.2)
+
+NOTICE:  PASS L3b nor the agreement: refused by written by the database (a pledge's agreement and pay_by are written by the database (the agreement in force on pledged_on); send neither (v5.4.2)
+
+NOTICE:  PASS L4 a pledge with no agreement on file is still recorded (fail toward protection)
+
+NOTICE:  PASS L4b it has no agreement and no pay-by, and reads no_agreement
+
+NOTICE:  PASS L5 two live pledges for C1 from two agencies coexist (CI-064)
+
+NOTICE:  PASS L6 a pledge of no money: refused by agency_pledges_amount_check (new row for relation "agency_pledges" violates check constraint "agency_pledges_amount_check")
+
+NOTICE:  PASS L6e a pledge of NaN: refused by agency_pledges_amount_check (new row for relation "agency_pledges" violates check constraint "agency_pledges_amount_check")
+
+NOTICE:  PASS L6b a pledge dated after today (UTC+14): refused by no later than today (a pledge is dated no later than today (UTC+14), not 2026-11-24 (v5.4.2-24))
+
+NOTICE:  PASS L6c the form is written, verbal or portal: refused by agency_pledges_form_check (new row for relation "agency_pledges" violates check constraint "agency_pledges_form_check")
+
+NOTICE:  PASS L6d a pledge is never edited: refused by agency_pledges (permission denied for table agency_pledges)
+
+NOTICE:  PASS L7 an agency payment names its agency: refused by payments_agency_check (new row for relation "payments" violates check constraint "payments_agency_check")
+
+NOTICE:  PASS L7b and a customer's payment names none: refused by payments_agency_check (new row for relation "payments" violates check constraint "payments_agency_check")
+
+NOTICE:  PASS L7c a pledge is paid by its own agency (the charity paying CEAP's pledge): refused by the pledge's agency and customer (payment A24-8704: a pledge is paid by the pledge's agency and customer (pledge 00000000-0000-4000-8000-0000000a2451) (v5)
+
+NOTICE:  PASS L7d for its own customer: refused by the pledge's agency and customer (payment A24-9d1a: a pledge is paid by the pledge's agency and customer (pledge 00000000-0000-4000-8000-0000000a2451) (v5)
+
+NOTICE:  PASS L7f a payment of NaN never names a pledge (Opus r3 S1): refused by payments_agency_pledge_check (new row for relation "payments" violates check constraint "payments_agency_pledge_check")
+
+
+NOTICE:  PASS L7e a deposit never names a pledge: refused by payments_agency_pledge_check (new row for relation "payments" violates check constraint "payments_agency_pledge_check")
+
+
+NOTICE:  PASS L8 PL1 reads 120 paid, 80 outstanding: a pending payment has not cleared
+
+NOTICE:  PASS L8b on 03-24 nothing was paid (the payment's date)
+
+NOTICE:  PASS L8c a payment's agency and pledge are written once: refused by written once (payment A24-2461: agency_pledge_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one)
+
+
+NOTICE:  PASS L9 PL1 is paid in full on 04-10
+
+
+
+NOTICE:  PASS L9b after the bounce it is open again from 04-15 (the bank took the 80 back), overdue after 04-24
+NOTICE:  PASS L10 (PL7's pay-by is today at UTC-12)
+
+NOTICE:  PASS L10a a lapse is recorded only once pay_by has passed everywhere: refused by has not passed (pledge 00000000-0000-4000-8000-0000000a2457: its pay_by (2026-11-22) has not passed everywhere yet; a lapse waits until )
+
+
+NOTICE:  PASS L10b a lapse is dated after pay_by (PL1 is due 04-24): refused by after pay_by (pledge 00000000-0000-4000-8000-0000000a2451: a lapse is dated after pay_by (2026-04-24), not 2026-04-24 (v5.4.2-24))
+
+NOTICE:  PASS L10c a withdrawal or lapse has its date; an error has none: refused by agency_pledge_events_event_on_check (new row for relation "agency_pledge_events" violates check constraint "agency_pledge_events_event_on_check")
+NOTICE:  PASS L11 PL1 lapses with 120 of 200 paid (CEAP's 45 days passed)
+
+NOTICE:  PASS L11b from 04-25 PL1 reads lapsed, 120 paid, 80 outstanding; on 04-24 it was open
+
+NOTICE:  PASS L11c a pledge ends once: refused by agency_pledge_events_one_per_pledge (duplicate key value violates unique constraint "agency_pledge_events_one_per_pledge")
+
+NOTICE:  PASS L11d a late payment naming a lapsed pledge is still taken (the money is real)
+
+NOTICE:  PASS L11e from 05-02 it reads paid in full; the lapse stays on record for the agency's history
+
+
+NOTICE:  PASS L12 an agency payment above its pledge is taken (CI-053: money is never refused)
+
+NOTICE:  PASS L12b PL4 reads paid, 90 paid, nothing outstanding
+
+NOTICE:  PASS L12c a paid pledge cannot be withdrawn: refused by paid in full (pledge 00000000-0000-4000-8000-0000000a2454 is paid in full (90.00 of 60.00): it is neither withdrawn nor lapsed (v5.4.2)
+
+NOTICE:  PASS L12d nor lapse: refused by paid in full (pledge 00000000-0000-4000-8000-0000000a2454 is paid in full (90.00 of 60.00): it is neither withdrawn nor lapsed (v5.4.2)
+
+NOTICE:  PASS L12e nor be recorded in error once a payment names it: refused by a payment names it (pledge 00000000-0000-4000-8000-0000000a2454 cannot be recorded in error: a payment names it (v5.4.2-24))
+
+NOTICE:  PASS L13 PL2 is withdrawn by the agency
+
+NOTICE:  PASS L13b PL2 reads withdrawn from 09-20, open on 09-19
+
+NOTICE:  PASS L13d a withdrawal is not dated before the pledge: refused by on or after the pledge (pledge 00000000-0000-4000-8000-0000000a2456: an event is dated on or after the pledge (2026-11-22) and no later than tod)
+
+NOTICE:  PASS L13c every event says why: refused by agency_pledge_events_reason_check (new row for relation "agency_pledge_events" violates check constraint "agency_pledge_events_reason_check")
+
+
+
+NOTICE:  PASS L14 PL5 is recorded in error
+
+NOTICE:  PASS L14b it reads void on every date
+NOTICE:  PASS L14c and no payment ever names it: refused by recorded in error (payment A24-091d: pledge 00000000-0000-4000-8000-0000000a2455 was recorded in error; no payment names it (v5.4.2-24))
+
+
+NOTICE:  PASS L15 on 04-01 the open pledges are PL1 (80 outstanding) and PL3 (no agreement); PL4 is paid, PL5 void
+NOTICE:  PASS L16 the pledge reader needs both coordinates: refused by both given (agency_pledge_position_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded )
+
+NOTICE:  PASS L17 the charity is retired
+
+NOTICE:  PASS L17b a retired agency takes no new pledge: refused by is retired (agency 00000000-0000-4000-8000-0000000a2442 is retired: it takes no new pledge (v5.4.2-24))
+
+NOTICE:  PASS L17c but its money is still taken (a late check for PL3)
+
+NOTICE:  PASS L15b today only PL6 and PL7 are open (PL1 and PL3 paid, PL2 withdrawn, PL4 paid, PL5 void)
+
+NOTICE:  PASS L17e a retired agency's name may be used again (Opus N1)
+
+NOTICE:  PASS L18 a pledge toward a bill is paid by a payment restricted to that bill (D7-1): refused by restricted to that bill (payment A24-3b31: pledge 00000000-0000-4000-8000-0000000a2458 is toward bill 00000000-0000-4000-8000-0000000a24bf, so it)
+
+NOTICE:  PASS L18b restricted to it
+
+NOTICE:  PASS L19 an event of a pledge not visible says so (Fable N4): refused by not visible in this tenant (pledge 240d2352-fc8a-4ba1-bfb3-63066fc91871 is not visible in this tenant (v5.4.2-24))
+
+NOTICE:  PASS L17d a retirement is not undone: refused by only its retirement (assistance agency 00000000-0000-4000-8000-0000000a2442: only its retirement is recorded (active to retired, with who and)
+
+
+NOTICE:  PASS G1 a refund of an agency's payment paid to the customer (Ryan 2026-11-07; 10 TAC 6.312(f)): refused by goes back to the agency (refund G24-1: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency)
+NOTICE:  PASS G1b nor to another agency: refused by goes back to the agency (refund G24-1b: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agenc)
+
+
+NOTICE:  PASS G2 30 refunded to CEAP
+NOTICE:  PASS G3 a refund of the customer's own payment names no agency: refused by goes to the customer (refund G24-3: the money is the customer's own, so a refund of it goes to the customer and names no agency (v5.4.2-24))
+
+
+NOTICE:  PASS G3b a refund of the customer's own payment, to the customer
+
+NOTICE:  PASS G4 a refund of a credit that came from an agency's payment, to the customer: refused by goes back to the agency (refund G24-4: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency)
+NOTICE:  PASS G4b to the agency
+
+
+
+NOTICE:  PASS G5 (the reissue stands: 10 on CR 32, traced to CEAP)
+
+NOTICE:  PASS G5a a refund of a reissue of an agency's refund, to the customer: refused by goes back to the agency (refund G24-5: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agency)
+
+
+NOTICE:  PASS G5b to the agency
+
+
+
+
+NOTICE:  PASS G6 the carry's money traces to CEAP (shortfall reissue, its undo's credit, the overpayment, the agency's payment)
+
+
+NOTICE:  PASS G6a so a refund of the carry to the customer is refused: refused by goes back to the agency (refund G24-6a: the money came from agency 00000000-0000-4000-8000-0000000a2441, so a refund of it goes back to the agenc)
+
+NOTICE:  PASS G6b and to CEAP admitted
+
+NOTICE:  PASS G6g a refund of a goodwill credit names no agency: refused by goes to the customer (refund G24-6: the money is the customer's own, so a refund of it goes to the customer and names no agency (v5.4.2-24))
+NOTICE:  PASS G7 a refund's agency is written once: refused by written once (payment G24-2: agency_id is written once, at insert (v5.4.2-24) — reverse the payment and post a new one)
+
+00000000-0000-4000-8000-0000000a24b1
+
+
+
+NOTICE:  PASS P14i0 the shape holds: the payment's status is stamped before its reversal was recorded
+NOTICE:  PASS P14i a misposting return stamped before a row under the posting entry was recorded retries (Codex r6 B1): refused by a row under its posting entry was recorded at (a misposting return of payment P24-249b: a row under its posting entry was recorded at 2026-11-22 22:14:20.642439+00, af)
+
+NOTICE:  PASS P14i4 … and a time the owner chooses between the payment's status and the reversal is refused (r7, Opus r6 S2): refused by before a row under its posting entry recorded at (a misposting return of payment P24-249b is recorded at 2026-11-22 22:14:19.163346+00, before a row under its posting ent)
+
+NOTICE:  PASS P14i2 recorded after it, admitted
+
+NOTICE:  PASS P14i3 so at the transaction's start the receipt holds nothing; now it holds 100
+
+00000000-0000-4000-8000-0000000a24b1
+
+NOTICE:  PASS S1 with no service level set, the aged reader raises (unevaluable: -26 blocks): refused by is not set (suspense_receipts_aged_as_of: tenant 00000000-0000-4000-8000-0000000a24a1's suspense service level is not set at 2026-11)
+00000000-0000-4000-8000-0000000a24b1
+NOTICE:  PASS S2 the settings are recorded in the configuration history (two changes)
+
+NOTICE:  PASS S2b and read as of an instant (before the change: unset)
+
+
+NOTICE:  PASS S3 on 03-30 (10 days) R6 is not aged; on 03-31 (11 days) it is, with C2 as the account to protect
+
+
+NOTICE:  PASS S3b a receipt that holds nothing is never aged (R1, R4, R5)
+NOTICE:  PASS S3c past retention: 180 days after 03-20 is 09-16; on 09-16 not yet, on 09-17 past
+
+NOTICE:  PASS S4 the tenant's total held on 12-31 (R6 70 + R2's nothing + U8d's 15 + U8e's 5 + R11's 60 + R16's 100 + R19's 100 + R20's 100 + R21's 50 + R22's 70 + R24's 100 + R25's 100)
+
+NOTICE:  PASS S8 a reversed payment whose misposted share has not come back is listed, with its share, its reversal's date and past the service level
+
+NOTICE:  PASS S8b a payment whose share has come back is not listed (P14's C3 payment, returned at P9b6)
+
+NOTICE:  PASS S8c nor one with no share (P14b's: the bank took it all)
+
+NOTICE:  PASS S8d nor one read before its reversal's date
+
+NOTICE:  PASS S8e the shared share agrees with what came back (P14e: 50)
+
+NOTICE:  Q1 partial, still posted on 2026-03-11: status posted, held 0.00, received 40.00, share 60.00, due rows none, aged 0
+NOTICE:  Q1 return while posted: 23514 payment P24-09c1 is posted: only a payment reversed as posted to the wrong customer gives its money back to the receipt; a bank's take-back keeps it spent (v5.4.2-24)
+NOTICE:  Q1 move to nsf: admitted
+NOTICE:  Q1 nsf on 2026-10-31: status nsf, held 0.00, received 0.00, share 60.00, due rows none, aged 0
+NOTICE:  Q1 return after nsf: 23514 payment P24-09c1 is nsf: only a payment reversed as posted to the wrong customer gives its money back to the receipt; a bank's take-back keeps it spent (v5.4.2-24)
+NOTICE:  Q1 nsf to reversed: 23001 payment P24-09c1 cannot move from nsf to reversed (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf or reversed, and the rest are terminal — post a new payment (a refund is read from the position, not a status)
+NOTICE:  Q1 pay the right customer 60: 23514 suspense receipt R24-09c0: on 2026-03-13 its payments and dispositions would come to 160.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+NOTICE:  Q2 reversed with R01: admitted
+NOTICE:  Q2 on 2026-10-31: status reversed R01, held 0.00, received 0.00, share 60.00, due rows none, aged 0
+NOTICE:  Q2 return: 23514 payment P24-09c5 is reversed with return code R01: only a payment reversed as posted to the wrong customer gives its money back to the receipt; a bank's take-back keeps it spent (v5.4.2-24)
+NOTICE:  Q3 on 2026-10-31: status posted, held 0.00, received 40.00, share 60.00, due rows none, aged 0
+NOTICE:  Q4 before code on 2026-10-31: status reversed, held 0.00, received 0.00, share 100.00, due rows 100.00 from 2026-03-11 past true, aged 0
+1
+NOTICE:  Q4 code later: admitted
+0
+0
+NOTICE:  Q5 null tenant: 22004 suspense_service_level_days_as_of: tenant and a finite instant are both given; never default to now (v5.4.2-24)
+NOTICE:  Q5 null date: 22004 suspense_misposting_returns_due_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-11-22 22:14:20.816405+00) (v5.4.2-23)
+NOTICE:  Q5 inf: 22004 suspense_misposting_returns_due_as_of: a position is read at a finite money date and recorded instant, both given (on infinity, recorded 2026-11-22 22:14:20.816622+00) (v5.4.2-23)
+00000000-0000-4000-8000-0000000a24b3|100.00|10|t
+WARNING:  there is no transaction in progress

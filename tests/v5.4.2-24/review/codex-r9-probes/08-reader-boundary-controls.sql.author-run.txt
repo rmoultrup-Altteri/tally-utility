@@ -1,0 +1,141 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+UPDATE 1
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ unpost 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS reader boundary: age ten is not past service level
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS reader boundary: age eleven is past service level
+NOTICE:  PASS reader excludes reversal beyond date
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS reader excludes status beyond recorded instant
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS owner querying another tenant sees none of T1 returns
+ ok 
+----
+ 
+(1 row)
+
+SET
+NOTICE:  PASS core reads its tenant return
+ ok 
+----
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b2
+(1 row)
+
+NOTICE:  PASS core cannot read another tenant by passing its id
+ ok 
+----
+ 
+(1 row)
+
+RESET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+UPDATE 1
+NOTICE:  PASS voided payment has no return due
+ ok 
+----
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+NOTICE:  PASS return code excludes reversed bank money
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=22004 message=suspense_misposting_returns_due_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-11-22 22:14:03.247714+00) (v5.4.2-23)
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  PASS new reader refuses NULL coordinate: refused by both given (suspense_misposting_returns_due_as_of: a position is read at a finite money date and recorded instant, both given (on , )
+ROLLBACK

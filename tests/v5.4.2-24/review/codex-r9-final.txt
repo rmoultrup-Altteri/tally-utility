@@ -1,0 +1,5 @@
+Review written to [codex-r9.md](/Users/ryanscomputer/code/tally-utility/tests/v5.4.2-24/review/codex-r9.md).
+
+Verdict: **not yet**. One predicted blocker: the new reader can double-count or omit money at historical coordinates. Ten rollback-only probes supplied.
+
+All seven checksums match. No database tests executed.
