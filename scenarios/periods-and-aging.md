@@ -136,7 +136,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 | 61–90 days | $45.85 | the correction, aged from Sep 18: 68 days |
 | 91–120 days | $19.60 | what is left of the August bill, 102 days |
 
-- Had the correction been an increase, to $60.00 say, $54.34 would keep the Sep 18 age, and the $5.66 the error hid would go on BB-01's next regular bill as a prior-period correction line, taking that bill's due date and aging from it (Kyle 11-05, answer 2, refining answer 10; SCN-0033 b). The correction would show $60.00 and a line moving $5.66 to the next bill (Ryan 2026-11-22); the moved line takes the correction's Sep 18 age, so the aging shows $54.34 there and the $5.66 only from the next bill (this stream's reading; how the moved amount is recorded is SCN-0033's Open, and the mirrored aging gives another answer). BB-01's ledger in SCN-0020 to 0026 is this file's own: the November bill of the cancel-rebill and cash files is not on it.
+- Had the correction been an increase, to $60.00 say, $54.34 would keep the Sep 18 age, and the $5.66 the error hid would go on BB-01's next regular bill as a prior-period correction line, taking that bill's due date and aging from it (Kyle 11-05, answer 2, refining answer 10; SCN-0033 b). The correction would be charged at $60.00, with a record that $5.66 of it is due with the next bill (Ryan 2026-11-22): $54.34 ages from Sep 18, the $5.66 from the next bill. Before that bill it is not yet due and in no past-due bucket (this stream's reading); the mirrored aging, which knows one date per entry, gives another answer. BB-01's ledger in SCN-0020 to 0026 is this file's own: the November bill of the cancel-rebill and cash files is not on it.
 
 ---
 

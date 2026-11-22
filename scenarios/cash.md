@@ -181,8 +181,8 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 ### SCN-0089 — A bill already paid is found wrong: the payment moves to the corrected bill
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. The void, the correction and the applications are built (v5.4.2-21, -23); a void does not move the payment, the core does (-23's residual R4). **Not built in (b):** a bill with a negative line (the moved line) reads $13.23 open after $65.83 is paid, and would take it again (SCN-0033). A test asserts the ledger and what was applied, not the bill's open amount. It writes Kyle's answer 7 of 11-03 (credit and rebill if paid) and SCN-0027's note.
-*Rule:* a paid bill corrected for a keying error is credited and rebilled: its charge is reversed, the correction issued, and the money that paid it is released and applied to the correction. Nothing is lost between the two. Sources: Kyle 11-03, answer 7; Kyle 10-15 (R-02); Kyle 11-05, answer 2 and Ryan 11-22 (an amount the error hid moves to the next bill).
+*Status:* draft (2026-11-22), not yet sent to Kyle. The void, the correction and the applications are built (v5.4.2-21, -23); a void does not move the payment, the core does (-23's residual R4). **Not built in (b):** the record that $13.23 is due later (SCN-0033). It writes Kyle's answer 7 of 11-03 (credit and rebill if paid) and SCN-0027's note.
+*Rule:* a paid bill corrected for a keying error is credited and rebilled: its charge is reversed, the correction issued, and the money that paid it is released and applied to the correction. Nothing is lost between the two. Sources: Kyle 11-03, answer 7; Kyle 10-15 (R-02); Kyle 11-05, answer 2 and Ryan 11-22 (an amount the error hid is due with the next bill).
 
 **Given** BB-01 paid the November bill, $65.83, on Wed Nov 18. On Nov 20 the read is found keyed wrong. The true usage is (a) 4.5 Mcf, a correction of **$52.61** (SCN-0002); (b) 7.5 Mcf, **$79.06** (SCN-0033).
 
@@ -196,11 +196,10 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 | Payment (Nov 18) | −$65.83 | −$65.83 | — |
 | Credit of the bill (Nov 20) | −$65.83 | −$65.83 | the bill's charge |
 | Correction (Nov 20) | +$52.61 | +$79.06 | — (names the voided bill) |
-| Moved to the next bill (Nov 20) | — | −$13.23 | open: SCN-0033 |
-| **Balance** | **−$13.22** | **$0.00** | |
+| **Balance** | **−$13.22** | **$13.23**, not yet due | |
 
 - The application to the old bill is undone and $52.61 (a) or $65.83 (b) applied to the correction, each step with its reason. The payment's date is still Nov 18: no penalty.
-- **(b)** The December bill carries the $13.23 (SCN-0033).
+- **(b)** The $13.23 is due with the December bill, which shows it without charging it again (SCN-0033).
 - The next bill's starting read is the true read; a December bill that starts from the keyed one is refused (SCN-0027 b; Kyle's flag 3 of 11-03).
 - This stream's reading: "credit and rebill" makes the same records as "void and rebill", and differs only in the payment. **Open (Kyle):** is that right, or should the customer see a separate credit memo?
 - **Open (Kyle):** in (a) the $13.22 left over comes from our error, not from the customer paying too much. Must BB-01 approve holding it (R-06), or is it held as a credit, or sent back, without asking?
