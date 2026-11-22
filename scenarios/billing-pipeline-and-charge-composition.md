@@ -71,14 +71,14 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 
 **Given**
 - Pecan Flat; PF-01. Gas cost for the month $6.10 per Mcf (**invented**), so $15.10 per Mcf with the $9.00 rate.
-- The January bill, $95.00 (**invented**), was due Feb 1 and is unpaid; a penalty of 10% × $95.00 = **$9.50** posted Feb 2.
+- The January bill, $95.00 (**invented**), was due Feb 1 and is unpaid; a penalty of 10% × $95.00 = **$9.50** posted Feb 2. A medical hold kept the Feb 10 cut-off from being carried out, and Pecan Flat added no $20 service charge (**invented**).
 - The February bill, issued Feb 20, due Mar 1 (**invented** issue date): 8.0 Mcf × $9.00 = $72.00, plus 8.0 Mcf × $6.10 = $48.80: **$120.80**. Amount due on Mar 1: $95.00 + $9.50 + $120.80 = **$225.30**.
 
 **When** nothing is paid by Mar 1.
 
 **Then**
 - The penalty is on the whole amount owed, without the earlier penalty: 10% × ($95.00 + $120.80 = $215.80) = **$21.58**. Not $22.53 (that would charge a penalty on a penalty), and not the platform default's $12.08 (10% × $120.80), which Pecan Flat's tariff overrides.
-- The penalty names the bills it was assessed on.
+- The penalty posts Mar 2 and names the bills it was assessed on.
 - January's $95.00 is penalized twice, $9.50 in February and $9.50 of the $21.58 in March, because Pecan Flat's setting is every month. A utility on the full-amount base states whether an unpaid bill is penalized once or every month, with no default; a utility that has not stated it is refused a penalty run (the refusal is this stream's reading). At a city that answers "once", the Mar 1 penalty here is **$12.08** (Ryan 2026-11-22, which also confirms Pecan Flat's full-amount base, Kyle's flag 4).
 - **Open (Kyle):** was the monthly repeat on the same amount intended by answer 4, and should tariff counsel check it? It mostly reaches customers whose cut-off on the 10th is held back (weather, medical, a payment plan).
 

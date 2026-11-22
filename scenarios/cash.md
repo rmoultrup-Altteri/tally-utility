@@ -6,19 +6,21 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 - In the ledger, a charge is positive and a payment negative; the balance is the sum. An application says what a payment pays. It moves no money and posts no ledger entry.
 - **What the database refuses and what the core decides.** The database refuses an application past the line or past the payment, a refund past what is held, and a bounce while the payment is still paying something. Choosing the bills and lines is the core's, so an order that breaks a rule is "refused" here by the core, and the test is the core's; the database keeps the basis of each choice.
 - BB-01's November bill is the reference bill of `cancel-rebill.md`: **$65.83**, issued Mon Nov 16, 2026, due Tue Dec 1.
-- GP-01's rates are SCN-0027's (**invented**): $15.00 a month and $4.10 per Mcf, no tax line. Gulf Plains charges no late penalty here (**invented**).
+- GP-06's rates are SCN-0027's (**invented**): $15.00 a month and $4.10 per Mcf, no tax line. Gulf Plains charges no late penalty here (**invented**).
+- Each scenario stands alone unless it says it continues another; the same customer may be on different facts elsewhere. New customers, used only here (**invented**): **GP-06** (Gulf Plains, residential, unincorporated area) and **BB-09** (Bluebonnet, renter outside the city, R-R, deposit $250). Dates are 2026 unless stated.
+- A balance after a bounce is **before any late penalty** for the bill it reopens: whether one posts is SCN-0084's Open.
 - Within one bill, every utility here pays the fixed charge, then usage, then riders, then taxes, then fees (**invented**; each utility enters its own order at setup, Kyle 10-15, K-05).
 
 ---
 
 ### SCN-0081 — A payment too small for both bills pays the oldest first, and within a bill the utility's order
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. The records are built (CI-049, CI-050, REP+PROT; v5.4.2-23); choosing the lines is the core's.
+*Status:* draft (2026-11-22), not yet sent to Kyle. The records are built (CI-049, CI-050, REP+PROT; v5.4.2-23); choosing the lines is the core's. The within-bill order is checked when it is entered: every charge type once, regulated types before unregulated; a missing or repeated type is refused.
 *Rule:* a payment with no direction pays the oldest bill first, each line no further than its open balance, in the within-bill order of the utility's own tariff. Each application records that it was chosen oldest first, and which tariff order was in force. Sources: Kyle 10-15, R-06 and K-05; CI-049.
 
-**Given** GP-01 owes the July bill, issued Aug 5: $15.00 + 8.0 Mcf × $4.10 ($32.80) = **$47.80**, and the August bill, issued Sep 5: $15.00 + 6.0 Mcf × $4.10 ($24.60) = **$39.60** (usage **invented**). Every charge on both can ground a disconnection, so Kyle's two tiers (SCN-0058) make one tier here.
+**Given** GP-06 owes the July bill, issued Aug 5: $15.00 + 8.0 Mcf × $4.10 ($32.80) = **$47.80**, and the August bill, issued Sep 5: $15.00 + 6.0 Mcf × $4.10 ($24.60) = **$39.60** (usage **invented**). Every charge on both can ground a disconnection, so Kyle's two tiers (SCN-0058) make one tier here.
 
-**When** GP-01 pays **$60.00** on Sep 15, with no direction.
+**When** GP-06 pays **$60.00** on Tue Sep 15, with no direction.
 
 **Then**
 
@@ -94,7 +96,9 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 - The bill's $75.50 is owed again and ages from Nov 20, not from the return.
 - A second return of the same payment, for any amount, is refused: nothing is left of it.
 - **At Bluebonnet** the tariff survey found no returned-check fee, so the same event charges none.
-- **Open (Kyle):** the check reached Pecan Flat before the 1st, but never paid. Does the ordinary 10% late penalty ($7.55 here) post as well, because the bill turns out unpaid on the 1st? If so, is it dated the 2nd or the day the check comes back? The $20 fee may be Stinnett's substitute for it.
+- Pecan Flat's cut-off on the 10th and its separate $20 service charge follow from the unpaid bill; this scenario stops at the return.
+- (b)'s $20.00 is this stream's reading of "insufficient-funds late fee $20 if after the 10th" as the day the check comes back. **Open (Kyle):** or does it mean not made good by the 10th, so that (a) owes it too once the 10th passes? Is it charged beside the $20 service charge? And are the $25, $7 and $20 in next month's penalty base (full amount owed, excluding earlier penalties)?
+- **Open (Kyle):** the check reached Pecan Flat before the 1st, but never paid. Does the ordinary 10% late penalty ($7.55 here) post as well, because the bill turns out unpaid on the 1st? If so, is it dated the 2nd or the day the check comes back? The $20 fee may be Stinnett's substitute for it. The same question at Bluebonnet, whose gross rate would add $6.52 and $0.07 to the reference bill.
 - **Open (Kyle):** is the fee charged when the bank, not the customer, caused the return? (His flag 2 asks the same of the deposit count, SCN-0045.)
 
 ---
@@ -104,7 +108,7 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 *Status:* draft (2026-11-22). The base case is Kyle's own example (2026-10-21); the variants are not yet sent to Kyle. Built (v5.4.2-23).
 *Rule:* a bounce takes back the whole payment less earlier reversals; a refund does not reduce it. A refund takes at most the payment less earlier refunds and earlier reversals. A bounce waits while a refund of the payment is still waiting to go out, until an operator cancels it; nothing cancels it automatically. Sources: Kyle 10-21 (K-10, answers 1 and 2, and the cap math).
 
-**Given** BB-02 owes nothing and mails a $50.00 check, posted Dec 1 (**invented**).
+**Given** BB-09 owes nothing and mails a $50.00 check, posted Dec 1 (**invented**).
 
 **When** $30.00 is refunded on Dec 8 and the check is returned on Dec 11; or (b) the refund is still waiting to go out on Dec 11; or (c) the check is returned first and then the refund is asked for; or (d) after the $30.00, another $21.00 is asked for on Dec 9.
 
@@ -131,12 +135,12 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 **Given** BB-01 pays the November bill with a $100.00 check on Nov 20: $65.83 applied, **$34.17** held as a credit with approval.
 
-**When** the check is returned on Dec 4, and the credit is (a) untouched; (b) $20.00 of it was refunded on Nov 25; (c) it paid $34.17 of another bill.
+**When** the check is returned on Dec 4, and the credit is (a) untouched; (b) $20.00 of it was refunded on Nov 25; (c) the return comes on Dec 18 instead, after the credit paid $34.17 of the December bill ($70.00, issued Wed Dec 16, **invented**).
 
 **Then**
 - **(a)** $65.83 − $100.00 + $100.00 = **$65.83** owed, the November bill. The credit is $0.00.
 - **(b)** $65.83 − $100.00 + $20.00 + $100.00 = **$85.83** owed: the November bill and the $20.00 paid out. The credit's other $14.17 is gone.
-- **(c)** Refused until the credit's application is undone; then as (a), and the other bill is open again.
+- **(c)** Refused until the credit's application is undone. Then the credit is $0.00, and both bills are open: $65.83 + $70.00 − $100.00 + $100.00 = **$135.83**.
 - In each, the November application is undone first, as in SCN-0084.
 
 ---
@@ -146,38 +150,38 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 *Status:* draft (2026-11-22), not yet sent to Kyle. Built as a record (v5.4.2-27); deciding to net, and refusing the refund, are the core's (AC-44).
 *Rule:* all of a customer's credits are one pot, shown as one net figure. A bounce's shortfall uses up the pot and the customer owes the rest. The netting is recorded as money applied to the bounced payment's shortfall, never as a charge. Sources: Kyle 10-30; Ryan 11-02.
 
-**Given** SCN-0085: BB-02 owes $30.00 on the bounced payment, on no bill. Earlier, a different payment left BB-02 a credit of **$20.00** (approved, **invented**).
+**Given** SCN-0085's base case, with one change: before it, a different payment had left BB-09 a credit of **$20.00** (approved, **invented**), so BB-09 starts at −$20.00. BB-09 owes $30.00 on the bounced payment, on no bill.
 
-**When** BB-02's account is read on Dec 12, and BB-02 asks for the $20.00 back.
+**When** BB-09's account is read on Dec 12, and BB-09 asks for the $20.00 back.
 
 **Then**
-- BB-02 sees one figure: **$10.00 owed**. Never "credit $20.00" beside "owed $30.00".
+- BB-09 sees one figure: **$10.00 owed**. Never "credit $20.00" beside "owed $30.00".
 - The $20.00 is applied to the shortfall. The credit then holds $0.00, the shortfall is $10.00, and the ledger does not move: −$50.00 + $30.00 + $50.00 − $20.00 = **$10.00** before and after.
 - The refund is refused by the core. **The database alone would allow it** if the netting had not been recorded first; a test pins the core's order.
-- Applying more than $20.00 from the credit, or more than $30.00 to the shortfall, is refused.
+- Applying more than $20.00 from the credit is refused. With a credit of $40.00 instead, applying $30.01 to the shortfall is refused and $30.00 accepted.
 
 ---
 
 ### SCN-0088 — A refund check is never cashed: the money comes back to the customer
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. Built (v5.4.2-23 and -27).
+*Status:* draft (2026-11-22), not yet sent to Kyle. Built (v5.4.2-23 and -27), except the ledger entry for money sent to the state: the database neither posts nor requires it, so the core does (board note).
 *Rule:* a refund that comes back puts the money back where it came from. If its shortfall has since been repaid, the repayment is undone in the same step. If its credit has since gone to the state as unclaimed property, the money becomes a new credit: what went to the state is never reopened. Sources: Ryan 10-21 (r4); Ryan 11-05 (-27).
 
 **Given** and **When**
-- **(a)** SCN-0083's $10.00 refund comes back on Jan 12, 2027 (BB-01 still holds the $4.17 credit; suppose no December bill took it, **invented**).
-- **(b)** SCN-0087, after the netting: BB-02's $30.00 refund turns out never to have been cashed and comes back.
-- **(c)** As (a), but the $4.17 had been sent to the state first, when its dormancy period ended (the period is the state's rule).
+- **(a)** SCN-0083's $10.00 refund comes back on Jan 12, 2027. BB-01 still holds the $4.17 credit and has had no bill since November: service ended Nov 30 (**invented**).
+- **(b)** SCN-0087, after the netting: BB-09's $30.00 refund turns out never to have been cashed and comes back.
+- **(c)** As (a), but the check comes back on Mar 3, 2031, after the $4.17 was sent to the state on Nov 1, 2030, at the end of its dormancy period (dates **invented**; the period is the state's rule).
 
 **Then**
-- **(a)** The credit is **$14.17** again; balance −$14.17.
-- **(b)** The check was never cashed, so the $30.00 never left and BB-02 never owed it. The $20.00 repayment is undone and the return recorded together; recording the return alone is refused. Balance: $10.00 − $30.00 = **−$20.00**, the original credit.
+- **(a)** The credit is **$14.17** again; balance **−$14.17**.
+- **(b)** The check was never cashed, so the $30.00 never left and BB-09 never owed it. The $20.00 repayment is undone and the return recorded together; recording the return alone is refused. Balance: $10.00 − $30.00 = **−$20.00**, the original credit.
 - **(c)** The old credit stays at nothing, closed. A new credit of **$10.00** names the returned refund. Balance: −$4.17 + $4.17 (sent to the state) − $10.00 = **−$10.00**. It pays bills, is refunded, or reaches the state on its own clock. Recording the return without the new credit is refused.
 
 ---
 
 ### SCN-0089 — A bill already paid is found wrong: the payment moves to the corrected bill
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. The void, the correction and the applications are built (v5.4.2-21, -23); a void does not move the payment, the core does (-23's residual R4). It writes Kyle's answer 7 of 11-03 (credit and rebill if paid) and SCN-0027's note.
+*Status:* draft (2026-11-22), not yet sent to Kyle. The void, the correction and the applications are built (v5.4.2-21, -23); a void does not move the payment, the core does (-23's residual R4). **Not built in (b):** a bill with a negative line (the moved line) reads $13.23 open after $65.83 is paid, and would take it again (SCN-0033). A test asserts the ledger and what was applied, not the bill's open amount. It writes Kyle's answer 7 of 11-03 (credit and rebill if paid) and SCN-0027's note.
 *Rule:* a paid bill corrected for a keying error is credited and rebilled: its charge is reversed, the correction issued, and the money that paid it is released and applied to the correction. Nothing is lost between the two. Sources: Kyle 11-03, answer 7; Kyle 10-15 (R-02); Kyle 11-05, answer 2 and Ryan 11-22 (an amount the error hid moves to the next bill).
 
 **Given** BB-01 paid the November bill, $65.83, on Wed Nov 18. On Nov 20 the read is found keyed wrong. The true usage is (a) 4.5 Mcf, a correction of **$52.61** (SCN-0002); (b) 7.5 Mcf, **$79.06** (SCN-0033).
@@ -192,7 +196,7 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 | Payment (Nov 18) | −$65.83 | −$65.83 | — |
 | Credit of the bill (Nov 20) | −$65.83 | −$65.83 | the bill's charge |
 | Correction (Nov 20) | +$52.61 | +$79.06 | — (names the voided bill) |
-| Moved to the next bill (Nov 20) | — | −$13.23 | the correction |
+| Moved to the next bill (Nov 20) | — | −$13.23 | open: SCN-0033 |
 | **Balance** | **−$13.22** | **$0.00** | |
 
 - The application to the old bill is undone and $52.61 (a) or $65.83 (b) applied to the correction, each step with its reason. The payment's date is still Nov 18: no penalty.
@@ -214,25 +218,27 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 **Then**
 - Before: July owes $27.40, August $0.00. After: $27.40 more to July and $12.20 to August: July $0.00, August **$27.40**, as SCN-0081.
+- Applications are per line, so August's $39.60 is two rows ($15.00 and $24.60), each undone by its own row.
 - The records: the override, its undo (−$39.60, with reason and user) and the new rows. The balance is $27.40 throughout: no entry posts.
 - As of Sep 15, what was recorded by then still shows August paid.
-- Refused: an override with no reason or no user; an undo of $39.61; a second undo past what is left; undoing the undo; an undo dated before its application.
+- Refused: an override with no reason or no user; an undo of $24.61 on the gas row; a second undo past what is left; undoing the undo; an undo dated before its application.
 
 ---
 
 ### SCN-0091 — A customer may mark a payment as a deposit, or direct it to a bill, and nothing finer
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. The deposit mark is built (v5.4.2-23).
+*Status:* draft (2026-11-22), not yet sent to Kyle. The deposit mark is built (v5.4.2-23). **Not built:** a customer's direction has no record of its own; it can only be stored as an operator's override, with a user and a reason (board note).
 *Rule:* a customer may designate a payment only as a deposit or as a bill; a payment marked a deposit pays no bill. A customer who directs a payment to a bill is followed, with a warning when that leaves more open to disconnection; the direction is never to a single charge. Sources: Kyle 10-15, K-05 (which replaced his 07-10 ruling D7-1 (c): no designation at all); Kyle 11-05, answer 16; SCN-0058.
 
-**Given** BB-02 owes a $250.00 deposit and a $60.00 bill (**invented**).
+**Given** BB-09 owes a $250.00 deposit and a $60.00 bill (**invented**).
 
-**When** BB-02 (a) pays $250.00, "for the deposit"; (b) pays $60.00, with a note "for the gas only, not the tax"; (c) pays $310.00 by one check, for both.
+**When** BB-09 (a) pays $250.00, "for the deposit"; (b) pays $60.00, with a note "for the gas only, not the customer charge"; (c) pays $310.00 by one check, for both; or (d) owing two bills, an older $47.80 and a newer $39.60 (**invented**), pays $39.60 online and directs it to the newer.
 
 **Then**
 - **(a)** A deposit payment: the deposit is funded, the bill still owes $60.00. Applying it to the bill is refused.
-- **(b)** A bill payment, applied by the rule (SCN-0081), tax included; the note is kept and has no effect.
+- **(b)** A bill payment, applied by the rule (SCN-0081), customer charge first; the note is kept and has no effect.
 - **(c)** This stream's reading: two payments, $250.00 (deposit) and $60.00 (bill), with one check number. **Open (Ryan, with the money stream):** when the check comes through a processor under one transaction number, the database accepts one receipt per number, so the second is refused. How is one receipt split between a deposit and a bill?
+- **(d)** The newer bill is paid, and the operator is warned that the older $47.80 stays open to disconnection (answer 16). The record says the customer directed it. This stream's reading until it is built: an override whose reason is the customer's direction; an online payment has no operator to name.
 
 ---
 
@@ -247,8 +253,8 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 **Then**
 - Balance **$0.00**. $65.83 is applied to the bill.
-- The other **$6.59** has no bill line yet. It stays on the payment, is not an overpayment, and is not offered back or held as a credit: BB-01 owes exactly that much. The December bill shows the penalty, and the $6.59 pays it.
-- **Open (Ryan, with the money stream):** should a payment be able to pay a penalty directly, before a bill shows it? Until then, a report of "unapplied money" must leave out money already owed, or it would be refunded in error.
+- The other **$6.59** has no bill line yet. It stays on the payment, is not an overpayment, and is not offered back or held as a credit: BB-01 owes exactly that much. The December bill (**$70.00** of December's own charges, **invented**) lists the $6.59 penalty as already charged: its ledger charge is $70.00, not $76.59, and the $6.59 pays the penalty's lines. Balance after it: **$70.00**.
+- **Open (Ryan, with the money stream):** should a payment be able to pay a penalty directly, before a bill shows it? Until then, a report of "unapplied money" must leave out money already owed, or it would be refunded in error. Today only the core can refuse the refund or the hold: the database accepts both, since the payment holds $6.59 that nothing draws on.
 
 ---
 
@@ -257,7 +263,7 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 *Status:* draft (2026-11-22), not yet sent to Kyle. The class on every line and the recorded basis are built (CI-050, v5.4.2-23); the order is the core's.
 *Rule:* every regulated charge is paid before any unregulated one, whatever the age of either: the floor ranks above oldest bill first. Unregulated debt never grounds a disconnection. Sources: CI-050; D7-2 (Kyle 07-10); Kyle 11-05, answer 16 (two tiers).
 
-**Given** SCN-0081's two bills, each also carrying an $18.00 appliance service plan, unregulated (**invented**): July $65.80, August $57.60. GP-01 pays **$100.00** on Sep 15.
+**Given** SCN-0081's two bills, each also carrying an $18.00 appliance service plan, unregulated (**invented**): July $65.80, August $57.60. GP-06 pays **$100.00** on Sep 15.
 
 **When** the payment is applied.
 
@@ -272,9 +278,10 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 | **Total** | **$100.00** | **$23.40** |
 
 - What may ground a disconnection: **nothing**. Oldest bill first without the floor would pay July whole ($65.80) and $34.20 of August, leaving $5.40 of gas open to disconnection: refused.
-- This stream's reading where a regulated backbill (which cannot ground a disconnection) and an unregulated charge are both open: the backbill first, by CI-050's floor. Kyle's second tier says oldest first among charges that cannot ground one, and names only backbills.
-- **Open (Kyle):** GP-01 directs the $100.00 to the July bill, plan included (answer 16 says follow the customer). CI-050 says the floor ranks above the customer's direction. Which wins?
-- **Open (Kyle):** an agency's payment restricted to an unregulated charge. Restriction wins over the posting order (D7-1 (b)), but the floor ranks above the order. Which wins? The database records either.
+- This stream's reading where a regulated backbill (which cannot ground a disconnection) and an unregulated charge are both open: the backbill first, by CI-050's floor. Kyle's second tier says oldest first among charges that cannot ground one, and names only backbills. **Open (Kyle):** is the floor right there too?
+- 16 TAC §7.45(4)(E)(ii) bars disconnection for "merchandise or charges for nonutility service" (read 2026-11-22), so the plan's charges never ground one where Texas law binds.
+- **Open (Kyle):** GP-06 directs the $100.00 to the July bill, plan included (answer 16 says follow the customer). CI-050 says the floor ranks above the customer's direction, and that the customer is told. Which wins?
+- **Open (Kyle):** an agency's payment restricted to an unregulated charge. Restriction wins over the posting order (D7-1 (b)), but the floor ranks above the order. Which wins? The database can record either for an agency's restriction.
 
 ---
 
@@ -285,13 +292,14 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 **Given** BB-01 pays $65.83 online on Nov 20; the processor's transaction is **T-100** (**invented**).
 
-**When** (a) the processor sends T-100 again, $65.83; (b) it sends T-100 with $56.83; (c) BB-01 presses Pay twice and the processor takes both, T-100 and T-101; (d) T-100 is refunded twice, $10.00 and $5.00, the second under the first refund's own number; (e) T-100 arrives again in the bank's settlement file.
+**When** (a) the processor sends T-100 again, $65.83; (b) it sends T-100 with $56.83; (c) BB-01 presses Pay twice and the processor takes both, T-100 and T-101; (d) in (c), T-101 paid nothing and no credit holds it; $10.00 of it is refunded, then $5.00, the second under the first refund's number; (f) the processor times out or declines; (e) T-100 arrives again in the bank's settlement file.
 
 **Then**
 - **(a)** Refused as a second posting, and recognized as a repeat: the same payer and amount. One payment of $65.83.
 - **(b)** Refused, and not treated as a repeat: the amounts differ, so it goes to an operator.
 - **(c)** The app's own token stops the second press before it reaches the processor. If both were taken, both really arrived: two payments, the second left over (SCN-0082's Open).
-- **(d)** The second is refused; under its own number it is accepted.
+- **(d)** The second is refused as the first refund's number again; under its own number it is accepted ($50.83 of T-101 left).
+- **(f)** Declined: no payment, and no confirmation. Timed out: none until the processor answers; if it had accepted, the retry with the same token posts once, and the confirmation follows. The app's, not the database's.
 - **(e)** The database does not catch it, since the source differs; the core matches the two and posts one.
 
 ---
@@ -301,17 +309,18 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 *Status:* draft (2026-11-22), not yet sent to Kyle. Recording is built (CI-052 and CI-057; v5.4.2-19); retries, contact and the timer are the core's.
 *Rule:* each bank return keeps its own code, and what happens next follows the code: insufficient funds may be presented again as a new payment; an unauthorized debit is never debited again; an unknown code goes to an operator. A notice of change is not a failure: the stored account is replaced by a new record, within the bank network's window, and the old one is kept. Sources: CI-052; CI-057 (6 banking days); Ryan 10-14 and 10-28 (a re-presentment is a new payment).
 
-**Given** BB-01 pays by automatic bank draft; the November draft is $65.83, settled Nov 30 (**invented**).
+**Given** BB-01 pays by automatic bank draft, recorded as an ACH payment; the November draft is $65.83, settled Nov 30 and, except in (e), returned on Wed Dec 2 (**invented**).
 
 **When** it comes back (a) R01, insufficient funds; (b) R10, unauthorized; (c) R99, a code not on file; (d) with no code; or (e) instead it clears and the bank sends notice C01, a corrected account number, on Mon Nov 30.
 
 **Then**
 - **(a)** The draft is reversed as in SCN-0084 (no fee at Bluebonnet). It may be presented once more: a new payment with its own number, which may name the first.
-- **(b)** Reversed; no new debit; BB-01 is contacted and the draft suspended.
-- **(c)** Reversed with its code, and sent to an operator; no new debit meanwhile.
-- **(d)** Refused: a returned bank draft carries its code.
-- **(e)** The payment stands. The corrected account is a new record naming the old one, the code and the day it came; the old record stays, unchanged and unusable. The last day to act is **Tue Dec 8**, the sixth banking day after Nov 30.
-- A late penalty caused by a draft that failed because the notice was not acted on in time is not charged (CI-057). **Open (Kyle):** is it never charged, or charged and reversed? And is the fee of SCN-0084 charged in (b)?
+- **(b)** Reversed, recorded as returned with its code; no new debit; BB-01 is contacted and the draft suspended.
+- **(c)** Reversed with its code, and sent to an operator; no new debit meanwhile. The database keeps any code of the right form; it holds no list of codes, so knowing this one is unknown is the core's.
+- **(d)** Refused. The database refuses it for an ACH payment recorded as returned; a draft stored as another method, or a return recorded as a reversal, is accepted without a code, so the core records every draft as ACH, every return as a return, and refuses a missing code itself.
+- **(e)** The payment stands. The corrected account is a new record naming the old one, the code and the day it came; the old record stays, unchanged and inactive; not drawing on it again is the core's. The last day to act is **Tue Dec 8**, the sixth banking day after Nov 30.
+- A draft that fails on the old account **by Dec 8**, before there was reasonable opportunity to act, produces no late penalty (CI-057). **Open (Kyle):** a draft that fails after Dec 8, the notice still not acted on. CI-057 does not say. Is the customer still exempt (this stream's reading: yes, the failure is the utility's), and if so is the penalty never charged, or charged and reversed?
+- **Open (Kyle):** where a tariff has a returned-payment fee, is it charged in (b)? And what follows (a) when the second presentment fails too, or the account is closed (R02)?
 
 ---
 
@@ -326,8 +335,9 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 **Then**
 - **(a)** Refused.
-- **(b)** $65.83 − $56.83 + $56.83 − $65.83 = **$0.00**. The Nov bill was paid on time: no penalty. The reversal names the $56.83 payment; both payments stay on record.
+- **(b)** Refused while the $56.83 is applied to the bill: the application is undone first, then the payment reversed, then $65.83 recorded (customer's date Dec 1; a counter payment's method is "other", so its note says so) and applied. $65.83 − $56.83 + $56.83 − $65.83 = **$0.00**. The November bill was paid on time: no penalty; had one posted for the $9.00 on Dec 2, it is reversed as in SCN-0034. The reversal names the $56.83 payment; both payments stay on record.
 - **(c)** The pending payment is voided; nothing was on the ledger to reverse. A posted payment cannot be voided, and a reversed one cannot be reopened.
+- Where only part is wrong, a partial reversal is also possible (SCN-0101); full reversal and re-entry is this stream's reading of the usual workflow.
 
 ---
 
@@ -341,23 +351,106 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 **When** the check is returned on Mon Dec 14, and is recorded (a) dated Nov 30; (b) dated Dec 14.
 
 **Then**
-- **(a)** Refused: November is closed. **(b)** Accepted.
+- **(a)** Refused: November is closed. **(b)** Accepted, once the application to the bill is undone; the undo is dated in December too, and one dated in November is refused.
 - November's closed figures still show $0.00. On Dec 15 BB-01 owes **$65.83**, aged 29 days, from Nov 16: in 0–30 days.
-- A refund of that payment dated in November is refused too.
+- A second payment of Nov 24, $20.00 and unapplied (**invented**): a refund of it dated Nov 30 is refused, and the same refund dated Dec 14 accepted.
 
 ---
 
 ### SCN-0098 — The same mailed check is on time at one utility and late at another
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. Built (CI-058, REP+PROT; v5.4.2-19): the date and its method are recorded and never change once the payment takes effect.
+*Status:* draft (2026-11-22), not yet sent to Kyle. Built (CI-058, REP+PROT; v5.4.2-19): the date and its method are recorded and never change once the payment takes effect. **Not built:** a utility's stated method, or its change from a date.
 *Rule:* whether a payment was on time is judged by the customer's date, set by the method the utility's tariff or its law states, and kept with the payment. Sources: CI-058; SCN-0021; SCN-0034.
 
-**Given** two checks, each postmarked Tue Dec 1, the due date, and received Thu Dec 3: BB-01's, at Bluebonnet (postmark, `cast.md` §2), and GP-01's, at Gulf Plains, which counts the day received (**invented**; due date **invented**). Gulf Plains charges a late penalty for this scenario only (**invented**).
+**Given** two checks, each postmarked Tue Dec 1, the due date, and received Thu Dec 3: BB-01's, at Bluebonnet (postmark, `cast.md` §2), and GP-06's, at Gulf Plains, which counts the day the office received it (**invented**; due date **invented**). Gulf Plains charges a late penalty for this scenario only (**invented**).
 
 **When** both are posted on Dec 3.
 
 **Then**
-- BB-01's customer date is **Dec 1**, method postmark: on time. GP-01's is **Dec 3**, method receipt: late.
+- BB-01's customer date is **Dec 1**, method postmark: on time. GP-06's is **Dec 3**, method lockbox or office receipt: late.
 - A payment cannot be posted without the date and its method; changing either afterwards is refused.
 - A utility that changes its method does so from a date; payments already posted keep theirs.
-- **Open (citation check):** whether 16 TAC §7.45 states when a mailed payment counts for a utility it binds; if it does, Gulf Plains' method is the law's, not its choice.
+- The methods on file are postmark, lockbox or office receipt, bank settlement, and other. Bluebonnet's "sent date" for electronic payments is recorded as other, with a note.
+- 16 TAC §7.45 says nothing on when a mailed payment counts (read 2026-11-22), so Gulf Plains' method is its tariff's. Counsel confirms the current text.
+
+---
+
+### SCN-0099 — A new payment covers what a bounce left owed on no bill
+
+*Status:* draft (2026-11-22), not yet sent to Kyle. Built as a record (v5.4.2-27); which debt a payment covers first is the core's.
+*Rule:* a payment may be applied to a bounced payment's shortfall, as a credit may; no charge is invented. The payment then cannot bounce until the application is undone. A deposit payment, or a refund, is neither a source nor a target. Sources: v5.4.2-27; Kyle 10-30; K-05 (a deposit stays out of the pot).
+
+**Given** SCN-0087 after the netting: BB-09 owes $10.00 on the bounced payment.
+
+**When** BB-09 pays $10.00 on Dec 14, and (b) that check is returned on Dec 18.
+
+**Then**
+- The $10.00 is applied to the shortfall. Balance **$0.00**; nothing is on a bill.
+- **(b)** Refused until the application is undone; then the shortfall is $10.00 again, and the balance **$10.00**.
+- Applying a deposit payment to the shortfall is refused. A bounced deposit payment is not a shortfall the pot repays: the deposit rules govern it.
+- A check returned while a credit still covers part of its bill leaves that part paid: what the credit paid on the bill stays, and the rest is owed on the bill, not as a shortfall.
+- **Open (Kyle):** BB-09 owes the $10.00 and an open bill, and pays less than both: which first? Does the $10.00 have a due date, take a late penalty, or ground a disconnection? And how old is it: from the refund (Dec 8; the mirrored aging's answer) or the return (Dec 11)? It is also neither regulated nor unregulated by any record (SCN-0093's floor).
+
+---
+
+### SCN-0100 — A repayment is undone after the credit that made it went to the state
+
+*Status:* draft (2026-11-22), not yet sent to Kyle. Built (v5.4.2-27).
+*Rule:* when a credit's money repaid a shortfall, the credit's rest was later sent to the state, and the refund behind the shortfall then comes back uncashed, the repayment is undone and what it gives back becomes a new credit, in the same transaction. Sources: Ryan 2026-11-05 (-27 r1); Ryan 2026-11-06 (an undo is dated no later than today).
+
+**Given** SCN-0087, except that the credit was **$30.00**: $20.00 of it was netted against a shortfall left at $20.00 (the refund was $20.00, **invented**), and the other $10.00 sent to the state on Nov 1, 2030 (**invented**).
+
+**When** on Mar 3, 2031 the refund turns out never to have been cashed.
+
+**Then**
+- The $20.00 repayment is undone, with a reason and a user, and a new credit of **$20.00** names the undo. The old credit stays at nothing, closed. No ledger entry posts for the carry.
+- The ledger: −$50.00 (payment) + $20.00 (refund) + $50.00 (return) − $30.00 (the credit's payment) + $10.00 (sent to the state, the core's entry) − $20.00 (refund returned) = **−$20.00**, the new credit.
+- Refused: recording the refund's return with no undo; the undo with no new credit; a new credit of any other amount; an undo dated after today.
+
+---
+
+### SCN-0101 — A payment taken back only in part
+
+*Status:* draft (2026-11-22), not yet sent to Kyle. Built (v5.4.2-23, -27 R3).
+*Rule:* a reversal may be partial, and the two caps are kept apart: a take-back is at most the payment less earlier take-backs, a refund at most the payment less refunds and take-backs. A payment left short but not ended is not a shortfall the pot repays. Sources: R-02; Kyle 10-21 (the cap math); v5.4.2-27 R3.
+
+**Given** BB-09 pays $50.00 and owes nothing: (a) by check, keyed $50.00 but deposited as $45.00; (b) by card, then $30.00 refunded, then the card company takes back $25.00.
+
+**When** the $5.00 is taken back in (a), and a refund of $45.01, then $45.00, is asked for; in (b) the $25.00 is recorded.
+
+**Then**
+- **(a)** A refund of $45.01 is refused, $45.00 accepted. A second take-back of $45.01 is refused; $45.00 would fit the take-back cap even with a refund out, as in SCN-0085.
+- **(b)** −$50.00 + $30.00 + $25.00 = **$5.00** owed. The payment stays posted, since $25.00 of it stands. A credit applied to its $5.00 as a shortfall is refused; the core still shows one net figure, $5.00.
+- **Open (Ryan, with the money stream):** how the $5.00 in (b) is ever marked paid.
+
+---
+
+### SCN-0102 — Money that has not arrived pays nothing, though it is on time
+
+*Status:* draft (2026-11-22), not yet sent to Kyle. The arrival guard is built (v5.4.2-23). **Not built:** the utility's refund hold (Kyle 10-21, K-10 answer 3), off by default and kept out of the schema.
+*Rule:* the customer's date decides whether a payment was on time; the day its money arrived decides when it can be drawn on. A utility may hold or warn on a refund while a payment could still be returned; by default it does neither. Sources: CI-058; -23 (r4); K-10, answer 3.
+
+**Given** BB-01's bank draft of $65.83, sent Wed Nov 25, settled Mon Nov 30 (**invented**), customer's date Nov 25 under Bluebonnet's method (sent date).
+
+**When** it is applied, or $20.00 of it refunded: (a) dated Fri Nov 27; (b) dated Nov 30; (c) as (b), at a utility whose refund hold is on for 10 days (**invented**); (d) as (c), with the setting "warn".
+
+**Then**
+- The November bill was paid on time: Nov 25 is before Dec 1.
+- **(a)** Refused: the money had not arrived. **(b)** An application is accepted; a refund too, if nothing is applied. A payment still pending pays nothing and backs no refund.
+- **(c)** The core refuses the refund until Dec 10. **(d)** It is accepted with a warning. Off by default: (b).
+
+---
+
+### SCN-0103 — Before unclaimed money goes to the state, a debt is netted only where the state allows it
+
+*Status:* draft (2026-11-22), not yet sent to Kyle. The netting and the escheat guards are built (v5.4.2-23, -27); the state's row and the netting decision are the core's and **not built**. Whether any state allows the setoff has not been read (counsel).
+*Rule:* netting a credit against another payment's debt, before reporting it as unclaimed, is a per-state rule; where the state does not allow it, or has no row, the credit is reported whole and the debt collected separately. Netting within one payment's own credits always applies. Sources: Ryan 11-02; AC-44.
+
+**Given** two customers on SCN-0087's facts before any netting: owing $30.00 on a bounced payment, holding a credit of $20.00 from another payment, untouched long enough to be dormant: one in **Fremont**, whose row allows the setoff (**invented**); one in **Texas**, with no row.
+
+**When** the escheat run reads each credit.
+
+**Then**
+- **Fremont:** the $20.00 is netted; nothing is reported; $10.00 owed.
+- **Texas:** the $20.00 is reported whole; the customer still owes **$30.00**, collected separately.
+- This is the opposite of SCN-0087's refund: before a refund the pot nets in every state (Kyle 10-30).

@@ -29,7 +29,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0021 — A payment received in a closed month is recorded in the open one, keeping the customer's date
 
-*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03. Payments belong to the cash family (-23 in review); this tests only the freeze and the customer's date, which -19 and -22 built.
+*Status:* draft (2026-11-02); figures checked by Kyle 2026-11-03. Payments belong to the cash family (-23, mirrored); this tests only the freeze and the customer's date, which -19 and -22 built.
 *Rule:* money dated inside a closed period is refused; the customer's own payment date is kept separately for the customer's rights, such as whether the payment was on time, by the method the utility's tariff states. Sources: -22 (the freeze on the payment date, the ledger date and the credit date); -19 (the customer-initiation date and its method); CI-058 (the method varies by place); Bluebonnet's method is the cast's, **invented**: postmark for mail.
 
 **Given** September is closed (SCN-0020 d). On Oct 14 a clerk finds BB-01's check for $54.34 in a misrouted mail tray, postmarked Sep 27.
@@ -44,7 +44,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 
 ### SCN-0034 — A late penalty already posted is reversed when the payment proves to have been on time
 
-*Status:* draft (2026-11-04); its question answered by Kyle 2026-11-05 (answer 5), and the penalty re-based to his answers 3a and 3b; figures not yet checked by Kyle. Written against the rulings: the late-penalty rules are not yet built (R-11); payments belong to the cash family (-23 in review). Reviewer gap (Fable, 2026-11-02, item 7).
+*Status:* draft (2026-11-04); its question answered by Kyle 2026-11-05 (answer 5), and the penalty re-based to his answers 3a and 3b; figures not yet checked by Kyle. Written against the rulings: the late-penalty rules are not yet built (R-11); payments belong to the cash family (-23, mirrored). Reviewer gap (Fable, 2026-11-02, item 7).
 *Rule:* whether a payment was on time is judged by the customer's date, by the method the tariff states, not by the day it was recorded. A penalty posted before an on-time payment was recorded is reversed in full, naming the penalty, with the customer's date as the reason, in the open period. A reversed penalty is not counted as a late penalty afterwards. Sources: SCN-0021; -19 (the customer's date and its method; CI-058); R-02 and CI-017 (a reversal names what it undoes, capped at it); Kyle 11-03, answer 3 (a penalty on the current bill only).
 
 **Given** SCN-0021's facts, plus: the September bill ($54.34, issued Fri Sep 18) was due Mon Oct 5; on Tue Oct 6, with no payment recorded, a penalty posted on the September bill's tariff-priced lines: 10% × $53.80 = 5.3800 → **$5.38**, with city sales tax on it, 1% × $5.38 = 0.0538 → **$0.05**: $5.43 in all (Kyle 11-05, answers 3a and 3b; SCN-0033). October is open.
@@ -136,7 +136,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 | 61–90 days | $45.85 | the correction, aged from Sep 18: 68 days |
 | 91–120 days | $19.60 | what is left of the August bill, 102 days |
 
-- Had the correction been an increase, to $60.00 say, $54.34 would keep the Sep 18 age, and the $5.66 the error hid would go on BB-01's next regular bill as a prior-period correction line, taking that bill's due date and aging from it (Kyle 11-05, answer 2, refining answer 10; SCN-0033 b). The correction would show $60.00 and a line moving $5.66 to the next bill (Ryan 2026-11-22); the moved line takes the correction's Sep 18 age, so the aging shows $54.34 there and the $5.66 only from the next bill (this stream's reading).
+- Had the correction been an increase, to $60.00 say, $54.34 would keep the Sep 18 age, and the $5.66 the error hid would go on BB-01's next regular bill as a prior-period correction line, taking that bill's due date and aging from it (Kyle 11-05, answer 2, refining answer 10; SCN-0033 b). The correction would show $60.00 and a line moving $5.66 to the next bill (Ryan 2026-11-22); the moved line takes the correction's Sep 18 age, so the aging shows $54.34 there and the $5.66 only from the next bill (this stream's reading; how the moved amount is recorded is SCN-0033's Open, and the mirrored aging gives another answer). BB-01's ledger in SCN-0020 to 0026 is this file's own: the November bill of the cancel-rebill and cash files is not on it.
 
 ---
 
