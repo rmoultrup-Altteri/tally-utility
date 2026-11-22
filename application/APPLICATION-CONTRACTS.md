@@ -446,17 +446,17 @@ A rate carries at most four decimals as stored (Kyle K-06). For a percentage rat
 
 ## Disputes (v5.4.2-25)
 
-### AC-46 — Assess no late penalty on a bill while a dispute of it is open — TRUSTED
-*Decided 2026-11-07 (Ryan, option 1; Kyle 2026-11-05 answer 1, its start and end flagged for Ryan).*
+### AC-46 — Assess no late penalty on an amount a dispute protects — TRUSTED
+*Decided 2026-11-22 (Ryan: the scenarios version), replacing the text of 2026-11-07 (a platform rule for every customer, the whole bill, until resolution), which yielded. DECISION-LOG 2026-11-22.*
 
-**Held (2026-11-07, end of session):** this disagrees with Ryan's rulings to the scenarios stream the same day (a city's own rule wins; a default only for a city with none; the disputed amount only; until the earlier of resolution and 60 days after issue). The scenarios stream asks Ryan which stands; whichever yields gets a dated correction. Do not build against either until then (board note of 2026-11-07).
+The penalty engine asks which dispute terms govern the bill, and follows them:
+- **Where law binds** (Texas: investor-owned and cooperative systems): the law row, or the utility's own tariff where it has one (never looser).
+- **A city-owned system with its own dispute rule:** that rule. Brenham's says the disputed bill should still be paid, so an unpaid disputed bill takes the penalty.
+- **A city-owned system with none:** the platform default. The dispute was raised before the bill's due date; it protects the disputed amount only (the whole bill when no amount is recorded); it ends at the earlier of the dispute's resolution and 60 days after issue. The undisputed rest takes the penalty if unpaid.
 
-A platform rule every customer gets, not a utility's tariff term (so K-07's "no default" does not apply). The penalty engine reads it from -25's record (`disputes`, `dispute_events`; `dispute_shelter_as_of` returns every open dispute of a bill).
-- **When it holds:** for a dispute of the bill received on or before the bill's due date.
-- **From and until:** from the dispute's received date until its resolution or withdrawal.
-- **What it stops:** any late penalty on that bill not yet assessed. One already assessed is not reversed by the dispute (its resolution decides that).
-- **The whole bill, not only the disputed amount:** a law's or tariff's `late_fee` block, which covers the sheltered amount, is narrower and does not replace this rule.
-- The database does not enforce it: assessing a penalty is the core's act. A test in the core's suite pins it (scenario SCN-0033).
+It reads the answer from -25's record (`dispute_shelter_as_of`: the sheltered amount, its last day, and whether `late_fee` is among the blocks). A penalty already assessed is not reversed by a dispute (its resolution decides that). The database does not enforce it: assessing a penalty is the core's act. Scenario SCN-0033 pins it.
+
+**Not settled (Ryan), so not to be built yet:** the penalty on the disputed amount when the 60 days end unresolved; which customer classes the default reaches. **Depends on -25 r2's default row** (not built; today a city with no tariff is recorded as "no terms").
 ---
 
 ## Meter test history
