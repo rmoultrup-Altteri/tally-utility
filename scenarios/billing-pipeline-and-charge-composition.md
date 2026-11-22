@@ -67,7 +67,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 ### SCN-0053 — Pecan Flat's late penalty is 10% of the whole amount due, because its tariff says so
 
 *Status:* draft (2026-11-04); its question answered by Kyle 2026-11-05 (answer 4): penalties never compound, so the earlier penalty is left out. Review round 2 gap (Opus 7, Fable 6). The late-penalty rules are dated rule data not yet built (R-11), the base a utility setting (Kyle 11-05, answer 4).
-*Rule:* the platform default penalty base is the current bill only; a utility may set it to the full amount owed, excluding earlier penalties, and does where its tariff says so. Penalties never compound. Pecan Flat charges 10% of the amount due if it is not paid in full by the 1st, so it uses the full-amount setting. The base is never a tax or a state fee (Pecan Flat bills neither). Sources: Kyle 11-05, answers 3a and 4; Kyle 11-03, answer 3 and flag 2; Pecan Flat's tariff (`cast.md` §1, from Stinnett).
+*Rule:* the platform default penalty base is the current bill only; a utility may set it to the full amount owed, excluding earlier penalties, and does where its tariff says so. Penalties never compound. Pecan Flat charges 10% of the amount due if it is not paid in full by the 1st, so it uses the full-amount setting, every month (Ryan 2026-11-22). The base is never a tax or a state fee (Pecan Flat bills neither). Sources: Kyle 11-05, answers 3a and 4; Kyle 11-03, answer 3 and flag 2; Pecan Flat's tariff (`cast.md` §1, from Stinnett).
 
 **Given**
 - Pecan Flat; PF-01. Gas cost for the month $6.10 per Mcf (**invented**), so $15.10 per Mcf with the $9.00 rate.
@@ -79,7 +79,8 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 **Then**
 - The penalty is on the whole amount owed, without the earlier penalty: 10% × ($95.00 + $120.80 = $215.80) = **$21.58**. Not $22.53 (that would charge a penalty on a penalty), and not the platform default's $12.08 (10% × $120.80), which Pecan Flat's tariff overrides.
 - The penalty names the bills it was assessed on.
-- **Open (Ryan; Kyle's flag 4):** confirm that Pecan Flat's cast row sets the full-amount base (excluding earlier penalties), as the standing rule "follow the tariff" reads its wording.
+- January's $95.00 is penalized twice, $9.50 in February and $9.50 of the $21.58 in March, because Pecan Flat's setting is every month. A utility on the full-amount base states whether an unpaid bill is penalized once or every month, with no default; a utility that has not stated it is refused a penalty run (the refusal is this stream's reading). At a city that answers "once", the Mar 1 penalty here is **$12.08** (Ryan 2026-11-22, which also confirms Pecan Flat's full-amount base, Kyle's flag 4).
+- **Open (Kyle):** was the monthly repeat on the same amount intended by answer 4, and should tariff counsel check it? It mostly reaches customers whose cut-off on the 10th is held back (weather, medical, a payment plan).
 
 ---
 

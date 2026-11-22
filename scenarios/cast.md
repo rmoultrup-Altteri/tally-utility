@@ -21,7 +21,7 @@ Modelled on **Stinnett** (fee schedule A7.000, ordinance 339-26 of 2/11/2026). A
 | Gas cost | the city's purchase price per Mcf, set monthly | Stinnett ("adjusted monthly as necessary") |
 | Inside / outside city | same rate | Stinnett (no split) |
 | Due | the 1st of the month | Stinnett |
-| Late penalty | 10% of the amount due if not paid in full by the 1st: the full amount owed, not the current bill only, because the tariff says so, but never on an earlier penalty, which never compounds (Kyle 11-03, answer 3 and flag 2; Kyle 11-05, answer 4: the utility's full-amount setting; Ryan to confirm, Kyle's flag 4) | Stinnett |
+| Late penalty | 10% of the amount due if not paid in full by the 1st: the full amount owed, not the current bill only, because the tariff says so, but never on an earlier penalty, which never compounds (Kyle 11-03, answer 3 and flag 2; Kyle 11-05, answer 4: the utility's full-amount setting; confirmed by Ryan 2026-11-22). Charged every month an amount stays unpaid, the utility's own setting (Ryan 2026-11-22; **invented** for Pecan Flat, the source says only "10% of the amount due") | Stinnett |
 | Cut-off | unpaid at 1:00 p.m. on the 10th: a $20 service charge is added and service is cut off | Stinnett |
 | Deposit | residential $100, commercial $200; an extra $125 after a second disconnection for nonpayment, as a top-up of the one deposit balance; the two disconnections are counted over a rolling 12 months; reconnection is not held for it, since the tariff doesn't say so (Kyle 11-03, answer 15) | Stinnett |
 | Deposit refund | not stated in the source. **(invented)** At move-out the deposit pays the final bill and the rest is returned; no refund while service continues | — |
