@@ -33,7 +33,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 2. [x] Draft K-14 for Kyle (Ryan to send).
 3. [ ] Weather normalization (likely needs Kyle on how city systems adjust).
 4. [ ] State machines, exception paths, the persona matrix.
-5. [ ] Families after their patches mirror: cash (-23 mirrored), disputes (-25, after item 1), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
+5. [ ] Families after their patches mirror: cash (`scenarios/cash.md`, SCN-0081 – 0098, drafted 2026-11-22, not reviewed, Kyle's questions not sent; unmatched cash and pledges wait on -24), disputes (-25, after item 1), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
 6. [ ] Deferred gap: one meter across premises with different rules.
 7. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15).
 
