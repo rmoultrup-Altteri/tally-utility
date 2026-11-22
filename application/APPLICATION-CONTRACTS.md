@@ -452,11 +452,13 @@ A rate carries at most four decimals as stored (Kyle K-06). For a percentage rat
 The penalty engine asks which dispute terms govern the bill, and follows them:
 - **Where law binds** (Texas: investor-owned and cooperative systems): the law row, or the utility's own tariff where it has one (never looser).
 - **A city-owned system with its own dispute rule:** that rule. Brenham's says the disputed bill should still be paid, so an unpaid disputed bill takes the penalty.
-- **A city-owned system with none:** the platform default. The dispute was raised before the bill's due date; it protects the disputed amount only (the whole bill when no amount is recorded); it ends at the earlier of the dispute's resolution and 60 days after issue. The undisputed rest takes the penalty if unpaid.
+- **A city-owned system with none:** the platform default, for every customer class. The dispute was raised before the bill's due date; it protects the disputed amount only (the whole bill when no amount is recorded); it ends at the earlier of the dispute's resolution and 60 days after issue. The undisputed rest takes the penalty if unpaid.
 
 It reads the answer from -25's record (`dispute_shelter_as_of`: the sheltered amount, its last day, and whether `late_fee` is among the blocks). A penalty already assessed is not reversed by a dispute (its resolution decides that). The database does not enforce it: assessing a penalty is the core's act. Scenario SCN-0033 pins it.
 
-**Not settled (Ryan), so not to be built yet:** the penalty on the disputed amount when the 60 days end unresolved; which customer classes the default reaches. **Depends on -25 r2's default row** (not built; today a city with no tariff is recorded as "no terms").
+**When the 60 days end with the dispute unresolved** (Ryan, 2026-11-22, scenarios): the disputed amount still unpaid is shown on the next regular bill and takes that bill's due date; it is not billed again. A penalty posts on it only if that date passes unpaid, and is reversed with the amount if the dispute is later decided for the customer. With Kyle (K-14): the 60-day end and a Brenham-style penalty both depart from CI-054 and CI-074.
+
+**Depends on -25 r2's default row** (not built; today a city with no tariff is recorded as "no terms").
 ---
 
 ## Meter test history
