@@ -1,0 +1,5 @@
+Verdict: **not yet**.
+
+- **B1 — predicted:** historical reads can return duplicate district memberships or contradictory within/outside relations for one city.
+
+[Full review](tests/v5.4.2-30/review/codex-r3.md) includes prior-finding dispositions and a race-harness concern. Three rollback-only probes await author execution. All frozen hashes match; no database commands were run.

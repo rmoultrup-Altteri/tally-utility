@@ -87,6 +87,10 @@ case_ C6 "$TENANT $CUSTOMER
   INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip, created_at)
   VALUES ('00000000-0000-4000-8000-0000000030da', '$T', '$C', 'PRE30-L', '1 Main', 'Pre', ' tx', '78701', TIMESTAMPTZ '2025-01-02 03:04:05+00');" "" "" \
   "(SELECT count(*) = 1 AND bool_and(state = 'TX' AND recorded_at = TIMESTAMPTZ '2025-01-02 03:04:05+00') FROM public.service_location_state_history WHERE service_location_id = '00000000-0000-4000-8000-0000000030da')"
+case_ C6b "$TENANT $CUSTOMER
+  INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip, created_at)
+  VALUES ('00000000-0000-4000-8000-0000000030da', '$T', '$C', 'PRE30-L', '1 Main', 'Pre', 'TX', '78701', TIMESTAMPTZ '2999-01-01 00:00:00+00');" "" "" \
+  "(SELECT count(*) = 1 AND bool_and(recorded_at <= now()) FROM public.service_location_state_history WHERE service_location_id = '00000000-0000-4000-8000-0000000030da')"
 case_ C5 "INSERT INTO public.place_facts (place_id, fact_code, value, effective_from, source_note)
   SELECT id, 'sales_tax_rate', to_jsonb(6.25), DATE '2026-01-01', 'pre30 plant, percent' FROM public.places
    WHERE kind_code = 'state' AND place_code = 'TX' AND effective_to IS NULL;" "" after

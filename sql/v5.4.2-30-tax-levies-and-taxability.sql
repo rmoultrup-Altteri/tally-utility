@@ -93,15 +93,26 @@
 --       (refused). A bill from before go-live is rebilled from its own
 --       legacy record, with a supervisor's approval (Kyle 2026-11-05,
 --       batch 2 answer 11).
---   L7. Two writers on one key: the template stamps created_at and
---       closed_at with now() (transaction start), as do places and
---       memberships (-16), so a successor recorded by a transaction that
---       began before its predecessor's close or void can make a read at an
---       instant between the two refuse for those seconds ("2 rows" of a levy;
---       two places of one exclusive group, r3). A read refuses, never
---       mis-answers; the change is the template's (board, unassigned). The
---       premise's state history is not in L7: its recorder refuses the
---       overlapping writer (r3).
+--   L7. "As known at an instant" means "by every transaction that began by
+--       it". Every stamp is the writer's transaction start (now()): the
+--       template's created_at and closed_at, and those of places and
+--       memberships (-16). So a read at an instant is stable only once every
+--       transaction that began by then has finished. Until then, and for
+--       that instant for good:
+--       (a) a replay can differ, silently, from a live read made then: it
+--           adds a row whose writer was still open at the instant, or drops
+--           one whose close or void began before the row was recorded;
+--       (b) a read can refuse ("2 rows" of a levy; two places of one
+--           exclusive group, r3; more than one answer for one place, r4)
+--           where a successor's writer began before its predecessor's close
+--           or void.
+--       Every as-of read since v5.4.1 has (a). clock_timestamp() in the
+--       template would narrow (b), not close (a) (board, unassigned). The
+--       lasting remedy is the core's: a bill records the levies and places
+--       it used (L5), and that record, not a replay, is what the bill saw;
+--       or a bill is computed at an instant every writer begun by then has
+--       finished. The premise's state history is outside (b): its recorder
+--       refuses the overlapping writer (r3).
 --
 -- Preconditions (a real database): no rate item version yet (each would need
 -- its penalty-base answer decided, not defaulted); no exemption without
@@ -331,7 +342,8 @@ BEGIN
     END IF;
     SELECT range_agg(daterange(p.effective_from, p.effective_to, '[)')) INTO v_cover
       FROM public.places p
-     WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code';
+     WHERE p.kind_code = p_row ->> 'place_kind' AND p.state_code = p_row ->> 'state_code' AND p.place_code = p_row ->> 'place_code'
+       AND p.id = ANY (v_locked);  -- r4: only rows this holds (one committed since the re-read is not counted)
     IF v_cover IS NULL OR NOT v_cover @> v_range THEN
         RAISE EXCEPTION USING
             MESSAGE = format('tax levy: no %s %s in %s is in force over the whole of %s (its rows: %s; v5.4.2-30)',
@@ -760,17 +772,18 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.record_service_location_state() IS
-    'v5.4.2-30 r2, r3. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now(). A change is refused (40001, retry) when the premise already has a row stamped after this transaction began, so the history''s order is the order of the changes.';
+    'v5.4.2-30 r2, r3. AFTER INSERT OR UPDATE OF state on service_locations, every role: records the premise''s normalised state at insert and whenever it changes (a change of spelling alone records nothing), stamped now(). A change is refused (40001, retry) when the premise already has a row stamped after this transaction began, so the history''s order is the order of the changes. It is refused whether or not this transaction had touched the premise (a long import retries once), and for as long as the server clock is stepped back behind the premise''s last stamp.';
 REVOKE ALL ON FUNCTION public.record_service_location_state(), public.enforce_state_history_written_by_db() FROM PUBLIC;
 DROP TRIGGER IF EXISTS z_record_service_location_state ON public.service_locations;
 CREATE TRIGGER z_record_service_location_state AFTER INSERT OR UPDATE OF state ON public.service_locations
     FOR EACH ROW EXECUTE FUNCTION public.record_service_location_state();
 ALTER TABLE public.service_locations ENABLE ALWAYS TRIGGER z_record_service_location_state;
--- Backfill: every premise without a recorded state, at its created_at (the
--- owner; the guard lets the superuser write). Its state today is the best
+-- Backfill: every premise without a recorded state, at its created_at, or now
+-- if that is later (created_at is settable; r4) (the owner; the guard lets the
+-- superuser write). Its state today is the best
 -- record there is: -16 refused a change under other-state memberships.
 INSERT INTO public.service_location_state_history (tenant_id, service_location_id, state, recorded_at)
-SELECT l.tenant_id, l.id, upper(btrim(l.state)), l.created_at
+SELECT l.tenant_id, l.id, upper(btrim(l.state)), least(l.created_at, now())
   FROM public.service_locations l
  WHERE NOT EXISTS (SELECT 1 FROM public.service_location_state_history h WHERE h.service_location_id = l.id);
 
@@ -785,6 +798,8 @@ CREATE OR REPLACE FUNCTION public.premise_places_as_of(p_service_location_id uui
 DECLARE
     v_state text;
     v_state_place uuid;
+    v_two_answers boolean;
+    v_two_places boolean;
 BEGIN
     IF p_on IS NULL OR p_axis IS NULL OR p_axis <> ALL (ARRAY['regulatory', 'tax']) THEN
         RAISE EXCEPTION USING
@@ -815,25 +830,39 @@ BEGIN
             MESSAGE = format('premise_places_as_of: premise %s is not found (or not visible), or its state %s is no state known on %s; its places cannot be read (v5.4.2-16)', p_service_location_id, coalesce(v_state, 'NULL'), p_on),
             ERRCODE = 'no_data_found';
     END IF;
-    -- r3 (review r2, Opus S1): two within places of one exclusive group as
-    -- known at the instant (a void and its successor recorded by overlapping
-    -- transactions, L7) is ambiguous: refused, never both.
-    IF EXISTS (SELECT 1 FROM public.premise_place_memberships m
-                 JOIN public.places p ON p.id = m.place_id
-                WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
-                  AND m.relation = 'within' AND m.exclusivity_group IS NOT NULL
-                  AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
-                  AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
-                  AND p.created_at <= p_recorded_at
-                  AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
-                  AND p.state_code = v_state
-                GROUP BY m.exclusivity_group HAVING count(*) > 1) THEN
+    -- r3, r4 (review r2: Opus S1; r3: Codex B1, Fable S1): -16's constraints
+    -- forbid two live memberships of one place, and two within places of one
+    -- exclusive group, on one date; as known at an instant, overlapping
+    -- transactions (L7) can leave both. A read that cannot say which refuses:
+    -- one place (kind and code: a successor row is the same place) with more
+    -- than one row, relation or distance; one exclusive group with two places.
+    -- The same place recorded twice alike is one answer (DISTINCT below).
+    WITH live AS (
+        SELECT p.id, p.kind_code AS kind, p.place_code AS code, m.relation AS rel, m.distance_miles AS miles, m.exclusivity_group AS grp
+          FROM public.premise_place_memberships m
+          JOIN public.places p ON p.id = m.place_id
+         WHERE m.service_location_id = p_service_location_id AND m.axis = p_axis
+           AND m.created_at <= p_recorded_at AND (m.voided_at IS NULL OR m.voided_at > p_recorded_at)
+           AND daterange(m.valid_from, public.end_as_known(m.valid_to, m.closed_at, p_recorded_at), '[)') @> p_on
+           AND p.created_at <= p_recorded_at
+           AND daterange(p.effective_from, public.end_as_known(p.effective_to, p.closed_at, p_recorded_at), '[)') @> p_on
+           AND p.state_code = v_state)
+    SELECT EXISTS (SELECT 1 FROM live l GROUP BY l.kind, l.code HAVING count(DISTINCT (l.id, l.rel, l.miles)) > 1),
+           EXISTS (SELECT 1 FROM live l WHERE l.rel = 'within' AND l.grp IS NOT NULL
+                    GROUP BY l.grp HAVING count(DISTINCT (l.kind, l.code)) > 1)
+      INTO v_two_answers, v_two_places;
+    IF v_two_answers THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('premise_places_as_of: premise %s has more than one answer for one place on %s as known at %s (v5.4.2-30)', p_service_location_id, p_on, p_recorded_at),
+            ERRCODE = 'cardinality_violation';
+    END IF;
+    IF v_two_places THEN
         RAISE EXCEPTION USING
             MESSAGE = format('premise_places_as_of: premise %s is within two places of one exclusive group on %s as known at %s (v5.4.2-30)', p_service_location_id, p_on, p_recorded_at),
             ERRCODE = 'cardinality_violation';
     END IF;
     RETURN QUERY
-    SELECT p.id, p.kind_code, p.state_code, p.place_code, p.name, k.specificity, m.relation, m.distance_miles
+    SELECT DISTINCT p.id, p.kind_code, p.state_code, p.place_code, p.name, k.specificity, m.relation, m.distance_miles
       FROM public.premise_place_memberships m
       JOIN public.places p ON p.id = m.place_id
       JOIN public.place_kinds k ON k.kind_code = p.kind_code
@@ -853,7 +882,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.premise_places_as_of(uuid, date, text, timestamp with time zone) IS
-    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. A rebill reads the jurisdictions the original bill saw. Refuses a premise not yet recorded then. Every argument required.';
+    'v5.4.2-30 (CI-001, CI-004). The places a premise is related to on a date, on an axis, as known at p_recorded_at: its state as recorded by then (service_location_state_history, r2), memberships recorded by then and not voided by then, each ending only if its close was recorded by then; places likewise. The answer for an instant is settled once every transaction begun by then has finished; a bill computed while one was open can have seen different places (known limit L7), so the places a bill used are the ones it recorded, not a replay. Refuses a premise not yet recorded then, one with more than one answer for one place, and one within two places of one exclusive group. Every argument required.';
 
 CREATE OR REPLACE FUNCTION public.premise_places_as_of(p_service_location_id uuid, p_on date, p_axis text)
     RETURNS TABLE (place_id uuid, kind_code text, state_code text, place_code text, name text, specificity integer, relation text, distance_miles numeric)
