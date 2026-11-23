@@ -27,13 +27,15 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 - **K-14, the third batch: drafted in Slack 2026-11-22 (9 questions and a figure check), not yet sent.** Sources: `grep -n "Open (Kyle" scenarios/*.md`. Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
 
+- **K-16, the fourth batch: drafted 2026-11-22** in `application/kyle-brief-2026-11-22-scenario-batch-4.md` (22 questions and a figure check), to send after K-14.
+
 ## Not yet done (in order)
 
 1. [x] The dispute conflict, the pending dispute questions and Kyle's flags (b), (c) (2026-11-22).
 2. [x] Draft K-14 for Kyle (Ryan to send).
 3. [ ] Weather normalization (likely needs Kyle on how city systems adjust).
 4. [ ] State machines, exception paths, the persona matrix.
-5. [ ] Families after their patches mirror: cash (`scenarios/cash.md`, SCN-0081 – 0103, drafted, reviewed and re-reviewed 2026-11-22 (round 4, two passes), Kyle's questions not sent; unmatched cash and pledges wait on -24), disputes (-25, after item 1), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
+5. [ ] Families after their patches mirror: cash (`scenarios/cash.md`, SCN-0081 – 0103, drafted, reviewed and re-reviewed 2026-11-22 (round 4, two passes), Kyle's questions drafted as K-16; unmatched cash and pledges wait on -24), disputes (-25, after item 1), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
 6. [ ] Deferred gap: one meter across premises with different rules.
 7. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15).
 
