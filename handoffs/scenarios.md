@@ -51,7 +51,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 | Decision | Why |
 |---|---|
 | Dispute conflict: the scenarios version stands (a city's own rule wins; disputed amount only; earlier of resolution and 60 days) | recorded by money too |
-| Day 60 unresolved: the disputed amount takes the next bill's due date | no penalty on a date never told |
+| Day 60 unresolved: the disputed amount takes the next bill's due date | keeps the 60-day limit, and gives a bill and a date to pay by before any penalty |
 | Full-amount penalty base: once or every month is the city's setting, no default; Pecan Flat monthly | the tariff is silent |
 | Corrected bill: one charge at the full true figure, part due later (replaces a matched pair of lines) | the pair read open after payment and would be paid twice |
 | By rule, after the re-review: the record is **per line**; the next bill prints the amount and holds no line; "not yet due" is its own aging row; netting a credit against a bounce is recorded before a refund, not at the bounce (Kyle asked) | one figure per bill gives $1.25 where Ryan's base gives $1.31; netting at the bounce would leave the per-state escheat rule nothing to act on |
