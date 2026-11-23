@@ -1,0 +1,91 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS B1 date: payment still received 100 on March 12
+NOTICE:  PASS B1 date: receipt holds zero on March 12
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS B1 prediction: r10 lists no due on March 12
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS B1 control: on March 13 payment received zero and due is 100
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=23514 message=a misposting return of payment P24-247b is dated on or after the last row under its posting entry (2026-03-13), not 2026-03-12: before then the payment still holds what the return would give back (v5.4.2-24)
+NOTICE:  PASS earlier write fix stands: March 12 return refused: refused by the last row under its posting entry (a misposting return of payment P24-247b is dated on or after the last row under its posting entry (2026-03-13), not 2026)
+ mret 
+------
+ 
+(1 row)
+
+NOTICE:  PASS r10: later return preserves no due on March 12
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS same-day return control: March 13 held 100 and no due row
+ROLLBACK

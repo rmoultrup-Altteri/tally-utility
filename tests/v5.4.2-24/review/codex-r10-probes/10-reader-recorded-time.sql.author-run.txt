@@ -1,0 +1,114 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+NOTICE:  PASS B1 prerequisite: later recorded reversal
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  PASS B1 prerequisite: reversal timestamp really exceeds now()
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS B1 prerequisite: default status time remains transaction start
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  PASS B1 prerequisite: status precedes reversal recording
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS B1 recorded: payment received 100 at transaction start
+NOTICE:  PASS B1 recorded: receipt holds zero at transaction start
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS B1 prediction: r10 lists no due at transaction start
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=40001 message=a misposting return of payment P24-241c: a row under its posting entry was recorded at 2026-11-22 23:21:41.50017+00, after this transaction began (2026-11-22 23:21:41.482388+00); retry (v5.4.2-24)
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  PASS r6 B1 write fixed: default return retries: refused by a row under its posting entry was recorded at (a misposting return of payment P24-241c: a row under its posting entry was recorded at 2026-11-22 23:21:41.50017+00, aft)
+NOTICE:  caught SQLSTATE=23514 message=a misposting return of payment P24-241c is recorded at 2026-11-22 23:21:41.491279+00, before a row under its posting entry recorded at 2026-11-22 23:21:41.50017+00: money comes back only after what gives it back is known (v5.4.2-24)
+NOTICE:  PASS chosen earlier time refused: refused by before a row under its posting entry recorded at (a misposting return of payment P24-241c is recorded at 2026-11-22 23:21:41.491279+00, before a row under its posting ent)
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  PASS current coordinate control: payment zero, due 100, level unknown
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS r10 later return preserves correct earlier reading
+NOTICE:  PASS current control after return: held 100 and no due row
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

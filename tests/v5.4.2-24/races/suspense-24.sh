@@ -37,6 +37,14 @@
 #        transaction begins; B reverses the payment as misposted and commits;
 #        A records its misposting return: refused for retry (40001); the
 #        retry is admitted.
+#   SU13 (r11, Opus r10 RA) R12's payment, the bank's 40 an nsf row. A reverses
+#        the other 60 as misposted and holds; B ends the payment reversed with
+#        a bank code naming A's row: waits, then is refused (part of it).
+#   SU14 (r11, Opus r10 RB) R13's payment, 60 misposted and 40 nsf. A ends it
+#        nsf and holds; B records its misposting return: refused (still
+#        posted to B); SU14b after A commits, the retry is admitted.
+#   SU15 (r11, Opus r10 RC) A records R14's return (of a bounced payment) and
+#        holds; B writes the bounce's code: admitted.
 # Every two() leg checks that session B was SEEN BLOCKED BY SESSION A.
 # Every session runs under a statement timeout. Setup failures exit 2.
 # Runs against a THROWAWAY clone (it commits rows).
@@ -87,6 +95,9 @@ $(rcpt ${P}08 R24-8 100)
 $(rcpt ${P}09 R24-9 100)
 $(rcpt ${P}0b R24-10 100)
 $(rcpt ${P}0c R24-11 100)
+$(rcpt ${P}0d R24-12 100)
+$(rcpt ${P}0e R24-13 100)
+$(rcpt ${P}0f R24-14 100)
 INSERT INTO public.assistance_agencies (id, tenant_id, name, program_kind, recorded_by) VALUES ('${P}a1', '$T', 'CEAP', 'liheap_ceap', '$OP'), ('${P}a2', '$T', 'Charity', 'charity', '$OP');
 INSERT INTO public.agency_pledges (id, tenant_id, customer_id, agency_id, amount, pledged_on, form, recorded_by) VALUES
   ('${P}11', '$T', '$C1', '${P}a1', 100, DATE '2026-03-10', 'written', '$OP'),
@@ -323,5 +334,42 @@ COMMIT;
 SQL
 )
 if [ $? -eq 0 ]; then echo "PASS SU12b the retry is admitted"; else echo "FAIL SU12b: $OUT"; fail=1; fi
+
+"${PSQL[@]}" >/tmp/r24su13.out 2>&1 <<SQL || { echo "FAIL SU13 setup: $(cat /tmp/r24su13.out)"; fail=1; }
+BEGIN;
+$AS_OP
+$(fromr ${P}0d $C1 100 ${P}24)
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}41', '$T', '$C1', DATE '2026-03-02', 'payment', 'posted', -100, 'payment', '${P}24');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}41' WHERE id = '${P}24';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}42', '$T', '$C1', DATE '2026-03-04', 'nsf', 'x', 40, 'payment', '${P}24', '${P}41', NULL);
+$(fromr ${P}0e $C1 100 ${P}25)
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}43', '$T', '$C1', DATE '2026-03-02', 'payment', 'posted', -100, 'payment', '${P}25');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}43' WHERE id = '${P}25';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}44', '$T', '$C1', DATE '2026-03-04', 'adjustment', 'x', 60, 'payment', '${P}25', '${P}43', 'misposted');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}45', '$T', '$C1', DATE '2026-03-04', 'nsf', 'x', 40, 'payment', '${P}25', '${P}43', NULL);
+$(fromr ${P}0f $C1 100 ${P}26)
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES ('${P}46', '$T', '$C1', DATE '2026-03-02', 'payment', 'posted', -100, 'payment', '${P}26');
+UPDATE public.payments SET status = 'posted', status_cause_id = '${P}46' WHERE id = '${P}26';
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}47', '$T', '$C1', DATE '2026-03-04', 'adjustment', 'x', 60, 'payment', '${P}26', '${P}46', 'misposted');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}48', '$T', '$C1', DATE '2026-03-04', 'nsf', 'x', 40, 'payment', '${P}26', '${P}46', NULL);
+UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-04', status_cause_id = '${P}48' WHERE id = '${P}26';
+COMMIT;
+SQL
+two "INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason) VALUES ('${P}49', '$T', '$C1', DATE '2026-03-05', 'adjustment', 'm', 60, 'payment', '${P}24', '${P}41', 'm');" \
+    "UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = '$OP', reversed_reason = 'm', return_code = 'R01', status_cause_id = '${P}49' WHERE id = '${P}24';"
+verdict "SU13 a coded end and the last reversal race: the end waits, then is refused" "only where the row it names"
+two "UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-04', status_cause_id = '${P}45' WHERE id = '${P}25';" "INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id) VALUES ('$T', '${P}0e', 'misposting_returned', -60, DATE '2026-03-05', 'misposted', '$OP', '${P}25');"
+if [ "${AST:-0}" -eq 0 ] && [ "$BST" -ne 0 ] && echo "$OUT" | grep -q "is posted: only what was reversed"; then echo "PASS SU14 a return begun while the bounce is uncommitted is refused"; else echo "FAIL SU14: A=$AST B=$BST: $OUT $(cat "$A_OUT")"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP
+INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id) VALUES ('$T', '${P}0e', 'misposting_returned', -60, DATE '2026-03-05', 'misposted', '$OP', '${P}25');
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS SU14b after it commits, the return is admitted"; else echo "FAIL SU14b: $OUT"; fail=1; fi
+two "INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id) VALUES ('$T', '${P}0f', 'misposting_returned', -60, DATE '2026-03-05', 'misposted', '$OP', '${P}26');" "UPDATE public.payments SET return_code = 'R01' WHERE id = '${P}26';"
+if [ "${AST:-0}" -eq 0 ] && [ "$BST" -eq 0 ]; then echo "PASS SU15 a bounce's code beside its misposting return: both admitted"; else echo "FAIL SU15: A=$AST B=$BST: $OUT $(cat "$A_OUT")"; fail=1; fi
+expect "SU15b R14 holds the misposted 60" "$(held ${P}0f "clock_timestamp()")" "60.00"
 
 exit $fail

@@ -406,7 +406,7 @@ SELECT pg_temp.refuses_at('P9b4 it names a payment of the same receipt (C1''s P1
   '23514', 'names a payment made from receipt');
 SELECT pg_temp.refuses_at('P9b5 and a reversed one (P13 is posted)',
   $q$SELECT pg_temp.mret(NULL, pg_temp.k('02'), pg_temp.k('13'), 1, DATE '2026-03-05')$q$,
-  '23514', 'only a payment reversed as posted to the wrong customer');
+  '23514', 'only what was reversed as posted to the wrong customer');
 SELECT pg_temp.admits('P9b6 C3''s 50 goes back to R4 as misposted, on 03-05',
   $q$SELECT pg_temp.mret(pg_temp.k('25'), pg_temp.k('04'), pg_temp.k('14'), 50, DATE '2026-03-05')$q$);
 SELECT pg_temp.ok('P9b7 R4 holds 50 from 03-05, and 0 on 03-04 (the money was on C3''s ledger then)',
@@ -417,7 +417,7 @@ SELECT pg_temp.refuses_at('P9b8 once per payment',
   '23505', 'suspense_receipt_dispositions_one_return_per_payment');
 SELECT pg_temp.refuses_at('P9b9 and the payment takes no bank return code afterwards',
   $q$UPDATE public.payments SET return_code = 'R01' WHERE id = pg_temp.k('14')$q$,
-  '23514', 'returned to suspense as misposted');
+  '23514', 'it takes none afterwards');
 SELECT pg_temp.refuses_at('P9b10 a misposting return is never undone',
   $q$SELECT pg_temp.disp(NULL, pg_temp.k('04'), 'undo', -1, DATE '2026-03-06', pg_temp.k('25'))$q$,
   '23514', 'an undo names');
@@ -432,7 +432,7 @@ SELECT pg_temp.ok('P9d R4 holds 0; C4 received 50, C3 nothing',
   AND (SELECT received = 0 FROM public.payment_position_as_of(pg_temp.k('14'), DATE '2026-12-31', clock_timestamp())));
 -- P9e (the receipt as known before the misposting return) needs two transactions: races/suspense-24.sh SU6.
 -- C4's payment bounces: the bank took the money back; R4 does not get it.
-SELECT pg_temp.bounce(pg_temp.k('15'), pg_temp.k('85'), DATE '2026-03-09');
+SELECT pg_temp.admits('P10a a payment the bank took back in full ends nsf (its share is 0)', $q$SELECT pg_temp.bounce(pg_temp.k('15'), pg_temp.k('85'), DATE '2026-03-09')$q$);
 SELECT pg_temp.ok('P10 an NSF payment keeps its share counted: R4 still holds 0',
   pg_temp.held(pg_temp.k('04')) = 0);
 SELECT pg_temp.refuses_at('P10b so nothing more can be made from it',
@@ -1167,7 +1167,7 @@ SELECT pg_temp.rcpt(pg_temp.n('b1'), 100, DATE '2026-03-10');
 SELECT pg_temp.fromr(pg_temp.n('11'), pg_temp.n('21'), pg_temp.n('b1'), :c1, 100);
 SELECT pg_temp.rev(pg_temp.n('31'), pg_temp.n('11'), pg_temp.n('21'), 'adjustment', 60, DATE '2026-03-11');
 SELECT pg_temp.refuses_at('P15 a payment partly reversed and still posted gives nothing back yet',
-  $q$SELECT pg_temp.mret(NULL, pg_temp.n('b1'), pg_temp.n('11'), 60, DATE '2026-03-11')$q$, '23514', 'is posted: only a payment reversed');
+  $q$SELECT pg_temp.mret(NULL, pg_temp.n('b1'), pg_temp.n('11'), 60, DATE '2026-03-11')$q$, '23514', 'is posted: only what was reversed');
 SELECT pg_temp.rev(pg_temp.n('41'), pg_temp.n('11'), pg_temp.n('21'), 'nsf', 40, DATE '2026-03-12');
 UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-12', return_code = 'R01', status_cause_id = pg_temp.n('41') WHERE id = pg_temp.n('11');
 SELECT pg_temp.refuses_at('P15b a bounced payment gives back its misposted 60, not its 100',
@@ -1191,10 +1191,10 @@ SELECT pg_temp.rev(pg_temp.n('33'), pg_temp.n('13'), pg_temp.n('23'), 'nsf', 40,
 SELECT pg_temp.rev(pg_temp.n('43'), pg_temp.n('13'), pg_temp.n('23'), 'adjustment', 60, DATE '2026-03-12');
 SELECT pg_temp.refuses_at('P16 part bounced and part reversed otherwise: reversed takes no return code (the 60 would never come back)',
   $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('43') WHERE id = pg_temp.n('13')$q$,
-  '23514', 'reversed takes no return code');
+  '23514', 'only where the row it names takes back the whole');
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', status_cause_id = pg_temp.n('43') WHERE id = pg_temp.n('13');
 SELECT pg_temp.refuses_at('P16b nor a code written after it ended',
-  $q$UPDATE public.payments SET return_code = 'R01' WHERE id = pg_temp.n('13')$q$, '23514', 'reversed takes no return code');
+  $q$UPDATE public.payments SET return_code = 'R01' WHERE id = pg_temp.n('13')$q$, '23514', 'it takes none afterwards');
 -- Rb6: a bounce's code arrives after its misposted part came back.
 SELECT pg_temp.rcpt(pg_temp.n('b6'), 100, DATE '2026-03-10');
 SELECT pg_temp.fromr(pg_temp.n('16'), pg_temp.n('26'), pg_temp.n('b6'), :c1, 100);
@@ -1203,6 +1203,82 @@ SELECT pg_temp.rev(pg_temp.n('46'), pg_temp.n('16'), pg_temp.n('26'), 'nsf', 40,
 UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-12', status_cause_id = pg_temp.n('46') WHERE id = pg_temp.n('16');
 SELECT pg_temp.mret(NULL, pg_temp.n('b6'), pg_temp.n('16'), 60, DATE '2026-03-12');
 SELECT pg_temp.admits('P15h the code of a bounce may arrive after its misposted part came back', $q$UPDATE public.payments SET return_code = 'R01' WHERE id = pg_temp.n('16')$q$);
+-- r11 (Codex r10 01, Opus r10 S3). Rb8: 60 misposted and 40 the bank's, both plain: no code; the whole comes back, the bank's part goes as bank_returned.
+SELECT pg_temp.rcpt(pg_temp.n('b8'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('18'), pg_temp.n('28'), pg_temp.n('b8'), :c1, 100);
+SELECT pg_temp.rev(pg_temp.n('38'), pg_temp.n('18'), pg_temp.n('28'), 'adjustment', 60, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('48'), pg_temp.n('18'), pg_temp.n('28'), 'adjustment', 40, DATE '2026-03-12');
+SELECT pg_temp.refuses_at('P17 two plain reversals end reversed with no code: it would say both are the bank''s',
+  $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('48') WHERE id = pg_temp.n('18')$q$,
+  '23514', 'only where the row it names takes back the whole');
+UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', status_cause_id = pg_temp.n('48') WHERE id = pg_temp.n('18');
+SELECT pg_temp.admits('P17b without it, the whole comes back to the receipt', $q$SELECT pg_temp.mret(NULL, pg_temp.n('b8'), pg_temp.n('18'), 100, DATE '2026-03-12')$q$);
+SELECT pg_temp.admits('P17c and the bank''s 40 is recorded there, with its code',
+  $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, return_code, reason, recorded_by) VALUES (pg_temp.t1(), pg_temp.n('b8'), 'bank_returned', 40, DATE '2026-03-12', 'R01', 'bank', pg_temp.op())$q$);
+SELECT pg_temp.ok('P17d Rb8 holds the misposted 60', pg_temp.held(pg_temp.n('b8')) = 60);
+-- r11 (Codex r10 02, Opus r10 S1). Rb9: a bounce undone, then a plain 100: it did not bounce.
+SELECT pg_temp.rcpt(pg_temp.n('b9'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('19'), pg_temp.n('29'), pg_temp.n('b9'), :c1, 100);
+SELECT pg_temp.rev(pg_temp.n('39'), pg_temp.n('19'), pg_temp.n('29'), 'nsf', 100, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('49'), pg_temp.n('19'), pg_temp.n('39'), 'adjustment', -100, DATE '2026-03-12');
+SELECT pg_temp.rev(pg_temp.n('59'), pg_temp.n('19'), pg_temp.n('29'), 'adjustment', 100, DATE '2026-03-13');
+SELECT pg_temp.refuses_at('P18 nsf needs a bounce that stands',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-11', return_code = 'R01', status_cause_id = pg_temp.n('39') WHERE id = pg_temp.n('19')$q$, '23514', 'it did not bounce');
+SELECT pg_temp.admits('P18b it ends reversed, with the bank''s code where its row is the whole',
+  $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('59') WHERE id = pg_temp.n('19')$q$);
+SELECT pg_temp.refuses_at('P18c and gives nothing back', $q$SELECT pg_temp.mret(NULL, pg_temp.n('b9'), pg_temp.n('19'), 100, DATE '2026-03-13')$q$, '23514', 'a bank''s take-back keeps it spent');
+-- r11 (Codex r10 08). Rba: a misposting filed under a bounce's undo: not ended until it is filed again.
+SELECT pg_temp.rcpt(pg_temp.n('ba'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('1a'), pg_temp.n('2a'), pg_temp.n('ba'), :c1, 100);
+SELECT pg_temp.rev(pg_temp.n('3a'), pg_temp.n('1a'), pg_temp.n('2a'), 'nsf', 100, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('4a'), pg_temp.n('1a'), pg_temp.n('3a'), 'adjustment', -100, DATE '2026-03-12');
+SELECT pg_temp.rev(pg_temp.n('5a'), pg_temp.n('1a'), pg_temp.n('4a'), 'adjustment', 100, DATE '2026-03-13');
+SELECT pg_temp.refuses_at('P19 a row under a bounce that takes money and is not nsf: the payment does not end nsf',
+  $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-11', status_cause_id = pg_temp.n('3a') WHERE id = pg_temp.n('1a')$q$, '23514', 'is not typed nsf');
+SELECT pg_temp.rev(pg_temp.n('6a'), pg_temp.n('1a'), pg_temp.n('5a'), 'adjustment', -100, DATE '2026-03-13');
+SELECT pg_temp.rev(pg_temp.n('7a'), pg_temp.n('1a'), pg_temp.n('2a'), 'adjustment', 100, DATE '2026-03-13');
+SELECT pg_temp.admits('P19b undone and filed under the posting entry, it ends reversed',
+  $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', status_cause_id = pg_temp.n('7a') WHERE id = pg_temp.n('1a')$q$);
+SELECT pg_temp.admits('P19c and its 100 comes back', $q$SELECT pg_temp.mret(NULL, pg_temp.n('ba'), pg_temp.n('1a'), 100, DATE '2026-03-13')$q$);
+-- r11 (Opus r10 S4). Rbb: a posting entry undone before the move to posted.
+SELECT pg_temp.rcpt(pg_temp.n('bb'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('1b'), NULL, pg_temp.n('bb'), :c1, 100, false);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES (pg_temp.n('2b'), pg_temp.t1(), :c1, DATE '2026-03-10', 'payment', 'posted', -100, 'payment', pg_temp.n('1b'));
+SELECT pg_temp.refuses_at('P20 a receipt''s pending payment: its posting entry is not undone (nothing could end it)',
+  $q$SELECT pg_temp.rev(NULL, pg_temp.n('1b'), pg_temp.n('2b'), 'adjustment', 100, DATE '2026-03-11')$q$, '23514', 'moved to posted before its posting entry is undone');
+UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.n('2b') WHERE id = pg_temp.n('1b');
+SELECT pg_temp.admits('P20b posted, it is', $q$SELECT pg_temp.rev(pg_temp.n('3b'), pg_temp.n('1b'), pg_temp.n('2b'), 'adjustment', 30, DATE '2026-03-11')$q$);
+SELECT pg_temp.rev(pg_temp.n('4b'), pg_temp.n('1b'), pg_temp.n('2b'), 'adjustment', 20, DATE '2026-03-13');
+-- r11 (Opus r10 S5). Rbc: the bank takes all as nsf, ended reversed with its code (share 0): admitted.
+SELECT pg_temp.rcpt(pg_temp.n('bc'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('1c'), pg_temp.n('2c'), pg_temp.n('bc'), :c1, 100);
+SELECT pg_temp.rev(pg_temp.n('3c'), pg_temp.n('1c'), pg_temp.n('2c'), 'adjustment', 100, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('4c'), pg_temp.n('1c'), pg_temp.n('3c'), 'adjustment', -100, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('5c'), pg_temp.n('1c'), pg_temp.n('2c'), 'nsf', 100, DATE '2026-03-12');
+SELECT pg_temp.admits('P21 the bank took it all as nsf rows: reversed takes its code',
+  $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('3c') WHERE id = pg_temp.n('1c')$q$);
+-- Rbd: a payment not from a receipt, part nsf and part reversed, coded: not this rule's.
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, channel, source_system)
+VALUES (pg_temp.n('1d'), pg_temp.t1(), 'P24-251d', :c1, DATE '2026-03-10', 100, 'check', 'mail', 'internal');
+SELECT pg_temp.post(pg_temp.n('1d'), pg_temp.n('2d'));
+SELECT pg_temp.rev(pg_temp.n('3d'), pg_temp.n('1d'), pg_temp.n('2d'), 'nsf', 40, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('4d'), pg_temp.n('1d'), pg_temp.n('2d'), 'adjustment', 60, DATE '2026-03-12');
+SELECT pg_temp.admits('P22 a payment not from a receipt keeps -23''s rules',
+  $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('4d') WHERE id = pg_temp.n('1d')$q$);
+-- Rbe: two payments of one receipt, one returned: the other stays listed.
+SELECT pg_temp.rcpt(pg_temp.n('be'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('1e'), pg_temp.n('2e'), pg_temp.n('be'), :c1, 40);
+SELECT pg_temp.fromr(pg_temp.n('1f'), pg_temp.n('2f'), pg_temp.n('be'), '00000000-0000-4000-8000-0000000a24c2', 60);
+SELECT pg_temp.unpost(pg_temp.n('1e'), pg_temp.n('2e'), DATE '2026-03-10');
+SELECT pg_temp.unpost(pg_temp.n('1f'), pg_temp.n('2f'), DATE '2026-03-11');
+SELECT pg_temp.mret(NULL, pg_temp.n('be'), pg_temp.n('1e'), 40, DATE '2026-03-11');
+-- Rbf: 60 reversed, 20 of it undone, 30 more: listed for 70 since the first (the share never left 0).
+SELECT pg_temp.rcpt(pg_temp.n('bf'), 100, DATE '2026-03-10');
+SELECT pg_temp.fromr(pg_temp.n('91'), pg_temp.n('92'), pg_temp.n('bf'), :c1, 100);
+SELECT pg_temp.rev(pg_temp.n('93'), pg_temp.n('91'), pg_temp.n('92'), 'adjustment', 60, DATE '2026-03-11');
+SELECT pg_temp.rev(pg_temp.n('94'), pg_temp.n('91'), pg_temp.n('93'), 'adjustment', -20, DATE '2026-03-12');
+SELECT pg_temp.rev(pg_temp.n('95'), pg_temp.n('91'), pg_temp.n('92'), 'adjustment', 30, DATE '2026-03-13');
 -- Rb4: a partial misposting, still posted.
 SELECT pg_temp.rcpt(pg_temp.n('b4'), 100, DATE '2026-03-10');
 SELECT pg_temp.fromr(pg_temp.n('14'), pg_temp.n('24'), pg_temp.n('b4'), :c1, 100);
@@ -1223,6 +1299,17 @@ SELECT pg_temp.ok('S8m listed between a reversal and its undo, where the bank to
 SELECT pg_temp.ok('S8n on the service level it is not past it, the day after it is (level 10)',
   (SELECT age_days = 10 AND NOT past_service_level AND received_on = DATE '2026-03-10' FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-03-21', clock_timestamp()) x WHERE x.payment_id = pg_temp.n('14'))
   AND (SELECT age_days = 11 AND past_service_level FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-03-22', clock_timestamp()) x WHERE x.payment_id = pg_temp.n('14')));
+SELECT pg_temp.ok('S8t one payment''s return leaves the receipt''s other payment listed, with its customer',
+  pg_temp.due(pg_temp.n('1e'), DATE '2026-03-31') = 'none'
+  AND (SELECT owed = 60 AND customer_id = '00000000-0000-4000-8000-0000000a24c2'::uuid AND receipt_id = pg_temp.n('be') FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-03-31', clock_timestamp()) x WHERE x.payment_id = pg_temp.n('1f')));
+SELECT pg_temp.ok('S8u a payment reversed on its own day is listed that day', pg_temp.due(pg_temp.n('1e'), DATE '2026-03-10') = '40.00 since 2026-03-10');
+SELECT pg_temp.ok('S8v since when is the first reversal of the run, not the latest (30 on 03-11, 20 on 03-13)', pg_temp.due(pg_temp.n('1b'), DATE '2026-03-31') = '50.00 since 2026-03-11');
+SELECT pg_temp.ok('S8w an nsf row under an undo is the bank''s to the reader too (P14c''s tree)', pg_temp.due(pg_temp.k('1e'), DATE '2026-03-31') = 'none');
+SELECT pg_temp.ok('S8x since when is never before the payment''s own date (20, dated 03-15, reversed 03-11)',
+  (SELECT since FROM public.suspense_misposted_share_as_of(pg_temp.k('20'), DATE '2026-03-15', clock_timestamp())) = DATE '2026-03-15');
+SELECT pg_temp.ok('S8z a partial undo does not start since when again; the sums run forwards',
+  pg_temp.due(pg_temp.n('91'), DATE '2026-03-12') = '40.00 since 2026-03-11' AND pg_temp.due(pg_temp.n('91'), DATE '2026-03-31') = '70.00 since 2026-03-11');
+SELECT pg_temp.ok('S8za at the very instant the payment was recorded it has a position', EXISTS (SELECT 1 FROM public.suspense_misposted_share_as_of(pg_temp.n('91'), DATE '2026-03-31', (SELECT created_at FROM public.payments WHERE id = pg_temp.n('91')))));
 SELECT pg_temp.refuses_at('S8o the reader needs both coordinates', $q$SELECT * FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), NULL, now())$q$, '22004', 'both given');
 SELECT pg_temp.ok('S8p oldest first (rows numbered as they come: a sorted aggregate would sort both sides)',
   (SELECT count(DISTINCT x.due_since) > 1 AND NOT EXISTS (
@@ -1232,8 +1319,8 @@ SELECT pg_temp.ok('S8p oldest first (rows numbered as they come: a sorted aggreg
      FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) x));
 SELECT pg_temp.ok('S8q another tenant''s list has none of them',
   NOT EXISTS (SELECT 1 FROM public.suspense_misposting_returns_due_as_of(pg_temp.t2(), DATE '2026-12-31', clock_timestamp())));
-SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (Rb1''s and Rb6''s 60 + R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100 + R19''s 100 + R20''s 100 + R21''s 50 + R22''s 70 + R24''s 100 + R25''s 100)',
-  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 890);
+SELECT pg_temp.ok('S4 the tenant''s total held on 12-31 (Rb1''s, Rb6''s and Rb8''s 60 + Rba''s 100 + Rbe''s 40 + R6 70 + R2''s nothing + U8d''s 15 + U8e''s 5 + R11''s 60 + R16''s 100 + R19''s 100 + R20''s 100 + R21''s 50 + R22''s 70 + R24''s 100 + R25''s 100)',
+  public.suspense_held_as_of(pg_temp.t1(), DATE '2026-12-31', clock_timestamp()) = 1090);
 -- r8 (Opus r7 S1): a payment reversed as misposted whose share has not come
 -- back to its receipt is listed, with what is owed: P b3 (R23, P14g) is
 -- reversed on 03-11 with a share of 100 and was never returned.
@@ -1288,18 +1375,25 @@ SELECT pg_temp.ok('S4b conservation: no receipt''s money counts twice at any dat
 -- r10 (Codex r9 S1): and never in none: for receipts whose payments all posted
 -- on the receipt's day, the same sum plus what the bank's nsf rows took equals
 -- the receipt at every date from it, read now.
-SELECT pg_temp.ok('S4c conservation, the other way: no receipt''s money is in no place (R16, R23, R24, R11, Rb1, Rb3, Rb4)',
+SELECT pg_temp.ok('S4c conservation, the other way: no receipt''s money is in no place (every receipt of T1, every day; the bank''s is the net of each nsf tree, and a payment reversed with a code is the bank''s whole)',
   NOT EXISTS (
-    SELECT 1 FROM unnest(ARRAY[pg_temp.k('10'), pg_temp.k('18'), pg_temp.k('7a'), pg_temp.k('0c'), pg_temp.n('b1'), pg_temp.n('b3'), pg_temp.n('b4')]) q(id)
-      JOIN public.suspense_receipts r ON r.id = q.id
+    WITH RECURSIVE nsfroot AS (
+        SELECT l.id, p.suspense_receipt_id AS rid, p.id AS pid, l.transaction_date, l.amount
+          FROM public.payments p JOIN public.account_ledger l ON l.reference_type = 'payment' AND l.reference_id = p.id
+         WHERE p.suspense_receipt_id IS NOT NULL AND l.transaction_type = 'nsf' AND l.amount > 0
+        UNION ALL
+        SELECT l.id, n.rid, n.pid, l.transaction_date, l.amount
+          FROM nsfroot n JOIN public.account_ledger l ON l.reverses_ledger_entry_id = n.id)
+    SELECT 1 FROM public.suspense_receipts r
       CROSS JOIN generate_series(DATE '2026-03-10', DATE '2026-03-20', '1 day') g(d)
       CROSS JOIN LATERAL (SELECT coalesce((SELECT x.held FROM public.suspense_receipt_position_as_of(r.id, g.d::date, clock_timestamp()) x), 0)
              + coalesce((SELECT sum(y.received) FROM public.payments p CROSS JOIN LATERAL public.payment_position_as_of(p.id, g.d::date, clock_timestamp()) y WHERE p.suspense_receipt_id = r.id), 0)
              + coalesce((SELECT sum(x.amount) FROM public.suspense_receipt_dispositions x WHERE x.suspense_receipt_id = r.id AND x.kind <> 'misposting_returned' AND x.disposed_on <= g.d), 0)
              + coalesce((SELECT sum(z.owed) FROM public.suspense_misposting_returns_due_as_of(pg_temp.t1(), g.d::date, clock_timestamp()) z WHERE z.receipt_id = r.id), 0)
-             + coalesce((SELECT sum(l.amount) FROM public.payments p JOIN public.account_ledger l ON l.reference_type = 'payment' AND l.reference_id = p.id
-                          WHERE p.suspense_receipt_id = r.id AND l.transaction_type = 'nsf' AND l.amount > 0 AND l.transaction_date <= g.d), 0) AS total) t
-     WHERE r.received_on <= g.d AND t.total <> r.amount));
+             + coalesce((SELECT sum(n.amount) FROM nsfroot n WHERE n.rid = r.id AND n.transaction_date <= g.d), 0)
+             + coalesce((SELECT sum(y.share) FROM public.payments p CROSS JOIN LATERAL public.suspense_misposted_share_as_of(p.id, g.d::date, clock_timestamp()) y
+                           WHERE p.suspense_receipt_id = r.id AND p.status = 'reversed' AND p.return_code IS NOT NULL), 0) AS total) t
+     WHERE r.tenant_id = pg_temp.t1() AND r.received_on <= g.d AND t.total <> r.amount));
 SELECT pg_temp.refuses_at('S5 the receipt reader needs both coordinates',
   $q$SELECT * FROM public.suspense_receipt_position_as_of(pg_temp.k('06'), DATE '2026-12-31', NULL)$q$,
   '22004', 'both given');
@@ -1433,6 +1527,52 @@ SELECT pg_temp.refuses_at('O1i a misposting return recorded before the bounce (0
   $q$INSERT INTO public.suspense_receipt_dispositions (tenant_id, suspense_receipt_id, kind, amount, disposed_on, reason, recorded_by, returned_payment_id, created_at)
      VALUES (pg_temp.t1(), pg_temp.n('b7'), 'misposting_returned', -60, DATE '2026-04-04', 'misposted', pg_temp.op(), pg_temp.n('17'), '2026-04-05 12:00+00')$q$,
   '23514', 'before a row of the receipt already recorded');
+-- r11 (Fable r10 S2): a receipt's payment is not born ended.
+INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
+VALUES (pg_temp.n('c7'), pg_temp.t1(), 'R24-25c7', 100, DATE '2026-04-02', 'mail', 'internal', 'CHK-25c7', pg_temp.op(), '2026-04-02 12:00+00');
+SELECT pg_temp.refuses_at('O7 a load of a receipt''s payment born reversed',
+  $q$INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, effective_date, effective_date_method, amount, payment_method, channel, source_system, check_number,
+                                  suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, created_at, status, status_recorded_at, reversed_at, reversed_by, reversed_reason)
+     VALUES (gen_random_uuid(), pg_temp.t1(), 'P24-O7 ', '00000000-0000-4000-8000-0000000a24c1', DATE '2026-04-02', DATE '2026-04-02', 'lockbox_receipt', 100, 'check', 'mail', 'internal', 'CHK-25c7',
+             pg_temp.n('c7'), 'identified', pg_temp.op(), '2026-04-03 12:00+00', 'reversed', '2026-04-04 12:00+00', '2026-04-04 12:00+00', pg_temp.op(), 'load')$q$,
+  '23514', 'load it pending and move it');
+SELECT pg_temp.refuses_at('O7b nor born nsf',
+  $q$INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, effective_date, effective_date_method, amount, payment_method, channel, source_system, check_number,
+                                  suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, created_at, status, status_recorded_at, nsf_date)
+     VALUES (gen_random_uuid(), pg_temp.t1(), 'P24-O7b', '00000000-0000-4000-8000-0000000a24c1', DATE '2026-04-02', DATE '2026-04-02', 'lockbox_receipt', 100, 'check', 'mail', 'internal', 'CHK-25c7',
+             pg_temp.n('c7'), 'identified', pg_temp.op(), '2026-04-03 12:00+00', 'nsf', '2026-04-04 12:00+00', DATE '2026-04-04')$q$,
+  '23514', 'load it pending and move it');
+-- r11 (Opus r10 S2): a code counts from its move's recorded time.
+INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
+VALUES (pg_temp.n('c8'), pg_temp.t1(), 'R24-25c8', 100, DATE '2026-04-02', 'mail', 'internal', 'CHK-25c8', pg_temp.op(), '2026-04-02 12:00+00');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, effective_date, effective_date_method, amount, payment_method, channel, source_system, check_number,
+                             suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, created_at)
+VALUES (pg_temp.n('61'), pg_temp.t1(), 'P24-2561', :c1, DATE '2026-04-02', DATE '2026-04-02', 'lockbox_receipt', 100, 'check', 'mail', 'internal', 'CHK-25c8',
+        pg_temp.n('c8'), 'identified', pg_temp.op(), '2026-04-03 12:00+00');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, created_at)
+VALUES (pg_temp.n('62'), pg_temp.t1(), :c1, DATE '2026-04-02', 'payment', 'posted', -100, 'payment', pg_temp.n('61'), '2026-04-03 12:00+00');
+UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.n('62'), status_recorded_at = '2026-04-03 12:00+00' WHERE id = pg_temp.n('61');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason, created_at)
+VALUES (pg_temp.n('63'), pg_temp.t1(), :c1, DATE '2026-04-03', 'adjustment', 'm', 100, 'payment', pg_temp.n('61'), pg_temp.n('62'), 'm', '2026-04-04 12:00+00');
+UPDATE public.payments SET status = 'reversed', reversed_at = '2026-04-10 12:00+00', reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R10', status_cause_id = pg_temp.n('63'),
+       status_recorded_at = '2026-04-10 12:00+00' WHERE id = pg_temp.n('61');
+INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)
+VALUES (pg_temp.n('c9'), pg_temp.t1(), 'R24-25c9', 100, DATE '2026-04-02', 'mail', 'internal', 'CHK-25c9', pg_temp.op(), '2026-04-02 12:00+00');
+INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, effective_date, effective_date_method, amount, payment_method, channel, source_system, check_number,
+                             suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, created_at)
+VALUES (pg_temp.n('64'), pg_temp.t1(), 'P24-2564', :c1, DATE '2026-04-02', DATE '2026-04-02', 'lockbox_receipt', 100, 'check', 'mail', 'internal', 'CHK-25c9',
+        pg_temp.n('c9'), 'identified', pg_temp.op(), '2026-04-03 12:00+00');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, created_at)
+VALUES (pg_temp.n('65'), pg_temp.t1(), :c1, DATE '2026-04-02', 'payment', 'posted', -100, 'payment', pg_temp.n('64'), '2026-04-03 12:00+00');
+UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.n('65'), status_recorded_at = '2026-04-03 12:00+00' WHERE id = pg_temp.n('64');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason, created_at)
+VALUES (pg_temp.n('66'), pg_temp.t1(), :c1, DATE '2026-04-03', 'adjustment', 'm', 100, 'payment', pg_temp.n('64'), pg_temp.n('65'), 'm', '2026-04-04 12:00+00');
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id, reverses_ledger_entry_id, reversal_reason, created_at)
+VALUES (pg_temp.n('67'), pg_temp.t1(), :c1, DATE '2026-04-03', 'adjustment', 'm', -100, 'payment', pg_temp.n('64'), pg_temp.n('66'), 'm', '2026-04-08 12:00+00');
+SELECT pg_temp.ok('S8yb an undo counts from when it was recorded (dated with its reversal, recorded four days later)',
+  pg_temp.due(pg_temp.n('64'), DATE '2026-04-30', '2026-04-05 12:00+00') = '100.00 since 2026-04-03' AND pg_temp.due(pg_temp.n('64'), DATE '2026-04-30', '2026-04-08 13:00+00') = 'none');
+SELECT pg_temp.ok('S8y a code written with the move counts from the move''s recorded time: listed before it, not after (Opus r10 S2)',
+  pg_temp.due(pg_temp.n('61'), DATE '2026-04-30', '2026-04-05 12:00+00') = '100.00 since 2026-04-03' AND pg_temp.due(pg_temp.n('61'), DATE '2026-04-30', '2026-04-10 13:00+00') = 'none');
 -- r4 (Fable r3 S1): a history load's payment born voided, its void after
 -- its insert, is not ordered after its own void.
 INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, recorded_by, created_at)

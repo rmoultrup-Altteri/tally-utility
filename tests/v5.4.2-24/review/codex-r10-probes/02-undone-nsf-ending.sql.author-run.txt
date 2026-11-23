@@ -1,0 +1,94 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+NOTICE:  PASS old NSF net is zero
+ ok 
+----
+ 
+(1 row)
+
+UPDATE 1
+NOTICE:  PASS whole share despite coded NSF ending
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS whole share listed due
+ ok 
+----
+ 
+(1 row)
+
+ mret 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS coded plain take-back can fund another customer via stale NSF cause
+RESET
+ROLLBACK

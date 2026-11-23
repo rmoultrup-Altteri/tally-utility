@@ -1,0 +1,87 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+NOTICE:  PASS L7 code admitted at share 100
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS L7 receipt and customer both hold zero
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS L7 no return due for real misposted 60
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=23514 message=payment P24-2411 is reversed with return code R01: only a payment reversed as posted to the wrong customer gives its money back to the receipt; a bank's take-back keeps it spent (v5.4.2-24)
+NOTICE:  PASS L7 60 cannot return: refused by with return code (payment P24-2411 is reversed with return code R01: only a payment reversed as posted to the wrong customer gives its mon)
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=23514 message=suspense receipt R24-2401: on 2026-03-10 its payments and dispositions would come to 160.00, more than the 100.00 the receipt holds (CI-053, v5.4.2-24)
+NOTICE:  PASS L7 cannot spend 60 on corrected customer: refused by the receipt holds (suspense receipt R24-2401: on 2026-03-10 its payments and dispositions would come to 160.00, more than the 100.00 the re)
+RESET
+ROLLBACK

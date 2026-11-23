@@ -1,0 +1,80 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+CREATE FUNCTION
+GRANT
+SET
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=23514 message=payments 00000000-0000-4000-8000-0000000a2411 is born reversed, naming none: a payment is born pending with no cause, and reaches any other status by a move that names its row (Q1 (a), CI-013; v5.4.2-23)
+NOTICE:  PASS app terminal INSERT refused: refused by is born pending (payments 00000000-0000-4000-8000-0000000a2411 is born reversed, naming none: a payment is born pending with no cause, an)
+RESET
+ terminal_insert 
+-----------------
+ 
+(1 row)
+
+NOTICE:  PASS owner terminal load consumes receipt without ledger or due
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  posting terminal load SQLSTATE=23514 message=account_ledger 00000000-0000-4000-8000-0000000a2481 posts payment terminal-load, which is reversed: a posting row is written for a payment still pending, before its move to posted (R-05, v5.4.2-23)
+DO
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+UPDATE 1
+INSERT 0 1
+UPDATE 1
+NOTICE:  PASS before late code historical due is 100
+ ok 
+----
+ 
+(1 row)
+
+UPDATE 1
+NOTICE:  PASS after late code same historical coordinates return none
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

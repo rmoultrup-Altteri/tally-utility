@@ -18,6 +18,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [trigger-depth-fence-inside-guard](#trigger-depth-fence-inside-guard) — Inside a BEFORE trigger a direct statement is already pg_trigger_depth() = 1; a "written by the database" fence must test < 2, never = 0
 - [seal-pattern-owner-roles](#seal-pattern-owner-roles) — How a "must go through this function" rule is sealed in tally — a dedicated NOLOGIN non-BYPASSRLS owner role, guards keyed on current_user, exact invariants
 - [correct-by-status-not-delete](#correct-by-status-not-delete) — A mistyped row on a retained table is corrected by a stamped status (e.g. withdrawn), never an app DELETE; -21's retention invariant refuses any tally_app DELETE outside its fixed list
+- [triggers-run-as-every-writer](#triggers-run-as-every-writer) — a new trigger on a mirrored table runs as every role that writes it (tally_void writes ledger rows and may not read payments); a patch's own battery that never takes that path stays green
 
 **Guard predicates**
 - [guard-the-act-not-the-label](#guard-the-act-not-the-label) — key a guard on what happened, not on the type/status name the caller chose
@@ -513,3 +514,11 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 -30's race mutations were caught by the first `FAIL <leg>`. Codex and Opus showed a statement timeout, a missing function or a lost connection printed the same label. One mutation (N53) had stopped doing its named damage when a second guard was added, and was still "caught".
 
 **How to apply:** a FAIL carries its proof (the damage read back from the tables, the SQLSTATE, or the answer); a session or read that failed for its own reasons is BROKEN, a right result with no wait seen is SEQUENTIAL; the runner names the whole bracket and first runs a selftest of the verdicts on literal outputs. When a second guard is added behind a first, re-check the first one's mutation and add one that removes both. One premise per claim in the battery.
+
+## triggers-run-as-every-writer
+
+-24 r11 added an AFTER INSERT trigger on `account_ledger` that read `payments`, with invoker rights. `void_invoice()` runs as `tally_void`, which inserts ledger rows and holds no SELECT on `payments`, so every void of a bill was refused (42501). -24's battery (334 checks) and races passed; only ci.sh's other batteries void a bill.
+
+- Before adding a trigger to a table another patch owns, list the roles that may write it (`has_table_privilege(rolname, table, 'INSERT')`) and what each may read.
+- Read the row's own table first and return unless the row concerns the trigger; only then read another table. Permissions are checked for the whole query, whatever its join would find.
+- A reviewer's trigger run only against the patch's own battery is not evidence for other writers: run ci.sh before trusting it.

@@ -1,0 +1,87 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+NOTICE:  PASS pruned misposting has zero final share
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS receipt holds none and customer received none
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  PASS no operator return-due row
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  caught SQLSTATE=23514 message=a misposting return gives back exactly what payment P24-2411 reversed as misposted (0 of its 100.00; what the bank took back stays spent), not 100.00 (v5.4.2-24)
+NOTICE:  PASS cannot return the misposted redeposit: refused by reversed as misposted (0 (a misposting return gives back exactly what payment P24-2411 reversed as misposted (0 of its 100.00; what the bank took )
+ refuses_at 
+------------
+ 
+(1 row)
+
+DO
+NOTICE:  terminal correction SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-0000000a2485 gives money back to payment 00000000-0000-4000-8000-0000000a2411, which has ended: post a new payment (guard the act; CI-013, v5.4.2-23)
+RESET
+ROLLBACK
