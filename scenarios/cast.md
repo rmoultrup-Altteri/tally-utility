@@ -58,7 +58,7 @@ Modelled on **Brenham** (tariff section 500, effective 10/1/2026). About **5,000
 | Gas cost | a fixed **commodity charge of $5.35 per Mcf** on every schedule, plus a monthly **gas cost adjustment** per Mcf that can be a charge or a credit; the adjustment is set at month end and applies to the whole billing month, never split, and is fixed once locked (Kyle 11-03, answer 1). **The figure locked at the end of a month applies to bills issued in the next month (invented)** | Brenham sheet 595 |
 | Minimum bill | the customer charge, every month, even while service is off for the summer | Brenham |
 | Due | 15 days after the bill is issued; a weekend or holiday due date moves to the next workday | Brenham |
-| When a payment counts as made | **the postmark for mail, the sent date for electronic payments (invented)**; the source is silent, and the method varies by place (CI-058) | — |
+| When a payment counts as made | **the postmark for mail, the sent date for electronic payments, the day received for a payment at the counter (invented)**; the source is silent, and the method varies by place (CI-058) | — |
 | Late penalty | rates are "net"; the "gross" rate for a late payment is 10% higher, on the current bill only, charged once (the platform default where the tariff doesn't say otherwise; Kyle 11-03, answer 3), on every tariff-priced line (customer charge, distribution, commodity, gas cost adjustment), never on a tax or state fee; as a forfeited prompt-payment discount it is taxed like the gas, so city sales tax applies inside the city (Kyle 11-05, answers 3a and 3b; a tax advisor confirms before go-live). A dispute follows Bluebonnet's own rule (the "Bill disputes" row below), not Kyle's answer 1 (Ryan 2026-11-22) | Brenham |
 | Delinquency | an unpaid bill on the due date makes all the customer's city services delinquent | Brenham (the platform bills gas only; see open questions) |
 | Bill disputes | a customer may ask in writing for an investigation; **the disputed bill should still be paid**; the city investigates promptly and credits anything shown to have been paid in error; no disconnection and no harm to the customer's credit during the investigation, which ends at resolution. Silent on the late penalty (the gross rate is not said to be waived) | Brenham, rules of service ("Disputed Bills", the Utility Customer Service/Billing page; tariff Sheet 511 in the wave-3 inventory); modelled in `law/dispute/examples/dispute_tariff.brenham.yaml` |
@@ -89,6 +89,7 @@ Fremont's rows so far (all **invented**):
 | Rule | Fremont | First used |
 |---|---|---|
 | Deposit interest | simple interest on a residential cash deposit from the day posted, at the state's yearly rate (2% for 2026), actual days over 365, rounded per accrual; no minimum holding period; a floor for every utility the commission regulates | SCN-0032 |
+| Unclaimed property | a holder may set off a debt the owner owes it on another payment before reporting a credit | SCN-0103 |
 
 ---
 
