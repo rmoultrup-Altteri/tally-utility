@@ -36,6 +36,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [temporal-helper-no-live-fallback](#temporal-helper-no-live-fallback) — Standing rule for any as-of/temporal lookup function in tu.sql — no live-value fallback, NULL coordinate raises, NULL result means unknowable
 - [date-from-snapshot-knowledge-from-now](#date-from-snapshot-knowledge-from-now) — issue-time checks classify at the snapshot's bound valid_at but under now(); the snapshot's recorded_at is caller-chosen and hides retractions
 - [history-stamped-at-xact-start](#history-stamped-at-xact-start) — a history read latest-first by a now() stamp goes permanently wrong when the earlier-begun writer commits last; refuse that writer (40001), don't switch to clock_timestamp()
+- [as-of-now-is-not-committed](#as-of-now-is-not-committed) — an as-of read at `now()` is not a plain read: it compares the caller's transaction start with other writers', so a long transaction misses a committed void; read at `infinity` for what is committed. A settled as-known answer can be one that was never true
 - [as-of-readers-take-no-final-figure](#as-of-readers-take-no-final-figure) — a reader with date and instant coordinates must compute every figure at them: a tree that is fixed now was not the same at an earlier date; add it to the conservation sweep, both directions
 
 **Concurrency**
@@ -44,6 +45,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [lock-order-as-a-rule](#lock-order-as-a-rule) — State a lock order as a rule over the rows taken in order, plus "every writer retries 40P01"; never as a list of shapes
 - [constraint-trigger-name-order](#constraint-trigger-name-order) — a deferred constraint trigger that reads what another AFTER trigger writes must sort after it by name: once a battery has run SET CONSTRAINTS ALL IMMEDIATE it fires at statement end, in name order, before the writer
 - [race-barriers-clear-stat-snapshot](#race-barriers-clear-stat-snapshot) — two-session race barriers polling pg_stat_activity must call pg_stat_clear_snapshot() each poll; never edit test files while mutations-22.py runs
+- [race-catch-names-its-damage](#race-catch-names-its-damage) — a race leg's bare FAIL is also what a timeout or a lost connection prints: a mutation's catch names the damage read back, the SQLSTATE or the wrong answer, with a selftest on literal outputs
 
 **Performance**
 - [recursive-walks-join-on-link-alone](#recursive-walks-join-on-link-alone) — WITH RECURSIVE ledger walks — pin the plan (enable_seqscan/hashjoin/mergejoin off on the function); join only on the link; mutation runners VACUUM first and need statement_timeout
@@ -493,3 +495,21 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 - Compute at the coordinates (`transaction_date <= p_on AND created_at <= p_recorded_at` on every row read), the payment's own date and recorded time included. A figure a write guard uses (final, undated) is not the reader's.
 - A new place where money can be goes into the conservation sweep in the same round, in both directions: never in two places, never in none.
 - An ordering check must not compare `array_agg(x)` with `array_agg(x ORDER BY x)`: PostgreSQL 16 sorts the input for both. Number the rows with `WITH ORDINALITY`.
+
+## as-of-now-is-not-committed
+
+-30 r1 re-pointed -16's plain place read at the new as-known read, at `now()`. Four rounds later Opus ran three sessions: a bill begun between two overlapping corrections (district D1 voided by one, D2 recorded by the other) read both, where -16's read gave D2. The void's stamp was later than the bill's start, D2's earlier.
+
+**Why:** `now()` is the transaction's start. Comparing it with stamps that are other transactions' starts answers "what had begun", not "what is committed".
+
+**How to apply:**
+- When a patch generalises a plain read, keep the plain form on what is committed (`infinity`), and compare it with the old function read by read, on random data with concurrent writers, before the first review.
+- Filters that decide which rows count are written once; the refusal and the answer read those rows.
+- "Settled" is not "right": after both writers finish, every read at an instant between them can give a row and its replacement. Waiting does not cure it; the instant must be one with no earlier transaction open (AC-47).
+- A read that refuses ambiguity compares everything the caller receives, and does not refuse records that agree.
+
+## race-catch-names-its-damage
+
+-30's race mutations were caught by the first `FAIL <leg>`. Codex and Opus showed a statement timeout, a missing function or a lost connection printed the same label. One mutation (N53) had stopped doing its named damage when a second guard was added, and was still "caught".
+
+**How to apply:** a FAIL carries its proof (the damage read back from the tables, the SQLSTATE, or the answer); a session or read that failed for its own reasons is BROKEN, a right result with no wait seen is SEQUENTIAL; the runner names the whole bracket and first runs a selftest of the verdicts on literal outputs. When a second guard is added behind a first, re-check the first one's mutation and add one that removes both. One premise per claim in the battery.
