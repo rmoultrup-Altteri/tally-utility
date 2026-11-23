@@ -6,6 +6,27 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-22 (money) — the dispute conflict settled; -24 rounds 9 and 10 reviewed, r11 built; a bill's credit line goes to Kyle
+
+**What was done:**
+- **Ryan's dispute rulings** (DECISION-LOG, four entries with scenarios): the scenarios version of the late-penalty rule stands; the silent-city default reaches every customer, and also stops both disconnection steps. AC-46 rewritten, -25 r2 plan item 9 settled, board notes.
+- **-25:** the default row designed. First design (inside the delegation document) drafted in a worktree and refused by -17's template; corrected to its own table. Nothing built.
+- **-24:**
+  - r9 frozen after ci.sh 63/63 and mutations 119/119. Reviews: all three not yet (the returns-due reader was wrong at past dates: found by each alone; a partly misposted payment could strand its share: Opus). Author ran Codex's ten probes and Opus's sequence: all confirmed.
+  - r10 (reader at its coordinates; bounced payments return their misposted part; conservation both ways): battery 309, mutations 142, ci.sh 63/63. Reviews: Fable ready, Opus and Codex not yet (what the bank took was ambiguous at the ending: three shapes; author ran Codex's 14 probes, as predicted).
+  - r11 built (ending rules; a code only with the move; pending postings not undone; payments not born ended; conservation over every receipt; races SU13 to SU15b): battery 335, races 29. The first ci.sh run failed 8 steps: the new ledger trigger refused every bill void (`tally_void` may not read `payments`); fixed. Then ci.sh 61/61 (while rates was mirroring -30, so to be run again) and mutations 161/161 (M98's check named, run alone).
+- **A bill's credit line** (scenarios' finding): confirmed by reading -23; options laid out twice; Ryan asks Kyle (K-17, Slack draft, roadmap).
+
+**Decisions:** three of Ryan's here on disputes (DECISION-LOG 2026-11-22, money -25), day 60 in the scenarios session; the -24 findings by rule (plans r10, r11).
+
+**Lessons:** PATCH-LESSONS `as-of-readers-take-no-final-figure`, `triggers-run-as-every-writer`.
+
+**Failed approaches:** see `handoffs/schema-money.md`.
+
+**Next:** -24 r11 on the base with -30 mirrored, freeze, review; -25 r2's default table; K-17.
+
+---
+
 ## 2026-11-22 (scenarios) — the cash family (SCN-0081 – 0103), five of Ryan's rulings, two batches for Kyle
 
 **What was done:**
