@@ -8,6 +8,17 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-22 (after v5.4.2-30)
+
+**How this was graded.** Read against -30's header (known limits L1–L7), its design, five review rounds (all three reviewers ready on r5; r6 words only) and its battery (127 checks). It closes the tax half of CI-001 and CI-004 and part of CI-045, and extends CI-046 (already REP+PROT). No class changes: **85 of 135** done, as after -27.
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-001 | PARTIAL | PARTIAL | high | -30 | Tax jurisdictions: `tax_levies` (dated, closed once, read as known by `tax_levy_as_of`), memberships and places read as known at an instant, a premise's state recorded on change (`service_location_state_history`). | Factor tables, meter assignments and meter parameters, as before. -30 L7: an as-known answer can settle on one that was never true; the core picks its instant (AC-47). |
+| CI-004 | PARTIAL | PARTIAL | med | -30 | As CI-001: tax rates are dated reference data per place, with the published rate as a separate fact and a report of where they differ. | Factor tables, assignments, meter parameters; legacy `rate_item_history`. |
+| CI-045 | PARTIAL | PARTIAL | high | -30 (Kyle 2026-10-14, 2026-11-03, 2026-11-05) | A levy names its tax kind, rate, stacking position and the kinds it is computed on; taxability, is-a-tax and the late-penalty base are required answers with no default; a tax is never in the penalty base. | The bill line naming its levy and place, and no tax on tax unless the levy says so (money, -30 L5); franchise fees (-31). |
+| CI-046 | REP+PROT | REP+PROT | high | -30 (Kyle 2026-10-14, 5) | An exemption names its service types; a line with no service type is refused, never matched. | The old customer-level exempt columns are still there, read by no tax path (L4). |
+
 ## Update — 2026-11-06 (after v5.4.2-27)
 
 **How this was graded.** -27 records a customer's credit (or a payment's own money) applied to what a bounced payment left owed: AC-44's netting, Kyle's one-pot ruling (2026-10-30). Its design maps no canonical invariant to it. It closes -23's residuals R23 (the netting's record) and R24 (a credit at 0 that never closes), on CI-013's and CI-049's ground, and both are already REP+PROT after -23. Read against -27's header (residuals R1–R5), its design, five review rounds (all three reviewers ready on r4; r5 ready from Opus and Fable, Codex waived by Ryan) and its battery (146 checks). No class changes: **85 of 135** done, as after -29.

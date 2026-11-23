@@ -459,6 +459,16 @@ It reads the answer from -25's record (`dispute_shelter_as_of`: the sheltered am
 **When the 60 days end with the dispute unresolved** (Ryan, 2026-11-22, scenarios): the disputed amount still unpaid is shown on the next regular bill and takes that bill's due date; it is not billed again. A penalty posts on it only if that date passes unpaid, and is reversed with the amount if the dispute is later decided for the customer. With Kyle (K-14): the 60-day end and a Brenham-style penalty both depart from CI-054 and CI-074.
 
 **Depends on -25 r2's default row** (not built; today a city with no tariff is recorded as "no terms").
+
+### AC-47 — Choose the instant a bill run reads at when no earlier transaction is open; record the levies and places each bill used — TRUSTED
+*Introduced by v5.4.2-30 (mirrored 2026-11-22; its known limit L7; Opus r3–r5, executed). Serves Ryan's one instant per billing run (2026-11-05, R-22).*
+
+"As known at an instant" means "by every transaction that began by it": every stamp is the writer's transaction start. So:
+- **A run's instant is one at which no transaction begun earlier is still open.** Waiting for them afterwards does not help: the answer can settle on a row and its replacement together (two stacking districts, both taxed), or refuse for that instant for good (21000).
+- **Record on the bill the levies and places it used** (the bill-line columns are the money stream's, not built). That says what the bill used; a replay at its instant can answer differently.
+- **Which read:** a bill reads `premise_places_as_of` with its run's instant (four arguments), and `tax_levy_as_of` at the same one. The three-argument form answers what is committed and is for screens and lookups; a bill that mixes the two can see a place without the levy recorded beside it.
+- **Retry:** 40001 (a premise's state, or a city's rows, changed while this waited) is retried in a new transaction. 21000 is not a retryable class; at `now()` a new transaction answers, at a fixed instant it never will.
+
 ---
 
 ## Meter test history

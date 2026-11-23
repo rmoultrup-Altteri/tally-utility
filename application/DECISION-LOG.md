@@ -6,6 +6,11 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-11-22 (-30) — Ryan: -30 mirrored, ahead of money's pending patches
+
+- **-30 mirrored into `tu.sql` ahead of -25, -26 and -24 (Ryan, 2026-11-22: "mirror it once money's reviewers are done").** *Why:* -30 was ready from all three reviewers (r5; r6 words only) and shares no function or trigger with the three, which strict-apply over it and whose batteries pass; waiting meant retesting it after each of theirs. *The cost:* money re-runs its batteries on the rebuilt `tally`. The rebuild waited for money's round-10 reviewers and its suite run. → DEPLOY-VERIFICATION.
+- **The run's instant is a contract on the core (AC-47), not a schema rule.** *Why:* a patch's header is not carried into `tu.sql`, so L7's rule needs a home the core's builders read. R-22 is unchanged.
+
 ## 2026-11-22 (rates, -30 r4) — the plain read of a premise's places reads what is committed; round-4 findings settled by standing rule
 
 - **The three-argument `premise_places_as_of` reads at `infinity`: every committed write counts, whatever its writer's transaction start.** *Why:* read at `now()` (r1 to r4) it compared stamps with the caller's transaction start, so a bill begun between two overlapping corrections answered a voided district beside its replacement, where -16's read (in `tally` today) answers the replacement alone (Opus r4 S1, executed on both). *Not* Opus's wording-only fix: a patch does not break what an earlier one had right. *Not* a refusal of rows closed after `now()`: it would refuse a long billing run on every ordinary correction. The four-argument form at an instant is unchanged. → -30 r5, `v5.4.2-30-r5-plan.md` S1.
