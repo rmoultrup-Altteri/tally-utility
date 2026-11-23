@@ -2,9 +2,9 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 # Handoff: scenarios and test strategy (roadmap P2, gate step 2)
 
-**Generated**: 2026-11-07, end of the fourth scenarios session.
-**Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (he also posts in his Slack DM, D0B0GRDQYLR).
-**Status**: 80 scenarios (SCN-0001 – 0080) in eight families. Codex's round-3 review done and applied. Ryan settled Tally's access (the hidden Tally User; reads logged by the application) and four dispute questions. The dispute rulings' conflict is settled (2026-11-22, below).
+**Generated**: 2026-11-22 evening, end of the fifth scenarios session.
+**Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (Kyle also posts in the Slack DM, D0B0GRDQYLR).
+**Status**: 103 scenarios (SCN-0001 – 0103). The cash family is written and reviewed twice. Two batches of questions for Kyle are drafted, neither sent.
 
 ## Goal
 
@@ -12,54 +12,77 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Where things are
 
-- `scenarios/README.md`: shape, conventions, file index, **next free ID SCN-0081**.
-- `scenarios/cast.md`: Pecan Flat (Stinnett's tariff), Bluebonnet (Brenham's; live Jan 1, 2026; now with a "Bill disputes" row from Brenham's rules of service), Gulf Plains (investor-owned, Texas binds), Fremont / Prairie Line.
-- Families: billing pipeline (0001, 0048, 0053–0055), cancel-rebill (0002–0006, 0027, 0028, 0030, 0033), deposits (0007–0012, 0029, 0032, 0042–0047, 0056, 0057), backbilling (0013–0019, 0031, 0035–0041, 0058, 0059), periods and aging (0020–0026, 0034, 0049–0052), tenant isolation (0060–0068, **0080 the Tally User**), date-tracking and immutability (0069–0079).
-- Reviews: `scenarios/review/2026-11-02/`, `2026-11-04/`, `2026-11-05/` (round 3 now has codex.md).
+- `scenarios/README.md`: shape, conventions, file index, **next free ID SCN-0104**.
+- `scenarios/cast.md`: Pecan Flat (Stinnett's tariff), Bluebonnet (Brenham's), Gulf Plains (investor-owned, Texas binds), Fremont / Prairie Line. Customers GP-06, BB-09 and PL-02 are cash.md's own.
+- Families: billing pipeline (0001, 0048, 0053–0055), cancel-rebill (0002–0006, 0027, 0028, 0030, 0033), deposits (0007–0012, 0029, 0032, 0042–0047, 0056, 0057), backbilling (0013–0019, 0031, 0035–0041, 0058, 0059), periods and aging (0020–0026, 0034, 0049–0052), tenant isolation (0060–0068, 0080), date-tracking (0069–0079), **cash (0081–0103)**.
+- Reviews: `scenarios/review/<date>/`; round 4 is `2026-11-22/` (codex.md, opus-fable-summary.md, opus-fable-r2-summary.md).
+
+## Completed this session
+
+- [x] Ryan's five rulings recorded and written in (Key decisions).
+- [x] `scenarios/cash.md`, 23 scenarios; review round 4 (Opus, Fable, Codex) applied (426b9f2); second pass (Opus, Fable, changed and new scenarios only) applied (eb75e70). **The second pass's own edits have not been reviewed.**
+- [x] K-14 (batch 3) drafted in Slack; K-16 (batch 4) drafted in `application/kyle-brief-2026-11-22-scenario-batch-4.md`. Roadmap decisions uploaded to the dashboard.
 
 ## Waiting on Ryan
 
-- Settled 2026-11-22 (DECISION-LOG): the dispute conflict (the scenarios version stands), day 60 (the next bill's due date), Pecan Flat's penalty base and the once-or-monthly setting, how a corrected bill shows the hidden extra. The money session settled the customer classes (all) and the blocked disconnection steps.
-- Send K-14 (Slack draft in Kyle's DM).
-- Offered, not asked for: check whether Stinnett (Pecan Flat's model) has a written dispute rule; its article 12.02 text did not load in the tariff survey.
+- **Send K-14**, the unsent draft in Kyle's DM (not sent when checked, 2026-11-22 evening). One draft per channel and no tool edits it, so **Ryan edits item 6 and its figures by hand first**:
+  > 6. (SCN-0033) The corrected bill is charged at the full true figure ($79.06), shown with "of which $13.23 is due with your next bill", so $65.83 is due now. The next bill shows the $13.23 without charging it again. This needs a record that part of a bill is due later, so your "no schema change" no longer holds. Any objection? The next bill prints the $13.23 but holds no line for it; money for it pays the November charges, so it can't be paid twice. Your answer said a line.
+
+  In its figure check: "carry-over ($13.23 moved" becomes "later-due amount ($13.23"; add $85.65 on December 4 (of which $13.23 isn't due yet) and $13.23 for SCN-0089 (b).
+- **Then send K-16** (paste below its "Paste from here"). Questions 18–22 assume Kyle accepts item 6; if not, rewrite them.
+- Offered, not asked for: check whether Stinnett has a written dispute rule (its article 12.02 did not load).
 
 ## Waiting on Kyle
 
-- **K-14, the third batch: drafted in Slack 2026-11-22 (9 questions and a figure check), not yet sent.** Sources: `grep -n "Open (Kyle" scenarios/*.md`. Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
-
-- **K-16, the fourth batch: drafted 2026-11-22** in `application/kyle-brief-2026-11-22-scenario-batch-4.md` (22 questions and a figure check), to send after K-14.
+- K-14 and K-16, above. Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
 
 ## Not yet done (in order)
 
-1. [x] The dispute conflict, the pending dispute questions and Kyle's flags (b), (c) (2026-11-22).
-2. [x] Draft K-14 for Kyle (Ryan to send).
-3. [ ] Weather normalization (likely needs Kyle on how city systems adjust).
-4. [ ] State machines, exception paths, the persona matrix.
-5. [ ] Families after their patches mirror: cash (`scenarios/cash.md`, SCN-0081 – 0103, drafted, reviewed and re-reviewed 2026-11-22 (round 4, two passes), Kyle's questions drafted as K-16; unmatched cash and pledges wait on -24), disputes (-25, after item 1), collections (-26; cast question 5), the rates stream's tax, gas cost, zones and reads.
-6. [ ] Deferred gap: one meter across premises with different rules.
-7. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15).
+1. [ ] **Tax by location** (recommended next, not yet chosen by Ryan): -30 mirrored 2026-11-22 (tax rows by place, taxability, exemptions per service, places as known; AC-47), so its scenarios can be written. Then the rates stream's gas cost, zones and reads.
+2. [ ] Weather normalization (likely needs Kyle on how city systems adjust).
+3. [ ] State machines, exception paths, the persona matrix.
+4. [ ] Families after their patches mirror: unmatched cash and pledges (-24), disputes (-25), collections (-26; cast question 5).
+5. [ ] One meter across premises with different rules.
+6. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15).
+7. [ ] Fold in K-14 and K-16 when answered.
 
-## Decisions this session (DECISION-LOG 2026-11-07, scenarios)
+## Key decisions (DECISION-LOG 2026-11-22)
 
-- R-27 (renumbered from R-23; money had used R-23/R-24): every utility gets a hidden Tally User, created at setup, with no login, reachable only through an impersonation session with a required reason; hidden from the user list but never from the change history; the utility can't change it; it isn't counted as utility staff. Correction bullet under 11-05: "Tally staff read-only" was the stream's proposal, not Ryan's rule.
-- R-28 (from R-24): Tally's reads are logged by the application (who, utility, record, when) and shown to the utility; refused attempts go to operational logs.
-- Disputes: the silent-city default (before the due date; until resolved or 60 days after issue); its correction (Brenham does have a written rule); a city's rule wins over Kyle's answer 1; the default protects the disputed amount only (whole bill when none recorded). **See item 1: the money session's later ruling conflicts.**
-- Codex round 3 (6 findings) settled by rule: SCN-0061, 0065, 0066, 0071, 0077, 0078, 0079.
+| Decision | Why |
+|---|---|
+| Dispute conflict: the scenarios version stands (a city's own rule wins; disputed amount only; earlier of resolution and 60 days) | recorded by money too |
+| Day 60 unresolved: the disputed amount takes the next bill's due date | no penalty on a date never told |
+| Full-amount penalty base: once or every month is the city's setting, no default; Pecan Flat monthly | the tariff is silent |
+| Corrected bill: one charge at the full true figure, part due later (replaces a matched pair of lines) | the pair read open after payment and would be paid twice |
+| By rule, after the re-review: the record is **per line**; the next bill prints the amount and holds no line; "not yet due" is its own aging row; netting a credit against a bounce is recorded before a refund, not at the bounce (Kyle asked) | one figure per bill gives $1.25 where Ryan's base gives $1.31; netting at the bounce would leave the per-state escheat rule nothing to act on |
 
-## Board notes left this session
+## With the money stream (board notes)
 
-- Unassigned: Tally's access now describes the Tally User design.
-- scenarios → money (four notes, for -25): the silent-city default, its correction, city rule wins, disputed amount only.
+The per-line "due later" record; a penalty paid before any bill line exists (0092); one receipt split between deposit and bill (0091 c); no unclaimed-property clock on an unapproved overpayment (0082); how a negative line nets; no ledger row for money sent to the state (0088 c); no basis for a customer's direction (0091 d); a take-back short of ended (0101 b).
+
+## Failed approaches (don't repeat)
+
+- **Matched pair of lines for the hidden extra** → the schema's open amount counts positive lines only and a ledger row naming a charge is its reversal → one charge, part due later.
+- **A shown amount written as a bill "line"** → any positive line of an issued bill takes money, so the same $13.23 could be paid on two bills → say printed, not a line.
+- **Reusing a cast customer without checking its other scenarios** → contradictions (BB-02, GP-01; a final bill left out) → grep the ID first, or invent a customer.
+- **"Service ended" to explain a quiet account** → it brings a final bill and a deposit into the figures.
+- **An on-time test with both dates before the due date** → it passes under either rule → put the customer's date and the settlement on either side.
+- **Inserting a DECISION-LOG entry without pulling** → money had put one on top → `git pull`, read it, then insert.
 
 ## Warnings
 
-- **Check own sources before telling Ryan a source is silent.** This session told Ryan Brenham had no dispute rule; it was already in `law/dispute/examples/dispute_tariff.brenham.yaml` and the wave-3 inventory. Grep `law/` and the inventories first; read the page, not a search summary.
-- **Another stream may rule on the same question in parallel.** Before recording a dispute or penalty ruling, grep the DECISION-LOG and the board's notes for the same topic from today.
-- **Check the mirrored schema before saying something is built**: read-only on the live database (`docker exec tally-pg psql -U tally -d tally -Atc "select …"`).
-- **Isolation is not "sees nothing"**: a session with no user or a switched-off user still reads the shared platform tables; a write it cannot reach changes nothing rather than raising.
-- **A city system never reads the Texas rule's terms** for backbilling; its own tariff record or Kyle's six-month default.
-- Scenarios describe rules and rulings, not tables; mark the stream's own readings as readings, with an Open; keep facts consistent with the cast.
-- Reviewers: Codex via `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C <repo> "<prompt>" < /dev/null > log 2>&1` (no `timeout` on macOS; don't pass `-o` when the prompt tells Codex to write the report file, or `-o` overwrites it). Opus and Fable as background agents told to SendMessage the report in parts under 3 KB.
-- eCode360 blocks curl and WebFetch (Cloudflare); use the Chrome extension, reject non-essential cookies, close the tab.
-- Slack: Kyle's DM is Slack Connect: draft only (`slack_send_message_draft`, D0B0GRDQYLR); Ryan sends.
-- Don't edit the money or rates streams' handoffs; leave notes on the board.
+- **Other streams rule on the same topics in parallel.** Before recording a ruling, pull and grep the DECISION-LOG and the board for it.
+- **Check own sources before telling Ryan a source is silent**: grep `law/` and the inventories, read the page.
+- **Core or database:** before writing "refused", find the guard (`docker exec tally-pg psql -U tally -d tally -Atc "select …"`, read-only). Choosing bills and lines is the core's.
+- A city system never reads the Texas rule's terms for backbilling; its own tariff record or Kyle's six-month default.
+- Isolation is not "sees nothing": a session with no user still reads the shared platform tables.
+- Scenarios describe rules, not tables; mark readings, with an Open; keep facts consistent with the cast.
+- Reviewers: Opus and Fable as background agents told to **write the report to a scratchpad file** and return titles only (reports truncate). Codex: `PATH=~/.nvm/versions/node/v24.15.0/bin:$PATH codex exec -s workspace-write -C <repo> "<prompt>" < /dev/null > log 2>&1` (no `-o` when the prompt tells it to write a file).
+- eCode360 blocks curl and WebFetch; use the Chrome extension, reject non-essential cookies, close the tab.
+- Slack: Kyle's DM is Slack Connect: draft only; Ryan sends. Don't edit other streams' handoffs; leave notes on the board.
+
+## Resume
+
+1. `git pull --ff-only`; GBM fetch; read the board's notes for this stream. Expected: at `HEAD`, only other streams' commits.
+2. Read the DM (D0B0GRDQYLR): if K-14 is sent, remind Ryan of K-16; if Kyle answered, fold it in first.
+3. Ask Ryan: tax by location next?

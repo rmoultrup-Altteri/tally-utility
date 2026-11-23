@@ -6,6 +6,25 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-22 (scenarios) — the cash family (SCN-0081 – 0103), five of Ryan's rulings, two batches for Kyle
+
+**What was done:**
+- **Rulings written in** (SCN-0033, 0024, 0053, 0089, cast): the dispute conflict, day 60, Pecan Flat's penalty, the corrected bill, the hidden $13.23 as one charge with part due later.
+- **`scenarios/cash.md`, 23 scenarios:** allocation, overpayment, refunds, bounces, the pot, unclaimed money, paid-bill corrections, undo, designation, regulated first, duplicates, bank returns, closed months, the customer's date.
+- **Review round 4** (Codex 2 must / 8 should; Opus 9 / 9 / 2 notes; Fable 2 must / 4 fix / 8 add / 6 notes) applied; SCN-0099 – 0103 came from it. **Second pass** on the changed and new scenarios (Opus 5 / 7 / 2; Fable 3 / 5 / 6) applied; its own edits are not re-reviewed.
+- **Second pass's main fixes:** the later-due record per line ($4.44, $8.03, $0.63, $0.13), since one figure per bill left $12.45 of priced lines open ($1.25 penalty, not $1.31); the next bill prints the $13.23 and holds no line; SCN-0087 and 0103 agree on when netting is recorded.
+- **Kyle:** K-14 drafted in Slack (item 6 to be edited by Ryan); K-16 drafted, `application/kyle-brief-2026-11-22-scenario-batch-4.md` (22 questions). Neither sent. Roadmap decisions uploaded.
+
+**Decisions:** DECISION-LOG 2026-11-22 (scenarios): four entries, with corrections and what was settled by rule after the re-review.
+
+**Failed approaches:** see `handoffs/scenarios.md` (the matched pair; a shown amount as a line; cast facts reused unchecked; an on-time test that could not fail).
+
+**Open:** the money stream's board notes (the per-line due-later record is the main one); Kyle's answers.
+
+**Next:** tax by location (-30 is mirrored), if Ryan agrees.
+
+---
+
 ## 2026-11-22 (rates) — v5.4.2-30 (tax levies and taxability): rounds 3 to 6, mirrored
 
 **What was done:**
