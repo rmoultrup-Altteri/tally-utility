@@ -11,6 +11,7 @@
 --   X  the law table's insert check          U  the utility's tariff (L5)
 --   N  never looser than the law (L6)        D  the dispute record (D1-D5)
 --   R  the reader (D6)                       T  the two meaning changes (T1, T2)
+--   P  the platform default (r2, item 9)     D7 the platform default cited
 --   H  history, grants, tenancy, invariants
 --
 -- Written before the patch: it fails first, at the first object -25 creates.
@@ -21,6 +22,8 @@
 --           dispute_rules (law; key customer_class; facets subject_codes, excluded_subject_codes,
 --                          block_codes, stage_ids, must_pay_ids)
 --           dispute_tariffs (tariff; key []; the same facets; tariff_reference)
+--           r2: dispute_platform_defaults (law template; kind dispute; key customer_class; the same facets);
+--               dispute_determinations.platform_default_id
 --           disputes, dispute_amounts, dispute_amount_lines, dispute_determinations, dispute_events
 --   readers dispute_shelter_as_of(invoice, on, recorded)
 --           dispute_line_shelter_as_of(line, on, recorded)
@@ -109,7 +112,7 @@ GRANT EXECUTE ON FUNCTION pg_temp.refuses_at(text, text, text, text), pg_temp.ok
 -- ------------------------------------------------------------------ fixtures
 -- T1 (…25a1) a city-owned Texas gas system with its own dispute tariff;
 -- T2 (…25a2) an investor-owned Texas gas system (16 TAC 7.45 binds it);
--- T3 (…25a3) a city-owned system with no dispute tariff.
+-- T3 (…25a3) a city-owned system with no dispute tariff (r2: until November 24, D7j).
 -- Ids: b users, c customers, d locations, e meters, 01-09 bills, 11-1f and
 -- 21-2f lines, 31-3f disputes, 41-4f amounts, 51-5f determinations, 61-6f
 -- events, 71 readings, 81-8f ledger, ab/ac/ad tariffs.
@@ -166,16 +169,19 @@ INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, readin
 
 -- bill(): an issued bill dated March 1 (due March 20) with three lines: gas
 -- service 60 (regulated), an add-on 40 (unregulated), a credit -10. Issued a
--- day ago as a history load (the owner's stamp is kept).
-CREATE FUNCTION pg_temp.bill(p_tenant uuid, p_id uuid, p_num text, p_customer uuid, p_loc uuid, p_l1 uuid, p_l2 uuid, p_l3 uuid) RETURNS void LANGUAGE plpgsql AS $$
+-- day ago as a history load (the owner's stamp is kept). r2 (item 9): another
+-- date may be given; the bill covers the month before it and is due 19 days
+-- after it.
+CREATE FUNCTION pg_temp.bill(p_tenant uuid, p_id uuid, p_num text, p_customer uuid, p_loc uuid, p_l1 uuid, p_l2 uuid, p_l3 uuid,
+                             p_date date DEFAULT DATE '2026-03-01') RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
-  VALUES (p_id, p_tenant, p_num, p_customer, p_loc, DATE '2026-03-01', '2026-02', DATE '2026-02-01', DATE '2026-02-28', DATE '2026-03-20', 90.00);
+  VALUES (p_id, p_tenant, p_num, p_customer, p_loc, p_date, to_char(p_date - 1, 'YYYY-MM'), date_trunc('month', p_date - 1)::date, p_date - 1, p_date + 19, 90.00);
   INSERT INTO public.invoice_line_items (id, tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, rate, regulatory_class) VALUES
     (p_l1, p_tenant, p_id, 0, 'gas', 'base_charge', 'Gas service', 60.00, 60.00, 'regulated'),
     (p_l2, p_tenant, p_id, 1, 'general', 'misc', 'Appliance plan', 40.00, NULL, 'unregulated'),
     (p_l3, p_tenant, p_id, 2, 'gas', 'credit', 'Goodwill', -10.00, NULL, 'regulated');
-  PERFORM pg_temp.snap(p_id, DATE '2026-02-28', now());
+  PERFORM pg_temp.snap(p_id, p_date - 1, now());
   UPDATE public.invoices SET status = 'pending' WHERE id = p_id;
   UPDATE public.invoices SET first_issued_at = now() - interval '1 day' WHERE id = p_id;
 END $$;
@@ -191,6 +197,12 @@ SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-
                     '00000000-0000-4000-8000-000000002524', '00000000-0000-4000-8000-000000002525', '00000000-0000-4000-8000-000000002526');
 SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002507', 'B25-I7', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-0000000025d7',
                     '00000000-0000-4000-8000-000000002527', '00000000-0000-4000-8000-000000002528', '00000000-0000-4000-8000-000000002529');
+-- r2 (item 9): T3's bills either side of the platform default's first day (2026-11-22): I9 dated
+-- November 20, I8 November 23.
+SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002509', 'B25-I9', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-0000000025d7',
+                    '00000000-0000-4000-8000-00000000252d', '00000000-0000-4000-8000-00000000252e', '00000000-0000-4000-8000-00000000252f', DATE '2026-11-20');
+SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002508', 'B25-I8', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-0000000025d7',
+                    '00000000-0000-4000-8000-00000000252a', '00000000-0000-4000-8000-00000000252b', '00000000-0000-4000-8000-00000000252c', DATE '2026-11-23');
 -- A draft bill of C1 (never issued).
 INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
 VALUES ('00000000-0000-4000-8000-000000002504', '00000000-0000-4000-8000-0000000025a1', 'B25-I4', '00000000-0000-4000-8000-0000000025c1', '00000000-0000-4000-8000-0000000025d1',
@@ -275,7 +287,7 @@ SELECT pg_temp.ok('S7 the vocabularies are the platform''s: the application read
   (SELECT bool_and(has_table_privilege('tally_app', t, 'SELECT') AND NOT has_table_privilege('tally_app', t, 'INSERT')
                    AND NOT has_table_privilege('tally_app', t, 'UPDATE') AND NOT has_table_privilege('tally_app', t, 'DELETE'))
      FROM unnest(ARRAY['public.dispute_subjects', 'public.dispute_blocks', 'public.dispute_duties', 'public.dispute_customer_classes',
-                       'public.dispute_rules']) t));
+                       'public.dispute_rules', 'public.dispute_platform_defaults']) t));
 
 -- ============================================================== M the two tables are on the template (L1, L5)
 SELECT pg_temp.ok('M1 dispute_rules: a registered law table on the dispute kind, keyed by customer class, five facets, a close floor and an insert check',
@@ -375,6 +387,94 @@ SELECT pg_temp.admits('X8 a well-formed law row of another owner type is admitte
 INSERT INTO public.dispute_rules (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
                                   effective_from, source_note, terms_kind, terms_version, terms_source)
 VALUES ('TX', 'gas', '{political_subdivision}', '{distribution}', NULL, 'protected', DATE '2026-01-01', 'battery rule', 'dispute', 1, '{"governs": "law", "citation": "Battery county rule", "subjects": {"kind": "any", "excluded": [], "citation": "x"}, "shelter_earned": {"kind": "before_termination", "citation": "x"}, "must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m1", "citation": "x"}, "shelter_ends": {"kind": "resolution", "citation": "x"}, "stages": [], "blocks": {"codes": ["disconnect_order", "disconnect_execute"], "citation": "x"}, "duties": {"codes": [], "citation": "x"}}');
+
+-- ============================================================== P the platform default (r2, item 9; Ryan 2026-11-22)
+-- A city-owned system with no dispute policy of its own is under the platform's default: its own law-template
+-- table, kind dispute, keyed by customer class (law/dispute/dispute_platform_defaults.yaml).
+CREATE TEMP TABLE p25 (doc jsonb);
+INSERT INTO p25 VALUES ('{"governs": "law", "citation": "Platform dispute default (2026-11-22)",
+  "subjects": {"kind": "any", "excluded": [], "citation": "Platform dispute default (2026-11-22)"},
+  "shelter_earned": {"kind": "before_delinquency", "citation": "Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(i)"},
+  "must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m1", "citation": "Platform dispute default (2026-11-07, 2026-11-22)"},
+  "shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 60, "from": "issue", "citation": "Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(ii)"},
+  "stages": [],
+  "blocks": {"codes": ["late_fee", "disconnect_order", "disconnect_execute"], "citation": "Platform dispute default (2026-11-22)"},
+  "duties": {"codes": [], "citation": "Platform dispute default (2026-11-22)"}}');
+-- pdef(class): the platform default in force for a Texas city-owned gas system's class (open rows only).
+CREATE FUNCTION pg_temp.pdef(p_class text) RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT id FROM public.dispute_platform_defaults
+   WHERE state_code = 'TX' AND service_type = 'gas' AND customer_class = p_class AND 'municipal' = ANY (owner_types) AND closed_at IS NULL
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.pdef(text) TO tally_app;
+GRANT SELECT ON p25 TO tally_app;
+SELECT pg_temp.ok('P1 dispute_platform_defaults: a registered law table on the dispute kind, keyed by customer class, the five facets, a close floor and an insert check',
+  (SELECT rule_role = 'law' AND terms_kind = 'dispute' AND area_key = '{customer_class}'
+          AND facet_columns = '{block_codes,excluded_subject_codes,must_pay_ids,stage_ids,subject_codes}'
+          AND NOT adopts_legacy_rows AND insert_check IS NOT NULL AND close_floor IS NOT NULL
+          AND law_table IS NULL AND compare_function IS NULL
+     FROM public.rule_tables WHERE table_name = 'public.dispute_platform_defaults'::regclass));
+SELECT pg_temp.ok('P2 two rows: Texas gas, city-owned distribution systems, either jurisdiction status, one per class (every class: Ryan 2026-11-22), from 2026-11-22, open-ended',
+  (SELECT count(*) = 2 AND array_agg(customer_class ORDER BY customer_class) = ARRAY['protected', 'unprotected']
+          AND bool_and(owner_types = '{municipal}' AND system_kinds = '{distribution}' AND commission_jurisdiction IS NULL
+                       AND effective_from = DATE '2026-11-22' AND effective_to IS NULL AND closed_at IS NULL)
+     FROM public.dispute_platform_defaults WHERE state_code = 'TX' AND service_type = 'gas')
+  AND NOT EXISTS (SELECT 1 FROM public.dispute_platform_defaults WHERE state_code <> 'TX' OR service_type <> 'gas'));
+SELECT pg_temp.ok('P3 both hold exactly the ruled document: any subject, before delinquency, the undisputed charges to pay, the earlier of resolution and 60 days from issue, the late fee and both disconnection steps stopped, no stages, no duties',
+  (SELECT bool_and(d.terms = p.doc) AND count(*) = 2 FROM public.dispute_platform_defaults d, p25 p));
+SELECT pg_temp.ok('P4 its facets are derived from the document',
+  (SELECT bool_and(block_codes = '{disconnect_execute,disconnect_order,late_fee}' AND stage_ids = '{}' AND must_pay_ids = '{m1}'
+                   AND subject_codes = '{}' AND excluded_subject_codes = '{}')
+     FROM public.dispute_platform_defaults));
+SELECT pg_temp.ok('P5 its source notes say it is the platform''s ruling, not law, and that a city''s own tariff replaces it',
+  (SELECT bool_and(source_note ~* 'not law' AND source_note ~* 'tariff') FROM public.dispute_platform_defaults));
+SELECT pg_temp.ok('P6 the template''s three triggers stand on it, enabled always; the customer class is a foreign key into the state''s classes',
+  (SELECT count(*) = 3 FROM pg_trigger WHERE tgrelid = 'public.dispute_platform_defaults'::regclass AND NOT tgisinternal
+      AND tgname = ANY (ARRAY['rule_row_insert', 'rule_row_history', 'rule_row_no_truncate']) AND tgenabled = 'A')
+  AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.dispute_platform_defaults'::regclass AND contype = 'f'
+                 AND confrelid = 'public.dispute_customer_classes'::regclass));
+-- default_sql(owner, class, from, document): a default row as the owner.
+CREATE FUNCTION pg_temp.default_sql(p_owner text, p_class text, p_from date, p_doc jsonb) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT format($q$INSERT INTO public.dispute_platform_defaults (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
+                     effective_from, source_note, terms_kind, terms_version, terms_source)
+                   VALUES ('TX', 'gas', ARRAY[%L], '{distribution}', NULL, %L, %L, 'battery default', 'dispute', 1, %L)$q$,
+                p_owner, p_class, p_from, p_doc::text)
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.default_sql(text, text, date, jsonb) TO tally_app;
+SELECT pg_temp.refuses_at('P7 a default that delegates: the platform''s default says what it does',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01',
+    '{"governs": "delegated_to_utility", "citation": "x", "note": "left to the utility"}'), '23514', '[L8a]');
+SELECT pg_temp.refuses_at('P8 a default whose start is unruled',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01', (SELECT doc FROM p25) || '{"shelter_earned": {"kind": "unruled"}}'), '23514', '[L8b]');
+SELECT pg_temp.refuses_at('P8b … whose must-pay is unruled',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01',
+    (SELECT doc FROM p25) || '{"must_pay": {"strategy": "unruled", "version": 1, "id": "m1"}}'), '23514', '[L8b]');
+SELECT pg_temp.refuses_at('P8c … whose end is unruled',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01', (SELECT doc FROM p25) || '{"shelter_ends": {"kind": "unruled"}}'), '23514', '[L8b]');
+SELECT pg_temp.refuses_at('P9 a default passes the dispute documents'' own checks (a subject both listed and excluded)',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01',
+    (SELECT doc FROM p25) || '{"subjects": {"kind": "listed", "codes": ["meter_accuracy", "deposit"], "excluded": ["deposit"], "citation": "x"}}'), '23514', '[L2a]');
+SELECT pg_temp.refuses_at('P10 a default for a class the state''s vocabulary lacks',
+  pg_temp.default_sql('special_district', 'governmental', DATE '2026-01-01', (SELECT doc FROM p25)), '23503', 'dispute_customer_classes');
+SELECT pg_temp.refuses_at('P11 a second default for a city''s protected class over the same dates',
+  pg_temp.default_sql('municipal', 'protected', DATE '2027-01-01', (SELECT doc FROM p25)), '23P01', 'dispute_platform_defaults');
+SELECT pg_temp.admits_undone('P12 a well-formed default of another owner type is admitted (the platform writes its defaults)',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01', (SELECT doc FROM p25)));
+SELECT pg_temp.refuses_at('P13 a default is never edited (determinations cite its document)',
+  format($q$UPDATE public.dispute_platform_defaults SET source_note = 'changed' WHERE id = %L$q$, pg_temp.pdef('protected')), '23001', 'dispute_platform_defaults');
+SELECT pg_temp.refuses_at('P13b nor deleted',
+  format($q$DELETE FROM public.dispute_platform_defaults WHERE id = %L$q$, pg_temp.pdef('protected')), '23001', 'dispute_platform_defaults');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b3', true);
+SELECT pg_temp.refuses_at('P14 the application writes no default',
+  pg_temp.default_sql('special_district', 'protected', DATE '2026-01-01', (SELECT doc FROM p25)), '42501', 'dispute_platform_defaults');
+SELECT pg_temp.ok('P15 … and every utility reads them; the lookup finds T3''s protected default on 2026-11-22 and none on 2026-11-21',
+  (SELECT count(*) = 2 FROM public.dispute_platform_defaults)
+  AND public.rule_law_row_as_of('public.dispute_platform_defaults', '00000000-0000-4000-8000-0000000025a3', 'gas', 'distribution', 'TX',
+                                '{"customer_class": "protected"}', DATE '2026-11-22') = pg_temp.pdef('protected'));
+SELECT pg_temp.refuses_at('P15b … (none on 2026-11-21: unknown is not permission)',
+  $q$SELECT public.rule_law_row_as_of('public.dispute_platform_defaults', '00000000-0000-4000-8000-0000000025a3', 'gas', 'distribution', 'TX',
+                                      '{"customer_class": "protected"}', DATE '2026-11-21')$q$, 'P0002', 'no law');
+RESET ROLE;
 
 -- ============================================================== U the utility's tariff (L5)
 SET ROLE tally_app;
@@ -513,18 +613,19 @@ LANGUAGE sql IMMUTABLE AS $$
   SELECT format($q$INSERT INTO public.dispute_amount_lines (tenant_id, dispute_amount_id, invoice_line_item_id, amount)
                    VALUES (%L, %L, %L, %s)$q$, p_tenant, p_amount_row, p_line, p_amount)
 $$;
--- det_sql(id, tenant, dispute, amount row, class, rule, tariff, outcome, sheltered, must pay, component, ends, blocks, supersedes)
+-- det_sql(id, tenant, dispute, amount row, class, rule, tariff, outcome, sheltered, must pay, component, ends, blocks, supersedes,
+--         platform default)
 CREATE FUNCTION pg_temp.det_sql(p_id text, p_tenant text, p_dispute text, p_amount_row text, p_class text, p_rule uuid, p_tariff text,
                                 p_outcome text, p_sheltered numeric, p_must numeric, p_component text, p_ends date, p_blocks text[],
-                                p_supersedes text DEFAULT NULL) RETURNS text
+                                p_supersedes text DEFAULT NULL, p_default uuid DEFAULT NULL) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$
   SELECT format($q$INSERT INTO public.dispute_determinations (id, tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
                      customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks,
-                     supersedes_id, inputs, inputs_fingerprint, calculated_by)
-                   VALUES (%L, %L, %L, %L, 'TX', 'gas', 'distribution', %L, %L, %L, %L, %s, %s, %L, %L, %L, %L, '{"battery": true}', %L, 'core-battery-25')$q$,
+                     supersedes_id, inputs, inputs_fingerprint, calculated_by, platform_default_id)
+                   VALUES (%L, %L, %L, %L, 'TX', 'gas', 'distribution', %L, %L, %L, %L, %s, %s, %L, %L, %L, %L, '{"battery": true}', %L, 'core-battery-25', %L)$q$,
                 p_id, p_tenant, p_dispute, p_amount_row, p_class, p_rule, p_tariff, p_outcome,
                 coalesce(p_sheltered::text, 'NULL'), coalesce(p_must::text, 'NULL'), p_component, p_ends, p_blocks, p_supersedes,
-                'fp-' || left(p_id, 8) || coalesce(p_sheltered::text, ''))
+                'fp-' || left(p_id, 8) || coalesce(p_sheltered::text, ''), p_default)
 $$;
 -- ev_sql(tenant, dispute, type, occurred, stage, decider role, escalated to, outcome, ledger, credit, invoice)
 CREATE FUNCTION pg_temp.ev_sql(p_tenant text, p_dispute text, p_type text, p_on date, p_stage text DEFAULT NULL, p_role text DEFAULT NULL,
@@ -539,7 +640,7 @@ LANGUAGE sql IMMUTABLE AS $$
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.dispute_sql(text, text, text, text, text, text, date, text), pg_temp.amount_sql(text, text, text, numeric, text, date),
   pg_temp.line_sql(text, text, text, numeric),
-  pg_temp.det_sql(text, text, text, text, text, uuid, text, text, numeric, numeric, text, date, text[], text),
+  pg_temp.det_sql(text, text, text, text, text, uuid, text, text, numeric, numeric, text, date, text[], text, uuid),
   pg_temp.ev_sql(text, text, text, date, text, text, text, text, text, text, text, text) TO tally_app;
 
 -- N8: T5's law shelters before termination; a tariff starting before delinquency is narrower.
@@ -676,7 +777,7 @@ SELECT pg_temp.refuses_at('D2e a determiner that is not the customer, an agreeme
 SELECT pg_temp.refuses_at('D2f an amount effective before the dispute was received',
   pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'customer_claim', DATE '2026-03-11'),
   '23514', '[D2d]');
-SELECT pg_temp.admits('D2g a revision is a new row: the regulator''s interim estimate of 35 (FL''s shape), no lines',
+SELECT pg_temp.admits('D2p a revision is a new row: the regulator''s interim estimate of 35 (FL''s shape), no lines',
   pg_temp.amount_sql('00000000-0000-4000-8000-000000002542', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 35, 'regulator_interim', DATE '2026-03-14'));
 SELECT pg_temp.refuses_at('D2h an amount row is never edited',
   $q$UPDATE public.dispute_amounts SET amount = 1 WHERE id = '00000000-0000-4000-8000-000000002541'$q$, '42501', 'dispute_amounts');
@@ -764,11 +865,11 @@ SELECT pg_temp.refuses_at('D4o a shelter that ends before the dispute was receiv
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 90, 'm1', DATE '2026-03-11',
                   '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4o]');
-SELECT pg_temp.refuses_at('D4p a class the state''s vocabulary lacks',
+SELECT pg_temp.refuses_at('D4l a class the state''s vocabulary lacks',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
                   'governmental', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 90, 'm1', NULL,
                   '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002551'), '23503', 'dispute_customer_classes');
-SELECT pg_temp.refuses_at('D4q an outcome that is not sheltered, not sheltered, or no terms',
+SELECT pg_temp.refuses_at('D4n4 an outcome that is not sheltered, not sheltered, or no terms',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'pending', 35, 90, 'm1', NULL,
                   '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002551'), '23514', 'dispute_determinations_outcome_check');
@@ -927,7 +1028,7 @@ SELECT pg_temp.refuses_at('D2m an amount after the resolution',
 SELECT pg_temp.admits('D5q C1''s I2 dispute is resolved adjusted, naming the adjustment entry that produced',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002532', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'adjusted',
                  '00000000-0000-4000-8000-000000002582'));
-SELECT pg_temp.admits('D5r C2''s reading dispute is withdrawn',
+SELECT pg_temp.admits('D5y C2''s reading dispute is withdrawn',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002533', 'withdrawn', DATE '2026-03-20', NULL, NULL, NULL, NULL,
                  NULL, NULL, NULL, '00000000-0000-4000-8000-000000002563'));
 SELECT pg_temp.ok('D5s … and its status is withdrawn, naming the event',
@@ -1045,6 +1146,106 @@ SELECT pg_temp.ok('T2g the disputed-reading index stands, on the status',
   EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_readings_disputed' AND indexdef ~ 'status'
              AND indexdef !~ 'dispute_'));
 
+-- ============================================================== D7 the platform default cited (r2, item 9)
+-- T3 is a city with no dispute policy until it writes one from November 24. A dispute it received from
+-- November 22 (the default's first day) is under the platform default; one received before has no terms.
+-- I9 is dated November 20 (day 60 is January 18), I8 November 23.
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b3', true);
+SELECT pg_temp.admits('D7 T3''s C7 disputes I9 on November 21 and on November 22, and I8 on November 23 and 24 (40 each)',
+  pg_temp.dispute_sql('00000000-0000-4000-8000-000000002539', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-000000002509', NULL, 'calculation', DATE '2026-11-21') || '; '
+  || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-000000002509', NULL, 'calculation', DATE '2026-11-22') || '; '
+  || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253b', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-000000002508', NULL, 'calculation', DATE '2026-11-23') || '; '
+  || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-000000002508', NULL, 'calculation', DATE '2026-11-24') || '; '
+  || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254a', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002539', 40, 'customer_claim', DATE '2026-11-21') || '; '
+  || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', 40, 'customer_claim', DATE '2026-11-22') || '; '
+  || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254d', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253b', 40, 'customer_claim', DATE '2026-11-23') || '; '
+  || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254e', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253c', 40, 'customer_claim', DATE '2026-11-24'));
+SELECT pg_temp.refuses_at('D7a November 21, the day before the default: naming it is refused (none is in force)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002539', '00000000-0000-4000-8000-00000000254a',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-18',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D7a]');
+SELECT pg_temp.admits('D7a2 … and "no terms" is admitted (a city with no policy, before the platform''s default)',
+  pg_temp.det_sql('00000000-0000-4000-8000-00000000255a', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002539', '00000000-0000-4000-8000-00000000254a',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'no_terms', 0, NULL, NULL, NULL, '{}'));
+SELECT pg_temp.refuses_at('D7b November 22, the default''s first day: "no terms" is refused (the default governs a city with no policy)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'no_terms', 0, NULL, NULL, NULL, '{}'), '23514', '[D7b]');
+SELECT pg_temp.refuses_at('D7b2 … as is a shelter that names neither a tariff nor the default',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-18',
+                  '{disconnect_execute,disconnect_order,late_fee}'), '23514', '[D7b]');
+SELECT pg_temp.refuses_at('D7b3 … and the other class''s default (the unprotected row for a protected customer)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-18',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('unprotected')), '23514', '[D7b]');
+SELECT pg_temp.refuses_at('D7c under the default, a shelter past day 60 from issue (January 19)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-19',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D4p]');
+SELECT pg_temp.refuses_at('D7c2 … or with no end',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', NULL,
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D4p]');
+SELECT pg_temp.refuses_at('D7d blocks other than the default''s (credit reporting added)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-18',
+                  '{credit_reporting,disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D4h]');
+SELECT pg_temp.refuses_at('D7d2 a must-pay component the default does not have',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm2', DATE '2027-01-18',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D4g]');
+SELECT pg_temp.refuses_at('D7e "no terms" that names the default',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'no_terms', 0, NULL, NULL, NULL, '{}', NULL, pg_temp.pdef('protected')), '23514', '[D4n]');
+SELECT pg_temp.admits('D7f November 22: sheltered under the default — 40 sheltered, 50 (the undisputed charges) to pay, until January 18 (day 60), the late fee and both disconnection steps stopped',
+  pg_temp.det_sql('00000000-0000-4000-8000-00000000255b', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-18',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')));
+SELECT pg_temp.admits('D7g November 23: the unprotected class is under its own default row (every class, Ryan 2026-11-22)',
+  pg_temp.det_sql('00000000-0000-4000-8000-00000000255c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253b', '00000000-0000-4000-8000-00000000254d',
+                  'unprotected', pg_temp.law('municipal', 'unprotected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-21',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('unprotected')));
+SELECT pg_temp.ok('D7h the document a default''s determination cites is the default''s',
+  public.dispute_determination_terms(pg_temp.law('municipal', 'protected'), NULL, pg_temp.pdef('protected')) = (SELECT doc FROM p25)
+  AND public.dispute_determination_terms(pg_temp.law('municipal', 'protected'), NULL, NULL) ->> 'governs' = 'delegated_to_utility');
+SELECT pg_temp.refuses_at('D7i the default has no review stages: a stage event under it is refused',
+  pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', 'stage_entered', DATE '2026-11-24', 's1', 'designated_employee'), '23514', '[D5b]');
+SELECT pg_temp.admits('D7j T3 writes its own policy from November 24',
+  pg_temp.tariff_sql('00000000-0000-4000-8000-0000000025ad', '00000000-0000-4000-8000-0000000025a3', DATE '2026-11-24', pg_temp.tdoc()));
+SELECT pg_temp.refuses_at('D7k November 24: the default is refused — the city''s own policy is in force from that day (it replaces the default)',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253c', '00000000-0000-4000-8000-00000000254e',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-21',
+                  '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D4e]');
+SELECT pg_temp.refuses_at('D7k2 … and naming both the policy and the default is refused',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253c', '00000000-0000-4000-8000-00000000254e',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ad', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}', NULL, pg_temp.pdef('protected')), '23514', '[D7k]');
+SELECT pg_temp.admits('D7l … citing the policy is admitted',
+  pg_temp.det_sql('00000000-0000-4000-8000-00000000255d', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253c', '00000000-0000-4000-8000-00000000254e',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ad', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}'));
+SELECT pg_temp.admits('D7m the November 22 dispute keeps the default after the policy: a new answer (35) still cites it',
+  pg_temp.det_sql('00000000-0000-4000-8000-00000000255e', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', '00000000-0000-4000-8000-00000000254c',
+                  'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 35, 55, 'm1', DATE '2027-01-18',
+                  '{disconnect_execute,disconnect_order,late_fee}', '00000000-0000-4000-8000-00000000255b', pg_temp.pdef('protected')));
+SELECT pg_temp.ok('D7n the reader: I9 on January 18 shelters 35 of the November 22 dispute with the default''s blocks, and nothing of the November 21 one',
+  (SELECT sheltered_amount = 35 AND blocks = '{disconnect_execute,disconnect_order,late_fee}' AND outcome = 'sheltered'
+     FROM public.dispute_shelter_as_of('00000000-0000-4000-8000-000000002509', DATE '2027-01-18', now()) WHERE dispute_id = '00000000-0000-4000-8000-00000000253a')
+  AND (SELECT outcome = 'no_terms' AND sheltered_amount = 0 FROM public.dispute_shelter_as_of('00000000-0000-4000-8000-000000002509', DATE '2027-01-18', now()) WHERE dispute_id = '00000000-0000-4000-8000-000000002539'));
+SELECT pg_temp.ok('D7n2 … and on January 19 nothing',
+  (SELECT coalesce(sum(sheltered_amount), 0) = 0 FROM public.dispute_shelter_as_of('00000000-0000-4000-8000-000000002509', DATE '2027-01-19', now())));
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b2', true);
+SELECT pg_temp.refuses_at('D7o where Texas law governs (T2), the default is never named',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002535', '00000000-0000-4000-8000-000000002545',
+                  'protected', pg_temp.law('investor_owned', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2026-04-29',
+                  '{disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002555', pg_temp.pdef('protected')), '23514', '[D7k]');
+RESET ROLE;
+SELECT pg_temp.refuses_at('D7p the protected default, cited for a dispute received November 22, cannot close on November 22',
+  format($q$UPDATE public.dispute_platform_defaults SET effective_to = DATE '2026-11-22' WHERE id = %L$q$, pg_temp.pdef('protected')), '23514', 'cannot close on');
+SELECT pg_temp.admits_undone('D7p2 … November 23 is fine',
+  format($q$UPDATE public.dispute_platform_defaults SET effective_to = DATE '2026-11-23' WHERE id = %L$q$, pg_temp.pdef('protected')));
+
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 a law row is never edited',
   format($q$UPDATE public.dispute_rules SET source_note = 'x' WHERE id = %L$q$, pg_temp.law('investor_owned', 'protected')), '23001', 'dispute_rules');
@@ -1063,7 +1264,8 @@ SELECT pg_temp.ok('H6 the application writes disputes, amounts, lines, determina
      FROM unnest(ARRAY['public.disputes', 'public.dispute_amounts', 'public.dispute_amount_lines', 'public.dispute_determinations', 'public.dispute_events']) t));
 SELECT pg_temp.ok('H7 tally_core reads the dispute records and writes none',
   (SELECT bool_and(has_table_privilege('tally_core', t, 'SELECT') AND NOT has_table_privilege('tally_core', t, 'INSERT'))
-     FROM unnest(ARRAY['public.disputes', 'public.dispute_amounts', 'public.dispute_determinations', 'public.dispute_events', 'public.dispute_rules']) t));
+     FROM unnest(ARRAY['public.disputes', 'public.dispute_amounts', 'public.dispute_determinations', 'public.dispute_events', 'public.dispute_rules',
+                       'public.dispute_platform_defaults']) t));
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b2', true);
 SELECT pg_temp.ok('H8 each utility sees its own dispute records only: T2 sees its two disputes and none of T1''s or T3''s',
@@ -1071,13 +1273,13 @@ SELECT pg_temp.ok('H8 each utility sees its own dispute records only: T2 sees it
   AND NOT EXISTS (SELECT 1 FROM public.dispute_events WHERE tenant_id <> '00000000-0000-4000-8000-0000000025a2')
   AND NOT EXISTS (SELECT 1 FROM public.dispute_amounts WHERE tenant_id <> '00000000-0000-4000-8000-0000000025a2')
   AND NOT EXISTS (SELECT 1 FROM public.dispute_tariffs WHERE tenant_id <> '00000000-0000-4000-8000-0000000025a2'));
-SELECT pg_temp.ok('H9 the law is the platform''s and every utility reads it',
-  (SELECT count(*) >= 4 FROM public.dispute_rules));
+SELECT pg_temp.ok('H9 the law and the platform''s defaults are the platform''s, and every utility reads them',
+  (SELECT count(*) >= 4 FROM public.dispute_rules) AND (SELECT count(*) = 2 FROM public.dispute_platform_defaults));
 RESET ROLE;
 -- CASCADE: a plain TRUNCATE of a referenced table is refused by PostgreSQL's own FK check (0A000) before
 -- any trigger runs; with CASCADE nothing but the guard stands in the way.
 SELECT pg_temp.refuses_at('H10 a dispute record is never truncated, even with CASCADE', 'TRUNCATE public.dispute_events CASCADE', '23001', 'dispute');
-SELECT pg_temp.admits('H11 the template''s invariants hold over both rule tables', $q$SELECT public.assert_rule_table_invariants()$q$);
+SELECT pg_temp.admits('H11 the template''s invariants hold over the three rule tables', $q$SELECT public.assert_rule_table_invariants()$q$);
 SELECT pg_temp.admits('H12 tenant isolation holds over the new tables and readers', $q$SELECT public.assert_tenant_isolation_invariants()$q$);
 SELECT pg_temp.admits('H13 the retention invariants hold: no new table can be deleted from', $q$SELECT public.assert_no_hard_delete_invariants()$q$);
 SELECT pg_temp.admits('H14 the core role invariants still hold', $q$SELECT public.assert_core_role_invariants()$q$);
@@ -1092,12 +1294,28 @@ SELECT pg_temp.refuses_at('H17 a T2 dispute of T1''s bill, loaded with foreign k
      VALUES ('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-0000000025c5', '00000000-0000-4000-8000-000000002501', 'calculation', DATE '2026-03-12', 'written')$q$,
   '23503', 'disputes_invoice_fkey');
 -- r2 (Fable S4): -25's own guard invariant.
+-- r2 (Fable S3; lesson seal-pattern-owner-roles): the status move is tally_dispute's.
+SELECT pg_temp.ok('H18 the status move is a pinned definer owned by tally_dispute, a NOLOGIN role with no BYPASSRLS',
+  (SELECT p.prosecdef AND pg_get_userbyid(p.proowner) = 'tally_dispute' FROM pg_proc p WHERE p.oid = 'public.dispute_move_status()'::regprocedure)
+  AND (SELECT NOT rolcanlogin AND NOT rolbypassrls AND NOT rolsuper FROM pg_roles WHERE rolname = 'tally_dispute'));
+SELECT pg_temp.admits('H18b the seal invariant holds, tally_dispute among its roles', $q$SELECT public.assert_seal_role_invariants()$q$);
+SELECT pg_temp.refuses_at('H18c … and catches a grant beyond the move''s (UPDATE of a dispute''s subject)',
+  $q$GRANT UPDATE (subject) ON public.disputes TO tally_dispute; SELECT public.assert_seal_role_invariants()$q$, '0LP01', 'tally_dispute holds other privileges');
+SELECT pg_temp.refuses_at('H18d a move made by anyone but tally_dispute is refused, even one naming its resolution (the move''s trigger switched off)',
+  $q$SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b3', true);
+     ALTER TABLE public.dispute_events DISABLE TRIGGER z_dispute_move_status;
+     INSERT INTO public.dispute_events (id, tenant_id, dispute_id, event_type, occurred_on, outcome)
+     VALUES ('00000000-0000-4000-8000-000000002565', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002539', 'resolved', DATE '2026-11-24', 'sustained');
+     UPDATE public.disputes d SET status = 'resolved', status_cause_id = e.id, status_recorded_at = e.created_at
+       FROM public.dispute_events e WHERE e.id = '00000000-0000-4000-8000-000000002565' AND d.id = '00000000-0000-4000-8000-000000002539'$q$, '23514', '[D1g]');
 SELECT pg_temp.admits('H16 -25''s guard invariant holds as built', $q$SELECT public.assert_dispute_guard_invariants()$q$);
 SELECT pg_temp.refuses_at('H16a … and catches a guard switched off',
   $q$ALTER TABLE public.dispute_events DISABLE TRIGGER z_enforce_dispute_nothing_after_close; SELECT public.assert_dispute_guard_invariants()$q$,
   '0LP01', 'z_enforce_dispute_nothing_after_close');
-SELECT pg_temp.refuses_at('H16b … an UPDATE granted on disputes',
-  $q$GRANT UPDATE (status) ON public.disputes TO tally_app; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
+SELECT pg_temp.refuses_at('H16b … an UPDATE granted on disputes (an unlisted column grant; r2: the status columns are tally_dispute''s, listed)',
+  $q$GRANT UPDATE (subject) ON public.disputes TO tally_app; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
+SELECT pg_temp.refuses_at('H16b2 … or a listed column grant revoked (the status move''s on status_recorded_at)',
+  $q$REVOKE UPDATE (status_recorded_at) ON public.disputes FROM tally_dispute; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
 SELECT pg_temp.refuses_at('H16c … a guard''s body replaced',
   $q$CREATE OR REPLACE FUNCTION public.enforce_dispute_reading_released() RETURNS trigger LANGUAGE plpgsql SET search_path = public, pg_temp AS $b$ BEGIN RETURN NULL; END $b$;
      SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'enforce_dispute_reading_released');

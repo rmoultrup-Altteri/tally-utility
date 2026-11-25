@@ -61,6 +61,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [check-names-its-own-guard](#check-names-its-own-guard) — when two guards share a tag (a BEFORE guard and its commit-time backup), a battery check matching the tag alone still passes with either guard gone; match wording only one writes. A mutation that empties an already-empty list changes nothing
 
 **Review process**
+- [carried-invariant-shares-list-names](#carried-invariant-shares-list-names) — a patch that carries another invariant forward (the seal's, to add a role) now holds two `c_triggers`; a generator that fills "the first list of that name" overwrites the carried one. Anchor the generator inside its own function, and diff the carried body against its source
 - [freeze-hash-before-reviews](#freeze-hash-before-reviews) — Do not edit the patch file while the two reviewers are testing it — freeze the hash at launch, batch all fixes into the next round
 - [reviewer-fixes-need-measuring](#reviewer-fixes-need-measuring) — reviewers' findings are usually right and their proposed FIXES often are not — measure the fix before folding it; two independent reviewers converging is the strongest signal available
 
@@ -532,3 +533,10 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 - A rule about what one row is reads that row (`amount`) and whether anything is filed beneath it (`NOT EXISTS … reverses_ledger_entry_id = row`). Use `ledger_entry_remaining` only for "what is left of this entry".
 - A sum over a reversal tree walks it once, from the posting entry, by `reverses_ledger_entry_id`, carrying a flag down (for example "in or under the first nsf row that takes money"); never seed it from every row that matches a label.
 - For every new rule over a tree, try the same money filed one level down: under an undo of the row the rule names.
+
+<a id="carried-invariant-shares-list-names"></a>
+### carried-invariant-shares-list-names
+
+v5.4.2-25 r2 (2026-11-25) carried `assert_seal_role_invariants()` forward from -23 to add `tally_dispute`. Both it and -25's own `assert_dispute_guard_invariants()` declare `c_triggers CONSTANT text[] := ARRAY[`. `fill-manifest.py` found the list by `s.index(...)`, the first in the file: it wrote -25's triggers into the seal's list and left -25's stale. The battery still passed (every listed trigger existed); the first full mutation run showed it, when removing a dispute trigger was refused at apply by the *seal's* check.
+
+**How to apply:** a generator finds its lists after its own function's `CREATE OR REPLACE FUNCTION` line. A carried-forward body is diffed against its source (`tu.sql`) before a freeze: only the intended edits may differ.

@@ -35,8 +35,18 @@
 --     written down); city-owned, a delegation per class (K-07).
 --   * dispute_tariffs: the utility's own policy, kind dispute_tariff v1,
 --     key [] (one per utility, state, service, system and dates), the same
---     sections; never looser than the law in force when written (L6). No
---     default row (K-07).
+--     sections; never looser than the law in force when written (L6).
+--   * r2 (item 9; Ryan 2026-11-22, amending K-07 for disputes):
+--     dispute_platform_defaults, the platform's default for a city-owned
+--     system with no dispute policy of its own: a law-template table, kind
+--     dispute, key customer_class, the same facets; its document governs and
+--     rules every section [L8a, L8b]. Texas gas, city-owned distribution,
+--     every class, from 2026-11-22 (the ruling's date): any subject, before
+--     delinquency, the undisputed charges to pay, the earlier of resolution
+--     and 60 days from issue, the late fee and both disconnection steps
+--     stopped, no stages, no duties. Seeded from
+--     law/dispute/dispute_platform_defaults.yaml. The comparator does not
+--     read it (a city's own policy may be narrower).
 --   * Insert checks on both: a subject both listed and excluded [L2a], a
 --     code listed twice [L2b], a filing deadline from a prior decision on
 --     the first stage [L2c], a final stage that is not the last [L2d], a
@@ -57,9 +67,10 @@
 --     written by tally_app with calculated_by when the answer changes. The
 --     database checks the record, not the evaluation: the law row is the one
 --     in force for the utility, the class and the received date [D4a]; the
---     tariff is the utility's own [D4f], in force [D4c]; a delegation
---     shelters only under a tariff [D4d], and says "no terms" only when none
---     is in force [D4e]; outcome shapes [D4n]; the component [D4g] and blocks
+--     tariff is the utility's own [D4f], in force [D4c]; under a delegation,
+--     the tariff in force is cited [D4e], else (r2) the platform default in
+--     force (platform_default_id) [D7a, D7b], which is never cited elsewhere
+--     [D7k]; with neither, only "no terms" [D4d]; outcome shapes [D4n]; the component [D4g] and blocks
 --     [D4h] are the cited document's; amounts [D4i]; one live row per
 --     dispute [D4m]; none after the resolution [D4k].
 --   * dispute_events (add-only): opened (the database's, with the dispute),
@@ -112,16 +123,21 @@
 --       category, not the user's own role.
 --   R5. A reading-only dispute has no reader: its shelter is read from its
 --       determinations directly until a bill names it.
---   R6. "No terms" is checked against the tariff in force when it is
---       written; a tariff written later for the same date (a back-dated
---       policy) is the core's audit finding.
---   R7. The status move is a SECURITY DEFINER trigger function owned by the
---       migration's role: tally_app holds no UPDATE on disputes, and the
---       move it makes is checked against its event (enforce_dispute_update).
---       A trigger function cannot be called directly.
+--   R6. "No terms" and a platform default are checked against the tariff in
+--       force when written; a tariff written later for the same date (a
+--       back-dated policy) is the core's audit finding (races DR11).
+--   R7. The status move is a SECURITY DEFINER trigger function owned by
+--       tally_dispute (r2; the seal pattern): tally_app holds no UPDATE on
+--       disputes, and the move it makes is checked against its event and its
+--       role (enforce_dispute_update). A trigger function cannot be called
+--       directly. RLS applies to the move: whoever records a resolution sets
+--       app.user_id, a history load as the superuser included.
+--   R8. r2: whether a dispute received ON the due date is "before
+--       delinquency" is the core's reading of the term, as under 7.45 (the
+--       bill is delinquent from the day after its due date).
 --
--- Tests. battery-25 (201 checks), races/disputes-25.sh (DR1-DR9, 12 results),
---   terms-25.py, migration-25.py (P0-P4), mutations-25.py (110 of 110 caught).
+-- Tests. battery-25 (270 checks), races/disputes-25.sh (DR1-DR12, 16 results),
+--   terms-25.py, migration-25.py (P0-P4), mutations-25.py (140 mutations).
 --
 -- PRECONDITION. v5.4.2-23 applied. No meter reading carries the old dispute
 --   notes or status 'disputed', and no customer is enrolled in
@@ -1894,6 +1910,121 @@ SELECT public.rule_row_seed('public.dispute_rules', $law${"commission_jurisdicti
 
 
 -- ----------------------------------------------------------------------------
+-- 4b. The platform default (L8; r2 item 9; Ryan 2026-11-22)
+-- ----------------------------------------------------------------------------
+-- A city's own policy wins; where Texas law binds, the law row governs; a
+-- city-owned system with no dispute policy of its own is under the
+-- platform's default. The default is not law and not a city's tariff: it is
+-- the platform's ruling, held on the law template (its own table, so the
+-- delegation document keeps its three keys, -17 r4) so that it is dated,
+-- closed above its floor and cited as law rows are. Its documents are
+-- dispute documents that govern (the template's only branch with sections);
+-- the table and each citation say whose they are. The comparator does not
+-- read it: a city's own policy may be narrower than the default.
+CREATE TABLE public.dispute_platform_defaults (
+    id                      uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    state_code              text NOT NULL,
+    service_type            text NOT NULL,
+    owner_types             text[],
+    system_kinds            text[],
+    commission_jurisdiction boolean,
+    owner_span              int4multirange NOT NULL,
+    system_span             int4multirange NOT NULL,
+    jurisdiction_span       int4range NOT NULL,
+    customer_class          text NOT NULL,
+    effective_from          date NOT NULL,
+    effective_to            date,
+    source_note             text NOT NULL,
+    terms_kind              text NOT NULL,
+    terms_version           integer NOT NULL,
+    terms_source            text NOT NULL,
+    terms                   jsonb NOT NULL,
+    subject_codes           text[] NOT NULL,
+    excluded_subject_codes  text[] NOT NULL,
+    block_codes             text[] NOT NULL,
+    stage_ids               text[] NOT NULL,
+    must_pay_ids            text[] NOT NULL,
+    created_at              timestamp with time zone DEFAULT now() NOT NULL,
+    recorded_txid           bigint,
+    closed_at               timestamp with time zone,
+    closed_by               text,
+    CONSTRAINT dispute_platform_defaults_pkey PRIMARY KEY (id),
+    CONSTRAINT dispute_platform_defaults_customer_class_fkey FOREIGN KEY (state_code, service_type, customer_class)
+        REFERENCES public.dispute_customer_classes (state_code, service_type, class_code)
+);
+
+-- The area predicate: the class is the state's; the document governs (a
+-- default never delegates) [L8a] and rules every section it has (a default
+-- that left its start, its must-pay or its end unruled would tell the core
+-- nothing) [L8b]; and it passes dispute_terms_check.
+CREATE OR REPLACE FUNCTION public.dispute_platform_default_insert_check(p_row jsonb) RETURNS void
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+DECLARE
+    v_what text := format('dispute platform default (%s %s, %s)', p_row ->> 'state_code', p_row ->> 'service_type', p_row ->> 'customer_class');
+    v_bad  text;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.dispute_customer_classes c
+                    WHERE c.state_code = p_row ->> 'state_code' AND c.service_type = p_row ->> 'service_type'
+                      AND c.class_code = p_row ->> 'customer_class') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: customer class %s is not one of dispute_customer_classes for %s %s (v5.4.2-25)',
+                             v_what, p_row ->> 'customer_class', p_row ->> 'state_code', p_row ->> 'service_type'),
+            ERRCODE = 'foreign_key_violation';
+    END IF;
+    IF p_row -> 'terms' ->> 'governs' IS DISTINCT FROM 'law' THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: a default says what it does (governs law); it never leaves the matter to the utility [L8a] (v5.4.2-25)', v_what),
+            ERRCODE = 'check_violation';
+    END IF;
+    SELECT string_agg(x.section, ', ' ORDER BY x.section) INTO v_bad
+      FROM (VALUES ('shelter_earned', p_row #>> '{terms,shelter_earned,kind}'), ('must_pay', p_row #>> '{terms,must_pay,strategy}'),
+                   ('shelter_ends', p_row #>> '{terms,shelter_ends,kind}')) x(section, v)
+     WHERE x.v = 'unruled';
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s: %s is unruled; a default rules every section [L8b] (v5.4.2-25)', v_what, v_bad),
+            ERRCODE = 'check_violation';
+    END IF;
+    PERFORM public.dispute_terms_check(v_what, p_row -> 'terms');
+END;
+$$;
+COMMENT ON FUNCTION public.dispute_platform_default_insert_check(jsonb) IS
+    'v5.4.2-25 r2 (L8). The area predicate of dispute_platform_defaults (rule_tables.insert_check): the customer class is one of its state''s and service''s dispute classes (23503); the document governs — a default never delegates [L8a]; no section is unruled (shelter_earned, must_pay, shelter_ends) [L8b]; it passes dispute_terms_check. Raises.';
+
+CREATE OR REPLACE FUNCTION public.dispute_platform_default_close_floor(p_default_id uuid) RETURNS date
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    RETURN (SELECT max(d.received_on) FROM public.dispute_determinations x JOIN public.disputes d ON d.id = x.dispute_id
+             WHERE x.platform_default_id = p_default_id);
+END;
+$$;
+COMMENT ON FUNCTION public.dispute_platform_default_close_floor(uuid) IS
+    'v5.4.2-25 r2 (L8). The close floor of a dispute_platform_defaults row: the latest received date of a dispute whose determination cites it, or NULL. A dispute already determined keeps the row it cited.';
+
+DO $register$
+BEGIN
+    PERFORM public.rule_table_register('public.dispute_platform_defaults', 'law', 'dispute', ARRAY['customer_class'],
+                                       ARRAY['block_codes', 'excluded_subject_codes', 'must_pay_ids', 'stage_ids', 'subject_codes'],
+                                       'public.dispute_platform_default_close_floor(uuid)', 'public.dispute_platform_default_insert_check(jsonb)');
+END
+$register$;
+REVOKE ALL ON FUNCTION public.dispute_platform_default_insert_check(jsonb), public.dispute_platform_default_close_floor(uuid) FROM PUBLIC, tally_app, tally_core;
+COMMENT ON TABLE public.dispute_platform_defaults IS
+    'v5.4.2-25 r2 (L8; Ryan 2026-11-22), on the rule-terms convention. The platform''s default dispute rule for a city-owned system with no dispute policy of its own, per (state, service, owner types, system kinds, jurisdiction, customer class, dates): not law and not a tariff, but the platform''s ruling, held on the law template — platform-held, never edited, the one change a stamped close above the close floor (the latest received date of a dispute whose determination cites it). A determination under a delegation with no tariff in force on the received date cites the default in force for the utility''s profile, class and date; with none in force, it says "no terms". A city''s own tariff replaces it for disputes received from the tariff''s date; a dispute already determined keeps the row it cited. The tariff comparator does not read it (a city''s own policy may be narrower). Texas gas: a city-owned distribution system, every class, from 2026-11-22 (the ruling''s date): any subject, before delinquency, the undisputed charges to pay, the earlier of resolution and 60 days from issue, the late fee and both disconnection steps stopped, no stages, no duties. Seeded from law/dispute/dispute_platform_defaults.yaml.';
+
+-- The Texas rows (law/dispute/dispute_platform_defaults.seed.sql, embedded verbatim).
+-- Generated by tools/law/lawc.py emit — do not edit; edit the law file and re-emit.
+-- Each call inserts its law row, or finds it unchanged, or raises (public.rule_row_seed, v5.4.2-17).
+-- source: law/dispute/dispute_platform_defaults.yaml sha256 555ab09e5a46eedf633a4e5147203b727447b64d3074c5d3813defa3d58c3f0b
+SELECT public.rule_row_seed('public.dispute_platform_defaults', $law${"commission_jurisdiction":null,"customer_class":"protected","effective_from":"2026-11-22","effective_to":null,"owner_types":["municipal"],"service_type":"gas","source_note":"Platform default, not law (Ryan, 2026-11-22: the silent-city dispute default; DECISION-LOG money -25): a city-owned system with no dispute policy in its tariff. It copies 16 TAC 7.45(6)(D)'s start and end, shelters the disputed amount only and stops the late fee and both disconnection steps. A city's own tariff replaces it from the tariff's date.","state_code":"TX","system_kinds":["distribution"],"terms_kind":"dispute","terms_source":"{\"blocks\":{\"citation\":\"Platform dispute default (2026-11-22)\",\"codes\":[\"late_fee\",\"disconnect_order\",\"disconnect_execute\"]},\"citation\":\"Platform dispute default (2026-11-22)\",\"duties\":{\"citation\":\"Platform dispute default (2026-11-22)\",\"codes\":[]},\"governs\":\"law\",\"must_pay\":{\"citation\":\"Platform dispute default (2026-11-07, 2026-11-22)\",\"id\":\"m1\",\"strategy\":\"undisputed_charges\",\"version\":1},\"shelter_earned\":{\"citation\":\"Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(i)\",\"kind\":\"before_delinquency\"},\"shelter_ends\":{\"citation\":\"Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(ii)\",\"days\":60,\"from\":\"issue\",\"kind\":\"earlier_of_resolution_and_days\"},\"stages\":[],\"subjects\":{\"citation\":\"Platform dispute default (2026-11-22)\",\"excluded\":[],\"kind\":\"any\"}}","terms_version":1}$law$::jsonb);  -- tx_gas_municipal_default_protected
+SELECT public.rule_row_seed('public.dispute_platform_defaults', $law${"commission_jurisdiction":null,"customer_class":"unprotected","effective_from":"2026-11-22","effective_to":null,"owner_types":["municipal"],"service_type":"gas","source_note":"Platform default, not law (Ryan, 2026-11-22: the silent-city default reaches every customer class; DECISION-LOG money -25): the same terms as the protected class's default row. A city's own tariff replaces it from the tariff's date.","state_code":"TX","system_kinds":["distribution"],"terms_kind":"dispute","terms_source":"{\"blocks\":{\"citation\":\"Platform dispute default (2026-11-22)\",\"codes\":[\"late_fee\",\"disconnect_order\",\"disconnect_execute\"]},\"citation\":\"Platform dispute default (2026-11-22)\",\"duties\":{\"citation\":\"Platform dispute default (2026-11-22)\",\"codes\":[]},\"governs\":\"law\",\"must_pay\":{\"citation\":\"Platform dispute default (2026-11-07, 2026-11-22)\",\"id\":\"m1\",\"strategy\":\"undisputed_charges\",\"version\":1},\"shelter_earned\":{\"citation\":\"Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(i)\",\"kind\":\"before_delinquency\"},\"shelter_ends\":{\"citation\":\"Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(ii)\",\"days\":60,\"from\":\"issue\",\"kind\":\"earlier_of_resolution_and_days\"},\"stages\":[],\"subjects\":{\"citation\":\"Platform dispute default (2026-11-22)\",\"excluded\":[],\"kind\":\"any\"}}","terms_version":1}$law$::jsonb);  -- tx_gas_municipal_default_unprotected
+
+
+-- ----------------------------------------------------------------------------
 -- 5. The dispute record: tables (D1, D2, D3, D5)
 -- ----------------------------------------------------------------------------
 -- One sequence orders every dispute record in recording order.
@@ -2011,6 +2142,7 @@ CREATE TABLE public.dispute_determinations (
     recorded_txid       bigint,
     created_at          timestamp with time zone DEFAULT now() NOT NULL,
     created_by          uuid,
+    platform_default_id uuid,
     CONSTRAINT dispute_determinations_pkey PRIMARY KEY (id),
     CONSTRAINT dispute_determinations_id_tenant_id_key UNIQUE (id, tenant_id),
     CONSTRAINT dispute_determinations_id_dispute_id_key UNIQUE (id, dispute_id),
@@ -2019,6 +2151,7 @@ CREATE TABLE public.dispute_determinations (
     CONSTRAINT dispute_determinations_amount_fkey FOREIGN KEY (dispute_amount_id, dispute_id) REFERENCES public.dispute_amounts (id, dispute_id),
     CONSTRAINT dispute_determinations_rule_fkey FOREIGN KEY (rule_id) REFERENCES public.dispute_rules (id),
     CONSTRAINT dispute_determinations_tariff_fkey FOREIGN KEY (tariff_id, tenant_id) REFERENCES public.dispute_tariffs (id, tenant_id),
+    CONSTRAINT dispute_determinations_platform_default_fkey FOREIGN KEY (platform_default_id) REFERENCES public.dispute_platform_defaults (id),
     CONSTRAINT dispute_determinations_class_fkey FOREIGN KEY (state_code, service_type, customer_class)
         REFERENCES public.dispute_customer_classes (state_code, service_type, class_code),
     CONSTRAINT dispute_determinations_system_fkey FOREIGN KEY (system_kind) REFERENCES public.utility_system_kinds (system_kind),
@@ -2032,9 +2165,10 @@ CREATE TABLE public.dispute_determinations (
 CREATE INDEX idx_dispute_determinations_dispute ON public.dispute_determinations (dispute_id, record_seq);
 CREATE INDEX idx_dispute_determinations_rule ON public.dispute_determinations (rule_id);
 CREATE INDEX idx_dispute_determinations_tariff ON public.dispute_determinations (tariff_id) WHERE tariff_id IS NOT NULL;
+CREATE INDEX idx_dispute_determinations_platform_default ON public.dispute_determinations (platform_default_id) WHERE platform_default_id IS NOT NULL;
 CREATE INDEX idx_dispute_determinations_tenant ON public.dispute_determinations (tenant_id);
 COMMENT ON TABLE public.dispute_determinations IS
-    'v5.4.2-25 (D3, D4). The core''s reading of a dispute''s shelter, written by tally_app with calculated_by naming the core version, only when the answer changes (memory: design permanent, record on change), as deposit_return_due is. It cites the law row in force for the utility, the class and the received date (a city''s delegation included), the utility''s tariff when one applied (required for a shelter under a delegation), and the amount row it read; it records the outcome (sheltered, not_sheltered, or no_terms — a city with no policy in force), the amounts, the must-pay component of the cited document that governed, the last sheltered day (shelter_ends_on, inclusive; NULL when only resolution ends it) and the cited document''s blocks. The core evaluates; the database checks that the record agrees with the rule it cites (enforce_dispute_determination). A later row names the row it supersedes; one live row per dispute, under the dispute''s lock. Add-only.';
+    'v5.4.2-25 (D3, D4). The core''s reading of a dispute''s shelter, written by tally_app with calculated_by naming the core version, only when the answer changes (memory: design permanent, record on change), as deposit_return_due is. It cites the law row in force for the utility, the class and the received date (a city''s delegation included), the utility''s tariff when one applied, r2: else, under a delegation, the platform default in force (platform_default_id; one of the two for a shelter under a delegation), and the amount row it read; it records the outcome (sheltered, not_sheltered, or no_terms — a city with neither a policy nor a platform default in force), the amounts, the must-pay component of the cited document that governed, the last sheltered day (shelter_ends_on, inclusive; NULL when only resolution ends it) and the cited document''s blocks. The core evaluates; the database checks that the record agrees with the rule it cites (enforce_dispute_determination). A later row names the row it supersedes; one live row per dispute, under the dispute''s lock. Add-only.';
 
 CREATE TABLE public.dispute_events (
     id                          uuid DEFAULT public.uuid_generate_v4() NOT NULL,
@@ -2304,9 +2438,13 @@ BEGIN
     -- this dispute, naming it at its stamp. There is at most one such event
     -- (dispute_events_one_closing), and it is written only while the dispute
     -- is open (enforce_dispute_event), so this also keeps the move forward.
-    IF NOT EXISTS (SELECT 1 FROM public.dispute_events e
-                    WHERE e.id = NEW.status_cause_id AND e.dispute_id = NEW.id AND e.event_type = NEW.status
-                      AND e.event_type IN ('resolved', 'withdrawn') AND e.created_at = NEW.status_recorded_at) THEN
+    -- r2 (Fable S3; lesson seal-pattern-owner-roles): and only as
+    -- tally_dispute, the owner of dispute_move_status — current_user here only
+    -- while that function runs, a role no caller can become.
+    IF current_user <> 'tally_dispute'
+       OR NOT EXISTS (SELECT 1 FROM public.dispute_events e
+                       WHERE e.id = NEW.status_cause_id AND e.dispute_id = NEW.id AND e.event_type = NEW.status
+                         AND e.event_type IN ('resolved', 'withdrawn') AND e.created_at = NEW.status_recorded_at) THEN
         RAISE EXCEPTION USING
             MESSAGE = format('dispute %s: its status moves only when its resolution or withdrawal is recorded, from open, naming that event [D1g] (v5.4.2-25)', OLD.id),
             ERRCODE = 'check_violation';
@@ -2315,7 +2453,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_dispute_update() IS
-    'v5.4.2-25 (D1). BEFORE UPDATE on disputes: nothing but the status, its cause and its stamp changes [D1f]; and those only to the type of the dispute''s resolution or withdrawal event, naming it at its created_at — the move dispute_move_status makes when that event is recorded; never otherwise, the owner included [D1g].';
+    'v5.4.2-25 (D1). BEFORE UPDATE on disputes: nothing but the status, its cause and its stamp changes [D1f]; and those only as tally_dispute (r2: the owner of dispute_move_status, the move it makes when that event is recorded) and only to the type of the dispute''s resolution or withdrawal event, naming it at its created_at; never otherwise, the superuser included [D1g].';
 REVOKE ALL ON FUNCTION public.enforce_dispute_update() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_dispute_update BEFORE UPDATE ON public.disputes FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_update();
 ALTER TABLE public.disputes ENABLE ALWAYS TRIGGER b_enforce_dispute_update;
@@ -2440,18 +2578,20 @@ ALTER TABLE public.dispute_amount_lines ENABLE ALWAYS TRIGGER z_enforce_dispute_
 
 -- The document a determination cites: its tariff's when one applied, else
 -- its law row's.
-CREATE OR REPLACE FUNCTION public.dispute_determination_terms(p_rule_id uuid, p_tariff_id uuid) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.dispute_determination_terms(p_rule_id uuid, p_tariff_id uuid, p_platform_default_id uuid) RETURNS jsonb
     LANGUAGE sql STABLE
     SET search_path = public, pg_temp
     AS $$
     SELECT CASE WHEN p_tariff_id IS NOT NULL
                 THEN (SELECT t.terms FROM public.dispute_tariffs t WHERE t.id = p_tariff_id)
+                WHEN p_platform_default_id IS NOT NULL
+                THEN (SELECT f.terms FROM public.dispute_platform_defaults f WHERE f.id = p_platform_default_id)
                 ELSE (SELECT r.terms FROM public.dispute_rules r WHERE r.id = p_rule_id) END
 $$;
-COMMENT ON FUNCTION public.dispute_determination_terms(uuid, uuid) IS
-    'v5.4.2-25 (D4). The document a determination cites: the tariff''s when it names one (the policy that applied), else the law row''s. Invoker rights: RLS applies to the tariff.';
-REVOKE ALL ON FUNCTION public.dispute_determination_terms(uuid, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.dispute_determination_terms(uuid, uuid) TO tally_app, tally_core;
+COMMENT ON FUNCTION public.dispute_determination_terms(uuid, uuid, uuid) IS
+    'v5.4.2-25 (D4). The document a determination cites: the tariff''s when it names one (the policy that applied), r2: else the platform default''s when it names one, else the law row''s. Invoker rights: RLS applies to the tariff.';
+REVOKE ALL ON FUNCTION public.dispute_determination_terms(uuid, uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.dispute_determination_terms(uuid, uuid, uuid) TO tally_app, tally_core;
 
 -- D3, D4. A determination: the record agrees with the rule it cites.
 CREATE OR REPLACE FUNCTION public.enforce_dispute_determination() RETURNS trigger
@@ -2470,6 +2610,7 @@ DECLARE
     v_anchor    date;
     v_last      date;
     v_blocks    text[];
+    v_default   uuid;
 BEGIN
     -- An outcome outside the three is the CHECK's to refuse: each check
     -- below names the outcome it applies to.
@@ -2551,18 +2692,51 @@ BEGIN
         PERFORM public.rule_row_cite('public.dispute_tariffs', NEW.tariff_id, d.received_on);
     END IF;
 
-    -- A delegation shelters only under the utility's policy (K-07), and says
-    -- "no terms" only when it has none in force. Only a delegation says it.
+    -- r2 (item 9; Ryan 2026-11-22): the platform default is cited only under
+    -- a delegation, and never beside a tariff (a city's own policy wins).
+    IF NEW.platform_default_id IS NOT NULL AND (r.terms ->> 'governs' <> 'delegated_to_utility' OR NEW.tariff_id IS NOT NULL) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('dispute determination: the platform default is cited only where the law leaves the dispute to a utility with no policy of its own; here %s [D7k] (v5.4.2-25)',
+                             CASE WHEN NEW.tariff_id IS NOT NULL THEN 'the utility''s own policy is cited' ELSE 'the law governs' END),
+            ERRCODE = 'check_violation';
+    END IF;
+
+    -- Under a delegation with no tariff cited: the utility's policy in force
+    -- is cited [D4e]; else the platform default in force for the utility's
+    -- profile, the class and the received date is [D7a, D7b]; with neither,
+    -- the only answer is "no terms" [D4d].
     IF r.terms ->> 'governs' = 'delegated_to_utility' AND NEW.tariff_id IS NULL THEN
-        IF NEW.outcome <> 'no_terms' THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('dispute determination: law row %s leaves the dispute to the utility, and no tariff is cited — a city''s shelter is its own policy (K-07: no assumed default) [D4d] (v5.4.2-25)', NEW.rule_id),
-                ERRCODE = 'check_violation';
-        END IF;
         IF public.rule_tariff_row_as_of('public.dispute_tariffs', NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code, '{}'::jsonb, d.received_on) IS NOT NULL THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('dispute determination: "no terms", but the utility has a dispute policy in force on %s — cite it [D4e] (v5.4.2-25)', d.received_on),
+                MESSAGE = format('dispute determination: no tariff is cited, but the utility has a dispute policy in force on %s — cite it (a city''s own policy wins) [D4e] (v5.4.2-25)', d.received_on),
                 ERRCODE = 'check_violation';
+        END IF;
+        BEGIN
+            v_default := public.rule_law_row_as_of('public.dispute_platform_defaults', NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code,
+                                                   jsonb_build_object('customer_class', NEW.customer_class), d.received_on);
+        EXCEPTION WHEN no_data_found THEN
+            v_default := NULL;
+        END;
+        IF v_default IS NULL AND NEW.platform_default_id IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('dispute determination: platform default %s is cited, but none is in force for this utility and class %s on %s [D7a] (v5.4.2-25)',
+                                 NEW.platform_default_id, NEW.customer_class, d.received_on),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF v_default IS NOT NULL AND NEW.platform_default_id IS DISTINCT FROM v_default THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('dispute determination: the utility has no dispute policy in force on %s, so the platform default %s governs class %s — cite it (%s is cited) [D7b] (v5.4.2-25)',
+                                 d.received_on, v_default, NEW.customer_class, coalesce(NEW.platform_default_id::text, 'none')),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF v_default IS NULL AND NEW.outcome <> 'no_terms' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('dispute determination: law row %s leaves the dispute to the utility, and neither a policy of its own nor a platform default is in force on %s — the answer is "no terms" [D4d] (v5.4.2-25)', NEW.rule_id, d.received_on),
+                ERRCODE = 'check_violation';
+        END IF;
+        IF v_default IS NOT NULL THEN
+            PERFORM public.rule_law_row_cite('public.dispute_platform_defaults', v_default, NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code,
+                                             jsonb_build_object('customer_class', NEW.customer_class), d.received_on);
         END IF;
     END IF;
 
@@ -2579,9 +2753,9 @@ BEGIN
     -- The outcome's shape (contract 5).
     IF NEW.outcome = 'no_terms' AND (NEW.sheltered_amount <> 0 OR NEW.must_pay_amount IS NOT NULL OR NEW.must_pay_component IS NOT NULL
                                      OR NEW.shelter_ends_on IS NOT NULL OR cardinality(NEW.blocks) > 0 OR NEW.tariff_id IS NOT NULL
-                                     OR r.terms ->> 'governs' <> 'delegated_to_utility') THEN
+                                     OR NEW.platform_default_id IS NOT NULL OR r.terms ->> 'governs' <> 'delegated_to_utility') THEN
         RAISE EXCEPTION USING
-            MESSAGE = 'dispute determination: "no terms" is a delegation with no policy in force: it cites no tariff, shelters nothing, blocks nothing and names no must-pay [D4n] (v5.4.2-25)',
+            MESSAGE = 'dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neither, shelters nothing, blocks nothing and names no must-pay [D4n] (v5.4.2-25)',
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.outcome = 'not_sheltered' AND (NEW.sheltered_amount <> 0 OR cardinality(NEW.blocks) > 0 OR NEW.shelter_ends_on IS NOT NULL
@@ -2597,7 +2771,7 @@ BEGIN
     END IF;
 
     IF NEW.outcome <> 'no_terms' THEN
-        v_doc := public.dispute_determination_terms(NEW.rule_id, NEW.tariff_id);
+        v_doc := public.dispute_determination_terms(NEW.rule_id, NEW.tariff_id, NEW.platform_default_id);
         IF NOT coalesce(v_doc #>> '{must_pay,id}' = NEW.must_pay_component, false) THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('dispute determination: must-pay component %s is not the cited document''s (%s) [D4g] (v5.4.2-25)', NEW.must_pay_component, v_doc #>> '{must_pay,id}'),
@@ -2652,7 +2826,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_dispute_determination() IS
-    'v5.4.2-25 (D3, D4). BEFORE INSERT on dispute_determinations — record integrity, not evaluation (the core''s): the writer''s own tenant; under the dispute''s lock (READ COMMITTED) the dispute is open [D4k]; the amount row is the dispute''s, recorded before [D4j]; one live row — a first row, or a successor of the live row [D4m]; the class is the state''s (23503); the law row is the one in force for the utility''s profile in the recorded state, service and system, for the recorded class, on the received date (rule_law_row_cite) [D4a]; a tariff is the utility''s own policy for that state, service and system [D4f] and in force on the received date (rule_row_cite) [D4c]; under a delegation with no tariff, only "no terms" [D4d], and only when no policy is in force [D4e]; r2: where the law governs, the utility''s policy in force is cited [D4q]; the outcome''s shape [D4n]; the must-pay component [D4g] and, for a shelter, the blocks [D4h] are the cited document''s (the tariff''s when one applied); sheltered between 0 and the amount, to pay at least 0 [D4i]; the shelter ends no earlier than the received date [D4o]; r2: under a document that ends it at the earlier of the resolution and a count of days, a shelter records its last day, no later than the document''s [D4p]. Stamps created_by, recorded_txid and record_seq.';
+    'v5.4.2-25 (D3, D4). BEFORE INSERT on dispute_determinations — record integrity, not evaluation (the core''s): the writer''s own tenant; under the dispute''s lock (READ COMMITTED) the dispute is open [D4k]; the amount row is the dispute''s, recorded before [D4j]; one live row — a first row, or a successor of the live row [D4m]; the class is the state''s (23503); the law row is the one in force for the utility''s profile in the recorded state, service and system, for the recorded class, on the received date (rule_law_row_cite) [D4a]; a tariff is the utility''s own policy for that state, service and system [D4f] and in force on the received date (rule_row_cite) [D4c]; r2: the platform default is cited only under a delegation with no tariff cited [D7k]; under a delegation with no tariff cited, the utility''s policy in force is cited [D4e], else the platform default in force for the utility''s profile, the class and the received date (rule_law_row_cite) — none cited when none is in force [D7a], the one in force when one is [D7b] — and with neither, the answer is "no terms" [D4d]; r2: where the law governs, the utility''s policy in force is cited [D4q]; the outcome''s shape [D4n]; the must-pay component [D4g] and, for a shelter, the blocks [D4h] are the cited document''s (the tariff''s when one applied, else the platform default''s when one is cited); sheltered between 0 and the amount, to pay at least 0 [D4i]; the shelter ends no earlier than the received date [D4o]; r2: under a document that ends it at the earlier of the resolution and a count of days, a shelter records its last day, no later than the document''s [D4p]. Stamps created_by, recorded_txid and record_seq.';
 REVOKE ALL ON FUNCTION public.enforce_dispute_determination() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_dispute_determination BEFORE INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_determination();
 ALTER TABLE public.dispute_determinations ENABLE ALWAYS TRIGGER b_enforce_dispute_determination;
@@ -2757,7 +2931,7 @@ BEGIN
                 MESSAGE = format('dispute event: %s names a stage, and dispute %s has no determination whose document has stages [D5c] (v5.4.2-25)', NEW.event_type, d.id),
                 ERRCODE = 'check_violation';
         END IF;
-        SELECT s INTO v_stage FROM jsonb_array_elements(coalesce(public.dispute_determination_terms(x.rule_id, x.tariff_id) -> 'stages', '[]'::jsonb)) s
+        SELECT s INTO v_stage FROM jsonb_array_elements(coalesce(public.dispute_determination_terms(x.rule_id, x.tariff_id, x.platform_default_id) -> 'stages', '[]'::jsonb)) s
          WHERE s ->> 'id' = NEW.stage_id;
         IF v_stage IS NULL OR NEW.decider_role IS DISTINCT FROM v_stage ->> 'decider' OR NEW.decider_user_id IS NULL THEN
             RAISE EXCEPTION USING
@@ -2789,6 +2963,24 @@ ALTER TABLE public.dispute_events ENABLE ALWAYS TRIGGER b_enforce_dispute_event;
 -- D1. The status move: the database's, from the resolution or withdrawal
 -- event (residual R7: SECURITY DEFINER, as tally_app holds no UPDATE on
 -- disputes; enforce_dispute_update checks the move against the event).
+-- r2 (Fable S3; lesson seal-pattern-owner-roles): the status move is owned by
+-- tally_dispute, NOLOGIN, no members, exactly the grants the move needs: it
+-- updates the three status columns of the dispute it finds by id and tenant,
+-- and its update guard reads the cause event. RLS applies to it: the writer
+-- sets app.user_id (AC, as for the void).
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'tally_dispute') THEN
+        CREATE ROLE tally_dispute NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOREPLICATION;
+    END IF;
+    EXECUTE format('REVOKE TEMP ON DATABASE %I FROM PUBLIC', pg_catalog.current_database());
+END $$;
+REVOKE ALL ON SCHEMA public FROM tally_dispute;
+GRANT USAGE ON SCHEMA public TO tally_dispute;
+GRANT EXECUTE ON FUNCTION public.get_user_tenant_id(), public.is_platform_admin() TO tally_dispute;
+GRANT SELECT (id, tenant_id) ON public.disputes TO tally_dispute;
+GRANT UPDATE (status, status_cause_id, status_recorded_at) ON public.disputes TO tally_dispute;
+GRANT SELECT (id, tenant_id, dispute_id, event_type, created_at) ON public.dispute_events TO tally_dispute;
+
 CREATE OR REPLACE FUNCTION public.dispute_move_status() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path = public, pg_temp
@@ -2805,8 +2997,9 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.dispute_move_status() IS
-    'v5.4.2-25 (D1; memory: guards must act). AFTER INSERT on dispute_events, for a resolved or withdrawn event: moves its dispute''s status to the event''s type, naming the event (status_cause_id) at its created_at (status_recorded_at). SECURITY DEFINER because tally_app holds no UPDATE on disputes; a trigger function, so no caller can run it directly, and enforce_dispute_update admits only this move.';
+    'v5.4.2-25 (D1; memory: guards must act). AFTER INSERT on dispute_events, for a resolved or withdrawn event: moves its dispute''s status to the event''s type, naming the event (status_cause_id) at its created_at (status_recorded_at). SECURITY DEFINER because tally_app holds no UPDATE on disputes, owned by tally_dispute (r2; assert_seal_role_invariants); a trigger function, so no caller can run it directly, and enforce_dispute_update admits only this move, only as tally_dispute.';
 REVOKE ALL ON FUNCTION public.dispute_move_status() FROM PUBLIC, tally_app, tally_core;
+ALTER FUNCTION public.dispute_move_status() OWNER TO tally_dispute;
 CREATE TRIGGER z_dispute_move_status AFTER INSERT ON public.dispute_events FOR EACH ROW
     WHEN (NEW.event_type = ANY (ARRAY['resolved'::text, 'withdrawn'::text])) EXECUTE FUNCTION public.dispute_move_status();
 ALTER TABLE public.dispute_events ENABLE ALWAYS TRIGGER z_dispute_move_status;
@@ -3226,6 +3419,257 @@ COMMENT ON INDEX public.idx_readings_disputed IS
 -- ----------------------------------------------------------------------------
 -- 9. The invariants
 -- ----------------------------------------------------------------------------
+-- r2 (Fable S3): the seal invariant, as v5.4.2-23 left it, with tally_dispute
+-- added (its function, its exact grants, the role loop).
+CREATE OR REPLACE FUNCTION public.assert_seal_role_invariants()
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $fn$
+DECLARE
+    v_bad    text;
+    r        text;
+    v_have   text[];
+    v_want   text[];
+    -- Exactly what each role owns (r2 F5: exact identities, not names).
+    c_owns   CONSTANT jsonb := jsonb_build_object(
+        'tally_seal', jsonb_build_array('public.assert_reference_version(text,uuid,integer)'::regprocedure::oid,
+                                        'public.reference_version_receipt_held(text,uuid)'::regprocedure::oid),
+        'tally_void', jsonb_build_array('public.void_invoice(uuid,uuid,text,text,boolean)'::regprocedure::oid),
+        'tally_close', jsonb_build_array('public.close_accounting_period(uuid,numeric,text)'::regprocedure::oid),
+        'tally_dispute', jsonb_build_array('public.dispute_move_status()'::regprocedure::oid));
+    -- Exactly what each role is granted (r2 F5/F6): anything more or less raises.
+    c_grants CONSTANT jsonb := jsonb_build_object(
+        'tally_seal', '["column public.rate_items.updated_at UPDATE", "column public.rate_items.version UPDATE", "column public.rate_schedules.updated_at UPDATE", "column public.rate_schedules.version UPDATE", "column public.wna_zones.updated_at UPDATE", "column public.wna_zones.version UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE", "table public.rate_items SELECT", "table public.rate_schedules SELECT", "table public.reference_version_receipts INSERT", "table public.reference_version_receipts SELECT", "table public.wna_zones SELECT"]'::jsonb,
+        'tally_void', '["column public.accounting_close_heads.updated_at UPDATE", "column public.adhoc_charges.billed_at UPDATE", "column public.adhoc_charges.billed_on_invoice_id UPDATE", "column public.adhoc_charges.billed_on_line_item_id UPDATE", "column public.adhoc_charges.status UPDATE", "column public.adhoc_charges.target_billing_period UPDATE", "column public.adhoc_charges.updated_at UPDATE", "column public.adhoc_charges.voided_from_invoice_id UPDATE", "column public.invoices.status UPDATE", "column public.invoices.updated_at UPDATE", "column public.invoices.void_reason_code UPDATE", "column public.invoices.void_reason_notes UPDATE", "column public.invoices.void_rebill_expected UPDATE", "column public.invoices.voided_at UPDATE", "column public.invoices.voided_by UPDATE", "column public.meter_readings.locked_by_invoice_id UPDATE", "column public.meter_readings.validation_status UPDATE", "column public.meter_readings.voided_from_invoice_id UPDATE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "function public.ledger_entry_remaining(p_entry uuid) EXECUTE", "function public.ledger_tree_ids(p_root uuid) EXECUTE", "function public.ledger_tree_lock_key(p_root uuid) EXECUTE", "function public.ledger_tree_root(p_entry uuid) EXECUTE", "schema public USAGE", "table public.account_ledger INSERT", "table public.account_ledger SELECT", "table public.accounting_close_heads SELECT", "table public.adhoc_charges SELECT", "table public.invoice_events INSERT", "table public.invoices SELECT", "table public.meter_readings SELECT"]'::jsonb,
+        'tally_close', '["column public.accounting_close_heads.closed_through UPDATE", "column public.accounting_close_heads.updated_at UPDATE", "column public.accounting_periods.closed_at UPDATE", "column public.accounting_periods.closed_by UPDATE", "column public.accounting_periods.status UPDATE", "column public.customers.customer_number SELECT", "column public.customers.id SELECT", "column public.tenants.id SELECT", "column public.tenants.receivables_aging_bucket_days SELECT", "column public.users.id SELECT", "column public.users.role SELECT", "column public.users.tenant_id SELECT", "function public.aging_bucket_days_valid(p_days integer[]) EXECUTE", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "function public.receivables_aging_as_of(p_tenant_id uuid, p_on date, p_recorded_at timestamp with time zone, p_bucket_days integer[]) EXECUTE", "function public.session_is_supervisor() EXECUTE", "schema public USAGE", "table public.account_ledger SELECT", "table public.accounting_close_heads SELECT", "table public.accounting_period_snapshot_lines INSERT", "table public.accounting_period_snapshots INSERT", "table public.accounting_periods SELECT", "table public.customer_state_events SELECT"]'::jsonb,
+        -- v5.4.2-25 r2: the dispute status move.
+        'tally_dispute', '["column public.dispute_events.created_at SELECT", "column public.dispute_events.dispute_id SELECT", "column public.dispute_events.event_type SELECT", "column public.dispute_events.id SELECT", "column public.dispute_events.tenant_id SELECT", "column public.disputes.id SELECT", "column public.disputes.status UPDATE", "column public.disputes.status_cause_id UPDATE", "column public.disputes.status_recorded_at UPDATE", "column public.disputes.tenant_id SELECT", "function public.get_user_tenant_id() EXECUTE", "function public.is_platform_admin() EXECUTE", "schema public USAGE"]'::jsonb);
+    -- Every guard of the three seals, by its exact definition, enabled
+    -- ALWAYS (D-2026-08-20-27: a replication apply does not skip it). r3
+    -- (Opus S2): with the version tables' bitemporal guards, which freeze a
+    -- version row's entity (the receipt guard reads NEW's entity on that
+    -- basis).
+    -- v5.4.2-21 (-20 note): these strings are PostgreSQL 16's rendering by
+    -- pg_get_triggerdef. A major upgrade may render them differently: re-
+    -- capture them from the upgraded catalog (after checking each trigger is
+    -- unchanged) before trusting a failure here.
+    -- v5.4.2-22: the close's guards are in assert_periods_guard_invariants().
+    c_triggers CONSTANT text[] := ARRAY['CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_items'', ''rate_item_id'')',
+        'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''rate_schedules'', ''rate_schedule_id'')',
+        'CREATE TRIGGER a0_enforce_reference_version_receipt BEFORE INSERT OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_reference_version_receipt(''wna_zones'', ''wna_zone_id'')',
+        'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF billed_on_invoice_id ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''billed_on_invoice_id'')',
+        'CREATE TRIGGER a_enforce_attach_to_live_invoice BEFORE INSERT OR UPDATE OF locked_by_invoice_id ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_attach_to_live_invoice(''locked_by_invoice_id'')',
+        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_item_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''rate_item_id'', ''rate_items'')',
+        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.rate_schedule_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''rate_schedule_id'', ''rate_schedules'')',
+        'CREATE TRIGGER a_enforce_bitemporal_assertion BEFORE INSERT OR DELETE OR UPDATE ON public.wna_zone_versions FOR EACH ROW EXECUTE FUNCTION enforce_bitemporal_assertion('''', ''wna_zone_id'', ''wna_zones'')',
+        'CREATE TRIGGER a_stamp_reference_version_receipt BEFORE INSERT OR UPDATE ON public.reference_version_receipts FOR EACH ROW EXECUTE FUNCTION stamp_reference_version_receipt()',
+        'CREATE TRIGGER enforce_adhoc_charge_immutable BEFORE UPDATE ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_immutable()',
+        'CREATE TRIGGER enforce_invoice_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION enforce_invoice_immutable()',
+        'CREATE TRIGGER enforce_reference_header BEFORE DELETE OR UPDATE ON public.rate_items FOR EACH ROW EXECUTE FUNCTION enforce_reference_header(''item_code'', ''rate_item_versions'', ''rate_item_id'')',
+        'CREATE TRIGGER enforce_reference_header BEFORE DELETE OR UPDATE ON public.rate_schedules FOR EACH ROW EXECUTE FUNCTION enforce_reference_header(''code'', ''rate_schedule_versions'', ''rate_schedule_id'')',
+        'CREATE TRIGGER enforce_reference_header BEFORE DELETE OR UPDATE ON public.wna_zones FOR EACH ROW EXECUTE FUNCTION enforce_reference_header(''zone_code'', ''wna_zone_versions'', ''wna_zone_id'')',
+        'CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.rate_items FOR EACH ROW EXECUTE FUNCTION enforce_reference_header_birth()',
+        'CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.rate_schedules FOR EACH ROW EXECUTE FUNCTION enforce_reference_header_birth()',
+        'CREATE TRIGGER enforce_reference_header_birth BEFORE INSERT ON public.wna_zones FOR EACH ROW EXECUTE FUNCTION enforce_reference_header_birth()',
+        'CREATE TRIGGER no_hard_delete BEFORE DELETE ON public.reference_version_receipts FOR EACH ROW EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.reference_version_receipts FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER trg_enforce_reading_validation_workflow BEFORE UPDATE ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_reading_validation_workflow()'];
+BEGIN
+    FOREACH r IN ARRAY ARRAY['tally_seal', 'tally_void', 'tally_close', 'tally_dispute'] LOOP
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+            RAISE EXCEPTION USING MESSAGE = format('%s does not exist (v5.4.2-20)', r), ERRCODE = 'invalid_grant_operation';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r
+                      AND (rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolcanlogin OR rolreplication)) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s is NOLOGIN and holds no SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION (v5.4.2-20)', r),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        -- No members: a member could SET ROLE to it and write as the seal.
+        SELECT string_agg(m.member::regrole::text, ', ' ORDER BY 1) INTO v_bad
+          FROM pg_auth_members m WHERE m.roleid = r::regrole;
+        IF v_bad IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s has members (%s): no role may become it (v5.4.2-20)', r, v_bad),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        SELECT string_agg(m.roleid::regrole::text, ', ' ORDER BY 1) INTO v_bad
+          FROM pg_auth_members m WHERE m.member = r::regrole;
+        IF v_bad IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s is a member of %s: it belongs to no role (v5.4.2-20)', r, v_bad),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_default_acl d WHERE d.defaclrole = r::regrole)
+           OR EXISTS (SELECT 1 FROM pg_default_acl d, aclexplode(d.defaclacl) a WHERE a.grantee = r::regrole) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s holds or sets a default privilege: its grants are explicit (v5.4.2-20)', r),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        -- No code of its own: effective privileges, through PUBLIC as well.
+        SELECT string_agg(n.nspname, ', ' ORDER BY 1) INTO v_bad
+          FROM pg_namespace n
+         WHERE has_schema_privilege(r, n.oid, 'CREATE');
+        IF has_database_privilege(r, current_database(), 'TEMP') OR has_database_privilege(r, current_database(), 'CREATE')
+           OR v_bad IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s can define code (TEMP, CREATE on the database, or CREATE on schema %s) — after a TEMPLATE clone, revoke TEMP from PUBLIC (v5.4.2-20)', r, coalesce(v_bad, 'none')),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        -- It owns exactly its functions, each a definer pinned to public, pg_temp, and no relation or type.
+        SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
+          FROM pg_proc p
+         WHERE p.proowner = r::regrole
+           AND NOT ((c_owns -> r) ? p.oid::text
+                    AND p.prosecdef
+                    AND coalesce(p.proconfig @> ARRAY['search_path=public, pg_temp'], false));
+        IF v_bad IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s owns %s, which is not one of its pinned SECURITY DEFINER functions (v5.4.2-20)', r, v_bad),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        SELECT string_agg(f::oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
+          FROM jsonb_array_elements_text(c_owns -> r) f
+         WHERE NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = f::oid AND p.proowner = r::regrole);
+        IF v_bad IS NOT NULL THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s no longer owns %s: a DROP and CREATE reverts the owner to its creator — ALTER FUNCTION ... OWNER TO %s (v5.4.2-20)', r, v_bad, r),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_class c WHERE c.relowner = r::regrole)
+           OR EXISTS (SELECT 1 FROM pg_type y WHERE y.typowner = r::regrole)
+           OR EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspowner = r::regrole) THEN
+            RAISE EXCEPTION USING MESSAGE = format('%s owns a relation, type or schema (v5.4.2-20)', r), ERRCODE = 'invalid_grant_operation';
+        END IF;
+        -- Exactly its grants (this also keeps tally_seal and tally_void off
+        -- users, R6; tally_close reads three columns of it for the supervisor
+        -- check).
+        v_have := public.seal_role_privileges(r);
+        SELECT coalesce(array_agg(x ORDER BY x), '{}') INTO v_want FROM jsonb_array_elements_text(c_grants -> r) x;
+        IF EXISTS (SELECT 1 FROM unnest(v_have) x WHERE x <> ALL (v_want))
+           OR EXISTS (SELECT 1 FROM unnest(v_want) x WHERE x <> ALL (v_have)) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s holds other privileges than it is granted (v5.4.2-20): extra %s; missing %s', r,
+                                 (SELECT coalesce(string_agg(x, '; '), 'none') FROM unnest(v_have) x WHERE x <> ALL (v_want)),
+                                 (SELECT coalesce(string_agg(x, '; '), 'none') FROM unnest(v_want) x WHERE x <> ALL (v_have))),
+                ERRCODE = 'invalid_grant_operation';
+        END IF;
+    END LOOP;
+
+    -- R5: the core executes no definer but the two RLS helpers (O-B4, C-B4).
+    SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
+      FROM pg_proc p
+     WHERE p.prosecdef
+       AND p.oid NOT IN ('public.get_user_tenant_id()'::regprocedure, 'public.is_platform_admin()'::regprocedure)
+       AND has_function_privilege('tally_core', p.oid, 'EXECUTE');
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('tally_core can execute SECURITY DEFINER %s: a read-only core writes through no definer (v5.4.2-20)', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
+    -- O5: nothing around the check. No privilege at all on the receipts for
+    -- the application, the core or PUBLIC, column grants included.
+    SELECT string_agg(g || ' ' || p, ', ' ORDER BY 1) INTO v_bad
+      FROM unnest(ARRAY['tally_app', 'tally_core', 'public']) g,
+           unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) p
+     WHERE has_any_column_privilege(g, 'public.reference_version_receipts', p);
+    IF v_bad IS NOT NULL
+       OR has_table_privilege('tally_app', 'public.reference_version_receipts', 'DELETE, TRUNCATE')
+       OR has_table_privilege('tally_core', 'public.reference_version_receipts', 'DELETE, TRUNCATE')
+       OR has_table_privilege('public', 'public.reference_version_receipts', 'DELETE, TRUNCATE') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('reference_version_receipts is reachable by tally_app, tally_core or PUBLIC (%s) (v5.4.2-20)', coalesce(v_bad, 'DELETE or TRUNCATE')),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(t, ', ' ORDER BY t) INTO v_bad
+      FROM unnest(ARRAY['rate_schedules', 'rate_items', 'wna_zones']) t
+     WHERE has_column_privilege('tally_app', ('public.' || t)::regclass, 'version', 'UPDATE')
+        OR has_column_privilege('tally_core', ('public.' || t)::regclass, 'version', 'UPDATE')
+        OR has_column_privilege('public', ('public.' || t)::regclass, 'version', 'UPDATE');
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('the version column of %s is writable outside assert_reference_version() (v5.4.2-20)', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+    -- v5.4.2-22: the snapshots are the close's alone, and the head moves
+    -- only through it.
+    SELECT string_agg(g || ' ' || p || ' ' || t, ', ' ORDER BY 1) INTO v_bad
+      FROM unnest(ARRAY['tally_app', 'tally_core', 'tally_void', 'public']) g,
+           unnest(ARRAY['INSERT', 'UPDATE']) p,
+           unnest(ARRAY['accounting_period_snapshots', 'accounting_period_snapshot_lines']) t
+     WHERE has_any_column_privilege(g, ('public.' || t)::regclass, p);
+    IF v_bad IS NOT NULL
+       OR has_column_privilege('tally_app', 'public.accounting_close_heads', 'closed_through', 'UPDATE')
+       OR has_column_privilege('tally_core', 'public.accounting_close_heads', 'closed_through', 'UPDATE')
+       OR has_column_privilege('tally_void', 'public.accounting_close_heads', 'closed_through', 'UPDATE')
+       OR has_column_privilege('tally_app', 'public.accounting_periods', 'closed_at', 'UPDATE')
+       OR has_column_privilege('tally_app', 'public.accounting_periods', 'closed_by', 'UPDATE')
+       OR has_column_privilege('tally_core', 'public.accounting_periods', 'status', 'UPDATE') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('the close''s tables are writable outside close_accounting_period() (%s) (v5.4.2-22)', coalesce(v_bad, 'closed_through or status')),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
+    -- O4, lexically: no function in public names the caller-settable void
+    -- setting of v5.4.2-01 (a constructed name would pass; the guards key on
+    -- the role, so such a function would change nothing they admit).
+    SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY 1) INTO v_bad
+      FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND strpos(p.prosrc, 'app.' || 'void_operation') > 0;
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('%s reads the caller-settable void setting; the void is the write made as tally_void (v5.4.2-20)', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
+    -- r3 (Codex S1): PUBLIC, which every role inherits, holds no privilege on
+    -- any relation in public (table, view, sequence, or a column of one), so
+    -- the seal roles' privileges are exactly their own lists above. A
+    -- world-readable lookup is granted to named roles, never to PUBLIC.
+    SELECT string_agg(DISTINCT c.relname, ', ') INTO v_bad
+      FROM pg_class c
+     WHERE c.relnamespace = 'public'::regnamespace
+       AND (EXISTS (SELECT 1 FROM aclexplode(c.relacl) a WHERE a.grantee = 0)
+            OR EXISTS (SELECT 1 FROM pg_attribute t, aclexplode(t.attacl) a
+                        WHERE t.attrelid = c.oid AND NOT t.attisdropped AND a.grantee = 0));
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('PUBLIC holds a privilege on relation %s (or a column of it): every role, the seal roles included, would inherit it (v5.4.2-20)', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
+    -- r3 (Opus S1, Codex S2): the CHECK that keeps a billed charge on its bill.
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint k
+                    WHERE k.conrelid = 'public.adhoc_charges'::regclass
+                      AND k.conname = 'adhoc_charges_billed_names_its_bill'
+                      AND k.contype = 'c' AND k.convalidated
+                      AND pg_get_constraintdef(k.oid) = 'CHECK (((status = ''billed''::text) = (billed_on_invoice_id IS NOT NULL)))') THEN
+        RAISE EXCEPTION USING
+            MESSAGE = 'adhoc_charges_billed_names_its_bill is missing, changed or not validated (v5.4.2-20)',
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+
+    -- Every guard, exactly as defined, enabled ALWAYS.
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad
+      FROM unnest(c_triggers) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_trigger g
+                        WHERE NOT g.tgisinternal AND g.tgenabled = 'A'
+                          AND pg_get_triggerdef(g.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format(E'a seal guard is missing, changed, or not ENABLE ALWAYS (v5.4.2-20):\n  %s', v_bad),
+            ERRCODE = 'invalid_grant_operation';
+    END IF;
+END;
+$fn$;
+COMMENT ON FUNCTION public.assert_seal_role_invariants() IS
+    'v5.4.2-20 (r3), v5.4.2-21, v5.4.2-22, v5.4.2-23 (tally_void executes the four ledger-tree helpers that its void and the reversal rule call), v5.4.2-25 r2 (tally_dispute, the owner of the dispute status move). Raises unless: tally_seal, tally_void, tally_close and tally_dispute exist, are NOLOGIN without SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB or REPLICATION, have no members and are members of nothing, hold and set no default privilege, can define no code, own exactly their pinned SECURITY DEFINER functions (by identity) and no relation, type or schema, and hold exactly their granted privileges, grant options included (seal_role_privileges); tally_core executes no definer but the two RLS helpers (by identity); tally_app, tally_core and PUBLIC hold no privilege on the receipts and no UPDATE on a header version; only tally_close writes the snapshots, the closed-through date and a period''s close (closed_at, closed_by; the application withdraws an open period by status); no public function names the old void setting (a lexical test); every guard of the seals exists exactly as defined (PostgreSQL 16''s rendering) and ENABLE ALWAYS; PUBLIC holds no privilege on any relation in public; and adhoc_charges_billed_names_its_bill is present and validated. Run in the patch tail and in CI.';
+REVOKE ALL ON FUNCTION public.assert_seal_role_invariants() FROM PUBLIC, tally_app, tally_core;
+
 -- r2 (Fable S4; -24's model): -25's own guard invariant, every list exact and
 -- regenerated from a build by tests/v5.4.2-25/fill-manifest.py.
 CREATE OR REPLACE FUNCTION public.assert_dispute_guard_invariants() RETURNS void
@@ -3268,10 +3712,13 @@ DECLARE
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_events FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.disputes FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
         'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.dispute_subjects FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER rule_row_history BEFORE DELETE OR UPDATE ON public.dispute_platform_defaults FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_history()',
         'CREATE TRIGGER rule_row_history BEFORE DELETE OR UPDATE ON public.dispute_rules FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_history()',
         'CREATE TRIGGER rule_row_history BEFORE DELETE OR UPDATE ON public.dispute_tariffs FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_history()',
+        'CREATE TRIGGER rule_row_insert BEFORE INSERT ON public.dispute_platform_defaults FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_insert()',
         'CREATE TRIGGER rule_row_insert BEFORE INSERT ON public.dispute_rules FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_insert()',
         'CREATE TRIGGER rule_row_insert BEFORE INSERT ON public.dispute_tariffs FOR EACH ROW EXECUTE FUNCTION enforce_rule_row_insert()',
+        'CREATE TRIGGER rule_row_no_truncate BEFORE TRUNCATE ON public.dispute_platform_defaults FOR EACH STATEMENT EXECUTE FUNCTION enforce_rule_registry_no_truncate()',
         'CREATE TRIGGER rule_row_no_truncate BEFORE TRUNCATE ON public.dispute_rules FOR EACH STATEMENT EXECUTE FUNCTION enforce_rule_registry_no_truncate()',
         'CREATE TRIGGER rule_row_no_truncate BEFORE TRUNCATE ON public.dispute_tariffs FOR EACH STATEMENT EXECUTE FUNCTION enforce_rule_registry_no_truncate()',
         'CREATE TRIGGER trg_enforce_reading_validation_workflow BEFORE UPDATE ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_reading_validation_workflow()',
@@ -3314,6 +3761,7 @@ DECLARE
         'dispute_determinations dispute_determinations_inputs_check CHECK (((jsonb_typeof(inputs) = ''object''::text) AND (inputs_fingerprint ~ ''[[:alnum:]]''::text)))',
         'dispute_determinations dispute_determinations_outcome_check CHECK ((outcome = ANY (ARRAY[''sheltered''::text, ''not_sheltered''::text, ''no_terms''::text])))',
         'dispute_determinations dispute_determinations_pkey PRIMARY KEY (id)',
+        'dispute_determinations dispute_determinations_platform_default_fkey FOREIGN KEY (platform_default_id) REFERENCES dispute_platform_defaults(id)',
         'dispute_determinations dispute_determinations_rule_fkey FOREIGN KEY (rule_id) REFERENCES dispute_rules(id)',
         'dispute_determinations dispute_determinations_supersedes_fkey FOREIGN KEY (supersedes_id, dispute_id) REFERENCES dispute_determinations(id, dispute_id)',
         'dispute_determinations dispute_determinations_supersedes_key UNIQUE (supersedes_id)',
@@ -3335,6 +3783,15 @@ DECLARE
         'dispute_events dispute_events_pkey PRIMARY KEY (id)',
         'dispute_events dispute_events_type_check CHECK ((event_type = ANY (ARRAY[''opened''::text, ''stage_entered''::text, ''escalated''::text, ''decided''::text, ''resolved''::text, ''withdrawn''::text])))',
         'dispute_events zz_dispute_reading_released TRIGGER DEFERRABLE INITIALLY DEFERRED',
+        'dispute_platform_defaults dispute_platform_defaults_customer_class_fkey FOREIGN KEY (state_code, service_type, customer_class) REFERENCES dispute_customer_classes(state_code, service_type, class_code)',
+        'dispute_platform_defaults dispute_platform_defaults_pkey PRIMARY KEY (id)',
+        'dispute_platform_defaults dispute_platform_defaults_rule_kind_check CHECK ((terms_kind = ''dispute''::text))',
+        'dispute_platform_defaults dispute_platform_defaults_rule_no_overlap EXCLUDE USING gist (state_code WITH =, service_type WITH =, owner_span WITH &&, system_span WITH &&, jurisdiction_span WITH &&, customer_class WITH =, daterange(effective_from, effective_to, ''[)''::text) WITH &&)',
+        'dispute_platform_defaults dispute_platform_defaults_rule_range_check CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))',
+        'dispute_platform_defaults dispute_platform_defaults_rule_schema_fkey FOREIGN KEY (terms_kind, terms_version) REFERENCES rule_term_schemas(terms_kind, terms_version)',
+        'dispute_platform_defaults dispute_platform_defaults_rule_service_check CHECK ((service_type = ANY (ARRAY[''water''::text, ''sewer''::text, ''electric''::text, ''gas''::text, ''stormwater''::text, ''trash''::text, ''reclaimed_water''::text])))',
+        'dispute_platform_defaults dispute_platform_defaults_rule_source_check CHECK ((source_note ~ ''[[:alnum:]]''::text))',
+        'dispute_platform_defaults dispute_platform_defaults_rule_state_check CHECK ((state_code ~ ''^[A-Z]{2}$''::text))',
         'dispute_rules dispute_rules_customer_class_fkey FOREIGN KEY (state_code, service_type, customer_class) REFERENCES dispute_customer_classes(state_code, service_type, class_code)',
         'dispute_rules dispute_rules_pkey PRIMARY KEY (id)',
         'dispute_rules dispute_rules_rule_kind_check CHECK ((terms_kind = ''dispute''::text))',
@@ -3390,6 +3847,7 @@ DECLARE
         'CREATE UNIQUE INDEX dispute_events_one_closing ON public.dispute_events USING btree (dispute_id) WHERE (event_type = ANY (ARRAY[''resolved''::text, ''withdrawn''::text]))',
         'CREATE UNIQUE INDEX dispute_events_one_opened ON public.dispute_events USING btree (dispute_id) WHERE (event_type = ''opened''::text)',
         'CREATE UNIQUE INDEX dispute_events_pkey ON public.dispute_events USING btree (id)',
+        'CREATE UNIQUE INDEX dispute_platform_defaults_pkey ON public.dispute_platform_defaults USING btree (id)',
         'CREATE UNIQUE INDEX dispute_rules_pkey ON public.dispute_rules USING btree (id)',
         'CREATE UNIQUE INDEX disputes_id_tenant_id_key ON public.disputes USING btree (id, tenant_id)',
         'CREATE UNIQUE INDEX disputes_pkey ON public.disputes USING btree (id)',
@@ -3397,13 +3855,15 @@ DECLARE
         'CREATE UNIQUE INDEX dispute_tariffs_id_tenant_key ON public.dispute_tariffs USING btree (id, tenant_id)',
         'CREATE UNIQUE INDEX dispute_tariffs_pkey ON public.dispute_tariffs USING btree (id)'];
     c_bodies CONSTANT text[] := ARRAY[
-        'dispute_determination_terms(uuid,uuid) @fc5e9c53bf8830abe3c59c7dc7d3db77',
+        'dispute_determination_terms(uuid,uuid,uuid) @20cd6803a33c08b1b0aaedcead265c25',
         'dispute_line_shelter_as_of(uuid,date,timestamp with time zone) @5b197312b31f64670daa0dc43ccd3cae',
         'dispute_live_determination(uuid) @dd4d728ec00196740e4c3d16c1e840a5',
         'dispute_lock(uuid,text) @d4d50fc09105df338b763b9e733764e1',
         'dispute_lock_key(uuid) @48473d783c1d4585d7dbbe7547968154',
         'dispute_move_status() @c1dc1583123e10c3554cfed7886416bf',
         'dispute_opened_event() @f37a5d70a3e77b786d203cde1c5ce37e',
+        'dispute_platform_default_close_floor(uuid) @19afb5abadcd3e58278c4e97408320f2',
+        'dispute_platform_default_insert_check(jsonb) @cdb8188a7d86c1e3ec8ec62daa9f3b95',
         'dispute_rule_close_floor(uuid) @0a9f2b4f8de5eb1adfda198f749bc9a5',
         'dispute_rule_insert_check(jsonb) @4587dedf46c10127140443eb34173972',
         'dispute_shelter_as_of(uuid,date,timestamp with time zone) @b2426c66663f996c951d9c2959855faf',
@@ -3416,23 +3876,25 @@ DECLARE
         'enforce_dispute_amount() @2598d7b4a699403bbb09a683ea62cec6',
         'enforce_dispute_amount_line() @7226c83d938f8d5b7e25646c640bede2',
         'enforce_dispute_amount_lines_sum() @9abd8a4e51a1171bc32b2e5c4467f3c7',
-        'enforce_dispute_determination() @717624257648e45c4237c74af9eafcc7',
-        'enforce_dispute_event() @45d165a1116228add6748ea8993b2cbe',
+        'enforce_dispute_determination() @14559afc0e47ca3bf52ea93e4884f527',
+        'enforce_dispute_event() @69f92c98fca05b610b1d0f0ae2b133c5',
         'enforce_dispute_insert() @8b95d05590ff7c32ab9c3977952ca68f',
         'enforce_dispute_nothing_after_close() @626ce893d49ad8f9770a296b06a2f66a',
         'enforce_dispute_reading_released() @66a2a6b667427822f92c0fb67f4675ae',
-        'enforce_dispute_update() @23b35cc9e6a360d9799bb630c7bf06dc',
+        'enforce_dispute_update() @894f0d9fc7776e779c2ad408a72892db',
         'enforce_enrollment_not_pending_dispute() @7fe658b78d6e6c4684198f163f6c1a5a',
         'enforce_reading_dispute_status() @6ab05df5a3be34c7803e99572b544863',
         'enforce_reading_validation_workflow() @6a3697aeaa1d73bd84deb021d15a1bd2'];
     c_attrs CONSTANT text[] := ARRAY[
-        'dispute_determination_terms(uuid,uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_determination_terms(uuid,uuid,uuid) | s | false | tally | search_path=public, pg_temp',
         'dispute_line_shelter_as_of(uuid,date,timestamp with time zone) | s | false | tally | search_path=public, pg_temp',
         'dispute_live_determination(uuid) | s | false | tally | search_path=public, pg_temp',
         'dispute_lock(uuid,text) | v | false | tally | search_path=public, pg_temp',
         'dispute_lock_key(uuid) | i | false | tally | search_path=public, pg_temp',
-        'dispute_move_status() | v | true | tally | search_path=public, pg_temp',
+        'dispute_move_status() | v | true | tally_dispute | search_path=public, pg_temp',
         'dispute_opened_event() | v | false | tally | search_path=public, pg_temp',
+        'dispute_platform_default_close_floor(uuid) | s | false | tally | search_path=public, pg_temp',
+        'dispute_platform_default_insert_check(jsonb) | s | false | tally | search_path=public, pg_temp',
         'dispute_rule_close_floor(uuid) | s | false | tally | search_path=public, pg_temp',
         'dispute_rule_insert_check(jsonb) | s | false | tally | search_path=public, pg_temp',
         'dispute_shelter_as_of(uuid,date,timestamp with time zone) | s | false | tally | search_path=public, pg_temp',
@@ -3502,6 +3964,25 @@ DECLARE
         'dispute_events.id',
         'dispute_events.occurred_on',
         'dispute_events.tenant_id',
+        'dispute_platform_defaults.block_codes',
+        'dispute_platform_defaults.created_at',
+        'dispute_platform_defaults.customer_class',
+        'dispute_platform_defaults.effective_from',
+        'dispute_platform_defaults.excluded_subject_codes',
+        'dispute_platform_defaults.id',
+        'dispute_platform_defaults.jurisdiction_span',
+        'dispute_platform_defaults.must_pay_ids',
+        'dispute_platform_defaults.owner_span',
+        'dispute_platform_defaults.service_type',
+        'dispute_platform_defaults.source_note',
+        'dispute_platform_defaults.stage_ids',
+        'dispute_platform_defaults.state_code',
+        'dispute_platform_defaults.subject_codes',
+        'dispute_platform_defaults.system_span',
+        'dispute_platform_defaults.terms',
+        'dispute_platform_defaults.terms_kind',
+        'dispute_platform_defaults.terms_source',
+        'dispute_platform_defaults.terms_version',
         'dispute_rules.block_codes',
         'dispute_rules.created_at',
         'dispute_rules.customer_class',
@@ -3557,6 +4038,7 @@ DECLARE
         'dispute_determinations | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
         'dispute_duties | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
         'dispute_events | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'dispute_platform_defaults | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
         'dispute_rules | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
         'dispute_subjects | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
         'dispute_tariffs | {tally=arwdDxt/tally,tally_app=arw/tally,tally_core=r/tally} | true | true',
@@ -3569,13 +4051,15 @@ DECLARE
         'dispute_tariffs | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -',
         'disputes | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -'];
     c_func_acls CONSTANT text[] := ARRAY[
-        'dispute_determination_terms(uuid,uuid) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_determination_terms(uuid,uuid,uuid) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
         'dispute_line_shelter_as_of(uuid,date,timestamp with time zone) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
         'dispute_live_determination(uuid) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
         'dispute_lock_key(uuid) | {tally=X/tally,tally_app=X/tally}',
         'dispute_lock(uuid,text) | {tally=X/tally,tally_app=X/tally}',
-        'dispute_move_status() | {tally=X/tally}',
+        'dispute_move_status() | {tally_dispute=X/tally_dispute}',
         'dispute_opened_event() | {tally=X/tally}',
+        'dispute_platform_default_close_floor(uuid) | {tally=X/tally}',
+        'dispute_platform_default_insert_check(jsonb) | {tally=X/tally}',
         'dispute_rule_close_floor(uuid) | {tally=X/tally}',
         'dispute_rule_insert_check(jsonb) | {tally=X/tally}',
         'dispute_shelter_as_of(uuid,date,timestamp with time zone) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
@@ -3597,7 +4081,17 @@ DECLARE
         'enforce_enrollment_not_pending_dispute() | {tally=X/tally}',
         'enforce_reading_dispute_status() | {tally=X/tally}',
         'enforce_reading_validation_workflow() | {=X/tally,tally=X/tally,tally_app=X/tally,tally_core=X/tally}'];
-    c_col_acls CONSTANT text[] := ARRAY[]::text[];
+    c_col_acls CONSTANT text[] := ARRAY[
+        'dispute_events.created_at | {tally_dispute=r/tally}',
+        'dispute_events.dispute_id | {tally_dispute=r/tally}',
+        'dispute_events.event_type | {tally_dispute=r/tally}',
+        'dispute_events.id | {tally_dispute=r/tally}',
+        'dispute_events.tenant_id | {tally_dispute=r/tally}',
+        'disputes.id | {tally_dispute=r/tally}',
+        'disputes.status | {tally_dispute=w/tally}',
+        'disputes.status_cause_id | {tally_dispute=w/tally}',
+        'disputes.status_recorded_at | {tally_dispute=w/tally}',
+        'disputes.tenant_id | {tally_dispute=r/tally}'];
 BEGIN
     SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_triggers) d
      WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g WHERE NOT g.tgisinternal AND g.tgenabled = 'A' AND pg_catalog.pg_get_triggerdef(g.oid) = d);

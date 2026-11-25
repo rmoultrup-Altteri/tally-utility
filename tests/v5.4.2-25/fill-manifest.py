@@ -21,14 +21,16 @@ def lit(x):
     return "'" + x.replace("'", "''") + "'"
 
 def setlist(s, name, items):
-    i = s.index(f"    {name} CONSTANT text[] := ARRAY[")
+    # r2: only inside -25's own invariant (the seal invariant -25 carries has a c_triggers of its own).
+    i = s.index(f"    {name} CONSTANT text[] := ARRAY[", s.index("CREATE OR REPLACE FUNCTION public.assert_dispute_guard_invariants()"))
     j = s.index("];\n", i) + 3
     body = (f"    {name} CONSTANT text[] := ARRAY[]::text[];\n" if not items else
             f"    {name} CONSTANT text[] := ARRAY[\n        " + ",\n        ".join(lit(x) for x in items) + "];\n")
     return s[:i] + body + s[j:]
 
 def functions(s):
-    names = sorted(set(re.findall(r"CREATE OR REPLACE FUNCTION public\.([a-z_0-9]+)\(", s)) - {"assert_dispute_guard_invariants"})
+    # r2: the seal invariant -25 carries forward (with tally_dispute) is the seal's, checked by itself, not pinned here.
+    names = sorted(set(re.findall(r"CREATE OR REPLACE FUNCTION public\.([a-z_0-9]+)\(", s)) - {"assert_dispute_guard_invariants", "assert_seal_role_invariants"})
     return names
 
 def body(s, name):

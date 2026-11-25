@@ -24,6 +24,17 @@
 #        then is refused (nothing after the resolution; D2e).
 #   DR9  An amount's lines are written in its own transaction: a line added
 #        to an amount committed earlier is refused (D2f).
+#   r2 (item 9): a second city, T2, has no dispute policy, so the platform
+#   default governs its disputes received from 2026-11-22.
+#   DR10 A writes a determination citing the platform default and holds; B
+#        closes the default on the day the dispute was received: waits on the
+#        citation's lock, then is refused (the close floor; rule_law_row_cite).
+#   DR11 (not a race: in turn) T2 then writes its own policy back-dated over
+#        that day: admitted (residual R6: a back-dated policy is the core's
+#        audit finding); a new answer for the dispute must now cite it (D4e).
+#   DR12 (not a race) a resolution recorded in a session with no app.user_id
+#        (a history load as the superuser): the status move runs as
+#        tally_dispute under RLS, finds no dispute, and the event is refused.
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -51,6 +62,21 @@ A=(x 00000000-0000-4000-8000-000000002641 00000000-0000-4000-8000-000000002642 0
      00000000-0000-4000-8000-000000002647 00000000-0000-4000-8000-000000002648 00000000-0000-4000-8000-000000002649
      00000000-0000-4000-8000-00000000264a)
 DET2=00000000-0000-4000-8000-000000002652
+# r2 (item 9): T2, a city with no dispute policy; its bill I2 of 2026-11-22; disputes 3b, 3c received 2026-11-23.
+T2=00000000-0000-4000-8000-0000000025f6
+OP2=00000000-0000-4000-8000-0000000025f7
+C2=00000000-0000-4000-8000-0000000025f8
+LOC2=00000000-0000-4000-8000-0000000025f9
+CITY2=00000000-0000-4000-8000-0000000025fa
+I2=00000000-0000-4000-8000-000000002602
+L21=00000000-0000-4000-8000-000000002613
+L22=00000000-0000-4000-8000-000000002614
+D2B=00000000-0000-4000-8000-00000000263b
+A2B=00000000-0000-4000-8000-00000000264b
+D2C=00000000-0000-4000-8000-00000000263c
+A2C=00000000-0000-4000-8000-00000000264c
+DEF="(SELECT id FROM public.dispute_platform_defaults WHERE state_code = 'TX' AND service_type = 'gas' AND customer_class = 'protected' AND 'municipal' = ANY (owner_types) AND closed_at IS NULL)"
+DEF_BLOCKS="'{disconnect_execute,disconnect_order,late_fee}'"
 A_OUT=$(mktemp); B_OUT=$(mktemp)
 trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
 fail=0
@@ -68,6 +94,11 @@ local sup="NULL" id="DEFAULT"
 [ -n "${3:-}" ] && sup="'$3'"
 [ -n "${4:-}" ] && id="'$4'"
 echo "INSERT INTO public.dispute_determinations (id, tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind, customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, supersedes_id, inputs, inputs_fingerprint, calculated_by) VALUES ($id, '$T', '${D[$1]}', '${A[$1]}', 'TX', 'gas', 'distribution', 'protected', $LAW, '$TAR', 'sheltered', $2, 100, 'm1', NULL, $BLOCKS, $sup, '{}', 'fp-$1-$2', 'race-25');"
+}
+det_default() {  # $1 dispute, $2 amount row, $3 sheltered, $4 supersedes (or empty): T2 under the platform default
+local sup="NULL"
+[ -n "${4:-}" ] && sup="'$4'"
+echo "INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind, customer_class, rule_id, tariff_id, platform_default_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, supersedes_id, inputs, inputs_fingerprint, calculated_by) VALUES ('$T2', '$1', '$2', 'TX', 'gas', 'distribution', 'protected', $LAW, NULL, $DEF, 'sheltered', $3, 50, 'm1', DATE '2027-01-20', $DEF_BLOCKS, $sup, '{}', 'fp-d-$3', 'race-25');"
 }
 ev() {  # $1 n, $2 type, $3 outcome (or empty)
 local out="NULL"
@@ -108,6 +139,40 @@ $(det 2 40 '' 00000000-0000-4000-8000-000000002651)
 COMMIT;
 SQL
 
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: fixtures of T2 (r2)"; exit 2; }
+BEGIN;
+INSERT INTO public.tenants (id, name, slug) VALUES ('$T2', 'Race25 T2', 'race25-t2');
+INSERT INTO public.users (id, tenant_id, display_name, email, role) VALUES ('$OP2', '$T2', 'Op2', 'op2@race25.test', 'operator');
+INSERT INTO public.customers (id, tenant_id, customer_number, customer_type) VALUES ('$C2', '$T2', 'R25-C2', 'residential');
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES ('$LOC2', '$T2', '$C2', 'L', '2 Main', 'Smalltown', 'TX', '75001');
+INSERT INTO public.places (id, kind_code, state_code, place_code, name, parent_place_id, effective_from, source_note)
+SELECT '$CITY2', 'municipality', 'TX', 'TX-R25-TOWN', 'Race Town 25', s.id, DATE '2000-01-01', 'race-25 fixture' FROM public.places s WHERE s.kind_code = 'state' AND s.state_code = 'TX';
+INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, owning_place_id, effective_from, evidence_reference, evidence_date)
+VALUES ('$T2', 'gas', 'distribution', 'TX', 'municipal', false, '$CITY2', DATE '2000-01-01', 'charter', DATE '2000-01-01');
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
+VALUES ('$I2', '$T2', 'R25-I2', '$C2', '$LOC2', DATE '2026-11-22', '2026-10', DATE '2026-10-01', DATE '2026-10-31', DATE '2026-12-11', 100.00);
+INSERT INTO public.invoice_line_items (id, tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, rate, regulatory_class) VALUES
+  ('$L21', '$T2', '$I2', 0, 'gas', 'base_charge', 'Gas service', 60.00, 60.00, 'regulated'),
+  ('$L22', '$T2', '$I2', 1, 'general', 'misc', 'Add-on', 40.00, NULL, 'unregulated');
+INSERT INTO public.invoice_calculation_snapshots
+  (tenant_id, invoice_id, valid_at, recorded_at, snapshot_schema_version, formula_version,
+   rate_inputs, gas_factors, wna_inputs, tax_inputs, read_inputs, customer_inputs, period_inputs, line_items)
+VALUES ('$T2', '$I2', DATE '2026-10-31', now(), 'v1', 'race25', $SNAP_INPUTS,
+   jsonb_build_object('customer_id', '$C2'::uuid, 'customer_class', null, 'location_id', '$LOC2'::uuid, 'premise_zones', '{}'::jsonb),
+   jsonb_build_object('period_start', DATE '2026-10-01', 'period_end', DATE '2026-10-31', 'days_in_period', 31, 'proration_policy', null),
+   (SELECT jsonb_agg(jsonb_build_object('invoice_line_item_id', l.id, 'charge_type', l.charge_type, 'amount', l.amount)) FROM public.invoice_line_items l WHERE l.invoice_id = '$I2'));
+UPDATE public.invoices SET status = 'pending' WHERE id = '$I2';
+SET LOCAL app.user_id = '$OP2';
+SET LOCAL ROLE tally_app;
+INSERT INTO public.disputes (id, tenant_id, customer_id, invoice_id, subject, received_on, channel) VALUES
+  ('$D2B', '$T2', '$C2', '$I2', 'calculation', DATE '2026-11-23', 'written'),
+  ('$D2C', '$T2', '$C2', '$I2', 'calculation', DATE '2026-11-23', 'written');
+INSERT INTO public.dispute_amounts (id, tenant_id, dispute_id, amount, determined_by, effective_on) VALUES
+  ('$A2B', '$T2', '$D2B', 40, 'customer_claim', DATE '2026-11-23'),
+  ('$A2C', '$T2', '$D2C', 40, 'customer_claim', DATE '2026-11-23');
+COMMIT;
+SQL
+
 waiting() {
 local n i
 for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -119,12 +184,12 @@ echo 0
 }
 AS_OP="SET LOCAL app.user_id = '$OP'; SET ROLE tally_app;"
 
-two() {  # $1 A's statement, $2 B's statement, $3 B's role prefix (default: the operator)
-local b_as="${3:-$AS_OP}"
+two() {  # $1 A's statement, $2 B's statement, $3 B's role prefix (default: the operator), $4 A's (default: the operator)
+local b_as="${3:-$AS_OP}" a_as="${4:-$AS_OP}"
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 SET application_name = 'race25_a';
 BEGIN;
-$AS_OP
+$a_as
 $1
 SELECT pg_sleep(3);
 COMMIT;
@@ -218,5 +283,38 @@ COMMIT;
 SQL
 )
 if echo "$OUT" | grep -qF "[D2f]"; then echo "PASS DR9 a line added to an amount of an earlier transaction is refused"; else echo "FAIL DR9: $OUT"; fail=1; fi
+
+# r2 (item 9)
+AS_OP2="SET LOCAL app.user_id = '$OP2'; SET ROLE tally_app;"
+# DR10: the close runs as the owner (the platform closes its defaults).
+two "$(det_default "$D2B" "$A2B" 40)" "UPDATE public.dispute_platform_defaults SET effective_to = DATE '2026-11-23' WHERE id = $DEF;" "SET LOCAL app.user_id = '$OP2';" "$AS_OP2"
+verdict "DR10 a close of the platform default while a determination cites it for November 23: the close waits, then is refused" 1 "cannot close on"
+
+# DR11 (not a race: in turn)
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP2
+INSERT INTO public.dispute_tariffs (tenant_id, state_code, service_type, system_kind, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
+VALUES ('$T2', 'TX', 'gas', 'distribution', DATE '2026-11-01', 'Town tariff', 'dispute_tariff', 1,
+        '{"citation": "Town tariff", "subjects": {"kind": "any", "excluded": []}, "shelter_earned": {"kind": "any_time"}, "must_pay": {"strategy": "full_bill", "version": 1, "id": "m1"}, "shelter_ends": {"kind": "resolution"}, "stages": [], "blocks": {"codes": ["disconnect_order"]}, "duties": {"codes": []}}');
+COMMIT;
+SQL
+)
+if [ $? -eq 0 ]; then echo "PASS DR11 a policy back-dated over a dispute determined under the default is admitted (R6: the core's audit finding)"; else echo "FAIL DR11: $OUT"; fail=1; fi
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+BEGIN;
+$AS_OP2
+$(det_default "$D2B" "$A2B" 30 "$("${PSQL[@]}" -c "SELECT id FROM public.dispute_determinations WHERE dispute_id = '$D2B'")")
+COMMIT;
+SQL
+)
+if echo "$OUT" | grep -qF "[D4e]"; then echo "PASS DR11b … and a new answer for that dispute must cite the policy now in force"; else echo "FAIL DR11b: $OUT"; fail=1; fi
+
+# DR12 (not a race): a session that never set app.user_id.
+OUT=$("${PSQL[@]}" 2>&1 <<SQL
+INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T2', '$D2C', 'withdrawn', DATE '2026-11-24');
+SQL
+)
+if echo "$OUT" | grep -qF "was not found to move"; then echo "PASS DR12 a resolution recorded with no app.user_id finds no dispute to move (RLS applies to tally_dispute)"; else echo "FAIL DR12: $OUT"; fail=1; fi
 
 exit $fail
