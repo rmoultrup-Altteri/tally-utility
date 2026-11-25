@@ -26,6 +26,7 @@ Modelled on **Stinnett** (fee schedule A7.000, ordinance 339-26 of 2/11/2026). A
 | Deposit | residential $100, commercial $200; an extra $125 after a second disconnection for nonpayment, as a top-up of the one deposit balance; the two disconnections are counted over a rolling 12 months; reconnection is not held for it, since the tariff doesn't say so (Kyle 11-03, answer 15) | Stinnett |
 | Deposit refund | not stated in the source. **(invented)** At move-out the deposit pays the final bill and the rest is returned; no refund while service continues | — |
 | Deposit interest | not stated in the source; **none (invented)**; no state floor binds a city system | — |
+| When a payment counts as made | **the day it is received (invented)**, by any channel; the source is silent | — |
 | Returned check | $25, plus $7 certified mail; a $20 late fee if after the 10th | Stinnett |
 | Reconnect | $30 in office hours, $45 after | Stinnett |
 | Meter re-read | free once a calendar year, otherwise $5, waived if the city's read was wrong | Stinnett |
@@ -78,7 +79,7 @@ Modelled on **Brenham** (tariff section 500, effective 10/1/2026). About **5,000
 
 ## 3. Gulf Plains Gas Company — the regulated contrast
 
-An investor-owned gas utility regulated by the Railroad Commission, serving the unincorporated area around Bluebonnet. It went live on the platform on **Jan 15, 2026 (invented)**; its meter-test history before that date was migrated. It is the case where the Texas customer-service rules (16 TAC §7.45) bind of their own force, and where a city franchise fee would apply in a city it serves. **Its tariff is not yet drafted**: it will be modelled on a real Railroad Commission tariff when the first scenario needs it.
+An investor-owned gas utility regulated by the Railroad Commission, serving the unincorporated area around Bluebonnet. It went live on the platform on **Jan 15, 2026 (invented)**; its meter-test history before that date was migrated. It is the case where the Texas customer-service rules (16 TAC §7.45) bind of their own force, and where a city franchise fee would apply in a city it serves. **Its tariff is not yet drafted**: it will be modelled on a real Railroad Commission tariff when the first scenario needs it. Until then (**invented**): meters are read on the 1st and bills issued on the 5th for the month before; a bill is due 20 days after issue (16 TAC §7.45 sets 15 as the least); the billing period is the calendar month read (`unmatched-cash-and-pledges.md` SCN-0124).
 
 ## 4. The State of Fremont — a non-Texas set of law rows
 
@@ -107,9 +108,9 @@ Used by `unmatched-cash-and-pledges.md`. Every value and agency here is **invent
 
 | Agency | Utility | Kind | Agreement in force | Days to pay a pledge | Hold while eligibility is checked |
 |---|---|---|---|---|---|
-| Coastal Prairie Community Action Agency | Gulf Plains | energy assistance (CEAP) | from Jan 1, 2026, the CEAP vendor agreement | 45 | 5 business days |
+| Coastal Prairie Community Action Agency | Gulf Plains | energy assistance (CEAP) | from Jan 1, 2026, the CEAP vendor agreement (an earlier revision, same terms) | 45 | 5 business days |
 | St. Brigid's Helping Hands | Gulf Plains | charity | from Jan 1, 2026, a letter agreement | 30 | none |
-| Mesquite County Community Action Agency | Pecan Flat | energy assistance (CEAP) | from Jan 1, 2026, the CEAP vendor agreement | 45 | 5 business days |
+| Mesquite County Community Action Agency | Pecan Flat | energy assistance (CEAP) | from Jan 1, 2026, the CEAP vendor agreement (an earlier revision, same terms) | 45 | 5 business days |
 | Bluebonnet Area Ministries food pantry | Bluebonnet | charity | from Dec 1, 2026, entered Dec 17 (SCN-0128) | 30 | none |
 
 The 45 days and 5 business days are the CEAP vendor agreement's terms (design source VA-26); the charities' are invented. They are contract terms, not law.
@@ -139,6 +140,9 @@ The 45 days and 5 business days are the CEAP vendor agreement's terms (design so
 | PF-07 | Pecan Flat | a rented house, residential | — | same landlord as PF-06 |
 | BB-16 | Bluebonnet | homeowner inside the city, named like BB-01 | R-U | `unmatched-cash-and-pledges.md` SCN-0117 |
 | GP-01 | Gulf Plains | residential, unincorporated area | — | Texas law binds; rates invented per scenario until the tariff is drafted |
+| GP-06 | Gulf Plains | residential, unincorporated area | — | $15.00 a month and $4.10 per Mcf, no tax line (`cash.md`; `unmatched-cash-and-pledges.md`) |
+| GP-07 | Gulf Plains | residential | — | `unmatched-cash-and-pledges.md` SCN-0126 |
+| BB-09 | Bluebonnet | renter outside the city | R-R | deposit $250 (`cash.md`; `unmatched-cash-and-pledges.md`) |
 | PL-01 | Prairie Line (Fremont) | residential | — | deposit $200 |
 | PL-03 | Prairie Line (Fremont) | homeowner in the City of Lakeview (invented) | — | `tax.md` SCN-0112 |
 
