@@ -6,6 +6,25 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-24 (scenarios) — tax by location (SCN-0104 – 0116), reviewed twice; Kyle batches 3 and 5 as files
+
+**What was done:**
+- **`scenarios/tax.md`, 13 scenarios** after -30 mirrored: the tax stack per place, residential gas, exempt customers' $0.00 lines, annexation's two dates, published rate changes and the gaps report, a wrong jurisdiction, Pecan Flat's business-only tax, a tax on a tax, refused tax rows, the liability, overlapping places, a line outside the base. Cast: six Bluebonnet tax rows, new customers.
+- **Review round 5** (Opus, Fable, Codex) applied; SCN-0115, 0116 came from it. **Second pass** (Opus 2 / 3 / 6; Fable 3 / 7 / 7) applied: every local tax counts toward the 2% limit, transit included (§321.101(f)), so the east-of-Main district and transit authority are 0.125% each and end Sep 30, 2027 (BB-13 $202.85); the fee's exclusion cited to 34 TAC §3.295(j); §321.3025 reaches only the city's part. Its own edits are not re-reviewed.
+- **Corrected elsewhere:** SCN-0055 (c) $447.32; SCN-0054 (a) $66.99.
+- **Kyle:** batch 3 (K-14) rebuilt as a file from the Slack draft, item 6 edited; batch 5 (K-18, 11 questions) drafted. None sent. Roadmap and dashboard updated.
+- **Board notes** to rates (six tax gaps) and money (tax lines, the liability).
+
+**Decisions:** none by Ryan; statutory readings recorded in `tax.md` (see the handoff's table).
+
+**Failed approaches:** §321.102(h) misread as transit outside the 2% limit; an undated cast place reaching old bills; a statute cited without its scope (§121.211(g)).
+
+**Open:** Kyle's batches 3–5; the rates and money board notes; two leaked postgres-mcp containers.
+
+**Next:** the rates stream's gas cost, zones and reads, if Ryan agrees.
+
+---
+
 ## 2026-11-22 (money) — the dispute conflict settled; -24 rounds 9 and 10 reviewed, r11 built; a bill's credit line goes to Kyle
 
 **What was done:**
