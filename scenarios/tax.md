@@ -324,7 +324,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 *Rule:* a premise pays the tax of each place it is recorded in, decided premise by premise, not by its city; a place that covers part of a city (a transit authority here; a district alike) taxes only the premises inside it. A transit authority's tax and most districts' never reach residential gas. Sources: Kyle 10-14, answer 1 ("a service location links to every jurisdiction it sits in"); 34 TAC §3.334(k)(8), (l)(1)(A); Tax Code §321.101(f) (every local tax at a location, a transit authority's included, counts toward the 2% limit) and §321.102(e)-(h) (a transit authority's rate is never the one automatically reduced).
 
 **Given**
-- The Bluebonnet Area Transit Authority (**invented**), 0.25%, the least a Texas transit authority may levy (Transportation Code §451.404(a), §452.401(a), §460.551(a)), covers the part of the city east of Main Street, and does not tax residential gas. It ends Sep 30, 2027 (**invented**; SCN-0109). With the city's 1%, the county's 0.5% and the crime-control district's 0.25%, the local total east of Main is 2.0%, the limit.
+- The Bluebonnet Area Transit Authority (**invented**), 0.25%, the least a Texas transit authority may levy (Transportation Code §451.404(a), §452.401(a), §460.551(a)), covers the part of the city east of Main Street, and does not tax residential gas. It ends Sep 30, 2027 (**invented**; SCN-0109). A transit authority is joined or left by whole cities or county areas, so a city only partly inside one got that way by annexing land beyond it (**invented**: Bluebonnet annexed the land west of Main from outside the authority). **Open (a citation check):** how annexation moves a transit authority's boundary (Transportation Code ch. 451, 452, 460). With the city's 1%, the county's 0.5% and the crime-control district's 0.25%, the local total east of Main is 2.0%, the limit.
 - February 2027 bills (period Jan 15 – Feb 14). **BB-13 (invented)**, a hardware store east of Main, schedule SC-U, 20.0 Mcf; BB-10, the bakery, west of Main; **BB-14 (invented)**, a home east of Main, R-U, 6.0 Mcf. Each premise's memberships are recorded as stated.
 
 **When** the bills are issued.
@@ -341,6 +341,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 | 5 Transit authority 0.25% | 0.4685 → $0.47 | none: outside | none: residential |
 | **Total** | **$202.86** | **$202.39** | **$65.99** |
 
+- BB-13's crime-control district and transit lines are both $0.47: a test tells them apart by the row and place each line names, not by amount.
 - Two businesses in the same city pay different taxes because of where each is; a core that keys transit to the city would bill BB-10 $0.47 too much.
 
 ---
