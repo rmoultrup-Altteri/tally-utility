@@ -6,6 +6,25 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-25 (scenarios) — unmatched cash and pledges (SCN-0117 – 0129), reviewed; two of Ryan's rulings; the transit rate fixed; Kyle batch 6
+
+**What was done:**
+- **`scenarios/unmatched-cash-and-pledges.md`, 13 scenarios** after -24 mirrored: money held with no customer (never guessed; split; returned to sender; to unclaimed property after Texas's three years, a city's small amounts to its own treasurer), aged receipts barring their candidates' cut-off, misposted money returned, a held check bouncing, one provider transaction; agency pledges at Gulf Plains under 16 TAC §7.460(b)(2) and at cities, two agencies, lapse, refunds to the agency, no agreement on file, remittance batches. Cast §5 (settings, agencies); Gulf Plains billing days; Pecan Flat's payment date.
+- **Review round 6** (Opus, Fable, Codex) applied, including the tax second-pass edits.
+- **Tax:** transit authority 0.25% (Transportation Code allows no lower rate), hospital district removed; SCN-0115 BB-13 $202.86; reviewed by Opus.
+- **Kyle batch 6** (K-19, 16 questions) drafted as a file. None sent. Roadmap and dashboard updated.
+- **Board notes** to money: four gaps (a found-late receipt's date, a miskeyed pledge's ending, the eligibility hold, a check keyed as another agency's) and the two rulings.
+
+**Decisions (Ryan, DECISION-LOG 2026-11-25):** a utility cannot go live until it states its held-money service level, retention and pledge rule; a pledge carries the day the utility received it.
+
+**Failed approaches:** a silent city tariff stated as blocking (an unmade decision); a contract term stated as settled beside its own Open; skipping penalties that posted before money was identified; a Codex wait loop matching "error" in its own output.
+
+**Open:** Kyle's batches 3–6; three citation checks (transit boundary on annexation; §321.3025 and a crime-control district; Property Code §76.601–.602).
+
+**Next:** the rates stream's gas cost, zones and reads, if Ryan agrees.
+
+---
+
 ## 2026-11-24 (scenarios) — tax by location (SCN-0104 – 0116), reviewed twice; Kyle batches 3 and 5 as files
 
 **What was done:**
