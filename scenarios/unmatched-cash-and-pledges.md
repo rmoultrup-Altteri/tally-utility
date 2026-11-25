@@ -116,7 +116,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - **(c)** The aged list refuses to run at Pecan Flat. To the cut-off rule the bar is unevaluable, so **no** Pecan Flat customer is cut off until the setting is entered. That blocks every account, not only PF-07.
 - **Open (Kyle):** between Nov 27 and Dec 8 the receipt is within its service level, so nothing bars a cut-off of PF-07. Had the cut-off date fallen in those days, should a candidate be held off from the day the money came?
 - **Open (Kyle):** Pecan Flat adds a $20 service charge when a bill is unpaid at 1:00 p.m. on the 10th, and cuts service off. When the cut-off is held for unidentified money, is the $20 still added? Does the charge go with being unpaid at that hour, or with the cut-off itself?
-- **Open (Ryan):** (c) blocks every account at a utility for one missing setting. The alternative is to require the setting before a utility goes live, which needs no schema change.
+- **Settled (Ryan, 2026-11-25, DECISION-LOG):** a utility cannot go live until its service level, its retention and its pledge rule are entered, so (c) is a safety net a live utility never meets. Onboarding that leaves any of them blank is refused by the core; the database keeps blocking if one is ever missing.
 
 ---
 
@@ -213,14 +213,14 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - The Sep 21 disconnection is not carried out. The pledge was received in the billing period Sep 1 – Sep 30 (read Oct 1, billed Oct 5), which Sep 21 also falls in, and the $87.40 pledged is more than the $47.80 delinquent.
 - **(b)** By its text §7.460(b)(2) needs a written notice, so the phone call alone does not protect at Gulf Plains. A pledge recorded as "verbal" on Sep 9 reads as such. When the letter comes on Sep 16, the record cannot change the pledge's form: the operator records the letter as a pledge of its own and the phone pledge in error. The letter's pledge then reads as recorded on Sep 16.
 - **(c)** The Sep 10 pledge still reads pay by Oct 25. The Oct 2 pledge takes the new agreement: pay by Tue Dec 1.
-- **(d)** At Pecan Flat no statute binds and the source tariff says nothing about pledges. Whether the pledge stops a cut-off there is not ruled (Open, Ryan, below). The 45-day term is recorded either way, pay by Jan 4, 2027 if the pledge is dated Nov 20.
+- **(d)** At Pecan Flat no statute binds and the source tariff says nothing about pledges. Whether the pledge stops a cut-off there is Pecan Flat's own rule, stated at go-live (below). The 45-day term is recorded either way, pay by Jan 4, 2027 if the pledge is dated Nov 20.
 - **Open (Kyle):** the protection lasts "for a billing period", here to Sep 30, while the agency has to Oct 25. If the pledge is unpaid on Oct 1, may Gulf Plains disconnect for the July bill? Or does the agreement's "not delinquent if paid within 45 days" hold the pledged amount to Oct 25? The agreement is between the agency and the utility, not a rule the customer holds.
 - **Open (Kyle):** "sufficient payment to continue service". A pledge of $30.00 against the $47.80 delinquent: does it protect? The vendor agreement says a short pledge does not oblige a *reconnection*.
 - **Open (Kyle):** does a pledge entered in the agency's web portal count as "other written notification"?
 - **Open (Kyle):** the pay-by date, Oct 25, is a Sunday. Does the agency have until Monday?
 - **Open (Kyle):** the vendor agreement keeps service on for up to five business days while the agency checks eligibility, before any pledge exists. Nothing records "the agency is checking this customer": a pledge needs an amount. How do the utilities learn of it, and what should hold the cut-off in those days? (Board note to money.)
 - **Open (Ryan):** "the billing period in which the provider receives" the pledge. The only receipt the record holds is when the pledge was keyed. A letter that arrives on Wed Sep 30 and is keyed Thu Oct 1 reads as received in the next period, and recording a pledge again, as in (b) and SCN-0128 (b), moves the date it reads as received. Should a pledge also carry the day the utility received it, entered by the operator and no later than when it was keyed (an additive change)? Or does the core require same-day keying?
-- **Open (Ryan):** a city system whose tariff says nothing about pledges, (d). Is an open pledge no protection there ("its own rule, or nothing")? Or does the cut-off wait, as an unevaluable condition, until the city states a rule? The same shape as SCN-0120's Open: a missing utility setting that either blocks or is required before go-live.
+- **Settled (Ryan, 2026-11-25, DECISION-LOG):** a city states its pledge rule before it goes live, even if the rule is "a pledge gives no protection", so (d) never meets a silent tariff on a live utility. Pecan Flat's rule is not yet in the cast: until a scenario needs it, (d) shows only what is recorded.
 - **Open (Kyle, for city systems):** what do the cities do with a pledge in practice: follow the CEAP agreement's 45 days, or something else?
 
 ---
