@@ -135,5 +135,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
   | Gas cost adjustment | 41.6000 Mcf × $0.42 = 17.4720 | $17.47 |
   | **Total** | | **$419.03** |
 
+  *Corrected 2026-11-24 (`tax.md` SCN-0106):* the table above is the tariff-priced lines only. BB-08 is not residential, so the state's and the county's sales tax apply outside the city: 6.25% × $419.03 = $26.19 and 0.5% × $419.03 = $2.10; the bill is **$447.32**.
+
   The usage lines record the reading (40.0 Mcf), the factor (1.0400) and the billed quantity (41.6000 Mcf). A line carrying the factor without the reading is refused at issue. No therm figures are needed: the line is billed in Mcf.
 - A line whose unit is not Ccf, Mcf, therm, dekatherm or MMBtu is refused at issue.
