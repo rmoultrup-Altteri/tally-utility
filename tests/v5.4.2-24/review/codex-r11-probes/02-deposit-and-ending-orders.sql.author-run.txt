@@ -1,0 +1,152 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:200: NOTICE:  caught SQLSTATE=23514 message=account_ledger 00000000-0000-4000-8000-0000000a2482: a payment made from a suspense receipt is moved to posted before its posting entry is undone (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:200: NOTICE:  PASS pending deposit reversal refused: refused by moved to posted before (account_ledger 00000000-0000-4000-8000-0000000a2482: a payment made from a suspense receipt is moved to posted before it)
+ refuses_at 
+------------
+ 
+(1 row)
+
+UPDATE 1
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/probe.sql:204: NOTICE:  PASS coded whole deposit reversal: no due
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:206: NOTICE:  caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-0000000a2483 gives money back to payment 00000000-0000-4000-8000-0000000a2411, which has ended: post a new payment (guard the act; CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:206: NOTICE:  PASS ended deposit cause cannot be undone: refused by which has ended (account_ledger 00000000-0000-4000-8000-0000000a2483 gives money back to payment 00000000-0000-4000-8000-0000000a2411, wh)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:208: NOTICE:  caught SQLSTATE=23001 message=payment P24-2411 cannot move from reversed to nsf (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf or reversed, and the rest are terminal — post a new payment (a refund is read from the position, not a status)
+psql:/tmp/probe.sql:208: NOTICE:  PASS reversed cannot become nsf: refused by terminal (payment P24-2411 cannot move from reversed to nsf (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:210: NOTICE:  caught SQLSTATE=23514 message=entry 00000000-0000-4000-8000-0000000a2481 (deposit, -100.00): on 2026-03-12 the rows netted against it would come to 101.00, outside 0 to 100.00 — reversals of an entry total at most the entry, with the opposite sign (R-02 cap, v5.4.2-23)
+psql:/tmp/probe.sql:210: NOTICE:  PASS extra positive row after end exceeds tree cap: refused by reversals of an entry total at most (entry 00000000-0000-4000-8000-0000000a2481 (deposit, -100.00): on 2026-03-12 the rows netted against it would come to 10)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/probe.sql:216: NOTICE:  PASS deposit split returns exactly 60
+ ok 
+----
+ 
+(1 row)
+
+ mret 
+------
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/probe.sql:219: NOTICE:  PASS late NSF code preserves deposit returned share
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:221: NOTICE:  caught SQLSTATE=23001 message=payment P24-2412 cannot move from nsf to reversed (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf or reversed, and the rest are terminal — post a new payment (a refund is read from the position, not a status)
+psql:/tmp/probe.sql:221: NOTICE:  PASS nsf cannot become reversed: refused by terminal (payment P24-2412 cannot move from nsf to reversed (CI-013; v5.4.2-23): pending moves to posted or voided, posted to nsf )
+RESET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+SET
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+psql:/tmp/probe.sql:230: NOTICE:  caught SQLSTATE=23514 message=account_ledger 00000000-0000-4000-8000-0000000a24a4: a payment made from a suspense receipt is moved to posted before its posting entry is undone (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:230: NOTICE:  PASS replica pending deposit reversal refused: refused by moved to posted before (account_ledger 00000000-0000-4000-8000-0000000a24a4: a payment made from a suspense receipt is moved to posted before it)
+ROLLBACK

@@ -32,6 +32,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [rules-bind-every-displacing-path](#rules-bind-every-displacing-path) — A rule about what may replace a fact must bind every path that can displace it — the linked correction AND a parallel row the readers rank above it
 - [projection-checks-lag-in-one-statement](#projection-checks-lag-in-one-statement) — A BEFORE ROW check reading a column an AFTER trigger writes (deposits.status) is stale inside a multi-row/WITH statement; read the events, and judge cross-table facts in an AFTER trigger
 - [append-only-vs-unique-deadlock](#append-only-vs-unique-deadlock) — append-only + a uniqueness key + a gate demanding a fresh row = a flow that can never complete
+- [a-row-is-not-its-subtree](#a-row-is-not-its-subtree) — a rule about one ledger row reads that row and whether anything is filed beneath it, not `ledger_entry_remaining` (the row plus its subtree); a sum over a reversal tree walks it once from the root, by link
 
 **Time and coordinates**
 - [temporal-helper-no-live-fallback](#temporal-helper-no-live-fallback) — Standing rule for any as-of/temporal lookup function in tu.sql — no live-value fallback, NULL coordinate raises, NULL result means unknowable
@@ -522,3 +523,12 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 - Before adding a trigger to a table another patch owns, list the roles that may write it (`has_table_privilege(rolname, table, 'INSERT')`) and what each may read.
 - Read the row's own table first and return unless the row concerns the trigger; only then read another table. Permissions are checked for the whole query, whatever its join would find.
 - A reviewer's trigger run only against the patch's own battery is not evidence for other writers: run ci.sh before trusting it.
+
+<a id="a-row-is-not-its-subtree"></a>
+## a-row-is-not-its-subtree
+
+-24 r11 admitted a bank return code on `reversed` only where "the row it names takes back the whole payment", measured as `ledger_entry_remaining(status_cause_id) >= amount`. That function is the row plus the net of its whole subtree, so a whole reversal that was undone, with 60 misposted and 40 the bank's filed beneath the undo, still "remained" 100: the code was admitted and the 60 could never come back (Fable r11 B1). The same review found the battery's conservation check rooted a tree at every nsf row it found by reference label, so a bounce re-recorded beneath another bounce's undo counted twice, and a bounce linked only by its reversal was missed (Codex r11 S1).
+
+- A rule about what one row is reads that row (`amount`) and whether anything is filed beneath it (`NOT EXISTS … reverses_ledger_entry_id = row`). Use `ledger_entry_remaining` only for "what is left of this entry".
+- A sum over a reversal tree walks it once, from the posting entry, by `reverses_ledger_entry_id`, carrying a flag down (for example "in or under the first nsf row that takes money"); never seed it from every row that matches a label.
+- For every new rule over a tree, try the same money filed one level down: under an undo of the row the rule names.

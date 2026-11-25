@@ -1,0 +1,76 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:201: NOTICE:  caught SQLSTATE=23514 message=account_ledger 00000000-0000-4000-8000-0000000a2482: a payment made from a suspense receipt is moved to posted before its posting entry is undone (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:201: NOTICE:  PASS multi-row root and reversal while pending: refused by moved to posted before (account_ledger 00000000-0000-4000-8000-0000000a2482: a payment made from a suspense receipt is moved to posted before it)
+INSERT 0 1
+RESET
+DO
+psql:/tmp/probe.sql:214: NOTICE:  COPY pending reversal SQLSTATE=23514 message=account_ledger c3ea0d2c-be20-44f4-9504-5fabedc9ef1c: a payment made from a suspense receipt is moved to posted before its posting entry is undone (CI-053, v5.4.2-24)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:215: NOTICE:  PASS failed COPY leaves root intact
+UPDATE 1
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/probe.sql:220: NOTICE:  caught SQLSTATE=23514 message=payment P24-2411 ended reversed without a bank return code: it takes none afterwards. A take-back learned later: return the payment's money to the receipt as misposted, then record bank_returned with its code from the receipt (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:220: NOTICE:  PASS owner cannot add late code: refused by takes none afterwards (payment P24-2411 ended reversed without a bank return code: it takes none afterwards. A take-back learned later: return )
+ refuses_at 
+------------
+ 
+(1 row)
+
+INSERT 0 1
+SET
+psql:/tmp/probe.sql:226: ERROR:  permission denied for function k

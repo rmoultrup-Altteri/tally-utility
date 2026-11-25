@@ -1,0 +1,60 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 2
+INSERT 0 1
+psql:/tmp/probe.sql:193: NOTICE:  PASS CTE NSF return held 60
+ ok 
+----
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:205: NOTICE:  COPY duplicate NSF return SQLSTATE=23505 message=duplicate key value violates unique constraint "suspense_receipt_dispositions_one_return_per_payment" (expect 23505 one_return_per_payment)
+DO
+psql:/tmp/probe.sql:206: NOTICE:  PASS COPY failed atomically; held still 60
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

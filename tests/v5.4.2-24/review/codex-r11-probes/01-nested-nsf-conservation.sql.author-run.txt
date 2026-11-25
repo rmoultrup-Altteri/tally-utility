@@ -1,0 +1,108 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/probe.sql:201: NOTICE:  PASS nested typed NSF admitted; no untyped remainder
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:204: NOTICE:  PASS bank owns 100, receipt/customer/due own zero
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:213: NOTICE:  PASS S1: frozen S4c bank expression is 200 for actual net bank take-back 100
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:214: NOTICE:  PASS independent whole NSF subtree net is 100
+ ok 
+----
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+psql:/tmp/probe.sql:223: NOTICE:  PASS link-only NSF: no cash held, received, or due
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:226: NOTICE:  PASS S1: S4c has no NSF seed for the link-only reversal
+ ok 
+----
+ 
+(1 row)
+
+RESET
+ROLLBACK

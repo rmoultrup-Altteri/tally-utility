@@ -49,9 +49,10 @@
 --     time); r3: a release too, and a payment's reversal is among the rows.
 --     Amounts are never NaN (r3). r10: reversed takes a bank's return code
 --     only with the move, where the row it names takes back the whole
---     payment or the bank took it all as nsf rows; nsf needs an nsf row that
---     stands (r11): otherwise what was misposted could never come back, or
---     what the bank took could be spent.
+--     payment with nothing filed beneath it (r12) or the bank took it all as
+--     nsf rows; nsf needs an nsf row that stands (r11): otherwise what was
+--     misposted could never come back, or what the bank took could be spent.
+--     A receipt's payment is born pending or voided (r11, r12).
 --     suspense_misposting_returns_due_as_of lists what is owed back at the
 --     coordinates, by the share there, not the payment's status.
 --   * Application contract (r3, recorded at the mirror): a payment that
@@ -753,6 +754,11 @@ BEGIN
             END IF;
             -- r11 (Codex r10 B1, S1; Opus r10 S1 to S3): what the bank took is
             -- unambiguous when a receipt's payment ends.
+            -- r12 (Opus r11 N1): these reads of the payment's tree are ordered
+            -- by -23's enforce_payment_immutable, which sorts before this
+            -- trigger by name, checks the move, and holds the payment's source
+            -- lock; -23's enforce_ledger_reversal takes the same lock before a
+            -- row joins the tree. The invariant pins both triggers.
             IF NEW.return_code IS DISTINCT FROM OLD.return_code AND NEW.status = 'reversed' AND OLD.status = 'reversed' THEN
                 RAISE EXCEPTION USING
                     MESSAGE = format('payment %s ended reversed without a bank return code: it takes none afterwards. A take-back learned later: return the payment''s money to the receipt as misposted, then record bank_returned with its code from the receipt (CI-053, v5.4.2-24)', NEW.payment_number),
@@ -770,10 +776,17 @@ BEGIN
                         MESSAGE = format('payment %s: no nsf row under its posting entry stands, so it did not bounce; end it reversed, with the bank''s code where the bank took the whole (CI-053, v5.4.2-24)', NEW.payment_number),
                         ERRCODE = 'check_violation';
                 END IF;
+                -- r12 (Fable r11 B1): the named row itself is the whole, and
+                -- nothing is filed beneath it. What remains of its subtree is not
+                -- enough: rows under its undo can be a misposting and the
+                -- bank's part, which one code cannot tell apart.
                 IF NEW.status = 'reversed' AND NEW.return_code IS NOT NULL
-                   AND v_share > 0 AND (v_share < NEW.amount OR public.ledger_entry_remaining(NEW.status_cause_id) < NEW.amount) THEN
+                   AND v_share > 0 AND (v_share < NEW.amount OR NOT EXISTS (
+                       SELECT 1 FROM public.account_ledger c
+                        WHERE c.id = NEW.status_cause_id AND c.amount >= NEW.amount
+                          AND NOT EXISTS (SELECT 1 FROM public.account_ledger u WHERE u.reverses_ledger_entry_id = c.id))) THEN
                     RAISE EXCEPTION USING
-                        MESSAGE = format('payment %s: reversed takes a bank return code only where the row it names takes back the whole payment (or the bank took it all as nsf rows): the code says what that one row is, and the rest could never come back. End it without the code, return what was misposted to the receipt, and record what the bank took there as bank_returned with its code (CI-053, v5.4.2-24)', NEW.payment_number),
+                        MESSAGE = format('payment %s: reversed takes a bank return code only where the row it names takes back the whole payment and nothing is filed beneath it (or the bank took it all as nsf rows): the code says what that one row is, and the rest could never come back. End it without the code, return what was misposted to the receipt, and record what the bank took there as bank_returned with its code (CI-053, v5.4.2-24)', NEW.payment_number),
                         ERRCODE = 'check_violation';
                 END IF;
             END IF;
@@ -792,8 +805,9 @@ BEGIN
     -- r11 (Fable r10 S2, Opus r10 N, Codex r10): a receipt's payment is not
     -- born ended (-23 refuses its rows afterwards, so its money would be
     -- nowhere): a load inserts it pending and moves it through its rows. Born
-    -- voided holds no money (O4).
-    IF NEW.suspense_receipt_id IS NOT NULL AND NEW.status IN ('reversed', 'nsf') THEN
+    -- voided holds no money (O4). r12 (Fable r11 S1): nor born posted, which
+    -- -23 leaves with no posting entry and no way to take one.
+    IF NEW.suspense_receipt_id IS NOT NULL AND NEW.status NOT IN ('pending', 'voided') THEN
         RAISE EXCEPTION USING
             MESSAGE = format('payment %s is born %s from receipt %s: load it pending and move it through its rows (CI-053, v5.4.2-24)', NEW.payment_number, NEW.status, NEW.suspense_receipt_id),
             ERRCODE = 'check_violation';
@@ -883,7 +897,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_payment_suspense_pledge() IS
-    'v5.4.2-24. BEFORE INSERT OR UPDATE on payments, for every role. Update: agency_id, agency_pledge_id, suspense_receipt_id and its reason and user are written once, at insert; a receipt''s payment is effective no later than the receipt''s received_on. r11: a receipt''s payment ends nsf only where an nsf row stands, ends neither way over an untyped row under a bounce, and reversed takes a bank return code only with the move and only where the row it names takes back the whole (or the bank took it all as nsf rows). Insert: r11: a receipt''s payment is not born reversed or nsf; a provider transaction is recorded once across receipts and payments (CI-055); a payment from a receipt is dated on or after received_on, effective no later, and carries the receipt''s channel, source system and instrument, and its agency where it names one (READ COMMITTED); a payment naming a pledge is of its agency and customer and the pledge was not recorded in error (under the pledge''s lock); a refund names the agency whose money it carries, or none for the customer''s own (cash_money_agency; Ryan, 2026-11-07). The receipt''s cap runs after the statement''s rows are in (enforce_payment_suspense_cap).';
+    'v5.4.2-24. BEFORE INSERT OR UPDATE on payments, for every role. Update: agency_id, agency_pledge_id, suspense_receipt_id and its reason and user are written once, at insert; a receipt''s payment is effective no later than the receipt''s received_on. r11: a receipt''s payment ends nsf only where an nsf row stands, ends neither way over an untyped row under a bounce, and reversed takes a bank return code only with the move and only where the row it names takes back the whole with nothing filed beneath it (r12; or the bank took it all as nsf rows). Insert: r11, r12: a receipt''s payment is born pending or voided; a provider transaction is recorded once across receipts and payments (CI-055); a payment from a receipt is dated on or after received_on, effective no later, and carries the receipt''s channel, source system and instrument, and its agency where it names one (READ COMMITTED); a payment naming a pledge is of its agency and customer and the pledge was not recorded in error (under the pledge''s lock); a refund names the agency whose money it carries, or none for the customer''s own (cash_money_agency; Ryan, 2026-11-07). The receipt''s cap runs after the statement''s rows are in (enforce_payment_suspense_cap).';
 CREATE TRIGGER enforce_payment_suspense_pledge BEFORE INSERT OR UPDATE ON public.payments
     FOR EACH ROW EXECUTE FUNCTION public.enforce_payment_suspense_pledge();
 ALTER TABLE public.payments ENABLE ALWAYS TRIGGER enforce_payment_suspense_pledge;
@@ -1008,7 +1022,9 @@ DECLARE
     v_entry public.account_ledger%ROWTYPE;
 BEGIN
     -- The entry first: a void's reversal names a charge, and its writer
-    -- (tally_void) may not read payments.
+    -- (tally_void) may not read payments. r12 (Opus r11 N1): -23's
+    -- enforce_ledger_reversal, before this by name, holds the payment's
+    -- source lock, so a move to posted is waited for or refused first.
     SELECT * INTO v_entry FROM public.account_ledger l WHERE l.id = NEW.reverses_ledger_entry_id;
     IF NOT FOUND OR v_entry.reference_type IS DISTINCT FROM 'payment' OR v_entry.transaction_type NOT IN ('payment', 'deposit')
        OR v_entry.reverses_ledger_entry_id IS NOT NULL THEN
@@ -1884,7 +1900,7 @@ DECLARE
         'check_provider_transaction_once(uuid,text,text,numeric,uuid,boolean) @f4e411824d56f96dd58a14ee2a41266e',
         'check_suspense_recorded_order(uuid,uuid,boolean,timestamp with time zone,text) @b5b0f7896a2a5586d20c375475561f68',
         'cash_money_agency(uuid,uuid) @172f30f6e30c219b16925a60674aa3c8',
-        'enforce_payment_suspense_pledge() @953cb8ea743016e487cbc7384c7a604b',
+        'enforce_payment_suspense_pledge() @c2857f8659ceaef3bdb8d943e81192be',
         'enforce_payment_suspense_cap() @70b1f3dd310d532996dacf213e544931',
         'enforce_suspense_receipt() @b56aa9190030f87f988ec1df7ac3c330',
         'enforce_suspense_disposition() @3fda7d15ab00251ccd97a69681857c94',
@@ -1906,7 +1922,7 @@ DECLARE
         'suspense_receipts_aged_as_of(uuid,date,timestamp with time zone) @464f481edb97078165c3aafb282ff1a8',
         'suspense_misposting_returns_due_as_of(uuid,date,timestamp with time zone) @406dd8ec11d8bb15168b01f3d42d54a1',
         'suspense_untyped_take_back(uuid) @007d6ea4477c2fb07b386e970a50afc7',
-        'enforce_ledger_suspense_posted() @81cf1418d0662a51b1824c6ae1ef75a6',
+        'enforce_ledger_suspense_posted() @570a5ea959eff27f85e27ee983e9fc82',
         'suspense_misposted_share_as_of(uuid,date,timestamp with time zone) @8b9cfb212d6b567b9a6d7d2e20bbc8b2',
         'suspense_misposted_share(uuid) @7a9e41eb151a007d0491c9415c146464',
         'agency_pledges_open_as_of(uuid,date,timestamp with time zone) @f49d0a5f289ecc1bd40cd2fa58f299cc',
