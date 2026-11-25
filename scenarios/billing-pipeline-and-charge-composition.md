@@ -97,7 +97,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 **When** (a) the March bills are issued on Mar 15, 2027; (b) a bill issued Feb 15, 2027 carries the fee; (c) a second fee is added to BB-01's April 2027 bill; (d) Pecan Flat's March bills are issued.
 
 **Then**
-- **(a)** BB-01's bill carries one line, pipeline safety fee **$1.00**, outside the sales tax base: with the reference bill's lines that is $65.83 + $1.00 = **$66.83**. BB-03's bill carries it too: a county is not a state agency (Kyle 11-05, answer 20). BB-07's carries none.
+- **(a)** BB-01's bill carries one line, pipeline safety fee **$1.00**, outside the sales tax base: with the reference bill's lines and the crime-control district's tax from Jan 1, 2027 ($0.16, `tax.md` SCN-0105) that is $65.99 + $1.00 = **$66.99** (*changed 2026-11-24*; it was $66.83 before the district was added to the cast). BB-03's bill carries it too: a county is not a state agency (Kyle 11-05, answer 20). BB-07's carries none.
 - **(b)** Refused: the fee may not be billed before Bluebonnet paid it (Mar 1).
 - **(c)** Refused: the fee is billed once for the year.
 - **(d)** No fee line on any bill.
@@ -107,7 +107,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 
 ### SCN-0055 — Outside the city: no city sales tax; a gas cost credit; a pressure factor shown with its raw reading
 
-*Status:* draft (2026-11-04), not yet sent to Kyle. Review round 2 gap (Opus 9, Codex 14). The unit list and the multiplier rule are Ryan's 2026-11-04 decision; the money stream's patch is not drafted.
+*Status:* draft (2026-11-04), not yet sent to Kyle; (c) changed by `tax.md` SCN-0106 (2026-11-24). Review round 2 gap (Opus 9, Codex 14). The unit list and the multiplier rule are Ryan's 2026-11-04 decision; the money stream's patch is not drafted.
 *Rule:* city sales tax applies only inside the city limits; a gas cost adjustment may be a credit; a multiplier is recorded with the raw quantity it multiplied, and a volume-billed line carries quantity, unit and rate. Sources: Kyle 11-03, answer 4; Bluebonnet's tariff (`cast.md` §2: the adjustment can be a charge or a credit); Ryan 2026-11-04 (DECISION-LOG: gas bill lines).
 
 **Given** Bluebonnet; the October billing month's figures, except as stated.
@@ -123,6 +123,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 | Commodity charge, 6.0 Mcf × $5.35 | $32.10 | $32.10 |
 | Gas cost adjustment | 6.0 × $0.42 = $2.52 | 6.0 × −$0.15 = −$0.90 |
 | City sales tax | none: outside the city | none |
+| State and county sales tax | none: residential | none: residential |
 | **Total** | **$69.83** | **$66.41** |
 
 - **(c)** Billed volume 40.0 Mcf × 1.0400 = 41.6000 Mcf:
@@ -133,9 +134,11 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
   | Distribution | 41.6000 Mcf × $2.31 = 96.0960 | $96.10 |
   | Commodity charge | 41.6000 Mcf × $5.35 = 222.5600 | $222.56 |
   | Gas cost adjustment | 41.6000 Mcf × $0.42 = 17.4720 | $17.47 |
-  | **Total** | | **$419.03** |
+  | State sales tax | 6.25% × $419.03 = 26.1894 | $26.19 |
+  | County sales tax | 0.5% × $419.03 = 2.0952 | $2.10 |
+  | **Total** | | **$447.32** |
 
-  *Corrected 2026-11-24 (`tax.md` SCN-0106):* the table above is the tariff-priced lines only. BB-08 is not residential, so the state's and the county's sales tax apply outside the city: 6.25% × $419.03 = $26.19 and 0.5% × $419.03 = $2.10; the bill is **$447.32**.
+  *Changed 2026-11-24 by `tax.md` SCN-0106:* BB-08 is not residential, so the state's and the county's tax apply outside the city (the total was $419.03).
 
   The usage lines record the reading (40.0 Mcf), the factor (1.0400) and the billed quantity (41.6000 Mcf). A line carrying the factor without the reading is refused at issue. No therm figures are needed: the line is billed in Mcf.
 - A line whose unit is not Ccf, Mcf, therm, dekatherm or MMBtu is refused at issue.

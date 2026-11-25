@@ -30,8 +30,8 @@ Modelled on **Stinnett** (fee schedule A7.000, ordinance 339-26 of 2/11/2026). A
 | Reconnect | $30 in office hours, $45 after | Stinnett |
 | Meter re-read | free once a calendar year, otherwise $5, waived if the city's read was wrong | Stinnett |
 | Senior deposit | $40 for a customer aged 65 or over; $100 until a date of birth is on file (Kyle 11-03, answer 16) | borrowed from **Sealy** |
-| Local sales tax on residential gas | **not adopted (invented)** | Tax Code §321.105 makes it the city's choice |
-| County sales tax | **none (invented)**: Pecan Flat's county levies no sales tax, so a non-residential bill carries the state's 6.25% only | `scenarios/tax.md` |
+| Local sales tax | **city 1.5%, adopted in 1987 (invented)**, so it may not reach residential gas (Tax Code §321.105(a)); business gas carries it with the state's 6.25% | `scenarios/tax.md` SCN-0111 |
+| County sales tax | **none (invented)**: Pecan Flat's county levies no sales tax | `scenarios/tax.md` |
 | Pipeline safety fee | **not billed (invented)**: the city absorbs it, so it never appears on a bill (Kyle 11-03, answer 2) | 16 TAC §8.201 lets the operator recover it; the source is silent |
 | Rate change partway through a period | **not stated in the source**; the city states the method (split by days, by read date, or by cycle) each time it enters a rate change, with no default (Kyle 11-03, answer 1) | — |
 
@@ -69,8 +69,8 @@ Modelled on **Brenham** (tariff section 500, effective 10/1/2026). About **5,000
 | Turn on or off at the customer's request | $50, plus $25 after hours | Brenham |
 | Pilot relight | $15, or $30 after hours | Brenham |
 | Taxes | "all taxes applicable to the sale of natural gas, excluding gross receipts taxes" | Brenham |
-| Local sales tax on residential gas | **adopted, city rate 1% (invented)**; it applies inside the city limits only, on the lines the city flags taxable (Kyle 11-03, answer 4); Bluebonnet flags every gas line (**invented**) | Tax Code §321.105 |
-| Tax rows | Bluebonnet's own rows, each on the lines it flags taxable and never on another tax: the **State of Texas 6.25%** (Tax Code §151.051), not on residential gas (§151.317); **Bluebonnet County 0.5% (invented name and rate)**, not on residential gas (34 TAC §3.334(l)(1)); the **city 1%**, on residential gas too (the row above); from **Jan 1, 2027, the Bluebonnet Crime Control District 0.25% (invented)**, citywide, which taxes residential gas too (§321.1055). Every Bluebonnet premise is in Bluebonnet County (**invented**). Local total 1.75%, inside the 2% limit | `scenarios/tax.md` |
+| Local sales tax on residential gas | **kept, city rate 1% (invented)**: the city's sales tax predates Oct 1, 1979 and it kept the tax on residential gas (invented); it applies inside the city limits only, on the lines the city flags taxable (Kyle 11-03, answer 4); Bluebonnet flags every gas line (**invented**) | Tax Code §321.105 |
+| Tax rows | Bluebonnet's own rows, in stack order, each on the lines it flags taxable and never on another tax: **1 the State of Texas 6.25%** (the published rate; Tax Code §151.051's text to check), not on residential gas (§151.317); **2 Bluebonnet County 0.5% (invented name and rate)**, not on residential gas (34 TAC §3.334(l)(1)); **3 the city 1%**, on residential gas too (the row above); **4 the Bluebonnet Crime Control District 0.25% from Jan 1, 2027 (invented)**, citywide, which taxes residential gas too (§321.1055); **5 the Bluebonnet Hospital District 0.25% (invented)**, east of Main Street only, not on residential gas; **6 the Bluebonnet Area Transit Authority 0.5% (invented)**, east of Main Street only, not on residential gas, outside the 2% limit. Every Bluebonnet premise is in Bluebonnet County (**invented**); a premise is in each place only by its own recorded membership | `scenarios/tax.md` |
 | Pipeline safety fee | **billed once a year, $1.00 per service line, on the March bill, not to state agencies (invented timing)**: added only in the month the city passes it on, within §8.201's limits (Kyle 11-03, answer 2) | 16 TAC §8.201 |
 | Rate change partway through a period | **not stated in the source**; the city states the method each time it enters a rate change, with no default (Kyle 11-03, answer 1); the 2021 release ties a change to "the October utility billing cycle" | Brenham news release 2021 |
 
@@ -91,6 +91,7 @@ Fremont's rows so far (all **invented**):
 | Rule | Fremont | First used |
 |---|---|---|
 | Deposit interest | simple interest on a residential cash deposit from the day posted, at the state's yearly rate (2% for 2026), actual days over 365, rounded per accrual; no minimum holding period; a floor for every utility the commission regulates | SCN-0032 |
+| Sales tax | Fremont 5%, on residential gas too, charged on the bill including a city's utility users' tax; the City of Lakeview's utility users' tax 3%, first in the stack | SCN-0112 |
 | Unclaimed property | a holder may set off a debt the owner owes it on another payment before reporting a credit | SCN-0103 |
 
 ---
@@ -103,11 +104,17 @@ Fremont's rows so far (all **invented**):
 | PF-02 | Pecan Flat | renter aged 67 | — | senior deposit $40 |
 | BB-01 | Bluebonnet | homeowner inside the city | R-U | deposit $150 |
 | BB-02 | Bluebonnet | renter outside the city | R-R | deposit $250 |
-| BB-03 | Bluebonnet | the county courthouse | G | a governmental account; no pipeline safety fee if a state agency |
+| BB-03 | Bluebonnet | the county courthouse, inside the city | G | a governmental account; no pipeline safety fee if a state agency; a government sales-tax exemption for gas from Jan 1, 2026, verified Jan 9 (`tax.md` SCN-0107) |
 | BB-10 | Bluebonnet | a bakery inside the city | SC-U | taxed by the state, city and county (`tax.md`) |
 | BB-11 | Bluebonnet | homeowner just outside the city, annexed Feb 15, 2027 | R-R, then R-U | `tax.md` SCN-0108 |
+| BB-08 | Bluebonnet | large commercial outside the city, at elevated pressure | LC-R | SCN-0055, SCN-0106 |
 | BB-12 | Bluebonnet | renter in the city's extraterritorial area, wrongly placed inside on the tax axis | R-R | `tax.md` SCN-0110 |
-| PF-03 | Pecan Flat | a café | — | state sales tax only |
+| BB-13 | Bluebonnet | a hardware store east of Main Street | SC-U | `tax.md` SCN-0115 |
+| BB-14 | Bluebonnet | homeowner east of Main Street | R-U | `tax.md` SCN-0115 |
+| BB-15 | Bluebonnet | homeowner inside the city, its district membership never recorded | R-U | `tax.md` SCN-0105 |
+| PF-03 | Pecan Flat | a café | — | state and city sales tax |
+| PF-04 | Pecan Flat | a house rented to visitors by the week | — | taxed: not residential use (`tax.md` SCN-0111) |
+| PF-05 | Pecan Flat | a home with a hair salon on the same meter | — | predominant use, Open (`tax.md` SCN-0111) |
 | GP-01 | Gulf Plains | residential, unincorporated area | — | Texas law binds; rates invented per scenario until the tariff is drafted |
 | PL-01 | Prairie Line (Fremont) | residential | — | deposit $200 |
 | PL-03 | Prairie Line (Fremont) | homeowner in the City of Lakeview (invented) | — | `tax.md` SCN-0112 |
