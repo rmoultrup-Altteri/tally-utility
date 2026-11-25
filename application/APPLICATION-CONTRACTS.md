@@ -471,6 +471,31 @@ It reads the answer from -25's record (`dispute_shelter_as_of`: the sheltered am
 
 ---
 
+## Unmatched cash and agency pledges (v5.4.2-24)
+
+*Introduced by v5.4.2-24 (mirrored 2026-11-24, Ryan, out of turn ahead of -25 and -26; thirteen review rounds, plans `application/wave2-build-2026-10-15/v5.4.2-24-r2-plan.md` to `-r13-plan.md`). The patch header's known limits L1–L6 are the source for AC-52.*
+
+### AC-48 — Write receipts, pledges, their payments and any payment that carries a provider transaction id at READ COMMITTED; retry 40001 and 40P01 — REJECTS
+Every -24 writer that reads under a lock refuses a stronger isolation level (a snapshot read would miss what the lock was taken to see). A multi-row statement takes its locks in row order, so two can deadlock: retry 40P01 and 40001 in a new transaction, as -23's cash contract says.
+
+### AC-49 — Reconcile suspense as what receipts hold plus what is owed back to them — SILENT
+`suspense_held_as_of` is what receipts still hold. Money reversed off the wrong customer and not yet returned to its receipt is in no receipt's figure: it is listed by `suspense_misposting_returns_due_as_of`. A suspense reconciliation adds the two at the same coordinates. The period close's snapshot carries no suspense line yet (limit L4): the core reads these two.
+
+### AC-50 — Load a receipt's history in recorded order; load its payments pending and move them through their rows — REJECTS
+A history load inserts a receipt's rows in the order they were recorded (a row recorded before one already on the receipt is refused). A receipt's payment is born `pending` (or `voided`), never `posted`, `reversed` or `nsf`: load it pending, write its posting entry, move it to posted, then write its later rows and move it to its end. A pending payment's posting entry is not undone; move it to posted first.
+
+### AC-51 — A bank take-back learned after a receipt's payment ended reversed: return the money to the receipt, then record `bank_returned` there with the code — REJECTS
+A receipt's payment ended `reversed` takes a bank return code only with the move, and only where the reversal it names is the whole payment with nothing filed beneath it (or the bank took it all as nsf rows); `nsf` needs an nsf row that stands. A code learned later is refused on the payment: return its money to the receipt as misposted, then record `bank_returned` with the code from the receipt. Money returned to a receipt is spent again only on or after the return's date (the receipt's cap is dated).
+
+### AC-52 — Route agency money the database cannot trace: deposits and untyped credits — TRUSTED
+A refund of an agency's money goes to the agency (Ryan, 2026-11-07); the database enforces it on refunds of payments, overpayment credits and the two reissues. It does not trace agency money that became a deposit (limit L5: returned by -15's deposit events) or a credit of origin transfer, adjustment, deposit_refund or other (limit L6). The core does not move agency money into such a credit, and returns an agency's deposit to the agency.
+
+### AC-53 — Watch what is in flight: a misposting refunded from the wrong customer, and a receipt's payment not yet on the ledger — SILENT
+- A misposting whose resulting credit was already refunded to the wrong customer leaves that customer owing the refund; the receipt gets its money back by the return. The core collects or writes off the refund as an ordinary debt.
+- A receipt's payment left pending, or posted with its posting entry dated after its payment date, holds the receipt's money but is on no aging or returns list until its entry is dated (-23's pending lifecycle). The core surfaces pending payments past a day.
+
+---
+
 ## Meter test history
 
 ### AC-33 — Record meter tests as raw readings in `meter_tests`; never write the meter's test columns; the cutover date is the platform's — REJECTS

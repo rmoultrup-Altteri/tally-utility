@@ -6,6 +6,12 @@ Format per decision: **what** → *why this, and why not the alternative* → wh
 
 ---
 
+## 2026-11-24 (-24) — Ryan: -24 mirrored, ahead of -25 and -26
+
+- **-24 (unmatched cash, agency pledges) mirrored into `tu.sql` out of turn, ahead of -25 and -26 (Ryan, 2026-11-24: "option 1, mirror -24 now").** *Why:* -24 was ready from all three reviewers on r12 (r13 tests only, Opus confirmed), and nothing ties it to the two queued ahead of it: no shared function, and the one shared table (`customer_program_enrollments`) takes a separate trigger from each. -25 still needs its default dispute table and a first Codex round, and -26 has not been reviewed, so the queue would have held a finished patch through several rounds while every CI run re-tested it on a changing base. *Not taken:* keeping the queue order, which bought nothing but re-runs. → `sql/DEPLOY-VERIFICATION.md` v5.4.2-24; mirror queue on the board now -25, -26.
+- **What the database cannot hold of -24 is a contract on the core** (AC-48 to AC-53): isolation and retry, reconciling suspense as held plus owed back, the history loader's order, a take-back learned after the end, agency money in deposits and untyped credits (L5, L6), and money in flight. *Why:* the patch header is not carried into `tu.sql`, so these need a home the core's builders read.
+- **Round 11 to 13 findings settled by rule** (plans r12, r13): a bank code needs the named reversal itself to be the whole with nothing beneath it; a receipt's payment is born pending or voided. Neither asks where money ends up.
+
 ## 2026-11-22 (-30) — Ryan: -30 mirrored, ahead of money's pending patches
 
 - **-30 mirrored into `tu.sql` ahead of -25, -26 and -24 (Ryan, 2026-11-22: "mirror it once money's reviewers are done").** *Why:* -30 was ready from all three reviewers (r5; r6 words only) and shares no function or trigger with the three, which strict-apply over it and whose batteries pass; waiting meant retesting it after each of theirs. *The cost:* money re-runs its batteries on the rebuilt `tally`. The rebuild waited for money's round-10 reviewers and its suite run. → DEPLOY-VERIFICATION.

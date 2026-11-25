@@ -1309,33 +1309,34 @@ SELECT pg_temp.refuses_at('P23d nor naming a reversal part-undone and taken agai
   $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('fd') WHERE id = pg_temp.n('fb')$q$,
   '23514', 'nothing is filed beneath it');
 UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', status_cause_id = pg_temp.n('fd') WHERE id = pg_temp.n('fb');
--- r12 (Fable r11 S2, Opus r11 S1, Codex r11 N3). Rd1: a receipt's payment that
+-- r12 (Fable r11 S2, Opus r11 S1, Codex r11 N3; labels DP, r13: D1-D4b name the
+-- closed-period checks). Rd1: a receipt's payment that
 -- is a deposit: 60 misposted, the bank takes 40 as nsf.
 SELECT pg_temp.rcpt(pg_temp.n('d1'), 100, DATE '2026-03-10');
 SELECT pg_temp.fromr(pg_temp.n('d2'), pg_temp.n('d3'), pg_temp.n('d1'), :c1, 100, p_deposit => true);
-SELECT pg_temp.ok('D1 a receipt''s deposit payment posts a deposit entry, and the receipt holds nothing',
+SELECT pg_temp.ok('DP1 a receipt''s deposit payment posts a deposit entry, and the receipt holds nothing',
   (SELECT transaction_type FROM public.account_ledger WHERE id = pg_temp.n('d3')) = 'deposit' AND pg_temp.held(pg_temp.n('d1')) = 0);
 SELECT pg_temp.rev(pg_temp.n('d4'), pg_temp.n('d2'), pg_temp.n('d3'), 'adjustment', 60, DATE '2026-03-11');
-SELECT pg_temp.ok('D2 its misposted 60 is the share', public.suspense_misposted_share(pg_temp.n('d2')) = 60);
-SELECT pg_temp.ok('D2b listed from the day it was reversed', pg_temp.due(pg_temp.n('d2'), DATE '2026-03-11') = '60.00 since 2026-03-11');
-SELECT pg_temp.ok('D2c and not the day before (Fable r12 N3: D2 split)', pg_temp.due(pg_temp.n('d2'), DATE '2026-03-10') = 'none');
+SELECT pg_temp.ok('DP2 its misposted 60 is the share', public.suspense_misposted_share(pg_temp.n('d2')) = 60);
+SELECT pg_temp.ok('DP2b listed from the day it was reversed', pg_temp.due(pg_temp.n('d2'), DATE '2026-03-11') = '60.00 since 2026-03-11');
+SELECT pg_temp.ok('DP2c and not the day before (Fable r12 N3: D2 split)', pg_temp.due(pg_temp.n('d2'), DATE '2026-03-10') = 'none');
 SELECT pg_temp.rev(pg_temp.n('d5'), pg_temp.n('d2'), pg_temp.n('d3'), 'nsf', 40, DATE '2026-03-12');
-SELECT pg_temp.refuses_at('D3 reversed with a code naming the 60 is refused for a deposit too',
+SELECT pg_temp.refuses_at('DP3 reversed with a code naming the 60 is refused for a deposit too',
   $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('d4') WHERE id = pg_temp.n('d2')$q$,
   '23514', 'only where the row it names');
 UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-12', status_cause_id = pg_temp.n('d5') WHERE id = pg_temp.n('d2');
-SELECT pg_temp.refuses_at('D4 a bounced deposit gives back its share, not the whole',
+SELECT pg_temp.refuses_at('DP4 a bounced deposit gives back its share, not the whole',
   $q$SELECT pg_temp.mret(NULL, pg_temp.n('d1'), pg_temp.n('d2'), 100, DATE '2026-03-12')$q$, '23514', '60.00');
-SELECT pg_temp.refuses_at('D4b nor dated before the last row under the deposit''s posting entry',
+SELECT pg_temp.refuses_at('DP4b nor dated before the last row under the deposit''s posting entry',
   $q$SELECT pg_temp.mret(NULL, pg_temp.n('d1'), pg_temp.n('d2'), 60, DATE '2026-03-11')$q$, '23514', 'dated on or after the last row under its posting entry');
-SELECT pg_temp.admits('D5 its 60 comes back', $q$SELECT pg_temp.mret(NULL, pg_temp.n('d1'), pg_temp.n('d2'), 60, DATE '2026-03-12')$q$);
-SELECT pg_temp.ok('D6 the receipt holds 60', pg_temp.held(pg_temp.n('d1')) = 60);
+SELECT pg_temp.admits('DP5 its 60 comes back', $q$SELECT pg_temp.mret(NULL, pg_temp.n('d1'), pg_temp.n('d2'), 60, DATE '2026-03-12')$q$);
+SELECT pg_temp.ok('DP6 the receipt holds 60', pg_temp.held(pg_temp.n('d1')) = 60);
 -- Rd6: a pending deposit payment's posting entry is not undone.
 SELECT pg_temp.rcpt(pg_temp.n('d6'), 100, DATE '2026-03-10');
 SELECT pg_temp.fromr(pg_temp.n('d7'), NULL, pg_temp.n('d6'), :c1, 100, false, p_deposit => true);
 INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
 VALUES (pg_temp.n('d8'), pg_temp.t1(), :c1, DATE '2026-03-10', 'deposit', 'posted', -100, 'payment', pg_temp.n('d7'));
-SELECT pg_temp.refuses_at('D7 a pending deposit''s posting entry is not undone',
+SELECT pg_temp.refuses_at('DP7 a pending deposit''s posting entry is not undone',
   $q$SELECT pg_temp.rev(NULL, pg_temp.n('d7'), pg_temp.n('d8'), 'adjustment', 100, DATE '2026-03-11')$q$, '23514', 'moved to posted before its posting entry is undone');
 UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.n('d8') WHERE id = pg_temp.n('d7');
 -- Re1: a plain row under a deposit's bounce undo is untyped.
@@ -1344,7 +1345,7 @@ SELECT pg_temp.fromr(pg_temp.n('e2'), pg_temp.n('e3'), pg_temp.n('e1'), :c1, 100
 SELECT pg_temp.rev(pg_temp.n('e4'), pg_temp.n('e2'), pg_temp.n('e3'), 'nsf', 100, DATE '2026-03-11');
 SELECT pg_temp.rev(pg_temp.n('e5'), pg_temp.n('e2'), pg_temp.n('e4'), 'adjustment', -100, DATE '2026-03-12');
 SELECT pg_temp.rev(pg_temp.n('e6'), pg_temp.n('e2'), pg_temp.n('e5'), 'adjustment', 100, DATE '2026-03-13');
-SELECT pg_temp.refuses_at('D8 a deposit does not end nsf over an untyped row under its bounce',
+SELECT pg_temp.refuses_at('DP8 a deposit does not end nsf over an untyped row under its bounce',
   $q$UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-11', status_cause_id = pg_temp.n('e4') WHERE id = pg_temp.n('e2')$q$,
   '23514', 'is not typed nsf');
 SELECT pg_temp.rev(pg_temp.n('f0'), pg_temp.n('e2'), pg_temp.n('e6'), 'adjustment', -100, DATE '2026-03-13');

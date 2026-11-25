@@ -8,6 +8,27 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-24 (after v5.4.2-24)
+
+**How this was graded.** Read against -24's header (known limits L1–L6), its design (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`), thirteen review rounds (Opus, Fable and Codex ready on r12; r13 tests only, Opus confirmed), its battery (355 checks), races (29) and mutations (169), and AC-48 to AC-53. -24's design maps two CIs to it, both GAP until now; both change. -24 was mirrored ahead of -25 and -26 (Ryan, 2026-11-24), so the dispute and collections rows stand as before.
+
+| Class | After -30 | Now | Change |
+|---|---|---|---|
+| REP+PROT | 61 | **62** | +1 |
+| REP | 24 | **25** | +1 |
+| PARTIAL | 38 | **38** | 0 |
+| GAP | 11 | **9** | −2 |
+| BLOCKED | 0 | **0** | 0 |
+| N/A | 1 | **1** | 0 |
+| **Total** | 135 | 135 | |
+
+**Done for step 1** (REP+PROT + REP): **87 of 135**, plus CI-036 ruled out of platform scope. **Open: 47** (38 PARTIAL, 9 GAP).
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-053 | GAP | REP+PROT | high | -24 (Ryan 2026-10-16, 2026-11-07) | Money that cannot be matched is a `suspense_receipts` row (add-only, its instrument evidence, the money date and the database's stamp, a provider transaction held once). It leaves only by a payment naming it, with a reason and the operator, or a disposition: returned to sender, bank returned, escheated, an undo, or a misposting returned. On every date, what left never exceeds the receipt. Candidates are evidence only: the database applies nothing to a guessed customer, and nothing books it to revenue. A payment reversed as posted to the wrong customer gives exactly its misposted share back to the receipt; what the bank took stays spent, and the ending rules make the two unambiguous. A refund of an agency's money goes to the agency. Retention is a tenant setting, required before the aged readers answer. | The forced refund or escheat at retention is the core's, from `suspense_receipts_aged_as_of`. L1 candidate quality; L4 the close's snapshot has no suspense line (AC-49); L5, L6 agency money in deposits and untyped credits (AC-52). |
+| CI-056 | GAP | REP | med | -24 (TDHCA CEAP vendor agreement; 10 TAC 6.312) | The record side: a receipt's money date and the tenant's suspense service level (required, fail loud while unset), the readers of aged receipts and of what is owed back; agency pledges with the agreement and pay-by chosen by the database, ended once (withdrawn, lapsed only once pay-by has passed everywhere, recorded in error), paid derived from the payments naming them, and the readers of open and overdue pledges. | Acting on an aged item (operator queue, disconnect pause, reporting) is the core's; -26's conditions `agency_pledge` and `aged_suspense` read these rows (pending). L2 a pledge's statutory protection is wave 7's law row; L3 remittance batches are matched by the core. |
+
 ## Update — 2026-11-22 (after v5.4.2-30)
 
 **How this was graded.** Read against -30's header (known limits L1–L7), its design, five review rounds (all three reviewers ready on r5; r6 words only) and its battery (127 checks). It closes the tax half of CI-001 and CI-004 and part of CI-045, and extends CI-046 (already REP+PROT). No class changes: **85 of 135** done, as after -27.

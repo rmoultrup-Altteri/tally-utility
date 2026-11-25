@@ -44,7 +44,6 @@ P29_PENDING="(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND 
 PENDING=(
   sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
-  sql/v5.4.2-24-unmatched-cash-and-pledges.sql:suspense_receipts
 )
 BASE=ci_base
 # A pending patch with a migration test gets the base as it stood just before it applied.
