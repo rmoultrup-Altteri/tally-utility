@@ -1,0 +1,11 @@
+BEGIN
+SET
+SET
+SET
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/b.sql:20: NOTICE:  00000: FK upgrade B SQLSTATE=40P01 message=deadlock detected
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ROLLBACK
+B exit 0
