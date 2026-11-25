@@ -1,0 +1,2074 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 5
+INSERT 0 6
+INSERT 0 5
+INSERT 0 5
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 5
+INSERT 0 2
+INSERT 0 2
+CREATE FUNCTION
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 2
+SET CONSTRAINTS
+CREATE FUNCTION
+GRANT
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+psql:/tmp/probe.sql:263: NOTICE:  PASS S1 dispute v1 is a registered, unfrozen law kind; dispute_tariff v1 a tariff kind
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:268: NOTICE:  PASS S2 the registered schemas are the committed files (their ids and hashes)
+psql:/tmp/probe.sql:273: NOTICE:  PASS S3 both kinds have the same five facets (L3)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:281: NOTICE:  PASS S4 subject and block codes are checked against their vocabularies; stage and must_pay ids are not (a record cites one)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:289: NOTICE:  PASS S5 the vocabularies hold every code the design names
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:292: NOTICE:  PASS S6 the Texas gas dispute classes are 16 TAC 7.45's reach: protected (residential and small commercial) and unprotected
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:297: NOTICE:  PASS S7 the vocabularies are the platform's: the application reads them and writes none
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:305: NOTICE:  PASS M1 dispute_rules: a registered law table on the dispute kind, keyed by customer class, five facets, a close floor and an insert check
+psql:/tmp/probe.sql:311: NOTICE:  PASS M2 dispute_tariffs: a registered tariff table on dispute_tariff, key [] (one policy per utility, state, service, system), measured against dispute_rules
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:314: NOTICE:  PASS M3 the customer class is a foreign key into dispute_customer_classes, scoped by state and service
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:317: NOTICE:  PASS M4 the template's three triggers stand on both, enabled always
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:318: NOTICE:  PASS M5 the template's invariants hold over the registered tables
+ admits 
+--------
+ 
+(1 row)
+
+CREATE TABLE
+INSERT 0 4
+psql:/tmp/probe.sql:328: NOTICE:  PASS K1 Texas gas has exactly four dispute law rows
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:332: NOTICE:  PASS K2 the investor-owned and cooperative rows hold exactly the 16 TAC 7.45 documents, per class
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:336: NOTICE:  PASS K3 they bind what 16 TAC 7.45 binds: investor-owned and cooperative owners, distribution systems, either jurisdiction status, from 2004-07-12, open-ended
+psql:/tmp/probe.sql:341: NOTICE:  PASS K4 a city-owned system gets a delegation for each class (K-07; Util. Code 101.003(7))
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:347: NOTICE:  PASS K5 the facets are derived from the documents (a text[] facet is distinct and sorted, -17)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:349: NOTICE:  PASS K6 the protected row's source note says late_fee is our reading (fail toward protection)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:352: NOTICE:  PASS K7 another state, service or owner type finds no row: unknown law is not permission
+ ok 
+----
+ 
+(1 row)
+
+CREATE FUNCTION
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:364: NOTICE:  caught SQLSTATE=23503 message=dispute_rules: subject_codes names weather, not in dispute_subjects for this row's scope — a misspelled code would silently reach no one (v5.4.2-17)
+psql:/tmp/probe.sql:364: NOTICE:  PASS X1 a subject code the vocabulary lacks: refused by weather (dispute_rules: subject_codes names weather, not in dispute_subjects for this row's scope — a misspelled code would silen)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:367: NOTICE:  caught SQLSTATE=23503 message=dispute_rules: block_codes names shutoff, not in dispute_blocks for this row's scope — a misspelled code would silently reach no one (v5.4.2-17)
+psql:/tmp/probe.sql:367: NOTICE:  PASS X2 a block code the vocabulary lacks: refused by shutoff (dispute_rules: block_codes names shutoff, not in dispute_blocks for this row's scope — a misspelled code would silently )
+psql:/tmp/probe.sql:370: NOTICE:  caught SQLSTATE=23514 message=dispute rule (TX gas, protected): subject deposit is both listed and excluded [L2a] (v5.4.2-25)
+psql:/tmp/probe.sql:370: NOTICE:  PASS X3 a subject both listed and excluded: refused by [L2a] (dispute rule (TX gas, protected): subject deposit is both listed and excluded [L2a] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:373: NOTICE:  caught SQLSTATE=23514 message=dispute rule (TX gas, protected): blocks.codes lists late_fee more than once [L2b] (v5.4.2-25)
+psql:/tmp/probe.sql:373: NOTICE:  PASS X4 a block code listed twice: refused by [L2b] (dispute rule (TX gas, protected): blocks.codes lists late_fee more than once [L2b] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:377: NOTICE:  caught SQLSTATE=23514 message=dispute rule (TX gas, protected): stage s1 is filed within days of the prior decision, but it is the first stage [L2c] (v5.4.2-25)
+psql:/tmp/probe.sql:377: NOTICE:  PASS X5 a stage filed "from the prior decision" that has no prior stage: refused by [L2c] (dispute rule (TX gas, protected): stage s1 is filed within days of the prior decision, but it is the first stage [L2c] ()
+psql:/tmp/probe.sql:382: NOTICE:  caught SQLSTATE=23514 message=dispute rule (TX gas, protected): stage s1 is final but not the last [L2d] (v5.4.2-25)
+psql:/tmp/probe.sql:382: NOTICE:  PASS X6 a final stage that is not the last: refused by [L2d] (dispute rule (TX gas, protected): stage s1 is final but not the last [L2d] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:384: NOTICE:  caught SQLSTATE=23503 message=dispute rule: customer class governmental is not one of dispute_customer_classes for TX gas (v5.4.2-25)
+psql:/tmp/probe.sql:384: NOTICE:  PASS X7 a customer class the state's vocabulary lacks: refused by dispute_customer_classes (dispute rule: customer class governmental is not one of dispute_customer_classes for TX gas (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:387: NOTICE:  caught SQLSTATE=23503 message=dispute rule (TX gas, protected): its duties names apologize, not in dispute_duties (v5.4.2-25)
+psql:/tmp/probe.sql:387: NOTICE:  PASS X9 a duty code the vocabulary lacks: refused by dispute_duties (dispute rule (TX gas, protected): its duties names apologize, not in dispute_duties (v5.4.2-25))
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:391: NOTICE:  PASS X8 a well-formed law row of another owner type is admitted (the owner writes law)
+INSERT 0 1
+CREATE TABLE
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+GRANT
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:422: NOTICE:  PASS P1 dispute_platform_defaults: a registered law table on the dispute kind, keyed by customer class, the five facets, a close floor and an insert check
+psql:/tmp/probe.sql:428: NOTICE:  PASS P2 two rows: Texas gas, city-owned distribution systems, either jurisdiction status, one per class (every class: Ryan 2026-11-22), from 2026-11-22, open-ended
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:430: NOTICE:  PASS P3 both hold exactly the ruled document: any subject, before delinquency, the undisputed charges to pay, the earlier of resolution and 60 days from issue, the late fee and both disconnection steps stopped, no stages, no duties
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:434: NOTICE:  PASS P4 its facets are derived from the document
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:436: NOTICE:  PASS P5 its source notes say it is the platform's ruling, not law, and that a city's own tariff replaces it
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:441: NOTICE:  PASS P6 the template's three triggers stand on it, enabled always; the customer class is a foreign key into the state's classes
+ ok 
+----
+ 
+(1 row)
+
+CREATE FUNCTION
+GRANT
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:452: NOTICE:  caught SQLSTATE=23514 message=dispute platform default (TX gas, protected): a default says what it does (governs law); it never leaves the matter to the utility [L8a] (v5.4.2-25)
+psql:/tmp/probe.sql:452: NOTICE:  PASS P7 a default that delegates: the platform's default says what it does: refused by [L8a] (dispute platform default (TX gas, protected): a default says what it does (governs law); it never leaves the matter to t)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:454: NOTICE:  caught SQLSTATE=23514 message=dispute platform default (TX gas, protected): shelter_earned is unruled; a default rules every section [L8b] (v5.4.2-25)
+psql:/tmp/probe.sql:454: NOTICE:  PASS P8 a default whose start is unruled: refused by [L8b] (dispute platform default (TX gas, protected): shelter_earned is unruled; a default rules every section [L8b] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:457: NOTICE:  caught SQLSTATE=23514 message=dispute platform default (TX gas, protected): must_pay is unruled; a default rules every section [L8b] (v5.4.2-25)
+psql:/tmp/probe.sql:457: NOTICE:  PASS P8b … whose must-pay is unruled: refused by [L8b] (dispute platform default (TX gas, protected): must_pay is unruled; a default rules every section [L8b] (v5.4.2-25))
+psql:/tmp/probe.sql:459: NOTICE:  caught SQLSTATE=23514 message=dispute platform default (TX gas, protected): shelter_ends is unruled; a default rules every section [L8b] (v5.4.2-25)
+psql:/tmp/probe.sql:459: NOTICE:  PASS P8c … whose end is unruled: refused by [L8b] (dispute platform default (TX gas, protected): shelter_ends is unruled; a default rules every section [L8b] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:462: NOTICE:  caught SQLSTATE=23514 message=dispute platform default (TX gas, protected): subject deposit is both listed and excluded [L2a] (v5.4.2-25)
+psql:/tmp/probe.sql:462: NOTICE:  PASS P9 a default passes the dispute documents' own checks (a subject both listed and excluded): refused by [L2a] (dispute platform default (TX gas, protected): subject deposit is both listed and excluded [L2a] (v5.4.2-25))
+psql:/tmp/probe.sql:464: NOTICE:  caught SQLSTATE=23503 message=dispute platform default (TX gas, governmental): customer class governmental is not one of dispute_customer_classes for TX gas (v5.4.2-25)
+psql:/tmp/probe.sql:464: NOTICE:  PASS P10 a default for a class the state's vocabulary lacks: refused by dispute_customer_classes (dispute platform default (TX gas, governmental): customer class governmental is not one of dispute_customer_classes for )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:466: NOTICE:  caught SQLSTATE=23P01 message=conflicting key value violates exclusion constraint "dispute_platform_defaults_rule_no_overlap"
+psql:/tmp/probe.sql:466: NOTICE:  PASS P11 a second default for a city's protected class over the same dates: refused by dispute_platform_defaults (conflicting key value violates exclusion constraint "dispute_platform_defaults_rule_no_overlap")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits_undone 
+---------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:468: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:468: NOTICE:  PASS P12 a well-formed default of another owner type is admitted (the platform writes its defaults)
+psql:/tmp/probe.sql:470: NOTICE:  caught SQLSTATE=23001 message=dispute_platform_defaults rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v5.4.2-17)
+psql:/tmp/probe.sql:470: NOTICE:  PASS P13 a default is never edited (determinations cite its document): refused by dispute_platform_defaults (dispute_platform_defaults rows are never edited: a change in the law is a close and a new row; the only edit is a stampe)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:472: NOTICE:  caught SQLSTATE=23001 message=dispute_platform_defaults rows are never deleted: records cite them, and the law in force on a past date must stay answerable (v5.4.2-17)
+psql:/tmp/probe.sql:472: NOTICE:  PASS P13b nor deleted: refused by dispute_platform_defaults (dispute_platform_defaults rows are never deleted: records cite them, and the law in force on a past date must stay answe)
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b3
+(1 row)
+
+psql:/tmp/probe.sql:476: NOTICE:  caught SQLSTATE=42501 message=permission denied for table dispute_platform_defaults
+psql:/tmp/probe.sql:476: NOTICE:  PASS P14 the application writes no default: refused by dispute_platform_defaults (permission denied for table dispute_platform_defaults)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:480: NOTICE:  PASS P15 … and every utility reads them; the lookup finds T3's protected default on 2026-11-22 and none on 2026-11-21
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:483: NOTICE:  caught SQLSTATE=P0002 message=no law in dispute_platform_defaults binds a municipal gas utility (distribution, outside the commission's jurisdiction) in TX for {"customer_class": "protected"} on 2026-11-21 — unknown law is not permission (v5.4.2-17)
+psql:/tmp/probe.sql:483: NOTICE:  PASS P15b … (none on 2026-11-21: unknown is not permission): refused by no law (no law in dispute_platform_defaults binds a municipal gas utility (distribution, outside the commission's jurisdiction) )
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:494: NOTICE:  PASS U1 a city writes its own Brenham-shaped tariff from March 10 (its law row delegates: nothing to compare)
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:497: NOTICE:  PASS U2 its facets are derived from its document (distinct and sorted)
+psql:/tmp/probe.sql:499: NOTICE:  caught SQLSTATE=23P01 message=conflicting key value violates exclusion constraint "dispute_tariffs_rule_no_overlap"
+psql:/tmp/probe.sql:499: NOTICE:  PASS U3 a second tariff over the same dates: refused by dispute_tariffs (conflicting key value violates exclusion constraint "dispute_tariffs_rule_no_overlap")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:502: NOTICE:  caught SQLSTATE=23503 message=dispute_tariffs: excluded_subject_codes names weather, not in dispute_subjects for this row's scope — a misspelled code would silently reach no one (v5.4.2-17)
+psql:/tmp/probe.sql:502: NOTICE:  PASS U4 an excluded subject the vocabulary lacks: refused by weather (dispute_tariffs: excluded_subject_codes names weather, not in dispute_subjects for this row's scope — a misspelled code )
+psql:/tmp/probe.sql:504: NOTICE:  caught SQLSTATE=23001 message=dispute_tariffs rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v5.4.2-17)
+psql:/tmp/probe.sql:504: NOTICE:  PASS U5 a tariff is never edited (its document is what determinations cite): refused by dispute_tariffs (dispute_tariffs rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:506: NOTICE:  caught SQLSTATE=42501 message=permission denied for table dispute_tariffs
+psql:/tmp/probe.sql:506: NOTICE:  PASS U6 nor deleted: refused by dispute_tariffs (permission denied for table dispute_tariffs)
+ refuses_at 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:509: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "dispute_tariffs": a utility writes its own policy only (v5.4.2-25)
+psql:/tmp/probe.sql:509: NOTICE:  PASS U7 another utility writes no tariff for T1: refused by row-level security (new row violates row-level security policy for table "dispute_tariffs": a utility writes its own policy only (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:511: NOTICE:  PASS U8 the lookup finds T1's tariff in force on March 12 and none on March 5
+ ok 
+----
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:516: NOTICE:  PASS U8b … (as T1 itself: T2 sees none of it)
+ ok 
+----
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:527: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: blocks: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) blocks late_fee; the tariff does not (v5.4.2-17)
+psql:/tmp/probe.sql:527: NOTICE:  PASS N1a blocks that lack one of the law's (late_fee): refused by late_fee (dispute_tariffs: looser than the law: blocks: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:530: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: subjects: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) admits deposit; the tariff does not; subjects: law row f51eb4c4-40f7-44e2-9494-9879a00308d9 (unprotected, 16 TAC 7.45(1)) admits deposit; the tariff does not (v5.4.2-17)
+psql:/tmp/probe.sql:530: NOTICE:  PASS N2a a subject the law admits, excluded: refused by deposit (dispute_tariffs: looser than the law: subjects: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)()
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:533: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: subjects: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) admits ability_to_pay, calculation, consumption_on_accurate_meter, credit, deposit, identity_theft, other, rate_application, responsible_party, service_not_rendered, tamper_finding; the tariff does not; subjects: law row f51eb4c4-40f7-44e2-9494-9879a00308d9 (unprotected, 16 TAC 7.45(1)) admits ability_to_pay, calculation, consumption_on_accurate_meter, credit, deposit, identity_theft, other, rate_application, responsible_party, service_not_rendered, tamper_finding; the tariff does not (v5.4.2-17)
+psql:/tmp/probe.sql:533: NOTICE:  PASS N2b a listed subject set where the law admits any: refused by subjects (dispute_tariffs: looser than the law: subjects: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)()
+psql:/tmp/probe.sql:536: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_earned: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) shelters a dispute before_delinquency; the tariff's within_days is narrower or not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:536: NOTICE:  PASS N3a a narrower start: within 21 days of receipt against before delinquency (not comparable: refused): refused by shelter_earned (dispute_tariffs: looser than the law: shelter_earned: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:539: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_earned: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) shelters a dispute before_delinquency; the tariff's on_regulator_complaint is narrower or not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:539: NOTICE:  PASS N3b a narrower start: only on a regulator complaint: refused by shelter_earned (dispute_tariffs: looser than the law: shelter_earned: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:542: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_ends: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) ends the shelter 60 days from issue at the earliest; the tariff ends it after 30 (v5.4.2-17)
+psql:/tmp/probe.sql:542: NOTICE:  PASS N4a a sooner end: 30 days from issue against the law's 60: refused by shelter_ends (dispute_tariffs: looser than the law: shelter_ends: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45)
+psql:/tmp/probe.sql:545: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_ends: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) ends the shelter 60 days from issue at the earliest; the tariff ends it after 59 (v5.4.2-17)
+psql:/tmp/probe.sql:545: NOTICE:  PASS N4b a sooner end: 59 days: refused by shelter_ends (dispute_tariffs: looser than the law: shelter_ends: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:548: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_ends: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) ends the shelter at earlier_of_resolution_and_days; the tariff's through_regulator_close is sooner or not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:548: NOTICE:  PASS N4d a different end: through the regulator's close against earlier-of-resolution-and-60-days (not comparable: refused): refused by shelter_ends (dispute_tariffs: looser than the law: shelter_ends: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:551: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: must_pay: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) asks for {"strategy": "average_usage_cap", "no_history": "similar_customers", "history_years": 2}; the tariff's {"strategy": "full_bill"} asks more or is not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:551: NOTICE:  PASS N5a a must-pay that asks for more: the full bill: refused by must_pay (dispute_tariffs: looser than the law: must_pay: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)()
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:555: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: must_pay: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) asks for {"strategy": "average_usage_cap", "no_history": "similar_customers", "history_years": 2}; the tariff's {"strategy": "average_usage_cap", "no_history": "similar_customers", "history_years": 3} asks more or is not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:555: NOTICE:  PASS N5b the same strategy with other figures: three years of history (not comparable: refused): refused by must_pay (dispute_tariffs: looser than the law: must_pay: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)()
+psql:/tmp/probe.sql:559: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: must_pay: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) asks for {"strategy": "average_usage_cap", "no_history": "similar_customers", "history_years": 2}; the tariff's {"fraction": 1.1, "strategy": "withhold_cap"} asks more or is not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:559: NOTICE:  PASS N5c a withholding cap against an average-usage cap (not comparable: refused): refused by must_pay (dispute_tariffs: looser than the law: must_pay: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)()
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:563: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: duties: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) requires inform_complaint_route; the tariff does not (v5.4.2-17)
+psql:/tmp/probe.sql:563: NOTICE:  PASS N9a a tariff without a duty the law requires (telling the customer the complaint route): refused by duties (dispute_tariffs: looser than the law: duties: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D))
+psql:/tmp/probe.sql:568: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: stages: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D)) has a stage decided by regulator; the tariff does not (v5.4.2-17)
+psql:/tmp/probe.sql:568: NOTICE:  PASS N9b a tariff without the regulator's review stage: refused by stages (dispute_tariffs: looser than the law: stages: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd (protected, 16 TAC 7.45(6)(D))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:574: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:574: NOTICE:  PASS N4c the law's own 60 days, and the law's own cap and start (equal is not looser)
+ admits_undone 
+---------------
+ 
+(1 row)
+
+ admits_undone 
+---------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b5
+(1 row)
+
+psql:/tmp/probe.sql:582: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:582: NOTICE:  PASS N1b … and every block plus more, a wider start (before termination), a later end (resolution), undisputed charges only; N6 it is then the one in force for T2
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:587: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_earned: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov't Code 2251.042) shelters a dispute within 21 days of receipt; the tariff's 20 days of receipt is narrower or not comparable (v5.4.2-17)
+psql:/tmp/probe.sql:587: NOTICE:  PASS N7a a shorter window: 20 days of receipt against 21: refused by shelter_earned (dispute_tariffs: looser than the law: shelter_earned: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov')
+psql:/tmp/probe.sql:590: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_earned: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov't Code 2251.042) shelters a dispute within 21 days of receipt; the tariff's 21 days of issue is narrower or not comparable (v5.4.2-17)
+psql:/tmp/probe.sql:590: NOTICE:  PASS N7b the same days from another anchor: 21 days of issue against 21 of receipt (not comparable: refused): refused by shelter_earned (dispute_tariffs: looser than the law: shelter_earned: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov')
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:593: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_earned: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov't Code 2251.042) shelters a dispute within_days; the tariff's before_delinquency is narrower or not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:593: NOTICE:  PASS N7c before delinquency against a window of days (not comparable: refused): refused by shelter_earned (dispute_tariffs: looser than the law: shelter_earned: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov')
+psql:/tmp/probe.sql:597: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: must_pay: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov't Code 2251.042) lets the customer withhold 1.1 of the disputed amount; the tariff only 1 (v5.4.2-17)
+psql:/tmp/probe.sql:597: NOTICE:  PASS N7d withholding less: 1 of the disputed amount against 1.1: refused by must_pay (dispute_tariffs: looser than the law: must_pay: law row d8f05541-bc70-4979-b0bb-38af92733a84 (protected, Tex. Gov't Code)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits_undone 
+---------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:600: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:600: NOTICE:  PASS N7e … the law's own window and cap are admitted
+psql:/tmp/probe.sql:603: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:603: NOTICE:  PASS N7f … as are a longer window and a larger cap
+ admits_undone 
+---------------
+ 
+(1 row)
+
+RESET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b6
+(1 row)
+
+psql:/tmp/probe.sql:658: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs: looser than the law: shelter_earned: law row d367d891-a35e-4cce-a682-7f9aaaa26581 (protected, Battery county rule) shelters a dispute before_termination; the tariff's before_delinquency is narrower or not comparable (fail toward protection) (v5.4.2-17)
+psql:/tmp/probe.sql:658: NOTICE:  PASS N8a a narrower start in the order: before delinquency against before termination: refused by shelter_earned (dispute_tariffs: looser than the law: shelter_earned: law row d367d891-a35e-4cce-a682-7f9aaaa26581 (protected, Battery c)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits_undone 
+---------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:660: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:660: NOTICE:  PASS N8b … a wider one, any time, is admitted
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:668: NOTICE:  PASS D1 T1's customer C1 disputes bill I1 in writing on March 12 (a calculation)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:671: NOTICE:  PASS D1a it is born open, with no cause and no status time; its created_at is the database's
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:674: NOTICE:  PASS D1b the database wrote its opened event, the only event (D5)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:677: NOTICE:  PASS D1c a dispute received before T1's tariff took effect (C1, bill I2, March 5)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:680: NOTICE:  PASS D1d a read dispute before any bill: C2's reading of March 1 (a dispute may name a reading alone)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:683: NOTICE:  PASS D1e a read dispute of C1's reading (for T2 below)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:686: NOTICE:  caught SQLSTATE=23514 message=dispute: it names a bill, a reading, or both [D1a] (v5.4.2-25)
+psql:/tmp/probe.sql:686: NOTICE:  PASS D1f a dispute that names neither a bill nor a reading: refused by [D1a] (dispute: it names a bill, a reading, or both [D1a] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:689: NOTICE:  caught SQLSTATE=23503 message=disputes: bill 00000000-0000-4000-8000-000000002503 is not of this tenant and customer (v5.4.2-25)
+psql:/tmp/probe.sql:689: NOTICE:  PASS D1g a bill of another customer (C2's I3 for C1): refused by disputes (disputes: bill 00000000-0000-4000-8000-000000002503 is not of this tenant and customer (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:692: NOTICE:  caught SQLSTATE=23514 message=dispute: bill 00000000-0000-4000-8000-000000002504 was never issued — a draft is corrected, not disputed [D1b] (v5.4.2-25)
+psql:/tmp/probe.sql:692: NOTICE:  PASS D1h a bill never issued (the draft I4): refused by [D1b] (dispute: bill 00000000-0000-4000-8000-000000002504 was never issued — a draft is corrected, not disputed [D1b] (v5.4.2-2)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:695: NOTICE:  caught SQLSTATE=23514 message=dispute: reading 00000000-0000-4000-8000-000000002572 is at a location of another customer [D1c] (v5.4.2-25)
+psql:/tmp/probe.sql:695: NOTICE:  PASS D1i a reading at another customer's location (C2's reading for C1): refused by [D1c] (dispute: reading 00000000-0000-4000-8000-000000002572 is at a location of another customer [D1c] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:698: NOTICE:  caught SQLSTATE=23514 message=dispute: received 2026-02-28, before the bill's date 2026-03-01 [D1d] (v5.4.2-25)
+psql:/tmp/probe.sql:698: NOTICE:  PASS D1j received before the bill was dated (February 28, bill of March 1): refused by [D1d] (dispute: received 2026-02-28, before the bill's date 2026-03-01 [D1d] (v5.4.2-25))
+psql:/tmp/probe.sql:701: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:701: NOTICE:  PASS D1j2 … received on the bill's own date is fine
+ admits_undone 
+---------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:704: NOTICE:  caught SQLSTATE=23514 message=dispute: received 2026-02-27, before the reading was taken on 2026-02-28 [D1d] (v5.4.2-25)
+psql:/tmp/probe.sql:704: NOTICE:  PASS D1k received before the reading was taken: refused by [D1d] (dispute: received 2026-02-27, before the reading was taken on 2026-02-28 [D1d] (v5.4.2-25))
+psql:/tmp/probe.sql:707: NOTICE:  caught SQLSTATE=23514 message=dispute: received 2026-11-26, a date not yet come [D1e] (v5.4.2-25)
+psql:/tmp/probe.sql:707: NOTICE:  PASS D1l received after today (a date not yet come): refused by [D1e] (dispute: received 2026-11-26, a date not yet come [D1e] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:710: NOTICE:  caught SQLSTATE=23503 message=dispute: subject weather is not one of dispute_subjects (v5.4.2-25)
+psql:/tmp/probe.sql:710: NOTICE:  PASS D1m a subject the vocabulary lacks: refused by dispute_subjects (dispute: subject weather is not one of dispute_subjects (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:713: NOTICE:  caught SQLSTATE=23514 message=new row for relation "disputes" violates check constraint "disputes_channel_check"
+psql:/tmp/probe.sql:713: NOTICE:  PASS D1n a channel that is not written, oral, portal or a regulator referral: refused by disputes_channel_check (new row for relation "disputes" violates check constraint "disputes_channel_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:717: NOTICE:  caught SQLSTATE=23514 message=dispute: a dispute is born open, naming no cause; it is resolved or withdrawn by its event [D1h] (v5.4.2-25)
+psql:/tmp/probe.sql:717: NOTICE:  PASS D1o born resolved: refused by [D1h] (dispute: a dispute is born open, naming no cause; it is resolved or withdrawn by its event [D1h] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:719: NOTICE:  caught SQLSTATE=42501 message=permission denied for table disputes
+psql:/tmp/probe.sql:719: NOTICE:  PASS D1p the application never updates a dispute: not its subject: refused by disputes (permission denied for table disputes)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:721: NOTICE:  caught SQLSTATE=42501 message=permission denied for table disputes
+psql:/tmp/probe.sql:721: NOTICE:  PASS D1q … not its status (the database moves it, from the events): refused by disputes (permission denied for table disputes)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:723: NOTICE:  caught SQLSTATE=42501 message=permission denied for table disputes
+psql:/tmp/probe.sql:723: NOTICE:  PASS D1r a dispute is never deleted: refused by disputes (permission denied for table disputes)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:726: NOTICE:  caught SQLSTATE=23514 message=dispute 00000000-0000-4000-8000-000000002531: its identity is written once, at insert [D1f] (v5.4.2-25)
+psql:/tmp/probe.sql:726: NOTICE:  PASS D1s even the owner does not edit a dispute's identity (write-once from insert): refused by [D1f] (dispute 00000000-0000-4000-8000-000000002531: its identity is written once, at insert [D1f] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:728: NOTICE:  caught SQLSTATE=23514 message=dispute 00000000-0000-4000-8000-000000002531: its status moves only when its resolution or withdrawal is recorded, from open, naming that event [D1g] (v5.4.2-25)
+psql:/tmp/probe.sql:728: NOTICE:  PASS D1t … nor its status directly: refused by [D1g] (dispute 00000000-0000-4000-8000-000000002531: its status moves only when its resolution or withdrawal is recorded, from )
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:733: NOTICE:  PASS D1u T2's residential customer C5 disputes I5 on March 15, before it went delinquent (March 20)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:736: NOTICE:  PASS D1v T2's large commercial customer C6 disputes I6
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:739: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "disputes"
+psql:/tmp/probe.sql:739: NOTICE:  PASS D1w T2 cannot open a dispute in T1's name: refused by row-level security (new row violates row-level security policy for table "disputes")
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b3
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:743: NOTICE:  PASS D1x T3's customer C7 disputes I7
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:752: NOTICE:  PASS D2 C1 claims 40 on I1, all of it the add-on line
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:757: NOTICE:  caught SQLSTATE=23514 message=disputed amount 00000000-0000-4000-8000-000000002549 is 40.00; its lines add up to 30.00 [D2a] (v5.4.2-25)
+psql:/tmp/probe.sql:757: NOTICE:  PASS D2a lines that do not add up to the amount (30 of 40), checked at commit: refused by [D2a] (disputed amount 00000000-0000-4000-8000-000000002549 is 40.00; its lines add up to 30.00 [D2a] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:762: NOTICE:  caught SQLSTATE=23503 message=insert or update on table "dispute_amount_lines" violates foreign key constraint "dispute_amount_lines_line_fkey"
+psql:/tmp/probe.sql:762: NOTICE:  PASS D2b a line of another bill (I2's line on I1's dispute): refused by dispute_amount_lines (insert or update on table "dispute_amount_lines" violates foreign key constraint "dispute_amount_lines_line_fkey")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:767: NOTICE:  caught SQLSTATE=23514 message=disputed amount 00000000-0000-4000-8000-000000002549: 45.00 on line 00000000-0000-4000-8000-000000002512, which charges 40.00 — only a charge is disputed, and at most what it charges [D2c] (v5.4.2-25)
+psql:/tmp/probe.sql:767: NOTICE:  PASS D2c a line amount above what the line charges (45 on the 40 add-on): refused by [D2c] (disputed amount 00000000-0000-4000-8000-000000002549: 45.00 on line 00000000-0000-4000-8000-000000002512, which charges )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:772: NOTICE:  caught SQLSTATE=23514 message=disputed amount 00000000-0000-4000-8000-000000002549: 5.00 on line 00000000-0000-4000-8000-000000002513, which charges -10.00 — only a charge is disputed, and at most what it charges [D2c] (v5.4.2-25)
+psql:/tmp/probe.sql:772: NOTICE:  PASS D2c2 … a credit line is not a charge to dispute: refused by [D2c] (disputed amount 00000000-0000-4000-8000-000000002549: 5.00 on line 00000000-0000-4000-8000-000000002513, which charges -)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:775: NOTICE:  caught SQLSTATE=23514 message=new row for relation "dispute_amounts" violates check constraint "dispute_amounts_amount_check"
+psql:/tmp/probe.sql:775: NOTICE:  PASS D2d an amount of zero: refused by dispute_amounts_amount_check (new row for relation "dispute_amounts" violates check constraint "dispute_amounts_amount_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:778: NOTICE:  caught SQLSTATE=23514 message=disputed amount 100.01 is more than the positive charges of dispute 00000000-0000-4000-8000-000000002531's bill [D2g] (v5.4.2-25)
+psql:/tmp/probe.sql:778: NOTICE:  PASS D2g r2 (Opus S3): an amount above the bill's positive charges (100.01 of 60 + 40): refused by [D2g] (disputed amount 100.01 is more than the positive charges of dispute 00000000-0000-4000-8000-000000002531's bill [D2g] (v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:780: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:780: NOTICE:  PASS D2g2 … the whole 100 is admitted
+ admits_undone 
+---------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:783: NOTICE:  caught SQLSTATE=23514 message=new row for relation "dispute_amounts" violates check constraint "dispute_amounts_determined_by_check"
+psql:/tmp/probe.sql:783: NOTICE:  PASS D2e a determiner that is not the customer, an agreement, the utility or a regulator's interim estimate: refused by dispute_amounts_determined_by_check (new row for relation "dispute_amounts" violates check constraint "dispute_amounts_determined_by_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:786: NOTICE:  caught SQLSTATE=23514 message=disputed amount: effective 2026-03-11, outside the dispute's received date 2026-03-12 and today, or recorded before the dispute [D2d] (v5.4.2-25)
+psql:/tmp/probe.sql:786: NOTICE:  PASS D2f an amount effective before the dispute was received: refused by [D2d] (disputed amount: effective 2026-03-11, outside the dispute's received date 2026-03-12 and today, or recorded before the )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:788: NOTICE:  PASS D2p a revision is a new row: the regulator's interim estimate of 35 (FL's shape), no lines
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:790: NOTICE:  caught SQLSTATE=42501 message=permission denied for table dispute_amounts
+psql:/tmp/probe.sql:790: NOTICE:  PASS D2h an amount row is never edited: refused by dispute_amounts (permission denied for table dispute_amounts)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:794: NOTICE:  PASS D2i C1's I2 dispute: 20; C2's reading dispute: 10; C1's reading dispute: 15
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:798: NOTICE:  caught SQLSTATE=23503 message=dispute_amount_lines: amount row 00000000-0000-4000-8000-000000002544 is of a dispute that names no bill — a reading dispute has no bill lines to name (v5.4.2-25)
+psql:/tmp/probe.sql:798: NOTICE:  PASS D2j a reading dispute's amount has no bill lines to name: refused by dispute_amount_lines (dispute_amount_lines: amount row 00000000-0000-4000-8000-000000002544 is of a dispute that names no bill — a reading dis)
+ refuses_at 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:804: NOTICE:  PASS D2k T2: C5 disputes 40 of I5, all on its add-on line; C6 disputes 90 of I6
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:807: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "dispute_amounts": a utility writes its own dispute records only (v5.4.2-25)
+psql:/tmp/probe.sql:807: NOTICE:  PASS D2n T2 writes no amount on T1's dispute: refused by row-level security (new row violates row-level security policy for table "dispute_amounts": a utility writes its own dispute records only (v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:810: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "dispute_amount_lines": a utility writes its own dispute records only (v5.4.2-25)
+psql:/tmp/probe.sql:810: NOTICE:  PASS D2o … nor a line on T1's amount: refused by row-level security (new row violates row-level security policy for table "dispute_amount_lines": a utility writes its own dispute records on)
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b3
+(1 row)
+
+psql:/tmp/probe.sql:813: NOTICE:  PASS D2l T3: C7 disputes 40 of I7
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:822: NOTICE:  PASS D3 T1's determination on C1's I1 dispute: under the city's delegation and its own tariff, 40 sheltered, the full 90 still to pay, until resolution
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:824: NOTICE:  PASS D3a its created_at is the database's
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:828: NOTICE:  caught SQLSTATE=23514 message=dispute determination: law row a677838f-9083-4819-8398-96b0fe6d60eb is not the law for this utility's owner type and system on 2026-03-12; its law row is b70d8eea-908f-40d1-929b-a557f4f54fed [D4a] (v5.4.2-25)
+psql:/tmp/probe.sql:828: NOTICE:  PASS D4a a law row of another class than the class recorded (protected recorded, the unprotected row cited): refused by [D4a] (dispute determination: law row a677838f-9083-4819-8398-96b0fe6d60eb is not the law for this utility's owner type and sys)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:832: NOTICE:  caught SQLSTATE=23514 message=dispute determination: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd is not the law for this utility's owner type and system on 2026-03-12; its law row is b70d8eea-908f-40d1-929b-a557f4f54fed [D4a] (v5.4.2-25)
+psql:/tmp/probe.sql:832: NOTICE:  PASS D4b a law row that does not bind the utility's owner type (the investor-owned row for a city): refused by [D4a] (dispute determination: law row 4abab389-0c5f-47ed-8682-9fa22c1251fd is not the law for this utility's owner type and sys)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:836: NOTICE:  caught SQLSTATE=23514 message=dispute determination: tariff 00000000-0000-4000-8000-0000000025ab is not in force on 2026-03-05, the day the dispute was received [D4c] (v5.4.2-25)
+psql:/tmp/probe.sql:836: NOTICE:  PASS D4c a tariff not in force on the day the dispute was received (I2's dispute of March 5; the tariff from March 10): refused by [D4c] (dispute determination: tariff 00000000-0000-4000-8000-0000000025ab is not in force on 2026-03-05, the day the dispute wa)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:839: NOTICE:  caught SQLSTATE=23514 message=dispute determination: law row b70d8eea-908f-40d1-929b-a557f4f54fed leaves the dispute to the utility, and neither a policy of its own nor a platform default is in force on 2026-03-05 — the answer is "no terms" [D4d] (v5.4.2-25)
+psql:/tmp/probe.sql:839: NOTICE:  PASS D4d under a delegation, a shelter with no tariff behind it (K-07: no assumed default): refused by [D4d] (dispute determination: law row b70d8eea-908f-40d1-929b-a557f4f54fed leaves the dispute to the utility, and neither a pol)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:842: NOTICE:  caught SQLSTATE=23514 message=dispute determination: no tariff is cited, but the utility has a dispute policy in force on 2026-03-12 — cite it (a city's own policy wins) [D4e] (v5.4.2-25)
+psql:/tmp/probe.sql:842: NOTICE:  PASS D4e "no terms" while the utility's tariff is in force (March 12): refused by [D4e] (dispute determination: no tariff is cited, but the utility has a dispute policy in force on 2026-03-12 — cite it (a city)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:846: NOTICE:  caught SQLSTATE=23514 message=dispute determination: tariff 00000000-0000-4000-8000-0000000025ac is not this utility's policy for TX gas (distribution) [D4f] (v5.4.2-25)
+psql:/tmp/probe.sql:846: NOTICE:  PASS D4f another utility's tariff (T2's, which T1 cannot see): refused by [D4f] (dispute determination: tariff 00000000-0000-4000-8000-0000000025ac is not this utility's policy for TX gas (distribution)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:850: NOTICE:  caught SQLSTATE=23514 message=dispute determination: must-pay component m9 is not the cited document's (m1) [D4g] (v5.4.2-25)
+psql:/tmp/probe.sql:850: NOTICE:  PASS D4g a must-pay component the cited document does not have: refused by [D4g] (dispute determination: must-pay component m9 is not the cited document's (m1) [D4g] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:854: NOTICE:  caught SQLSTATE=23514 message=dispute determination: it records the blocks {disconnect_order,disconnect_execute,late_fee}; the cited document's are {credit_reporting,disconnect_execute,disconnect_order} — a record claims no other shelter than its rule [D4h] (v5.4.2-25)
+psql:/tmp/probe.sql:854: NOTICE:  PASS D4h blocks other than the cited document's (late_fee claimed; the tariff blocks credit reporting instead): refused by [D4h] (dispute determination: it records the blocks {disconnect_order,disconnect_execute,late_fee}; the cited document's are {c)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:858: NOTICE:  caught SQLSTATE=23514 message=dispute determination: 41.00 sheltered of the 40.00 in dispute, 90.00 to pay — sheltered is between 0 and the amount, to pay at least 0 [D4i] (v5.4.2-25)
+psql:/tmp/probe.sql:858: NOTICE:  PASS D4i more sheltered than the amount row it read (41 of 40): refused by [D4i] (dispute determination: 41.00 sheltered of the 40.00 in dispute, 90.00 to pay — sheltered is between 0 and the amount, to)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:862: NOTICE:  caught SQLSTATE=23514 message=dispute determination: 40.00 sheltered of the 40.00 in dispute, -1.00 to pay — sheltered is between 0 and the amount, to pay at least 0 [D4i] (v5.4.2-25)
+psql:/tmp/probe.sql:862: NOTICE:  PASS D4i2 a negative amount to pay: refused by [D4i] (dispute determination: 40.00 sheltered of the 40.00 in dispute, -1.00 to pay — sheltered is between 0 and the amount, to)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:866: NOTICE:  caught SQLSTATE=23514 message=dispute determination: amount row 00000000-0000-4000-8000-000000002543 is not an amount of dispute 00000000-0000-4000-8000-000000002531 recorded before it [D4j] (v5.4.2-25)
+psql:/tmp/probe.sql:866: NOTICE:  PASS D4j an amount row of another dispute: refused by [D4j] (dispute determination: amount row 00000000-0000-4000-8000-000000002543 is not an amount of dispute 00000000-0000-4000-80)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:870: NOTICE:  caught SQLSTATE=23514 message=dispute determination: dispute 00000000-0000-4000-8000-000000002531 already has a determination; a new answer names the live row it supersedes [D4m] (v5.4.2-25)
+psql:/tmp/probe.sql:870: NOTICE:  PASS D4m a second live determination for one dispute (it must name the one it supersedes): refused by [D4m] (dispute determination: dispute 00000000-0000-4000-8000-000000002531 already has a determination; a new answer names the )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:874: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the shelter ends on 2026-03-11, before the dispute was received on 2026-03-12 [D4o] (v5.4.2-25)
+psql:/tmp/probe.sql:874: NOTICE:  PASS D4o a shelter that ends before the dispute was received: refused by [D4o] (dispute determination: the shelter ends on 2026-03-11, before the dispute was received on 2026-03-12 [D4o] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:878: NOTICE:  caught SQLSTATE=23503 message=dispute determination: class governmental is not one of dispute_customer_classes for TX gas (v5.4.2-25)
+psql:/tmp/probe.sql:878: NOTICE:  PASS D4l a class the state's vocabulary lacks: refused by dispute_customer_classes (dispute determination: class governmental is not one of dispute_customer_classes for TX gas (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:882: NOTICE:  caught SQLSTATE=23514 message=new row for relation "dispute_determinations" violates check constraint "dispute_determinations_outcome_check"
+psql:/tmp/probe.sql:882: NOTICE:  PASS D4n4 an outcome that is not sheltered, not sheltered, or no terms: refused by dispute_determinations_outcome_check (new row for relation "dispute_determinations" violates check constraint "dispute_determinations_outcome_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:886: NOTICE:  PASS D4r the interim estimate supersedes: 35 sheltered, naming the row it replaces
+psql:/tmp/probe.sql:890: NOTICE:  caught SQLSTATE=23514 message=dispute determination: it may supersede only the live determination of dispute 00000000-0000-4000-8000-000000002531; 00000000-0000-4000-8000-000000002551 is not it [D4m] (v5.4.2-25)
+psql:/tmp/probe.sql:890: NOTICE:  PASS D4s superseding a row already superseded: refused by [D4m] (dispute determination: it may supersede only the live determination of dispute 00000000-0000-4000-8000-000000002531; 000)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:893: NOTICE:  caught SQLSTATE=23514 message=dispute determination: it may supersede only the live determination of dispute 00000000-0000-4000-8000-000000002532; 00000000-0000-4000-8000-000000002552 is not it [D4m] (v5.4.2-25)
+psql:/tmp/probe.sql:893: NOTICE:  PASS D4t superseding another dispute's determination: refused by [D4m] (dispute determination: it may supersede only the live determination of dispute 00000000-0000-4000-8000-000000002532; 000)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:896: NOTICE:  PASS D4u I2's dispute, received before the tariff: no terms (a city with no policy in force; the delegation cited, no tariff)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:899: NOTICE:  caught SQLSTATE=23514 message=dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neither, shelters nothing, blocks nothing and names no must-pay [D4n] (v5.4.2-25)
+psql:/tmp/probe.sql:899: NOTICE:  PASS D4n no terms that still shelters something: refused by [D4n] (dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neithe)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:902: NOTICE:  caught SQLSTATE=23514 message=dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neither, shelters nothing, blocks nothing and names no must-pay [D4n] (v5.4.2-25)
+psql:/tmp/probe.sql:902: NOTICE:  PASS D4n2 no terms that names a must-pay component: refused by [D4n] (dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neithe)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:906: NOTICE:  caught SQLSTATE=23514 message=dispute determination: "sheltered" names the must-pay component that governed and its amount [D4n] (v5.4.2-25)
+psql:/tmp/probe.sql:906: NOTICE:  PASS D4n3 sheltered with no amount to pay: refused by [D4n] (dispute determination: "sheltered" names the must-pay component that governed and its amount [D4n] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:910: NOTICE:  caught SQLSTATE=23514 message=dispute determination: it records the blocks {disconnect_order,disconnect_order,disconnect_execute,credit_reporting}; the cited document's are {credit_reporting,disconnect_execute,disconnect_order} — a record claims no other shelter than its rule [D4h] (v5.4.2-25)
+psql:/tmp/probe.sql:910: NOTICE:  PASS D4h2 the document's blocks with one repeated: refused by [D4h] (dispute determination: it records the blocks {disconnect_order,disconnect_order,disconnect_execute,credit_reporting}; th)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:912: NOTICE:  caught SQLSTATE=42501 message=permission denied for table dispute_determinations
+psql:/tmp/probe.sql:912: NOTICE:  PASS D4v a determination is never edited: refused by dispute_determinations (permission denied for table dispute_determinations)
+psql:/tmp/probe.sql:914: NOTICE:  caught SQLSTATE=42501 message=permission denied for table dispute_determinations
+psql:/tmp/probe.sql:914: NOTICE:  PASS D4w nor deleted: refused by dispute_determinations (permission denied for table dispute_determinations)
+ refuses_at 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:921: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the shelter ends on no date; the cited document ends it by 2026-04-29 (60 days from issue) [D4p] (v5.4.2-25)
+psql:/tmp/probe.sql:921: NOTICE:  PASS D4p a shelter under 7.45 with no end: refused by [D4p] (dispute determination: the shelter ends on no date; the cited document ends it by 2026-04-29 (60 days from issue) [D4p] )
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:925: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the shelter ends on 2026-04-30; the cited document ends it by 2026-04-29 (60 days from issue) [D4p] (v5.4.2-25)
+psql:/tmp/probe.sql:925: NOTICE:  PASS D4p2 … or ending after day 60 (April 30): refused by [D4p] (dispute determination: the shelter ends on 2026-04-30; the cited document ends it by 2026-04-29 (60 days from issue) [D4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:932: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the utility has its own dispute policy in force on 2026-03-15, never narrower than the law — cite it [D4q] (v5.4.2-25)
+psql:/tmp/probe.sql:932: NOTICE:  PASS D4q the law alone, while the utility's own wider policy is in force: refused by [D4q] (dispute determination: the utility has its own dispute policy in force on 2026-03-15, never narrower than the law — cite)
+psql:/tmp/probe.sql:936: NOTICE:  PASS D4x T2: C5's dispute is sheltered by 16 TAC 7.45 (protected class): 40 sheltered, 50 to pay (the average cap), until April 29 (60 days from issue)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:939: NOTICE:  PASS D4y T2: C6 is outside 7.45's reach (unprotected): not sheltered, the full 90 to pay, nothing blocked
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:942: NOTICE:  caught SQLSTATE=23514 message=dispute determination: "not sheltered" shelters nothing and blocks nothing, and names the must-pay component that governed and its amount [D4n] (v5.4.2-25)
+psql:/tmp/probe.sql:942: NOTICE:  PASS D4z not sheltered that still shelters something: refused by [D4n] (dispute determination: "not sheltered" shelters nothing and blocks nothing, and names the must-pay component that govern)
+psql:/tmp/probe.sql:946: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "dispute_determinations": a utility writes its own dispute records only (v5.4.2-25)
+psql:/tmp/probe.sql:946: NOTICE:  PASS D4z2 T2 cannot write a determination on T1's dispute: refused by row-level security (new row violates row-level security policy for table "dispute_determinations": a utility writes its own dispute records )
+ refuses_at 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b3
+(1 row)
+
+psql:/tmp/probe.sql:950: NOTICE:  PASS D4z3 T3 (a city with no dispute tariff): no terms
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:957: NOTICE:  caught SQLSTATE=23514 message=dispute event: the opened event is the database's, written with the dispute [D5a] (v5.4.2-25)
+psql:/tmp/probe.sql:957: NOTICE:  PASS D5a the application writes no opened event (the database wrote it): refused by [D5a] (dispute event: the opened event is the database's, written with the dispute [D5a] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:959: NOTICE:  PASS D5b stage s1 of the tariff the live determination cites, before a designated employee
+psql:/tmp/probe.sql:961: NOTICE:  caught SQLSTATE=23514 message=dispute event: stage s2 before executive is not a stage of the live determination's document, before its decider, by a user (its stage is ) [D5b] (v5.4.2-25)
+psql:/tmp/probe.sql:961: NOTICE:  PASS D5c a stage the document does not have: refused by [D5b] (dispute event: stage s2 before executive is not a stage of the live determination's document, before its decider, by a u)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:963: NOTICE:  caught SQLSTATE=23514 message=dispute event: stage s1 before manager is not a stage of the live determination's document, before its decider, by a user (its stage is {"id": "s1", "final": true, "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}}) [D5b] (v5.4.2-25)
+psql:/tmp/probe.sql:963: NOTICE:  PASS D5d a decider other than the stage's: refused by [D5b] (dispute event: stage s1 before manager is not a stage of the live determination's document, before its decider, by a use)
+psql:/tmp/probe.sql:965: NOTICE:  caught SQLSTATE=23514 message=dispute event: stage_entered names a stage, and dispute 00000000-0000-4000-8000-000000002533 has no determination whose document has stages [D5c] (v5.4.2-25)
+psql:/tmp/probe.sql:965: NOTICE:  PASS D5e a stage event with no live determination to name the stage (C2's reading dispute): refused by [D5c] (dispute event: stage_entered names a stage, and dispute 00000000-0000-4000-8000-000000002533 has no determination whose )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:967: NOTICE:  caught SQLSTATE=23514 message=new row for relation "dispute_events" violates check constraint "dispute_events_escalated_to_check"
+psql:/tmp/probe.sql:967: NOTICE:  PASS D5f an escalation to someone other than the regulator or the governing body: refused by dispute_events_escalated_to_check (new row for relation "dispute_events" violates check constraint "dispute_events_escalated_to_check")
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:969: NOTICE:  caught SQLSTATE=23514 message=dispute event: escalated on 2026-03-11, outside the dispute's received date 2026-03-12 and today, or recorded before the dispute [D5g] (v5.4.2-25)
+psql:/tmp/probe.sql:969: NOTICE:  PASS D5g an event dated before the dispute was received: refused by [D5g] (dispute event: escalated on 2026-03-11, outside the dispute's received date 2026-03-12 and today, or recorded before the)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:971: NOTICE:  caught SQLSTATE=23514 message=dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correction it produced, and nothing else names one (resolved, outcome , 0 corrections) [D5d] (v5.4.2-25)
+psql:/tmp/probe.sql:971: NOTICE:  PASS D5h a resolution with no outcome: refused by [D5d] (dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correctio)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:973: NOTICE:  caught SQLSTATE=23514 message=dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correction it produced, and nothing else names one (resolved, outcome adjusted, 0 corrections) [D5d] (v5.4.2-25)
+psql:/tmp/probe.sql:973: NOTICE:  PASS D5i an adjusted resolution that names nothing it produced: refused by [D5d] (dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correctio)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:976: NOTICE:  caught SQLSTATE=23514 message=dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correction it produced, and nothing else names one (resolved, outcome adjusted, 2 corrections) [D5d] (v5.4.2-25)
+psql:/tmp/probe.sql:976: NOTICE:  PASS D5j … or names two things: refused by [D5d] (dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correctio)
+psql:/tmp/probe.sql:979: NOTICE:  caught SQLSTATE=23514 message=dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correction it produced, and nothing else names one (resolved, outcome sustained, 1 corrections) [D5d] (v5.4.2-25)
+psql:/tmp/probe.sql:979: NOTICE:  PASS D5k a sustained resolution that names a correction: refused by [D5d] (dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correctio)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:982: NOTICE:  caught SQLSTATE=23514 message=dispute event: ledger entry 00000000-0000-4000-8000-000000002583 is not an adjustment of the dispute's customer [D5e] (v5.4.2-25)
+psql:/tmp/probe.sql:982: NOTICE:  PASS D5l an adjustment of another customer (C2's entry for C1's dispute): refused by [D5e] (dispute event: ledger entry 00000000-0000-4000-8000-000000002583 is not an adjustment of the dispute's customer [D5e] (v)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:985: NOTICE:  caught SQLSTATE=23514 message=dispute event: credit 00000000-0000-4000-8000-000000002584 is not a dispute_resolution credit of the dispute's customer [D5e] (v5.4.2-25)
+psql:/tmp/probe.sql:985: NOTICE:  PASS D5l2 an adjustment naming a credit that is not a dispute resolution (C1's goodwill credit): refused by [D5e] (dispute event: credit 00000000-0000-4000-8000-000000002584 is not a dispute_resolution credit of the dispute's customer )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:988: NOTICE:  caught SQLSTATE=23514 message=dispute event: bill 00000000-0000-4000-8000-000000002503 is not a bill of the dispute's customer [D5e] (v5.4.2-25)
+psql:/tmp/probe.sql:988: NOTICE:  PASS D5l3 an adjustment naming another customer's bill (C2's I3): refused by [D5e] (dispute event: bill 00000000-0000-4000-8000-000000002503 is not a bill of the dispute's customer [D5e] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:991: NOTICE:  caught SQLSTATE=23514 message=dispute event: only a stage event names a stage and its decider (escalated) [D5b] (v5.4.2-25)
+psql:/tmp/probe.sql:991: NOTICE:  PASS D5x an escalation that names a stage: refused by [D5b] (dispute event: only a stage event names a stage and its decider (escalated) [D5b] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:995: NOTICE:  caught SQLSTATE=42501 message=new row violates row-level security policy for table "dispute_events": a utility writes its own dispute records only (v5.4.2-25)
+psql:/tmp/probe.sql:995: NOTICE:  PASS D5w T2 writes no event on T1's dispute: refused by row-level security (new row violates row-level security policy for table "dispute_events": a utility writes its own dispute records only (v5)
+ refuses_at 
+------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:1001: NOTICE:  caught SQLSTATE=23514 message=dispute_events: dispute 00000000-0000-4000-8000-000000002531 was resolved by event 5416709a-e1c1-46be-a075-9fd3e3cec762, recorded before this row — nothing is recorded on it after [D5f] (v5.4.2-25)
+psql:/tmp/probe.sql:1001: NOTICE:  PASS D5r a resolution and an escalation in one multi-row insert: refused by [D5f] (dispute_events: dispute 00000000-0000-4000-8000-000000002531 was resolved by event 5416709a-e1c1-46be-a075-9fd3e3cec762,)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1005: NOTICE:  caught SQLSTATE=23514 message=dispute_events: dispute 00000000-0000-4000-8000-000000002531 was withdrawn by event 845a8b2e-1a85-4f0c-a1f7-18938b8ab523, recorded before this row — nothing is recorded on it after [D5f] (v5.4.2-25)
+psql:/tmp/probe.sql:1005: NOTICE:  PASS D5r2 a withdrawal and an escalation in one multi-row insert: refused by [D5f] (dispute_events: dispute 00000000-0000-4000-8000-000000002531 was withdrawn by event 845a8b2e-1a85-4f0c-a1f7-18938b8ab523)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1011: NOTICE:  caught SQLSTATE=23514 message=dispute_determinations: dispute 00000000-0000-4000-8000-000000002531 was resolved by event bb2cf8d3-c6cd-44e6-a923-ccec85e65dad, recorded before this row — nothing is recorded on it after [D4k] (v5.4.2-25)
+psql:/tmp/probe.sql:1011: NOTICE:  PASS D4k2 a resolution and then a superseding determination in one statement (a writable CTE): refused by [D4k] (dispute_determinations: dispute 00000000-0000-4000-8000-000000002531 was resolved by event bb2cf8d3-c6cd-44e6-a923-ccec8)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1014: NOTICE:  caught SQLSTATE=23514 message=dispute_amounts: dispute 00000000-0000-4000-8000-000000002531 was resolved by event fbf5fd29-ce03-4bb6-b283-7dcbb8229805, recorded before this row — nothing is recorded on it after [D2e] (v5.4.2-25)
+psql:/tmp/probe.sql:1014: NOTICE:  PASS D2m2 a resolution and then a new amount in one statement (a writable CTE): refused by [D2e] (dispute_amounts: dispute 00000000-0000-4000-8000-000000002531 was resolved by event fbf5fd29-ce03-4bb6-b283-7dcbb8229805)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1017: NOTICE:  PASS D5m C1's I1 dispute is resolved: the bill is sustained, April 10
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1021: NOTICE:  PASS D5n the database moved the status: resolved, naming the event, at its stamp
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1023: NOTICE:  caught SQLSTATE=23514 message=dispute event: dispute 00000000-0000-4000-8000-000000002531 is resolved (event 00000000-0000-4000-8000-000000002561) — one resolution or withdrawal, and nothing after it [D5f] (v5.4.2-25)
+psql:/tmp/probe.sql:1023: NOTICE:  PASS D5o a second resolution: refused by [D5f] (dispute event: dispute 00000000-0000-4000-8000-000000002531 is resolved (event 00000000-0000-4000-8000-000000002561) — o)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1025: NOTICE:  caught SQLSTATE=23514 message=dispute event: dispute 00000000-0000-4000-8000-000000002531 is resolved (event 00000000-0000-4000-8000-000000002561) — one resolution or withdrawal, and nothing after it [D5f] (v5.4.2-25)
+psql:/tmp/probe.sql:1025: NOTICE:  PASS D5p any event after the resolution: refused by [D5f] (dispute event: dispute 00000000-0000-4000-8000-000000002531 is resolved (event 00000000-0000-4000-8000-000000002561) — o)
+psql:/tmp/probe.sql:1029: NOTICE:  caught SQLSTATE=23514 message=dispute determination: dispute 00000000-0000-4000-8000-000000002531 is resolved — nothing is determined after it [D4k] (v5.4.2-25)
+psql:/tmp/probe.sql:1029: NOTICE:  PASS D4k a determination after the resolution: refused by nothing is determined after it [D4k] (dispute determination: dispute 00000000-0000-4000-8000-000000002531 is resolved — nothing is determined after it [D4k] ()
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1034: NOTICE:  caught SQLSTATE=23514 message=disputed amount: dispute 00000000-0000-4000-8000-000000002531 is resolved — nothing is recorded on it after [D2e] (v5.4.2-25)
+psql:/tmp/probe.sql:1034: NOTICE:  PASS D2m an amount after the resolution: refused by is resolved — nothing is recorded on it after [D2e] (disputed amount: dispute 00000000-0000-4000-8000-000000002531 is resolved — nothing is recorded on it after [D2e] (v5.4.)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1037: NOTICE:  PASS D5q C1's I2 dispute is resolved adjusted, naming the adjustment entry that produced
+psql:/tmp/probe.sql:1040: NOTICE:  PASS D5y C2's reading dispute is withdrawn
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1042: NOTICE:  PASS D5s … and its status is withdrawn, naming the event
+psql:/tmp/probe.sql:1044: NOTICE:  caught SQLSTATE=23514 message=dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correction it produced, and nothing else names one (withdrawn, outcome waived, 0 corrections) [D5d] (v5.4.2-25)
+psql:/tmp/probe.sql:1044: NOTICE:  PASS D5t a withdrawal with an outcome: refused by [D5d] (dispute event: a resolution carries its outcome (sustained, adjusted or waived), an adjusted one names the one correctio)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1046: NOTICE:  caught SQLSTATE=42501 message=permission denied for table dispute_events
+psql:/tmp/probe.sql:1046: NOTICE:  PASS D5u an event is never edited: refused by dispute_events (permission denied for table dispute_events)
+RESET
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1049: NOTICE:  caught SQLSTATE=23001 message=dispute_events is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+psql:/tmp/probe.sql:1049: NOTICE:  PASS D5v … not even by the owner (append-only): refused by append-only (dispute_events is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correct)
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:1073: NOTICE:  caught SQLSTATE=22004 message=dispute_shelter_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-11-25 21:14:56.948756+00) (v5.4.2-23)
+psql:/tmp/probe.sql:1073: NOTICE:  PASS R1 the date is required (no fallback to today): refused by dispute_shelter_as_of (dispute_shelter_as_of: a position is read at a finite money date and recorded instant, both given (on , recorded 2026-11)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1075: NOTICE:  caught SQLSTATE=22004 message=dispute_shelter_as_of: a position is read at a finite money date and recorded instant, both given (on 2026-04-01, recorded ) (v5.4.2-23)
+psql:/tmp/probe.sql:1075: NOTICE:  PASS R1b the recorded instant is required: refused by dispute_shelter_as_of (dispute_shelter_as_of: a position is read at a finite money date and recorded instant, both given (on 2026-04-01, record)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1079: NOTICE:  PASS R2 as recorded now, on April 9: the live determination, 20 sheltered, its blocks
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1082: NOTICE:  PASS R3 as recorded 3.5 h ago: the determination then live, 40 sheltered
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1085: NOTICE:  PASS R4 as recorded 4.5 h ago: the dispute is open with no determination yet: a row with no outcome and nothing sheltered
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1087: NOTICE:  PASS R4b as recorded 6 h ago: no dispute at all
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1089: NOTICE:  PASS R5 on the resolution date, as recorded now: the shelter has ended (nothing to reset: CI-074's "suspension persists" failure)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1092: NOTICE:  PASS R5b on the resolution date, as recorded before the resolution was: still 20
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1094: NOTICE:  PASS R6 before the dispute was received (March 11): nothing
+psql:/tmp/probe.sql:1098: NOTICE:  PASS R8 per line, with no lines on the amount: pro rata over the bill's charges (60 and 40), the credit line none, and it says so
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1102: NOTICE:  PASS R11 a no-terms dispute reads as no terms, nothing sheltered, nothing blocked
+ ok 
+----
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:1106: NOTICE:  PASS R7 T2, 16 TAC 7.45: sheltered on April 29 (day 60 from issue)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1108: NOTICE:  PASS R7b … and not on April 30
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1113: NOTICE:  PASS R8b per line, with lines: I5's add-on line carries the 40 sheltered; its gas service line nothing
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1115: NOTICE:  PASS R10 T2 reads nothing of T1's disputes
+ ok 
+----
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:1120: NOTICE:  PASS T1a pending_dispute no longer protects the account, and points at disputes (CI-074)
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1123: NOTICE:  PASS T1b no other program type's protection changed
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1129: NOTICE:  caught SQLSTATE=23514 message=program enrollment: pending_dispute is retired — a dispute is a disputes row, whose shelter its determination records [T1] (v5.4.2-25)
+psql:/tmp/probe.sql:1129: NOTICE:  PASS T1c a new pending_dispute enrollment is refused (a dispute is a disputes row): refused by [T1] (program enrollment: pending_dispute is retired — a dispute is a disputes row, whose shelter its determination records [T)
+RESET
+ ok 
+----
+ 
+(1 row)
+
+SET
+psql:/tmp/probe.sql:1132: NOTICE:  PASS T2a the reading's six dispute columns are gone
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b1
+(1 row)
+
+psql:/tmp/probe.sql:1136: NOTICE:  caught SQLSTATE=23514 message=meter reading 00000000-0000-4000-8000-000000002572: marked disputed with no open dispute naming it — record the dispute first [T2] (v5.4.2-25)
+psql:/tmp/probe.sql:1136: NOTICE:  PASS T2b a reading marked disputed with no open dispute naming it (C2's, whose dispute was withdrawn): refused by [T2] (meter reading 00000000-0000-4000-8000-000000002572: marked disputed with no open dispute naming it — record the dispute )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1138: NOTICE:  PASS T2c a reading marked disputed under its open dispute (C1's)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1140: NOTICE:  caught SQLSTATE=23514 message=meter reading 00000000-0000-4000-8000-000000002571: an open dispute names it; it stays disputed until that dispute is resolved or withdrawn [T2] (v5.4.2-25)
+psql:/tmp/probe.sql:1140: NOTICE:  PASS T2d … and not unmarked while that dispute is open: refused by [T2] (meter reading 00000000-0000-4000-8000-000000002571: an open dispute names it; it stays disputed until that dispute is re)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1143: NOTICE:  caught SQLSTATE=23514 message=dispute 00000000-0000-4000-8000-000000002534 closed, and its reading 00000000-0000-4000-8000-000000002571 is still marked disputed with no open dispute naming it — move the reading out of disputed in the same transaction [T2c] (v5.4.2-25)
+psql:/tmp/probe.sql:1143: NOTICE:  PASS T2e0 r2 (Opus S4): the dispute withdrawn and the reading left marked is refused at commit: refused by [T2c] (dispute 00000000-0000-4000-8000-000000002534 closed, and its reading 00000000-0000-4000-8000-000000002571 is still marke)
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET CONSTRAINTS
+psql:/tmp/probe.sql:1146: NOTICE:  PASS T2e the dispute is withdrawn …
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1150: NOTICE:  PASS T2f … and the reading unmarked in the same transaction, so the commit check passes
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:1154: NOTICE:  PASS T2g the disputed-reading index stands, on the status
+ ok 
+----
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b3
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1170: NOTICE:  PASS D7 T3's C7 disputes I9 on November 21 and on November 22, and I8 on November 23 and 24 (40 each)
+psql:/tmp/probe.sql:1174: NOTICE:  caught SQLSTATE=23514 message=dispute determination: platform default 5af49abc-429f-4e38-bcfa-8b6d52ec04ac is cited, but none is in force for this utility and class protected on 2026-11-21 [D7a] (v5.4.2-25)
+psql:/tmp/probe.sql:1174: NOTICE:  PASS D7a November 21, the day before the default: naming it is refused (none is in force): refused by [D7a] (dispute determination: platform default 5af49abc-429f-4e38-bcfa-8b6d52ec04ac is cited, but none is in force for this uti)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1177: NOTICE:  PASS D7a2 … and "no terms" is admitted (a city with no policy, before the platform's default)
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1180: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the utility has no dispute policy in force on 2026-11-22, so the platform default 5af49abc-429f-4e38-bcfa-8b6d52ec04ac governs class protected — cite it (none is cited) [D7b] (v5.4.2-25)
+psql:/tmp/probe.sql:1180: NOTICE:  PASS D7b November 22, the default's first day: "no terms" is refused (the default governs a city with no policy): refused by [D7b] (dispute determination: the utility has no dispute policy in force on 2026-11-22, so the platform default 5af49abc-429f-4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1184: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the utility has no dispute policy in force on 2026-11-22, so the platform default 5af49abc-429f-4e38-bcfa-8b6d52ec04ac governs class protected — cite it (none is cited) [D7b] (v5.4.2-25)
+psql:/tmp/probe.sql:1184: NOTICE:  PASS D7b2 … as is a shelter that names neither a tariff nor the default: refused by [D7b] (dispute determination: the utility has no dispute policy in force on 2026-11-22, so the platform default 5af49abc-429f-4)
+psql:/tmp/probe.sql:1188: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the utility has no dispute policy in force on 2026-11-22, so the platform default 5af49abc-429f-4e38-bcfa-8b6d52ec04ac governs class protected — cite it (f17360a6-c3f5-4427-8bda-497ce9d42b47 is cited) [D7b] (v5.4.2-25)
+psql:/tmp/probe.sql:1188: NOTICE:  PASS D7b3 … and the other class's default (the unprotected row for a protected customer): refused by [D7b] (dispute determination: the utility has no dispute policy in force on 2026-11-22, so the platform default 5af49abc-429f-4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1192: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the shelter ends on 2027-01-19; the cited document ends it by 2027-01-18 (60 days from issue) [D4p] (v5.4.2-25)
+psql:/tmp/probe.sql:1192: NOTICE:  PASS D7c under the default, a shelter past day 60 from issue (January 19): refused by [D4p] (dispute determination: the shelter ends on 2027-01-19; the cited document ends it by 2027-01-18 (60 days from issue) [D4)
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1196: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the shelter ends on no date; the cited document ends it by 2027-01-18 (60 days from issue) [D4p] (v5.4.2-25)
+psql:/tmp/probe.sql:1196: NOTICE:  PASS D7c2 … or with no end: refused by [D4p] (dispute determination: the shelter ends on no date; the cited document ends it by 2027-01-18 (60 days from issue) [D4p] )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1200: NOTICE:  caught SQLSTATE=23514 message=dispute determination: it records the blocks {credit_reporting,disconnect_execute,disconnect_order,late_fee}; the cited document's are {disconnect_execute,disconnect_order,late_fee} — a record claims no other shelter than its rule [D4h] (v5.4.2-25)
+psql:/tmp/probe.sql:1200: NOTICE:  PASS D7d blocks other than the default's (credit reporting added): refused by [D4h] (dispute determination: it records the blocks {credit_reporting,disconnect_execute,disconnect_order,late_fee}; the cited )
+psql:/tmp/probe.sql:1204: NOTICE:  caught SQLSTATE=23514 message=dispute determination: must-pay component m2 is not the cited document's (m1) [D4g] (v5.4.2-25)
+psql:/tmp/probe.sql:1204: NOTICE:  PASS D7d2 a must-pay component the default does not have: refused by [D4g] (dispute determination: must-pay component m2 is not the cited document's (m1) [D4g] (v5.4.2-25))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1207: NOTICE:  caught SQLSTATE=23514 message=dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neither, shelters nothing, blocks nothing and names no must-pay [D4n] (v5.4.2-25)
+psql:/tmp/probe.sql:1207: NOTICE:  PASS D7e "no terms" that names the default: refused by [D4n] (dispute determination: "no terms" is a delegation with neither a policy nor a platform default in force: it cites neithe)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1211: NOTICE:  PASS D7f November 22: sheltered under the default — 40 sheltered, 50 (the undisputed charges) to pay, until January 18 (day 60), the late fee and both disconnection steps stopped
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1215: NOTICE:  PASS D7g November 23: the unprotected class is under its own default row (every class, Ryan 2026-11-22)
+psql:/tmp/probe.sql:1218: NOTICE:  PASS D7h the document a default's determination cites is the default's
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1220: NOTICE:  caught SQLSTATE=23514 message=dispute event: stage s1 before designated_employee is not a stage of the live determination's document, before its decider, by a user (its stage is ) [D5b] (v5.4.2-25)
+psql:/tmp/probe.sql:1220: NOTICE:  PASS D7i the default has no review stages: a stage event under it is refused: refused by [D5b] (dispute event: stage s1 before designated_employee is not a stage of the live determination's document, before its decid)
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1222: NOTICE:  PASS D7j T3 writes its own policy from November 24
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1226: NOTICE:  caught SQLSTATE=23514 message=dispute determination: no tariff is cited, but the utility has a dispute policy in force on 2026-11-24 — cite it (a city's own policy wins) [D4e] (v5.4.2-25)
+psql:/tmp/probe.sql:1226: NOTICE:  PASS D7k November 24: the default is refused — the city's own policy is in force from that day (it replaces the default): refused by [D4e] (dispute determination: no tariff is cited, but the utility has a dispute policy in force on 2026-11-24 — cite it (a city)
+psql:/tmp/probe.sql:1230: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the platform default is cited only where the law leaves the dispute to a utility with no policy of its own; here the utility's own policy is cited [D7k] (v5.4.2-25)
+psql:/tmp/probe.sql:1230: NOTICE:  PASS D7k2 … and naming both the policy and the default is refused: refused by [D7k] (dispute determination: the platform default is cited only where the law leaves the dispute to a utility with no policy o)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1234: NOTICE:  PASS D7l … citing the policy is admitted
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1238: NOTICE:  PASS D7m the November 22 dispute keeps the default after the policy: a new answer (35) still cites it
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1242: NOTICE:  PASS D7n the reader: I9 on January 18 shelters 35 of the November 22 dispute with the default's blocks, and nothing of the November 21 one
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1244: NOTICE:  PASS D7n2 … and on January 19 nothing
+ ok 
+----
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:1249: NOTICE:  caught SQLSTATE=23514 message=dispute determination: the platform default is cited only where the law leaves the dispute to a utility with no policy of its own; here the law governs [D7k] (v5.4.2-25)
+psql:/tmp/probe.sql:1249: NOTICE:  PASS D7o where Texas law governs (T2), the default is never named: refused by [D7k] (dispute determination: the platform default is cited only where the law leaves the dispute to a utility with no policy o)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+psql:/tmp/probe.sql:1252: NOTICE:  caught SQLSTATE=23514 message=dispute_platform_defaults row 5af49abc-429f-4e38-bcfa-8b6d52ec04ac cannot close on 2026-11-22: a citing record needs it in force on 2026-11-22 (v5.4.2-17)
+psql:/tmp/probe.sql:1252: NOTICE:  PASS D7p the protected default, cited for a dispute received November 22, cannot close on November 22: refused by cannot close on (dispute_platform_defaults row 5af49abc-429f-4e38-bcfa-8b6d52ec04ac cannot close on 2026-11-22: a citing record needs it )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1254: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:1254: NOTICE:  PASS D7p2 … November 23 is fine
+ admits_undone 
+---------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1258: NOTICE:  caught SQLSTATE=23001 message=dispute_rules rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v5.4.2-17)
+psql:/tmp/probe.sql:1258: NOTICE:  PASS H1 a law row is never edited: refused by dispute_rules (dispute_rules rows are never edited: a change in the law is a close and a new row; the only edit is a stamped close (v5.)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1260: NOTICE:  caught SQLSTATE=23514 message=dispute_rules row 4abab389-0c5f-47ed-8682-9fa22c1251fd cannot close on 2026-03-15: a citing record needs it in force on 2026-03-15 (v5.4.2-17)
+psql:/tmp/probe.sql:1260: NOTICE:  PASS H2 a law row cited by a determination cannot close on or before the day that dispute was received (March 15): refused by cannot close on (dispute_rules row 4abab389-0c5f-47ed-8682-9fa22c1251fd cannot close on 2026-03-15: a citing record needs it in force on )
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1262: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:1262: NOTICE:  PASS H3 … the day after is fine
+ admits_undone 
+---------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1264: NOTICE:  caught SQLSTATE=23514 message=dispute_tariffs row 00000000-0000-4000-8000-0000000025ab cannot close on 2026-03-12: a citing record needs it in force on 2026-03-12 (v5.4.2-17)
+psql:/tmp/probe.sql:1264: NOTICE:  PASS H4 T1's tariff, cited for a dispute received March 12, cannot close on March 12: refused by cannot close on (dispute_tariffs row 00000000-0000-4000-8000-0000000025ab cannot close on 2026-03-12: a citing record needs it in force o)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1266: NOTICE:  caught SQLSTATE=P0098 message=undo
+psql:/tmp/probe.sql:1266: NOTICE:  PASS H5 … March 13 is fine
+ admits_undone 
+---------------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1271: NOTICE:  PASS H6 the application writes disputes, amounts, lines, determinations and events, and updates or deletes none of them
+psql:/tmp/probe.sql:1275: NOTICE:  PASS H7 tally_core reads the dispute records and writes none
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000025b2
+(1 row)
+
+psql:/tmp/probe.sql:1282: NOTICE:  PASS H8 each utility sees its own dispute records only: T2 sees its two disputes and none of T1's or T3's
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1284: NOTICE:  PASS H9 the law and the platform's defaults are the platform's, and every utility reads them
+RESET
+psql:/tmp/probe.sql:1288: NOTICE:  truncate cascades to table "disputes"
+psql:/tmp/probe.sql:1288: NOTICE:  truncate cascades to table "dispute_amounts"
+psql:/tmp/probe.sql:1288: NOTICE:  truncate cascades to table "dispute_determinations"
+psql:/tmp/probe.sql:1288: NOTICE:  truncate cascades to table "dispute_amount_lines"
+psql:/tmp/probe.sql:1288: NOTICE:  caught SQLSTATE=23001 message=dispute_events rows are never hard-deleted (CI-014): retire the record through its status/voided/closed marker with a reason; the row stays for audit and lineage.
+psql:/tmp/probe.sql:1288: NOTICE:  PASS H10 a dispute record is never truncated, even with CASCADE: refused by dispute (dispute_events rows are never hard-deleted (CI-014): retire the record through its status/voided/closed marker with a re)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1289: NOTICE:  PASS H11 the template's invariants hold over the three rule tables
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1290: NOTICE:  PASS H12 tenant isolation holds over the new tables and readers
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1291: NOTICE:  PASS H13 the retention invariants hold: no new table can be deleted from
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1292: NOTICE:  PASS H14 the core role invariants still hold
+psql:/tmp/probe.sql:1295: NOTICE:  PASS H15 the comments say the core decides, not the database
+ ok 
+----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1302: NOTICE:  caught SQLSTATE=23503 message=disputes: bill 00000000-0000-4000-8000-000000002501 is not of this tenant and customer (v5.4.2-25)
+psql:/tmp/probe.sql:1302: NOTICE:  PASS H17 a T2 dispute of T1's bill, loaded with foreign keys off: refused by disputes_invoice_fkey (disputes: bill 00000000-0000-4000-8000-000000002501 is not of this tenant and customer (v5.4.2-25))
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1307: NOTICE:  PASS H18 the status move is a pinned definer owned by tally_dispute, a NOLOGIN role with no BYPASSRLS
+psql:/tmp/probe.sql:1308: NOTICE:  PASS H18b the seal invariant holds, tally_dispute among its roles
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1310: NOTICE:  caught SQLSTATE=0LP01 message=tally_dispute holds other privileges than it is granted (v5.4.2-20): extra column public.disputes.subject UPDATE; missing none
+psql:/tmp/probe.sql:1310: NOTICE:  PASS H18c … and catches a grant beyond the move's (UPDATE of a dispute's subject): refused by tally_dispute holds other privileges (tally_dispute holds other privileges than it is granted (v5.4.2-20): extra column public.disputes.subject UPDATE; missin)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1317: NOTICE:  caught SQLSTATE=23514 message=dispute 00000000-0000-4000-8000-000000002539: its status moves only when its resolution or withdrawal is recorded, from open, naming that event [D1g] (v5.4.2-25)
+psql:/tmp/probe.sql:1317: NOTICE:  PASS H18d a move made by anyone but tally_dispute is refused, even one naming its resolution (the move's trigger switched off): refused by [D1g] (dispute 00000000-0000-4000-8000-000000002539: its status moves only when its resolution or withdrawal is recorded, from )
+psql:/tmp/probe.sql:1318: NOTICE:  PASS H16 -25's guard invariant holds as built
+ admits 
+--------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1321: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 trigger is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()
+psql:/tmp/probe.sql:1321: NOTICE:  PASS H16a … and catches a guard switched off: refused by z_enforce_dispute_nothing_after_close (a v5.4.2-25 trigger is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER z_enforce_dispute_nothing_after_close AF)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1323: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 table's column grants have changed:
+  disputes.subject | {tally_app=w/tally}
+psql:/tmp/probe.sql:1323: NOTICE:  PASS H16b … an UPDATE granted on disputes (an unlisted column grant; r2: the status columns are tally_dispute's, listed): refused by column grants (a v5.4.2-25 table's column grants have changed:
+  disputes.subject | {tally_app=w/tally})
+psql:/tmp/probe.sql:1325: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 table's column grants have changed:
+  disputes.status_recorded_at | {tally_dispute=w/tally}
+psql:/tmp/probe.sql:1325: NOTICE:  PASS H16b2 … or a listed column grant revoked (the status move's on status_recorded_at): refused by column grants (a v5.4.2-25 table's column grants have changed:
+  disputes.status_recorded_at | {tally_dispute=w/tally})
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1328: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 function is missing or its body has changed:
+  enforce_dispute_reading_released()
+psql:/tmp/probe.sql:1328: NOTICE:  PASS H16c … a guard's body replaced: refused by enforce_dispute_reading_released (a v5.4.2-25 function is missing or its body has changed:
+  enforce_dispute_reading_released())
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1330: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 function's volatility, security, owner or settings have changed:
+  dispute_move_status() | v | true | tally_dispute | search_path=public, pg_temp
+psql:/tmp/probe.sql:1330: NOTICE:  PASS H16d … the status move's owner changed: refused by owner (a v5.4.2-25 function's volatility, security, owner or settings have changed:
+  dispute_move_status() | v | true | tally_)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1332: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 constraint is missing, changed or not validated:
+  dispute_amounts dispute_amounts_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)
+psql:/tmp/probe.sql:1332: NOTICE:  PASS H16e … a constraint dropped: refused by dispute_amounts_created_by_fkey (a v5.4.2-25 constraint is missing, changed or not validated:
+  dispute_amounts dispute_amounts_created_by_fkey FOREIGN K)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1334: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 table's row-security policies have changed:
+  disputes | wide (unlisted)
+psql:/tmp/probe.sql:1334: NOTICE:  PASS H16f … a second policy: refused by unlisted (a v5.4.2-25 table's row-security policies have changed:
+  disputes | wide (unlisted))
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1336: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 table's row-security policies have changed:
+  disputes | tenant_isolation | ALL | PERMISSIVE | {public} | (is_platform_admin() OR (tenant_id = get_user_tenant_id())) | -
+psql:/tmp/probe.sql:1336: NOTICE:  PASS H16f2 … a listed policy dropped: refused by disputes | tenant_isolation | ALL (a v5.4.2-25 table's row-security policies have changed:
+  disputes | tenant_isolation | ALL | PERMISSIVE | {public} | (i)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:1338: NOTICE:  caught SQLSTATE=0LP01 message=a v5.4.2-25 column has lost NOT NULL:
+  disputes.received_on
+psql:/tmp/probe.sql:1338: NOTICE:  PASS H16g … a NOT NULL dropped: refused by lost NOT NULL (a v5.4.2-25 column has lost NOT NULL:
+  disputes.received_on)
+            result             
+-------------------------------
+ battery-25: all checks passed
+(1 row)
+
+ROLLBACK

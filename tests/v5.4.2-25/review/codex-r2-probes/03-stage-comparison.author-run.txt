@@ -1,0 +1,6 @@
+BEGIN
+psql:/tmp/probe.sql:29: NOTICE:  equal-stage control SQLSTATE=00000 problems={}
+psql:/tmp/probe.sql:29: NOTICE:  tariff schema errors={}
+psql:/tmp/probe.sql:29: NOTICE:  3650-day decision / one-day appeal SQLSTATE=00000 problems={} (predicted empty)
+DO
+ROLLBACK

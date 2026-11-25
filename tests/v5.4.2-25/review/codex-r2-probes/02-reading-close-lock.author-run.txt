@@ -1,0 +1,30 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+INSERT 0 2
+ALTER TABLE
+UPDATE 1
+ALTER TABLE
+ assert_dispute_guard_invariants 
+---------------------------------
+ 
+(1 row)
+
+SET
+psql:/tmp/probe.sql:43: NOTICE:  00000: first close and release check ACCEPTED SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+RESET
+                  id                  |  status   | dispute_mutex_held 
+--------------------------------------+-----------+--------------------
+ 00000000-0000-4000-8000-000000002d31 | withdrawn | t
+ 00000000-0000-4000-8000-000000002d32 | open      | f
+(2 rows)
+
+ROLLBACK

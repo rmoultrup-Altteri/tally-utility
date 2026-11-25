@@ -1,0 +1,23 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+INSERT 0 1
+INSERT 0 1
+SET
+psql:/tmp/probe.sql:67: NOTICE:  00000: amount same_id=f caught SQLSTATE=23514 message=dispute_amounts: dispute 60cb2f00-8248-4d87-9e1c-ef5113dd7dc6 was withdrawn by event 81cd7d7c-f722-4d17-b30c-c87b1b476a79, recorded before this row — nothing is recorded on it after [D2e] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:/tmp/probe.sql:67: NOTICE:  00000: amount same_id=t ACCEPTED SQLSTATE=00000 later_rows=1 status=withdrawn
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:/tmp/probe.sql:67: NOTICE:  00000: determination same_id=f caught SQLSTATE=23514 message=dispute_determinations: dispute 29a31b28-813d-443e-82f6-717491f27f93 was withdrawn by event 7c87a93d-caee-46f0-94a1-95d3ce59859c, recorded before this row — nothing is recorded on it after [D4k] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+psql:/tmp/probe.sql:67: NOTICE:  00000: determination same_id=t ACCEPTED SQLSTATE=00000 later_rows=1 status=withdrawn
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+RESET
+ROLLBACK
