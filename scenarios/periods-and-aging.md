@@ -191,7 +191,7 @@ What the platform keeps for the utility's finance side. It is a customer receiva
 *Status:* draft (2026-11-04), not yet sent to Kyle. Reviewer gap (Opus, 2026-11-02, A10).
 *Rule:* the aging shows each customer's balance; a debit balance is spread over the age buckets, newest first, and a credit balance is one row with no bucket. A zero balance is left out. Sources: v5.4.2-22 W1 (`receivables_aging_as_of`); Kyle 10-30 (one credit balance).
 
-**Given** SCN-0046: after the February 2027 bill, BB-02 holds a credit of $130.40. BB-01 owes $65.83 on a bill dated Jan 15, 2027 (**invented**). A third customer, **BB-05 (invented)**, owes nothing.
+**Given** SCN-0046: after the February 2027 bill, BB-02 holds a credit of $130.40. BB-01 owes $65.83 on a bill dated Jan 15, 2027 (**invented**; the crime-control district's tax from Jan 1 is left out, `tax.md` SCN-0108's open question on a bill that straddles a tax start). A third customer, **BB-05 (invented)**, owes nothing.
 
 **When** the aging is read as of Feb 28, 2027.
 

@@ -7,7 +7,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 **Common to every scenario here.**
 - The tax rows are the utility's own: each says which place levies it, its rate in percent, its position in the stack, which other taxes (if any) it is charged on top of, its source and citation, and whether it reaches residential gas (Kyle 10-14, answers 1, 2; Ryan 2026-09-30: a value the utility answers for stays its own). The Comptroller's published rate is a reference: it never bills, and a difference is reported (SCN-0109).
 - A premise is in a place for tax only by its own recorded membership on the tax axis, with its dates and evidence. Being inside a city does not by itself put it in a citywide district: each membership is recorded (CI-047).
-- Bluebonnet's rows and their stack positions are in `cast.md` §2 ("Tax rows"): 1 the state, 2 Bluebonnet County, 3 the city, 4 the crime-control district (from Jan 1, 2027), 5 the hospital district, 6 the transit authority (SCN-0115). Each is on the lines flagged taxable and never on another tax (no tax on tax in Texas unless a place declares it). Bills list tax lines in stack order.
+- Bluebonnet's rows and their stack positions are in `cast.md` §2 ("Tax rows"): 1 the state, 2 Bluebonnet County, 3 the city, 4 the crime-control district (from Jan 1, 2027), 5 the hospital district, 6 the transit authority (both east of Main Street only, until Sep 30, 2027; SCN-0115). Every local tax at a location counts toward Texas's 2% limit, a transit authority's included (Tax Code §321.101(f)): east of Main Street the local total is exactly 2.0% in 2027 until both end, and 2.0% west of it once the city's rate rises in SCN-0109. Each is on the lines flagged taxable and never on another tax (no tax on tax in Texas unless a place declares it). Bills list tax lines in stack order.
 - Residential gas in Texas pays only the city's tax, where the city may and does tax it, and a fire-control or crime-control district's in that city, where it has chosen to (Tax Code §151.317, §321.105, §321.201(a), §321.1055; 34 TAC §3.334(k)(8), (l)(1)). Whether gas is residential follows the rate class and the premise's use, and is not a stored exemption (Kyle R-13). A tax that does not reach residential gas adds no line to a residential bill (the stream's reading: a $0.00 line is for an exempt customer, SCN-0107).
 - **The state rate is 6.25%**: "The sales tax rate is 6-1/4 percent of the sales price of the taxable item sold" (Tax Code §151.051(b); read 2026-11-24 from texas.public.law, marked verified May 26, 2025).
 - A city system collects the state's sales tax on taxable gas like any seller. This is the stream's reading of Tax Code ch. 151; a tax advisor confirms before go-live.
@@ -17,7 +17,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0104 — A business inside the city: state, county and city tax, each on its own base
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* a taxable charge at a non-residential premise carries the tax of every place the premise is in on the tax axis, each computed on the taxable lines and never on another tax, each rounded on its own line, in stack order; each tax line names the row and place it came from. A late penalty that is a forfeited prompt-payment discount is taxed like the gas. Sources: Kyle 10-14, answers 1, 2, 5; Kyle 11-05, answers 3a, 3b; Tax Code §321.203(f) (the sale is made where the gas is delivered); K-06 rounding.
 
 **Given**
@@ -48,7 +48,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0105 — A home inside the city pays the city's tax only, and later a crime-control district's
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* a tax that does not reach residential gas adds nothing to a residential bill; only a city that may and does tax residential gas, and a fire-control or crime-control district in it that has chosen to, do. Sources: Tax Code §151.317, §321.105, §321.201(a), §321.1055; 34 TAC §3.334(l)(1); Kyle 11-03, answer 4; Kyle R-13.
 
 **Given**
@@ -78,7 +78,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0106 — Outside the city: a home pays no tax; a business pays the state and the county
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle. **Corrects SCN-0055 (c)**, which showed no tax on a large commercial bill outside the city.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle. **Corrects SCN-0055 (c)**, which showed no tax on a large commercial bill outside the city.
 *Rule:* outside the city limits no city tax applies, but the state's and the county's taxes still apply to non-residential gas. Sources: Kyle 11-03, answer 4 (city tax inside the city only); Tax Code §151.317; 34 TAC §3.334(k)(8).
 
 **Given** SCN-0055's October 2026 bills: (a) BB-02, a renter outside the city, schedule R-R, 6.0 Mcf; (b) BB-08, large commercial outside the city, schedule LC-R, 40.0 Mcf at a pressure factor of 1.0400. Both premises are recorded on the tax axis in the state and Bluebonnet County, and in the city's extraterritorial area, which counts as outside for city tax (Local Gov't Code §42.902).
@@ -99,11 +99,11 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0107 — An exempt customer: a $0.00 line per tax, keeping its base; only for the service and period the certificate covers
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* a customer exempt for a service pays no tax on that service's lines, and each tax that would have applied shows a $0.00 line that keeps the base it would have been charged on and names the certificate. A certificate counts only once verified, only for the services it names, and only for a period it is valid for; when it expires the customer is taxed again with no one changing a setting. An exemption that names no service is refused. Sources: Kyle 10-14, answer 5; Kyle R-12 (born pending, counts once verified); CI-046 (valid for the period; expiry reverts by itself; a backdated certificate goes to the operator); -30 (exemptions name their services).
 
 **Given**
-- BB-03, the county courthouse, inside the city (`cast.md`), schedule G ($72.10 a month, $1.67 per Mcf). The November 2026 bill, 50.0 Mcf.
+- BB-03, the county courthouse, inside the city, west of Main Street (`cast.md`), schedule G ($72.10 a month, $1.67 per Mcf). The November 2026 bill, 50.0 Mcf.
 - Bluebonnet County gave Bluebonnet a government exemption certificate (**invented**), for gas, valid from Jan 1, 2026, verified by a clerk on Jan 9, 2026.
 
 **When** the November bill is issued, with (a) the certificate as given; (b) the certificate listing water only; (c) the certificate received but not yet verified; (d) the clerk entering an exemption that names no service; (e) the certificate having expired Sep 30, 2026; (f) the certificate expiring Oct 31, 2026, inside the period.
@@ -132,7 +132,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0108 — Annexation: the city's rates from the ordinance's date, the city's tax from a later quarter
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* one annexation gives a premise two dates: on the boundary date it is inside the city for its rate schedule; for the city's tax it is inside from the first day of the quarter after the Comptroller receives the ordinance and map, or a quarter later if the Comptroller asks for more time within ten days. Both are recorded with their evidence, and the tax date is recorded, not computed. Sources: Tax Code §321.102(c), (d); `application/places-sources/texas.md` §3 ("store both; never derive one from the other"); Kyle R-26 (the regulatory and tax axes stay separate); CI-047.
 
 **Given**
@@ -142,7 +142,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 - Bluebonnet's schedules key on the city limits, so BB-11 moves to R-U on Feb 15. The boundary date falls on a period's first day (**invented**) to keep the rate split out of this scenario.
 - Bluebonnet bills the pipeline safety fee, $1.00, on its March bills, outside every tax base (`cast.md` §2; SCN-0054).
 
-**When** the bills are issued: (a) February (Jan 15 – Feb 14); (b) March (Feb 15 – Mar 14); (c) April (Mar 15 – Apr 14); (d) May (Apr 15 – May 14); (e) as (b), but the clerk recorded the tax-axis memberships from Feb 15 too; (f) as (d), but the Comptroller asked for more time on Mar 10, so the tax date is Jul 1.
+**When** the bills are issued: (a) February (Jan 15 – Feb 14); (b) March (Feb 15 – Mar 14); (c) April (Mar 15 – Apr 14); (d) May (Apr 15 – May 14); (e) as (b), but the clerk recorded the tax-axis memberships from Feb 15 too; (f) as (d), but the Comptroller asked for more time on Mar 10, so the tax date is Jul 1, and both tax-axis memberships (city and district) are recorded from Jul 1.
 
 **Then**
 
@@ -155,7 +155,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 | (f) May | R-U | $65.18 | — | none: from Jul 1 | none | **$65.18** |
 
 - The March bill is the case that tells the two dates apart: the city's rates, no city tax.
-- **(e)** The March bill charged $0.65 city and $0.16 district tax not yet in force there (on $65.18; never on the fee). When found, the tax-axis memberships are voided and recorded again from Apr 1, citing the notice, and the March bill is corrected: **$0.81 credited** to the account (refunded if the customer asks, as any credit). A refund of an overcharge goes back as far as the records show (Kyle 11-03, answer 8). Tax Code §321.3025 (read 2026-11-24): an amount a seller collects in added territory before the city's tax takes effect "is treated as if it were revenue from the taxes imposed by the municipality", and the payer keeps the right to claim a refund. **Open (Kyle; a tax advisor):** so the $0.81 is not owed back by law unless the customer claims it. Does the utility credit it when it finds the error (and recover it on its return), or leave it to the customer to claim? The stream's recommendation: credit it, since the utility made the error.
+- **(e)** The March bill charged $0.65 city and $0.16 district tax not yet in force there (on $65.18; never on the fee). When found, the tax-axis memberships are voided and recorded again from Apr 1, citing the notice, and the March bill is corrected: **$0.81 credited** to the account (refunded if the customer asks, as any credit). A refund of an overcharge goes back as far as the records show (Kyle 11-03, answer 8). Tax Code §321.3025 (read 2026-11-24): an amount a seller collects in added territory before the city's tax takes effect "is treated as if it were revenue from the taxes imposed by the municipality", and the payer keeps the right to claim a refund. That section speaks only of the city's tax: so the $0.65 of city tax is not owed back by law unless the customer claims it, and for the $0.16 of district tax we read no such rule (to check). **Open (Kyle; a tax advisor):** does the utility credit the $0.81 when it finds the error (and recover it on its return), or leave it to the customer to claim? The stream's recommendation: credit it, since the utility made the error.
 - **Open (Kyle):** the April bill's period runs Mar 15 – Apr 14 and the tax starts Apr 1. Is the whole bill taxed (it closes after Apr 1: $0.81 of tax, $65.99), none of it (the first bill wholly after Apr 1 is May's: $65.18), or the taxable lines split by days (17 of 31 days untaxed)? Neither the local-tax rule (34 TAC §3.334) nor the Comptroller's rule on gas and electricity (34 TAC §3.295, read 2026-11-24) says; §3.295 speaks of a billing period only for predominant use. Recommendation: the utility states its method when it enters a tax change, as for rate changes (Kyle 11-03, answer 1), with a tax advisor's check. The same question arises for every tax change on a quarter's first day (SCN-0109).
 - **Open (a citation check, or tax counsel):** whether a citywide crime-control district's territory grows with the city's annexation on the same tax date, or only when the district sends new boundaries (§321.1055(c)). The rates stream then records the date the law gives.
 - A limited-purpose annexation moves neither tax membership: a city may not tax in a limited-purpose area (Local Gov't Code §43.130(c)).
@@ -164,11 +164,11 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0109 — A published rate change: billed only once the utility approves it; a gap reported until then
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* a new published rate never bills by itself. The utility's operator approves it by recording a new row from the quarter's first day; the old row is closed, not edited. Until then the bill uses the utility's own row and a report lists every place where the published rate differs from it, or where a place a premise is in publishes a rate and the utility has no row. A billing run reads the tax rows and the premise's places at one instant, chosen when no earlier transaction is still open, and each bill records the rows and places it used. Sources: Kyle 10-14, answer 1 ("no rate change goes live without operator approval"); Ryan 2026-09-30; -30 (the gaps report; rows never edited, closed once); AC-47.
 
 **Given**
-- The Comptroller's file for the quarter beginning Fri Oct 1, 2027 publishes the City of Bluebonnet's rate as 1.25% (**invented**; with the county's 0.5% and the district's 0.25%, the local total is 2%). The platform loads it as the city's reference rate.
+- The Comptroller's file for the quarter beginning Fri Oct 1, 2027 publishes the City of Bluebonnet's rate as 1.25% (**invented**). The hospital district and the transit authority ended Sep 30, 2027 (**invented**, `cast.md` §2), so with the county's 0.5% and the crime-control district's 0.25% the local total is 2.0% everywhere in the city; had either still overlapped, the city could not have raised its rate (Tax Code §321.101(f); that case is under "Not yet written"). The platform loads it as the city's reference rate.
 - Bills for the period Oct 15 – Nov 14 are issued Mon Nov 15, 2027 by one run: BB-01 (residential, $65.18) and BB-10 (the bakery, $187.40), both recorded in the city and the district.
 
 **When** (a) nobody approves the change before Nov 15; (b) an operator approves it on Tue Oct 5; (c) an operator approves it on Sat Nov 20, after the bills; (d) the clerk tries to approve it by changing the rate on the existing row; (e) as (b), but the approval was being saved, not yet committed, when the run began.
@@ -189,7 +189,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 - **(b)** The 1% row ends Sep 30; a 1.25% row runs from Oct 1, recorded Oct 5. The gap is gone. The approver is the operator the application records; **Open (rates):** the database does not refuse a tax row recorded with no user, though Kyle's answer 1 requires an operator's approval.
 - **(c)** The Nov 15 bills read the rows as known at the run's instant, so they charge 1%, and each records the 1% row it used. They are $0.16 (BB-01) and $0.47 (BB-10) short of the approved rate.
 - **(d)** Refused: a tax row is never edited. A change is a close and a new row.
-- **(e)** The run must not choose an instant while the approval it began before is still open: it waits for no earlier transaction to be open, then chooses its instant and reads (AC-47). Choosing first and waiting after is not enough: the answer could settle on both rows, or refuse for that instant for good.
+- **(e)** The run must not choose an instant while the approval it began before is still open: it waits for no earlier transaction to be open, then chooses its instant and reads (AC-47). Choosing first and waiting after is not enough: a bill computed before the approval commits charges 1%, and every later read at that same instant answers 1.25%, so the bill cannot be reproduced from the rows (it still records the row it used). Had two separate transactions closed the old row and added the new one, a read at that instant could instead be refused for good (two rows of one tax).
 - Had a county Bluebonnet's premises are recorded in published a rate with no Bluebonnet row, the report lists that county with no row: a published tax nobody approved.
 - **Open (Kyle):** in (c), the utility owes the tax at 1.25% for the period whatever it billed (the stream's reading; a tax advisor confirms). Does it correct the issued bills, put the difference on the next bill, or absorb it? And if BB-10's Nov 15 bill is voided and rebilled in December for a misread, the rebill reads the rows as known then and charges 1.25% (the stream's reading, as in SCN-0110): is that right, or should a rebill keep the original's tax?
 
@@ -197,18 +197,19 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0110 — A premise placed in the wrong jurisdiction: what the old bills used, and the correction
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* each bill records the tax rows and places it used, so it can always be shown what it did. When a premise's place on the tax axis turns out wrong, the place is corrected (voided and replaced, with evidence), and the bills it affected are corrected from the true facts; tax wrongly charged is credited. Sources: CI-001, CI-004, CI-047; -30 (places as known at an instant; known limit L7: a bill records what it used); AC-47; Kyle 11-03, answer 8 (a refund goes back as far as the records show).
 
 **Given**
 - **BB-12 (invented)**, a renter in the city's extraterritorial area, schedule R-R (correctly, on the regulatory axis). Service began Sep 15, 2026; at setup an address lookup placed the premise inside the City of Bluebonnet on the tax axis.
+- The October and November runs each chose their instant when no earlier transaction was open (AC-47).
 - Its two bills, October (Sep 15 – Oct 14) and November (Oct 15 – Nov 13), 6.0 Mcf each: $69.83 of tariff-priced lines, city tax 1% × $69.83 = 0.6983 → $0.70: **$70.53** each, both paid.
 - On Thu Dec 3, 2026 the clerk reads the city's annexation ordinances and map, voids the city membership and records the premise in the extraterritorial area, citing the ordinances (evidence: an ordinance).
 
 **When** (a) the October bill is shown on Dec 10; (b) the bills are corrected; (c) the December bill is issued Wed Dec 16.
 
 **Then**
-- **(a)** It shows what it charged and why: the city's row and the city membership it used. Read as known at its own run's instant, the premise is still inside; read now, it is outside. The bill's own record is what it used.
+- **(a)** It shows what it charged and why: the city's row and the city membership it used. Read as known at its own run's instant, the premise is still inside; read now, it is outside. The bill's own record is what it used; the read at its instant agrees with it only because the run chose its instant as AC-47 requires.
 - **(b)** Each bill is corrected without city tax: $69.83, **$0.70 credited** on each, **$1.40** in all.
 - **(c)** No city tax: **$69.83**.
 - Outside on the regulatory axis but inside on the tax axis is BB-12's shape; a disannexation produces it lawfully for a time (rates change on the ordinance date, the tax stops a quarter after the Comptroller's receipt), and an annexation the opposite (SCN-0108). Nothing refuses either, and nothing reports one. **Open (rates):** a report of premises whose two axes disagree with no annexation or disannexation recorded behind it would have caught BB-12 at setup.
@@ -217,11 +218,11 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0111 — A city that taxes business gas but may not tax homes; the premise's use decides
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* a city whose sales tax began on or after Oct 1, 1979 taxes non-residential gas but may not tax residential gas; whether a premise is residential comes from its use, since Pecan Flat has one rate class. Sources: `cast.md` §1; Tax Code §321.105(a), §151.317(c), (e); 34 TAC §3.295(a)(8) (residential use), (f)(1) (predominant use per meter), (h)(5) (a single-family home needs no certificate); Kyle R-13.
 
 **Given**
-- Pecan Flat (`cast.md` §1): one rate, $9.00 per Mcf plus gas cost ($6.10 per Mcf in this month, **invented**, as in SCN-0053 and SCN-0084). Every gas line is flagged taxable (**invented**). Its city sales tax, 1.5%, was adopted in 1987 (**invented**), so it may not reach residential gas; its county levies none (**invented**).
+- Pecan Flat (`cast.md` §1): one rate, $9.00 per Mcf plus gas cost ($6.10 per Mcf in this month, **invented**, as in SCN-0053 and SCN-0084). Every gas line is flagged taxable (**invented**). Its city sales tax, 1.5%, was adopted in 1987 (**invented**), so it may not reach residential gas; its county levies none (**invented**). Each premise below is recorded on the tax axis in the State of Texas and the City of Pecan Flat, and in no district or transit authority.
 - What each premise's use is recorded as, today by the clerk: PF-01 a home, owner-occupied; **PF-03 (invented)**, a café, commercial; **PF-04 (invented)**, a house the owner rents to visitors by the week, short-term rental; **PF-05 (invented)**, a home with a hair salon in the garage on the same meter.
 
 **When** the bills are issued: (a) PF-01, 5.0 Mcf; (b) PF-03, 30.0 Mcf; (c) PF-04, 5.0 Mcf; (d) PF-05.
@@ -244,7 +245,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0112 — Another state: a tax charged on top of another tax, in the stated order
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle. All Fremont law here is **invented** (`cast.md` §4).
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle. All Fremont law here is **invented** (`cast.md` §4).
 *Rule:* a tax is charged on another tax only where its row names that kind of tax; the taxes are computed in stack order, each on its base plus the taxes it names. A row may not name its own kind, nor a kind of tax the platform does not know. Sources: Kyle 10-14, answer 2 (the stack comes from law and the tariff); `tax-design.md` 2.1 (tax on tax declared, empty by default); -30.
 
 **Given**
@@ -273,7 +274,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0113 — Entering a tax row: what is refused, and what is not
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle.
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle.
 *Rule:* a tax row names a place of a kind that levies that tax, which exists in the platform's places over the whole of the row's dates; its rate has at most four decimals; its citation is not blank; it is the entering utility's own. A place is never closed from under a row. Sources: -30 (its rules, each a battery check); Kyle 10-14, answer 2 (source and citation required); K-06.
 
 **Given** Bluebonnet's clerk enters tax rows (all **invented** except as cited).
@@ -283,7 +284,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 **Then**
 - **(a)** Refused: there is no such place yet. The districts and their published rates are a platform data load (-32, not built); until then no utility can bill a district's tax.
 - **(b)** Refused: four decimals at most. **(c)** Refused: a citation has a letter or a digit. **(d)** Refused: a utility writes its own rows only.
-- **(e)** Accepted. A utility may serve premises in another city, so naming one is lawful; this row bills nothing until a premise is recorded there.
+- **(e)** Accepted, once the platform has loaded the City of Pecan Flat as a place (until then refused, as in (a); (b) likewise needs a loaded place, since the place is checked before the decimals). A utility may serve premises in another city, so naming one is lawful; this row bills nothing until a premise is recorded there.
 - **(f)** Refused: only a state, county, city, transit authority or special district levies sales tax.
 - **(g)** Accepted. Counties, transit authorities and most districts may not tax residential gas (34 TAC §3.334(l)(1)(A)), so the row is wrong, but nothing refuses or reports it. Nor is a city's "reaches residential" compared with whether the city may (Tax Code §321.105). **Open (rates):** refuse (g) for a kind of place the law bars, and add the residential question to the gaps report?
 - **(h)** Refused when committed, unless a successor place with the same code covers the row's dates in the same transaction: the row is keyed by the place's code, so it carries over to the successor.
@@ -292,11 +293,11 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0114 — The tax owed to each jurisdiction for a period: billed and collected
 
-*Status:* draft (2026-11-24); review round 5 applied. Not yet sent to Kyle. The liability record is the money stream's and is not built (-30 limit L5).
+*Status:* draft (2026-11-24); review round 5 and its second pass applied. Not yet sent to Kyle. The liability record is the money stream's and is not built (-30 limit L5).
 *Rule:* the platform holds the liability, not the remittance: per jurisdiction and accounting period, the tax billed and the tax collected, and an optional filing reference. Payments to the state and cities stay in the utility's own books. A tax is billed in the period of the bill or charge that carries it, and collected in the period the payment that pays it posts (the stream's reading). Sources: Kyle 10-14, answer 4; Kyle 10-15, K-05 (the utility's own order within a bill); -23 (a payment is applied per line).
 
 **Given**
-- Bluebonnet's November 2026 bills (issued Nov 16): BB-10 (SCN-0104, $201.92), BB-08 (SCN-0106 (b)'s figures, $447.32, **invented** for November) and BB-03 (SCN-0107 (a), exempt). For this scenario they are the only taxed bills (**invented**). BB-08 and BB-03 pay in full on Wed Nov 25.
+- Bluebonnet's November 2026 bills (issued Nov 16): BB-10 (SCN-0104, $201.92), BB-08 (SCN-0106 (b)'s figures, $447.32, **invented** for November) and BB-03 (SCN-0107 (a), exempt). For this scenario they are the only taxed bills, and no December bill is issued to BB-10, BB-08 or BB-03 (**invented**). BB-08 and BB-03 pay in full on Wed Nov 25.
 - BB-10 pays nothing by the due date; its penalty and the penalty's tax post on Wed Dec 2 (SCN-0104 (b)). It pays $100.00 on Thu Dec 3, and the rest, $122.11, on Tue Dec 15.
 - Within one bill Bluebonnet pays the fixed charge, then usage, then riders, then taxes, then fees (`cash.md`, **invented**; K-05).
 
@@ -310,7 +311,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 | Bluebonnet County | $0.94 + $2.10 = $3.04 | $2.10 | $0.09 | $0.94 + $0.09 = $1.03 |
 | City of Bluebonnet | $1.87 | $0.00 | $0.19 | $1.87 + $0.19 = $2.06 |
 
-- BB-10's $100.00 on Dec 3 pays the $12.80 customer charge, the $59.20 distribution and $28.00 of the commodity charge: no tax. The Dec 15 payment pays the rest of the bill, its three taxes, then the penalty and its taxes. (Whether a payment pays the November bill before the penalty is the cash family's order, Kyle 11-05, answer 16; either way both are paid by Dec 15.)
+- BB-10's $100.00 on Dec 3 pays the $12.80 customer charge, the $59.20 distribution and $28.00 of the commodity charge: no tax. The Dec 15 payment pays the rest of the bill and its three taxes, then the penalty and its taxes, taking the bill before the penalty (the cash family's order, Kyle 11-05, answer 16; either way both are paid by Dec 15, so the table does not depend on it).
 - Each figure traces to the bill lines that make it up, and each line to its row and place. BB-03's $0.00 lines carry a base of $444.10 per jurisdiction; the stream's reading is that the liability shows that exempt base too, for the utility's return (not in Kyle's answer 4; to confirm).
 - **Open (Kyle):** when a payment reaches a bill's tax lines but cannot pay them all, are they paid in stack order or in proportion? K-05 orders kinds of charge, not lines of the same kind.
 - **Open (Kyle; a tax advisor):** does the utility report tax when billed or when collected, and is "collected" counted by the period the payment posts (as here) or the period of the bill it paid? The liability holds both figures either way.
@@ -319,11 +320,11 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ### SCN-0115 — Places that overlap: a district on part of the city, and a transit authority
 
-*Status:* draft (2026-11-24), written after review round 5 (Codex 8, Fable missing cases 2 and 7, Opus M9). Not yet sent to Kyle.
-*Rule:* a premise pays the tax of each place it is recorded in, decided premise by premise, not by its city; a district that covers part of a city taxes only the premises inside it. A transit authority's tax and most districts' never reach residential gas. Sources: Kyle 10-14, answer 1 ("a service location links to every jurisdiction it sits in"); 34 TAC §3.334(k)(8), (l)(1)(A); Tax Code §321.102(e)-(h) (transit authorities are outside the 2% reduction).
+*Status:* draft (2026-11-24), written after review round 5 (Codex 8, Fable missing cases 2 and 7, Opus M9); second pass applied. Not yet sent to Kyle.
+*Rule:* a premise pays the tax of each place it is recorded in, decided premise by premise, not by its city; a district that covers part of a city taxes only the premises inside it. A transit authority's tax and most districts' never reach residential gas. Sources: Kyle 10-14, answer 1 ("a service location links to every jurisdiction it sits in"); 34 TAC §3.334(k)(8), (l)(1)(A); Tax Code §321.101(f) (every local tax at a location, a transit authority's included, counts toward the 2% limit) and §321.102(e)-(h) (a transit authority's rate is never the one automatically reduced).
 
 **Given**
-- The Bluebonnet Hospital District (**invented**), 0.25%, covers the part of the city east of Main Street, and does not tax residential gas. The Bluebonnet Area Transit Authority (**invented**), 0.5%, covers the same part, and does not tax residential gas. With the city's 1%, the county's 0.5% and the crime-control district's 0.25%, the local total east of Main is 2.0% inside the limit, plus the transit authority's 0.5% outside it.
+- The Bluebonnet Hospital District (**invented**), 0.125%, covers the part of the city east of Main Street, and does not tax residential gas. The Bluebonnet Area Transit Authority (**invented**), 0.125%, covers the same part, and does not tax residential gas. Both end Sep 30, 2027 (**invented**; SCN-0109). With the city's 1%, the county's 0.5% and the crime-control district's 0.25%, the local total east of Main is 2.0%, the limit.
 - February 2027 bills (period Jan 15 – Feb 14). **BB-13 (invented)**, a hardware store east of Main, schedule SC-U, 20.0 Mcf; BB-10, the bakery, west of Main; **BB-14 (invented)**, a home east of Main, R-U, 6.0 Mcf. Each premise's memberships are recorded as stated.
 
 **When** the bills are issued.
@@ -337,18 +338,18 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 | 2 County 0.5% | $0.94 | $0.94 | none |
 | 3 City 1% | $1.87 | $1.87 | $0.65 |
 | 4 Crime-control district 0.25% | $0.47 | $0.47 | $0.16 |
-| 5 Hospital district 0.25% | 0.4685 → $0.47 | none: outside | none: residential |
-| 6 Transit authority 0.5% | 0.9370 → $0.94 | none: outside | none: residential |
-| **Total** | **$203.80** | **$202.39** | **$65.99** |
+| 5 Hospital district 0.125% | 0.2343 → $0.23 | none: outside | none: residential |
+| 6 Transit authority 0.125% | 0.2343 → $0.23 | none: outside | none: residential |
+| **Total** | **$202.85** | **$202.39** | **$65.99** |
 
-- Two businesses in the same city pay different taxes because of where each is; a core that keys districts or transit to the city would bill BB-10 $1.41 too much.
+- Two businesses in the same city pay different taxes because of where each is; a core that keys districts or transit to the city would bill BB-10 $0.46 too much.
 
 ---
 
 ### SCN-0116 — A taxed bill with a line outside the tax base and a credit inside it
 
-*Status:* draft (2026-11-24), written after review round 5 (Fable missing cases 3 and 9; Opus M9). Not yet sent to Kyle.
-*Rule:* a tax's base is the lines flagged taxable, including a negative one, which lowers it; a line not flagged taxable stays outside every tax base on a taxable customer's bill. Sources: Kyle 10-14, answer 5 ("a taxable customer never makes a non-taxable item taxable"); 16 TAC §8.201 and Utilities Code §121.211(g) (the pipeline safety fee is outside the tax bases; `cast.md` §2); Bluebonnet's tariff (the gas cost adjustment can be a credit).
+*Status:* draft (2026-11-24), written after review round 5 (Fable missing cases 3 and 9; Opus M9); second pass applied. Not yet sent to Kyle.
+*Rule:* a tax's base is the lines flagged taxable, including a negative one, which lowers it; a line not flagged taxable stays outside every tax base on a taxable customer's bill. Sources: Kyle 10-14, answer 5 ("a taxable customer never makes a non-taxable item taxable"); 34 TAC §3.295(j) ("Sales or use tax is not due on any surcharge for pipeline safety fees" of an investor-owned or municipally owned gas distribution company, read 2026-11-24); 16 TAC §8.201; Bluebonnet's tariff (the gas cost adjustment can be a credit).
 
 **Given** BB-10's March 2027 bill (period Feb 15 – Mar 14), 20.0 Mcf, with a gas cost credit of −$0.15 per Mcf (**invented**) and the year's $1.00 pipeline safety fee (SCN-0054).
 
@@ -376,4 +377,4 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ## Not yet written (tax)
 
-Disannexation worked through; a premise with no city status recorded on the tax axis (refuse the bill, or tax by the state alone? for Ryan or the rates stream); a premise whose use changes partway through a period; the franchise fee (after -31).
+A city rate rise that would pass 2% where a district or transit authority overlaps (Tax Code §321.101(f), §321.102(e)-(h): the district's rate is reduced there automatically unless it has debt paid from the tax; a transit authority's never is, so the city may not raise); disannexation worked through; a premise with no city status recorded on the tax axis (refuse the bill, or tax by the state alone? for Ryan or the rates stream); a premise whose use changes partway through a period; the franchise fee (after -31).

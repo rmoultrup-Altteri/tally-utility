@@ -91,7 +91,7 @@ How one bill is assembled from its charges. Invariants: CI-016 (each line carrie
 
 **Given**
 - Bluebonnet bills the fee on its March bills (`cast.md` §2, invented timing); it paid the Commission on Mar 1, 2027 (**invented**).
-- Its March 2027 bills: BB-01 (homeowner); BB-03 (the county courthouse, schedule G); **BB-07 (invented)**, a state office building, schedule G. Bluebonnet doesn't flag the fee taxable (**invented**).
+- Its March 2027 bills: BB-01 (homeowner); BB-03 (the county courthouse, schedule G); **BB-07 (invented)**, a state office building, schedule G. Bluebonnet doesn't flag the fee taxable: sales tax is not due on it (34 TAC §3.295(j), which names municipally owned systems; `tax.md` SCN-0116).
 - Pecan Flat absorbs the fee.
 
 **When** (a) the March bills are issued on Mar 15, 2027; (b) a bill issued Feb 15, 2027 carries the fee; (c) a second fee is added to BB-01's April 2027 bill; (d) Pecan Flat's March bills are issued.
