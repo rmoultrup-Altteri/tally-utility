@@ -8,7 +8,7 @@ blocks: the cash scenarios being marked checked
 
 # To Kyle: scenario batch 4 (cash, and the rest of SCN-0033)
 
-Drafted 2026-11-22 by the scenarios stream, for Ryan to send **after batch 3 is sent** (batch 3 is the Slack draft in Kyle's DM; its item 6 asks whether the hidden $13.23 may be one charge with part due later, and questions 18–22 here assume it). K-16 in the roadmap. Sources: the "Open (Kyle)" notes in `scenarios/cash.md` and in SCN-0033 (`scenarios/cancel-rebill.md`). Not asked here, for counsel: unclaimed-property dating and setoff (SCN-0088 c, 0100, 0103), §7.45's current text.
+Drafted 2026-11-22 by the scenarios stream, for Ryan to send **after batch 3 is sent** (batch 3 is `kyle-brief-2026-11-22-scenario-batch-3.md`, rebuilt from the Slack draft on 2026-11-24; its item 6 asks whether the hidden $13.23 may be one charge with part due later, and questions 18–22 here assume it). K-16 in the roadmap. Sources: the "Open (Kyle)" notes in `scenarios/cash.md` and in SCN-0033 (`scenarios/cancel-rebill.md`). Not asked here, for counsel: unclaimed-property dating and setoff (SCN-0088 c, 0100, 0103), §7.45's current text.
 
 Paste from here.
 
