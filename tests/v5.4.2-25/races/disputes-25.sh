@@ -35,6 +35,12 @@
 #   DR12 (not a race) a resolution recorded in a session with no app.user_id
 #        (a history load as the superuser): the status move runs as
 #        tally_dispute under RLS, finds no dispute, and the event is refused.
+#   r3 (Codex B2; Opus S2, Fable S1): reading R is marked disputed under two
+#   open reading disputes.
+#   DR13 A withdraws the first and runs its commit check (SET CONSTRAINTS
+#        IMMEDIATE), and holds; B withdraws the second and runs its check:
+#        waits on the reading, then is refused (the reading would be left
+#        disputed with no open dispute; T2c).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -309,6 +315,27 @@ COMMIT;
 SQL
 )
 if echo "$OUT" | grep -qF "[D4e]"; then echo "PASS DR11b … and a new answer for that dispute must cite the policy now in force"; else echo "FAIL DR11b: $OUT"; fail=1; fi
+
+# DR13 (r3): two closes of the two disputes of one reading.
+M=00000000-0000-4000-8000-0000000025fb
+RD=00000000-0000-4000-8000-0000000025fc
+DRA=00000000-0000-4000-8000-00000000263d
+DRB=00000000-0000-4000-8000-00000000263e
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: the reading of DR13"; exit 2; }
+BEGIN;
+INSERT INTO public.meters (id, tenant_id, meter_number, location_id, service_type) VALUES ('$M', '$T', 'R25-M', '$LOC', 'gas');
+INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, reading_value) VALUES ('$RD', '$T', '$M', DATE '2026-02-28', 50);
+$AS_OP
+INSERT INTO public.disputes (id, tenant_id, customer_id, reading_id, subject, received_on, channel) VALUES
+  ('$DRA', '$T', '$C', '$RD', 'meter_accuracy', DATE '2026-03-05', 'written'),
+  ('$DRB', '$T', '$C', '$RD', 'meter_accuracy', DATE '2026-03-05', 'written');
+UPDATE public.meter_readings SET status = 'disputed' WHERE id = '$RD';
+COMMIT;
+SQL
+two "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRA', 'withdrawn', DATE '2026-04-10'); SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;" \
+    "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRB', 'withdrawn', DATE '2026-04-10'); SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;"
+verdict "DR13 two closes of one reading's two disputes: the second waits on the reading, then is refused (not left disputed with no open dispute)" 1 "[T2c]"
+expect "DR13b … and the reading is still disputed under the open second dispute" "$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD' AND d.id = '$DRB'")" "disputed/open"
 
 # DR12 (not a race): a session that never set app.user_id.
 OUT=$("${PSQL[@]}" 2>&1 <<SQL

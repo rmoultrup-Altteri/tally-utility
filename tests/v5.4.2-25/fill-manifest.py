@@ -83,8 +83,10 @@ if __name__ == "__main__":
     assert len(attrs) == len(sigs) == len(acls), (len(attrs), len(sigs), len(acls))
     notnull = psql(DB, f"""select c.relname || '.' || a.attname from pg_attribute a join pg_class c on c.oid = a.attrelid
       where c.relnamespace = 'public'::regnamespace and c.relname in ({tl}) and a.attnum > 0 and a.attnotnull and not a.attisdropped order by 1""")
+    # r3 (Fable S2): the record sequence's grants are pinned with the tables'.
+    sl = ",".join(f"'{x}'" for x in sorted(set(re.findall(r"CREATE SEQUENCE public\.([a-z_0-9]+)", s))))
     tabs = psql(DB, f"""select c.relname || ' | ' || coalesce(c.relacl::text, '-') || ' | ' || c.relrowsecurity::text || ' | ' || c.relforcerowsecurity::text
-      from pg_class c where c.relnamespace = 'public'::regnamespace and c.relname in ({tl}) order by 1""")
+      from pg_class c where c.relnamespace = 'public'::regnamespace and c.relname in ({tl}{',' + sl if sl else ''}) order by 1""")
     pols = psql(DB, f"""select p.tablename || ' | ' || p.policyname || ' | ' || p.cmd || ' | ' || p.permissive || ' | ' || p.roles::text || ' | '
       || coalesce(p.qual, '-') || ' | ' || coalesce(p.with_check, '-') from pg_policies p where p.schemaname = 'public' and p.tablename in ({tl}) order by 1""")
     colacls = psql(DB, f"""select c.relname || '.' || a.attname || ' | ' || a.attacl::text from pg_attribute a join pg_class c on c.oid = a.attrelid

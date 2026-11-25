@@ -573,6 +573,23 @@ SELECT pg_temp.admits_undone('N1b … and every block plus more, a wider start (
        IF public.rule_tariff_row_as_of('public.dispute_tariffs', '00000000-0000-4000-8000-0000000025a2', 'gas', 'distribution', 'TX', '{}', DATE '2026-03-15')
           IS DISTINCT FROM '00000000-0000-4000-8000-0000000025ac' THEN RAISE EXCEPTION 'N6: not the tariff in force'; END IF;
      END $d$$q$);
+-- r3 (Codex S1, Opus N4; never looser): each law stage is matched, in the law's order, by a tariff stage of
+-- its decider whose filing window is no shorter and whose decision window no longer (7.45: the
+-- designated employee, then the regulator within 15 days).
+SELECT pg_temp.refuses_at('N9c a tariff that stretches the regulator''s decision from 15 days to 3,650',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 3650}, "final": true}]}')),
+  '23514', 'stages');
+SELECT pg_temp.refuses_at('N9d … or gives the regulator no deadline at all',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": true}]}')),
+  '23514', 'stages');
+SELECT pg_temp.refuses_at('N9e … or sets the customer a filing deadline where the law has none (one day after the prior decision)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "regulator", "file_within": {"kind": "days", "days": 1, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 15}, "final": true}]}')),
+  '23514', 'stages');
+SELECT pg_temp.refuses_at('N9f … or puts the regulator before the designated employee',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": false}, {"id": "s2", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": true}]}')),
+  '23514', 'stages');
+SELECT pg_temp.admits_undone('N9g a quicker regulator (10 days) with a stage of its own between is admitted',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "manager", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 30}, "final": false}, {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}')));
 -- N7: T4 is a special district; its law is X8's row (shelter within 21 days of receipt, withhold up to 1.1).
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b5', true);
 SELECT pg_temp.refuses_at('N7a a shorter window: 20 days of receipt against 21',
@@ -837,6 +854,16 @@ SELECT pg_temp.refuses_at('D4f another utility''s tariff (T2''s, which T1 cannot
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ac', 'sheltered', 40, 50, 'm1', NULL,
                   '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
+-- r3 (Codex S2): D4f above meets a tariff T1 cannot see (N1b's, undone); here the owner, who sees
+-- every tenant, cites a real T2 tariff written in the same statement.
+RESET ROLE;
+SELECT pg_temp.refuses_at('D4f2 … and as the owner, a real tariff of T2''s (written in the same statement)',
+  pg_temp.tariff_sql('00000000-0000-4000-8000-0000000025ae', '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc()) || '; '
+  || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ae', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
+SET ROLE tally_app;
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b1', true);
 SELECT pg_temp.refuses_at('D4g a must-pay component the cited document does not have',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 40, 90, 'm9', NULL,
@@ -901,6 +928,17 @@ SELECT pg_temp.refuses_at('D4h2 the document''s blocks with one repeated',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 90, 'm1', NULL,
                   '{disconnect_order,disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), '23514', '[D4h]');
+-- r3 (Fable N3): under a document that ends the shelter only at resolution, a shelter records no
+-- last day (the reader would stop it on that day while the dispute is open).
+SELECT pg_temp.refuses_at('D8h under T1''s policy (ended by resolution), a shelter that records a last day',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 90, 'm1', DATE '2026-03-12',
+                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), '23514', '[D4s]');
+-- r3 (Fable N2; r1 note): a shelter with nothing still to pay is a record the database admits.
+SELECT pg_temp.admits_undone('D8i a shelter with nothing left to pay (0 to pay) is admitted',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 0, 'm1', NULL,
+                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'));
 SELECT pg_temp.refuses_at('D4v a determination is never edited',
   $q$UPDATE public.dispute_determinations SET sheltered_amount = 1 WHERE id = '00000000-0000-4000-8000-000000002552'$q$, '42501', 'dispute_determinations');
 SELECT pg_temp.refuses_at('D4w nor deleted',
@@ -1005,6 +1043,24 @@ SELECT pg_temp.refuses_at('D4k2 a resolution and then a superseding determinatio
 SELECT pg_temp.refuses_at('D2m2 a resolution and then a new amount in one statement (a writable CTE)',
   'WITH r AS (' || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained') || ' RETURNING 1) ' ||
   regexp_replace(pg_temp.amount_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-10'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D2e]');
+-- r3 (Codex B1): a row given the closing event's own id is still a row after it.
+SELECT pg_temp.refuses_at('D8a a withdrawal and then an amount carrying the withdrawal''s id, in one statement',
+  'WITH r AS (' || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'withdrawn', DATE '2026-04-10', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '00000000-0000-4000-8000-00000000256f') || ' RETURNING 1) ' ||
+  regexp_replace(pg_temp.amount_sql('00000000-0000-4000-8000-00000000256f', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-10'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D2e]');
+SELECT pg_temp.refuses_at('D8b … and a determination carrying it',
+  'WITH r AS (' || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'withdrawn', DATE '2026-04-10', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '00000000-0000-4000-8000-00000000256f') || ' RETURNING 1) ' ||
+  regexp_replace(pg_temp.det_sql('00000000-0000-4000-8000-00000000256f', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 30, 90, 'm1', NULL,
+                  '{disconnect_order,disconnect_execute,credit_reporting}', '00000000-0000-4000-8000-000000002552'), 'VALUES \((.*)\)$', 'SELECT \1 FROM r'), '23514', '[D4k]');
+-- r3 (Opus N3): a line is a record of the dispute too.
+SELECT pg_temp.refuses_at('D8c an amount, then the withdrawal, then a line on that amount, in one transaction',
+  pg_temp.amount_sql('00000000-0000-4000-8000-00000000254e', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-10') || '; '
+  || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'withdrawn', DATE '2026-04-10') || '; '
+  || pg_temp.line_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-00000000254e', '00000000-0000-4000-8000-000000002511', 10), '23514', '[D2e]');
+SELECT pg_temp.admits_undone('D8d … the same line before the withdrawal is admitted',
+  pg_temp.amount_sql('00000000-0000-4000-8000-00000000254e', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 10, 'agreed', DATE '2026-04-10') || '; '
+  || pg_temp.line_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-00000000254e', '00000000-0000-4000-8000-000000002511', 10) || '; '
+  || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'withdrawn', DATE '2026-04-10'));
 SELECT pg_temp.admits('D5m C1''s I1 dispute is resolved: the bill is sustained, April 10',
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', 'resolved', DATE '2026-04-10', NULL, NULL, NULL, 'sustained',
                  NULL, NULL, NULL, '00000000-0000-4000-8000-000000002561'));
@@ -1159,7 +1215,7 @@ SELECT pg_temp.admits('D7 T3''s C7 disputes I9 on November 21 and on November 22
   || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-0000000025c7', '00000000-0000-4000-8000-000000002508', NULL, 'calculation', DATE '2026-11-24') || '; '
   || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254a', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002539', 40, 'customer_claim', DATE '2026-11-21') || '; '
   || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', 40, 'customer_claim', DATE '2026-11-22') || '; '
-  || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254d', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253b', 40, 'customer_claim', DATE '2026-11-23') || '; '
+  || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254f', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253b', 40, 'customer_claim', DATE '2026-11-23') || '; '
   || pg_temp.amount_sql('00000000-0000-4000-8000-00000000254e', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253c', 40, 'customer_claim', DATE '2026-11-24'));
 SELECT pg_temp.refuses_at('D7a November 21, the day before the default: naming it is refused (none is in force)',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-000000002539', '00000000-0000-4000-8000-00000000254a',
@@ -1203,7 +1259,7 @@ SELECT pg_temp.admits('D7f November 22: sheltered under the default — 40 shelt
                   'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-18',
                   '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('protected')));
 SELECT pg_temp.admits('D7g November 23: the unprotected class is under its own default row (every class, Ryan 2026-11-22)',
-  pg_temp.det_sql('00000000-0000-4000-8000-00000000255c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253b', '00000000-0000-4000-8000-00000000254d',
+  pg_temp.det_sql('00000000-0000-4000-8000-00000000255c', '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253b', '00000000-0000-4000-8000-00000000254f',
                   'unprotected', pg_temp.law('municipal', 'unprotected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-21',
                   '{disconnect_execute,disconnect_order,late_fee}', NULL, pg_temp.pdef('unprotected')));
 SELECT pg_temp.ok('D7h the document a default''s determination cites is the default''s',
@@ -1245,6 +1301,39 @@ SELECT pg_temp.refuses_at('D7p the protected default, cited for a dispute receiv
   format($q$UPDATE public.dispute_platform_defaults SET effective_to = DATE '2026-11-22' WHERE id = %L$q$, pg_temp.pdef('protected')), '23514', 'cannot close on');
 SELECT pg_temp.admits_undone('D7p2 … November 23 is fine',
   format($q$UPDATE public.dispute_platform_defaults SET effective_to = DATE '2026-11-23' WHERE id = %L$q$, pg_temp.pdef('protected')));
+
+-- ============================================================== D8 a law that tightens after a tariff (r3, Opus S1)
+-- T2 writes a wider tariff from January 1; 7.45 is then closed on June 1 and a stricter law (also stopping
+-- credit reporting) takes over. A dispute received June 12, on a bill of June 10: the tariff is now looser
+-- than the law, so the law is cited (fail toward protection), never the looser tariff.
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b2', true);
+CREATE FUNCTION pg_temp.tight_sql() RETURNS text LANGUAGE sql AS $f$
+  SELECT pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc()) || '; '
+    || format($q$UPDATE public.dispute_rules SET effective_to = DATE '2026-06-01' WHERE id = %L$q$, pg_temp.law('investor_owned', 'protected')) || '; '
+    || format($q$INSERT INTO public.dispute_rules (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
+                     effective_from, source_note, terms_kind, terms_version, terms_source)
+                 VALUES ('TX', 'gas', '{cooperative,investor_owned}', '{distribution}', NULL, 'protected', DATE '2026-06-01', 'battery: a stricter law', 'dispute', 1, %L)$q$,
+              ((SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
+               || '{"blocks": {"codes": ["disconnect_order", "disconnect_execute", "late_fee", "credit_reporting"], "citation": "battery"}}')::text) || '; '
+    || $q$SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000250a', 'B25-I10', '00000000-0000-4000-8000-0000000025c5',
+                              '00000000-0000-4000-8000-0000000025d5', '00000000-0000-4000-8000-0000000025e5', '00000000-0000-4000-8000-0000000025e6',
+                              '00000000-0000-4000-8000-0000000025e7', DATE '2026-06-10')$q$ || '; '
+    || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-0000000025c5', '00000000-0000-4000-8000-00000000250a', NULL, 'calculation', DATE '2026-06-12') || '; '
+    || pg_temp.amount_sql('00000000-0000-4000-8000-000000002540', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', 40, 'customer_claim', DATE '2026-06-12') || '; '
+$f$;
+SELECT pg_temp.refuses_at('D8e the tariff, now looser than the law in force (it does not stop credit reporting), is refused',
+  pg_temp.tight_sql() || format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
+       customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
+     SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
+            r.id, t.id, 'sheltered', 40, 50, 'm1', NULL, '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '{}', 'fp-d8e', 'core-battery-25'
+       FROM public.dispute_rules r, public.dispute_tariffs t
+      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$), '23514', '[D4r]');
+SELECT pg_temp.admits_undone('D8f … and the law alone is admitted, with the law''s blocks, until August 8 (day 60)',
+  pg_temp.tight_sql() || format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
+       customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
+     SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
+            r.id, NULL, 'sheltered', 40, 50, 'm1', DATE '2026-08-08', '{credit_reporting,disconnect_execute,disconnect_order,late_fee}', '{}', 'fp-d8f', 'core-battery-25'
+       FROM public.dispute_rules r WHERE r.source_note = 'battery: a stricter law'$q$));
 
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 a law row is never edited',
@@ -1316,6 +1405,8 @@ SELECT pg_temp.refuses_at('H16b … an UPDATE granted on disputes (an unlisted c
   $q$GRANT UPDATE (subject) ON public.disputes TO tally_app; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
 SELECT pg_temp.refuses_at('H16b2 … or a listed column grant revoked (the status move''s on status_recorded_at)',
   $q$REVOKE UPDATE (status_recorded_at) ON public.disputes FROM tally_dispute; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
+SELECT pg_temp.refuses_at('H16b3 … or an UPDATE granted on the record sequence that orders "nothing after the resolution" (r3, Fable S2)',
+  $q$GRANT UPDATE ON SEQUENCE public.dispute_record_seq TO tally_app; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'grants or row security');
 SELECT pg_temp.refuses_at('H16c … a guard''s body replaced',
   $q$CREATE OR REPLACE FUNCTION public.enforce_dispute_reading_released() RETURNS trigger LANGUAGE plpgsql SET search_path = public, pg_temp AS $b$ BEGIN RETURN NULL; END $b$;
      SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'enforce_dispute_reading_released');

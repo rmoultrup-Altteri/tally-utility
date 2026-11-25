@@ -1,0 +1,294 @@
+--- tests/v5.4.2-25/review/patch-25-frozen-r2.sql	2026-11-25 15:05:44
++++ tests/v5.4.2-25/review/patch-25-frozen-r3.sql	2026-11-25 17:36:16
+@@ -70,7 +70,10 @@
+ --     tariff is the utility's own [D4f], in force [D4c]; under a delegation,
+ --     the tariff in force is cited [D4e], else (r2) the platform default in
+ --     force (platform_default_id) [D7a, D7b], which is never cited elsewhere
+---     [D7k]; with neither, only "no terms" [D4d]; outcome shapes [D4n]; the component [D4g] and blocks
++--     [D7k]; with neither, only "no terms" [D4d]; where the law governs, the
++--     tariff in force is cited while it is no looser than the law [D4q],
++--     never when it is looser (r3) [D4r]; no last day under a document
++--     ended only by resolution (r3) [D4s]; outcome shapes [D4n]; the component [D4g] and blocks
+ --     [D4h] are the cited document's; amounts [D4i]; one live row per
+ --     dispute [D4m]; none after the resolution [D4k].
+ --   * dispute_events (add-only): opened (the database's, with the dispute),
+@@ -100,8 +103,12 @@
+ --        the database's opened; a reading's move into or out of 'disputed'
+ --        takes the lock of every dispute naming the reading, in id order);
+ --     2. for a determination, the cited law row's lock, then the cited
+---        tariff row's (both shared, rule_row_cite);
+---     3. nothing else.
++--        tariff row's or (r2) the platform default's (all shared,
++--        rule_row_cite);
++--     3. r3: at commit, a resolution or withdrawal of a dispute naming a
++--        reading locks the reading's row (FOR UPDATE) before it counts the
++--        reading's open disputes, so two closes of one reading serialise;
++--     4. nothing else.
+ --   A rule row's close takes its own lock exclusive (-17) and reads the
+ --   citations after it, so a close and a citation cannot cross. Every write
+ --   that takes a dispute's lock runs at READ COMMITTED (25000 otherwise): it
+@@ -122,7 +129,10 @@
+ --   R4. A stage event's decider is checked against the stage's decider
+ --       category, not the user's own role.
+ --   R5. A reading-only dispute has no reader: its shelter is read from its
+---       determinations directly until a bill names it.
++--       determinations directly until a bill names it. r3: under a document
++--       that counts its end from the bill's issue (7.45, the platform
++--       default), it can be recorded only as not sheltered until a bill
++--       names it. "Issue" is the bill's date (invoice_date), as printed.
+ --   R6. "No terms" and a platform default are checked against the tariff in
+ --       force when written; a tariff written later for the same date (a
+ --       back-dated policy) is the core's audit finding (races DR11).
+@@ -136,8 +146,8 @@
+ --       delinquency" is the core's reading of the term, as under 7.45 (the
+ --       bill is delinquent from the day after its due date).
+ --
+--- Tests. battery-25 (270 checks), races/disputes-25.sh (DR1-DR12, 16 results),
+---   terms-25.py, migration-25.py (P0-P4), mutations-25.py (140 mutations).
++-- Tests. battery-25 (286 checks), races/disputes-25.sh (DR1-DR13, 18 results),
++--   terms-25.py, migration-25.py (P0-P4), mutations-25.py (153 mutations).
+ --
+ -- PRECONDITION. v5.4.2-23 applied. No meter reading carries the old dispute
+ --   notes or status 'disputed', and no customer is enrolled in
+@@ -1784,6 +1794,10 @@
+     v_te      jsonb;
+     v_lp      jsonb;
+     v_tp      jsonb;
++    v_ls      jsonb;
++    v_li      bigint;
++    v_tj      bigint;
++    v_pos     bigint;
+     -- shelter_earned kinds in one order of breadth (wider first); the rest
+     -- compare only with their own kind.
+     c_rank    CONSTANT jsonb := '{"any_time": 4, "before_termination": 3, "before_delinquency": 2}';
+@@ -1809,14 +1823,29 @@
+             v_problem := v_problem || format('duties: %s requires %s; the tariff does not', v_law, v_bad);
+         END IF;
+ 
+-        -- r2: stages, a stage of each decider the law's stages have (the
+-        -- regulator's among them); deadlines within a stage are not compared
+-        SELECT string_agg(c, ', ' ORDER BY c) INTO v_bad
+-          FROM (SELECT DISTINCT x ->> 'decider' AS c FROM jsonb_array_elements(coalesce(v_l -> 'stages', '[]')) x) w
+-         WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(v_t -> 'stages', '[]')) y WHERE y ->> 'decider' = w.c);
+-        IF v_bad IS NOT NULL THEN
+-            v_problem := v_problem || format('stages: %s has a stage decided by %s; the tariff does not', v_law, v_bad);
+-        END IF;
++        -- r3 (Codex S1, Opus N4): stages. Each of the law's stages, in the
++        -- law's order, is matched by a later tariff stage of its decider whose
++        -- filing window is no shorter (none is the widest; days only against
++        -- days from the same anchor) and whose decision window is no longer
++        -- (none is the longest). Other tariff stages may sit between.
++        v_pos := 0;
++        FOR v_ls, v_li IN SELECT x, i FROM jsonb_array_elements(coalesce(v_l -> 'stages', '[]')) WITH ORDINALITY y(x, i) ORDER BY i LOOP
++            SELECT min(j) INTO v_tj
++              FROM jsonb_array_elements(coalesce(v_t -> 'stages', '[]')) WITH ORDINALITY z(ts, j)
++             WHERE j > v_pos AND ts ->> 'decider' = v_ls ->> 'decider'
++               AND (ts #>> '{file_within,kind}' = 'none'
++                    OR (v_ls #>> '{file_within,kind}' = 'days' AND ts #>> '{file_within,from}' = v_ls #>> '{file_within,from}'
++                        AND (ts #>> '{file_within,days}')::integer >= (v_ls #>> '{file_within,days}')::integer))
++               AND (v_ls #>> '{decide_within,kind}' = 'none'
++                    OR (ts #>> '{decide_within,kind}' = 'days'
++                        AND (ts #>> '{decide_within,days}')::integer <= (v_ls #>> '{decide_within,days}')::integer));
++            IF v_tj IS NULL THEN
++                v_problem := v_problem || format('stages: %s has stage %s (%s, filed within %s, decided within %s) at place %s; the tariff has no stage of that decider after its earlier matches with a filing window as wide and a decision as prompt',
++                                                 v_law, v_ls ->> 'id', v_ls ->> 'decider', v_ls -> 'file_within', v_ls -> 'decide_within', v_li);
++                EXIT;
++            END IF;
++            v_pos := v_tj;
++        END LOOP;
+ 
+         -- subjects: every subject the law admits
+         SELECT string_agg(c, ', ' ORDER BY c) INTO v_bad
+@@ -1883,7 +1912,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.dispute_tariff_compare(jsonb, jsonb) IS
+-    'v5.4.2-25 (L6). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused when its blocks lack one of the law''s; it admits fewer subjects; its shelter starts narrower (any_time, before_termination, before_delinquency in that order; within_days against its own kind only, the same anchor and at least the days; any other pair not comparable); its shelter ends sooner (resolution beats earlier-of-resolution-and-days; days against days; any other pair not comparable); or its must-pay asks more (undisputed_charges asks no more than any strategy, a law of full_bill or unruled is never exceeded, equal strategies compare figures — withholding by fraction, the average cap only when equal — and any other pair is not comparable). Not comparable is refused (fail toward protection). A delegation compares nothing. r2: its duties lack one of the law''s, or its stages lack a stage of a decider the law''s have (a stage''s deadlines are not compared).';
++    'v5.4.2-25 (L6). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused when its blocks lack one of the law''s; it admits fewer subjects; its shelter starts narrower (any_time, before_termination, before_delinquency in that order; within_days against its own kind only, the same anchor and at least the days; any other pair not comparable); its shelter ends sooner (resolution beats earlier-of-resolution-and-days; days against days; any other pair not comparable); or its must-pay asks more (undisputed_charges asks no more than any strategy, a law of full_bill or unruled is never exceeded, equal strategies compare figures — withholding by fraction, the average cap only when equal — and any other pair is not comparable). Not comparable is refused (fail toward protection). A delegation compares nothing. r2: its duties lack one of the law''s; r3: or its stages do not match the law''s — each law stage, in order, by a later tariff stage of its decider whose filing window is no shorter and whose decision window no longer.';
+ 
+ DO $register$
+ BEGIN
+@@ -2106,6 +2135,7 @@
+     invoice_line_item_id    uuid NOT NULL,
+     amount                  numeric(12,2) NOT NULL,
+     created_at              timestamp with time zone DEFAULT now() NOT NULL,
++    record_seq              bigint,
+     CONSTRAINT dispute_amount_lines_pkey PRIMARY KEY (id),
+     CONSTRAINT dispute_amount_lines_one_per_line UNIQUE (dispute_amount_id, invoice_line_item_id),
+     CONSTRAINT dispute_amount_lines_amount_fkey FOREIGN KEY (dispute_amount_id, tenant_id) REFERENCES public.dispute_amounts (id, tenant_id),
+@@ -2534,6 +2564,9 @@
+     -- The bill is the dispute's, not the caller's: a line of another bill
+     -- fails the (line, bill) foreign key.
+     NEW.invoice_id := v_invoice;
++    -- r3 (Opus N3): a line is numbered as the dispute's other records, so a
++    -- line after the resolution is refused (enforce_dispute_nothing_after_close).
++    NEW.record_seq := nextval('public.dispute_record_seq');
+     SELECT l.amount INTO v_charge FROM public.invoice_line_items l WHERE l.id = NEW.invoice_line_item_id AND l.invoice_id = v_invoice;
+     IF FOUND AND (v_charge <= 0 OR NEW.amount > v_charge) THEN
+         RAISE EXCEPTION USING
+@@ -2611,6 +2644,8 @@
+     v_last      date;
+     v_blocks    text[];
+     v_default   uuid;
++    v_tariff    uuid;
++    v_tariff_holds boolean;
+ BEGIN
+     -- An outcome outside the three is the CHECK's to refuse: each check
+     -- below names the outcome it applies to.
+@@ -2741,13 +2776,28 @@
+     END IF;
+ 
+     -- r2 (Opus S2; never looser, K-07): where the law governs, a utility with
+-    -- its own policy in force shelters under it (the policy is never
+-    -- narrower than the law), so the determination cites it [D4q].
+-    IF r.terms ->> 'governs' = 'law' AND NEW.tariff_id IS NULL
+-       AND public.rule_tariff_row_as_of('public.dispute_tariffs', NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code, '{}'::jsonb, d.received_on) IS NOT NULL THEN
+-        RAISE EXCEPTION USING
+-            MESSAGE = format('dispute determination: the utility has its own dispute policy in force on %s, never narrower than the law — cite it [D4q] (v5.4.2-25)', d.received_on),
+-            ERRCODE = 'check_violation';
++    -- its own policy in force shelters under it, so the determination cites
++    -- it [D4q]. r3 (Opus S1; fail toward protection): only while that policy
++    -- is no looser than the law row cited — a law that tightened after the
++    -- policy was written governs, and the looser policy is not cited [D4r].
++    IF r.terms ->> 'governs' = 'law' THEN
++        v_tariff := coalesce(NEW.tariff_id,
++                             public.rule_tariff_row_as_of('public.dispute_tariffs', NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code, '{}'::jsonb, d.received_on));
++        IF v_tariff IS NOT NULL THEN
++            SELECT cardinality(public.dispute_tariff_compare(to_jsonb(x), jsonb_build_array(to_jsonb(r)))) = 0 INTO v_tariff_holds
++              FROM public.dispute_tariffs x WHERE x.id = v_tariff;
++            IF NEW.tariff_id IS NULL AND v_tariff_holds THEN
++                RAISE EXCEPTION USING
++                    MESSAGE = format('dispute determination: the utility has its own dispute policy in force on %s, no looser than the law cited — cite it [D4q] (v5.4.2-25)', d.received_on),
++                    ERRCODE = 'check_violation';
++            END IF;
++            IF NEW.tariff_id IS NOT NULL AND NOT coalesce(v_tariff_holds, false) THEN
++                RAISE EXCEPTION USING
++                    MESSAGE = format('dispute determination: tariff %s is looser than law row %s, in force on %s — the law governs; cite it alone (fail toward protection) [D4r] (v5.4.2-25)',
++                                     NEW.tariff_id, NEW.rule_id, d.received_on),
++                    ERRCODE = 'check_violation';
++            END IF;
++        END IF;
+     END IF;
+ 
+     -- The outcome's shape (contract 5).
+@@ -2798,6 +2848,14 @@
+             MESSAGE = format('dispute determination: the shelter ends on %s, before the dispute was received on %s [D4o] (v5.4.2-25)', NEW.shelter_ends_on, d.received_on),
+             ERRCODE = 'check_violation';
+     END IF;
++    -- r3 (Fable N3): a document that ends the shelter only at the resolution
++    -- (or the regulator's close) has no last day to record [D4s].
++    IF NEW.outcome = 'sheltered' AND v_doc #>> '{shelter_ends,kind}' IN ('resolution', 'through_regulator_close') AND NEW.shelter_ends_on IS NOT NULL THEN
++        RAISE EXCEPTION USING
++            MESSAGE = format('dispute determination: the cited document ends the shelter at %s, so it records no last day (%s given) [D4s] (v5.4.2-25)',
++                             v_doc #>> '{shelter_ends,kind}', NEW.shelter_ends_on),
++            ERRCODE = 'check_violation';
++    END IF;
+     -- r2 (Fable S1): where the cited document ends the shelter at the
+     -- earlier of the resolution and a count of days, a shelter records its
+     -- last day, no later than the document's (the anchor's day counted).
+@@ -3014,26 +3072,37 @@
+     SET search_path = public, pg_temp
+     AS $$
+ DECLARE
+-    v_close public.dispute_events%ROWTYPE;
+-    v_tag   text := CASE TG_TABLE_NAME WHEN 'dispute_amounts' THEN 'D2e' WHEN 'dispute_determinations' THEN 'D4k' ELSE 'D5f' END;
++    v_close   public.dispute_events%ROWTYPE;
++    v_tag     text := CASE TG_TABLE_NAME WHEN 'dispute_amounts' THEN 'D2e' WHEN 'dispute_amount_lines' THEN 'D2e' WHEN 'dispute_determinations' THEN 'D4k' ELSE 'D5f' END;
++    v_dispute uuid;
+ BEGIN
++    -- r3 (Opus N3): a line's dispute is its amount's.
++    IF TG_TABLE_NAME = 'dispute_amount_lines' THEN
++        SELECT a.dispute_id INTO v_dispute FROM public.dispute_amounts a WHERE a.id = (to_jsonb(NEW) ->> 'dispute_amount_id')::uuid;
++    ELSE
++        v_dispute := (to_jsonb(NEW) ->> 'dispute_id')::uuid;
++    END IF;
++    -- r3 (Codex B1): no exclusion by id — ids of different tables are
++    -- independent, and the strict order already leaves the event itself out.
+     SELECT * INTO v_close FROM public.dispute_events e
+-     WHERE e.dispute_id = NEW.dispute_id AND e.event_type IN ('resolved', 'withdrawn') AND e.id IS DISTINCT FROM NEW.id
+-       AND e.record_seq < NEW.record_seq;
++     WHERE e.dispute_id = v_dispute AND e.event_type IN ('resolved', 'withdrawn')
++       AND e.record_seq < (to_jsonb(NEW) ->> 'record_seq')::bigint;
+     IF FOUND THEN
+         RAISE EXCEPTION USING
+             MESSAGE = format('%s: dispute %s was %s by event %s, recorded before this row — nothing is recorded on it after [%s] (v5.4.2-25)',
+-                             TG_TABLE_NAME, NEW.dispute_id, v_close.event_type, v_close.id, v_tag),
++                             TG_TABLE_NAME, v_dispute, v_close.event_type, v_close.id, v_tag),
+             ERRCODE = 'check_violation';
+     END IF;
+     RETURN NULL;
+ END;
+ $$;
+ COMMENT ON FUNCTION public.enforce_dispute_nothing_after_close() IS
+-    'v5.4.2-25 r2 (D2e, D4k, D5f). AFTER INSERT on dispute_amounts, dispute_determinations and dispute_events, for every role: a row numbered (record_seq) after its dispute''s resolution or withdrawal is refused, also when both are in one statement (the status is written only after the statement''s rows).';
++    'v5.4.2-25 r2 (D2e, D4k, D5f). AFTER INSERT on dispute_amounts, dispute_amount_lines (r3, by its amount''s dispute), dispute_determinations and dispute_events, for every role: a row numbered (record_seq) after its dispute''s resolution or withdrawal is refused, also when both are in one statement (the status is written only after the statement''s rows). r3: no exclusion by id (a row of another table may carry an event''s id).';
+ REVOKE ALL ON FUNCTION public.enforce_dispute_nothing_after_close() FROM PUBLIC, tally_app, tally_core;
+ CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
+ ALTER TABLE public.dispute_amounts ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;
++CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amount_lines FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
++ALTER TABLE public.dispute_amount_lines ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;
+ CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
+ ALTER TABLE public.dispute_determinations ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;
+ CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();
+@@ -3396,6 +3465,12 @@
+     v_reading uuid;
+ BEGIN
+     SELECT d.reading_id INTO v_reading FROM public.disputes d WHERE d.id = NEW.dispute_id;
++    -- r3 (Codex B2; Opus S2, Fable S1): two closes of two disputes of one
++    -- reading serialise on the reading's row. The second waits for the first
++    -- to commit, and its next statement (READ COMMITTED) sees that close.
++    IF v_reading IS NOT NULL THEN
++        PERFORM 1 FROM public.meter_readings m WHERE m.id = v_reading FOR UPDATE;
++    END IF;
+     IF v_reading IS NOT NULL
+        AND EXISTS (SELECT 1 FROM public.meter_readings m WHERE m.id = v_reading AND m.status = 'disputed')
+        AND NOT EXISTS (SELECT 1 FROM public.disputes x WHERE x.reading_id = v_reading AND x.status = 'open') THEN
+@@ -3407,7 +3482,7 @@
+ END;
+ $$;
+ COMMENT ON FUNCTION public.enforce_dispute_reading_released() IS
+-    'v5.4.2-25 r2 (T2; Opus S4). Deferred, at commit, for a resolved or withdrawn dispute event: the dispute''s reading, if it names one, is not left in status disputed with no open dispute naming it.';
++    'v5.4.2-25 r2 (T2; Opus S4). Deferred, at commit, for a resolved or withdrawn dispute event: the dispute''s reading, if it names one, is not left in status disputed with no open dispute naming it. r3: it first locks the reading''s row (FOR UPDATE), so two closes of two disputes of one reading serialise and the second sees the first; a close against the reading''s own move can deadlock (40P01, retried).';
+ REVOKE ALL ON FUNCTION public.enforce_dispute_reading_released() FROM PUBLIC, tally_app, tally_core;
+ CREATE CONSTRAINT TRIGGER zz_dispute_reading_released AFTER INSERT ON public.dispute_events DEFERRABLE INITIALLY DEFERRED
+     FOR EACH ROW WHEN (NEW.event_type = ANY (ARRAY['resolved'::text, 'withdrawn'::text])) EXECUTE FUNCTION public.enforce_dispute_reading_released();
+@@ -3724,6 +3799,7 @@
+         'CREATE TRIGGER trg_enforce_reading_validation_workflow BEFORE UPDATE ON public.meter_readings FOR EACH ROW EXECUTE FUNCTION enforce_reading_validation_workflow()',
+         'CREATE TRIGGER z_dispute_move_status AFTER INSERT ON public.dispute_events FOR EACH ROW WHEN ((new.event_type = ANY (ARRAY[''resolved''::text, ''withdrawn''::text]))) EXECUTE FUNCTION dispute_move_status()',
+         'CREATE TRIGGER z_dispute_opened_event AFTER INSERT ON public.disputes FOR EACH ROW EXECUTE FUNCTION dispute_opened_event()',
++        'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amount_lines FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()',
+         'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amounts FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()',
+         'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()',
+         'CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_events FOR EACH ROW EXECUTE FUNCTION enforce_dispute_nothing_after_close()'];
+@@ -3869,18 +3945,18 @@
+         'dispute_shelter_as_of(uuid,date,timestamp with time zone) @b2426c66663f996c951d9c2959855faf',
+         'dispute_subjects_admitted(jsonb) @1b5a024bfdb603d05b419084e8f44a42',
+         'dispute_tariff_close_floor(uuid) @4a80839446f3510d63fb9cc4e118aff9',
+-        'dispute_tariff_compare(jsonb,jsonb) @c4cd716713e47958659e6cf574a34f81',
++        'dispute_tariff_compare(jsonb,jsonb) @6515e6c8d335c6b58e64e20051d059a6',
+         'dispute_tariff_insert_check(jsonb) @637164b15f1a7f2983964dafa3c41b89',
+         'dispute_tenant_check(text,uuid) @67fa787a3162c95f44eb4be63c758d63',
+         'dispute_terms_check(text,jsonb) @fd00cdb4f3292c8c59b19e63b30bdd98',
+         'enforce_dispute_amount() @2598d7b4a699403bbb09a683ea62cec6',
+-        'enforce_dispute_amount_line() @7226c83d938f8d5b7e25646c640bede2',
++        'enforce_dispute_amount_line() @9007d92b8fea34f969409dae3353b7be',
+         'enforce_dispute_amount_lines_sum() @9abd8a4e51a1171bc32b2e5c4467f3c7',
+-        'enforce_dispute_determination() @14559afc0e47ca3bf52ea93e4884f527',
++        'enforce_dispute_determination() @38fe110e3d5be391dbb9f5b031143b55',
+         'enforce_dispute_event() @69f92c98fca05b610b1d0f0ae2b133c5',
+         'enforce_dispute_insert() @8b95d05590ff7c32ab9c3977952ca68f',
+-        'enforce_dispute_nothing_after_close() @626ce893d49ad8f9770a296b06a2f66a',
+-        'enforce_dispute_reading_released() @66a2a6b667427822f92c0fb67f4675ae',
++        'enforce_dispute_nothing_after_close() @b8b17a03a1943d3daa87d6f095f367c8',
++        'enforce_dispute_reading_released() @22bc5bdb98d680bb7180fbcc83a724f1',
+         'enforce_dispute_update() @894f0d9fc7776e779c2ad408a72892db',
+         'enforce_enrollment_not_pending_dispute() @7fe658b78d6e6c4684198f163f6c1a5a',
+         'enforce_reading_dispute_status() @6ab05df5a3be34c7803e99572b544863',
+@@ -4039,6 +4115,7 @@
+         'dispute_duties | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+         'dispute_events | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+         'dispute_platform_defaults | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
++        'dispute_record_seq | {tally=rwU/tally,tally_app=U/tally} | false | false',
+         'dispute_rules | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+         'dispute_subjects | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+         'dispute_tariffs | {tally=arwdDxt/tally,tally_app=arw/tally,tally_core=r/tally} | true | true',
