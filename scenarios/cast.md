@@ -96,6 +96,26 @@ Fremont's rows so far (all **invented**):
 
 ---
 
+## 5. Held money and agencies
+
+Used by `unmatched-cash-and-pledges.md`. Every value and agency here is **invented**. The settings are each utility's own, with no platform default (Kyle 10-15, K-07).
+
+| Utility | Service level for held money | Retention before return or report |
+|---|---|---|
+| Pecan Flat | 10 days | 180 days |
+| Bluebonnet | 10 days | 180 days |
+
+| Agency | Utility | Kind | Agreement in force | Days to pay a pledge | Hold while eligibility is checked |
+|---|---|---|---|---|---|
+| Coastal Prairie Community Action Agency | Gulf Plains | energy assistance (CEAP) | from Jan 1, 2026, the CEAP vendor agreement | 45 | 5 business days |
+| St. Brigid's Helping Hands | Gulf Plains | charity | from Jan 1, 2026, a letter agreement | 30 | none |
+| Mesquite County Community Action Agency | Pecan Flat | energy assistance (CEAP) | from Jan 1, 2026, the CEAP vendor agreement | 45 | 5 business days |
+| Bluebonnet Area Ministries food pantry | Bluebonnet | charity | from Dec 1, 2026, entered Dec 17 (SCN-0128) | 30 | none |
+
+The 45 days and 5 business days are the CEAP vendor agreement's terms (design source VA-26); the charities' are invented. They are contract terms, not law.
+
+---
+
 ## Customers
 
 | ID | Utility | Who | Schedule | Notes |
@@ -115,6 +135,9 @@ Fremont's rows so far (all **invented**):
 | PF-03 | Pecan Flat | a café | — | state and city sales tax |
 | PF-04 | Pecan Flat | a house rented to visitors by the week | — | taxed: not residential use (`tax.md` SCN-0111) |
 | PF-05 | Pecan Flat | a home with a hair salon on the same meter | — | predominant use, Open (`tax.md` SCN-0111) |
+| PF-06 | Pecan Flat | a rented house, residential | — | same landlord as PF-07 (`unmatched-cash-and-pledges.md`) |
+| PF-07 | Pecan Flat | a rented house, residential | — | same landlord as PF-06 |
+| BB-16 | Bluebonnet | homeowner inside the city, named like BB-01 | R-U | `unmatched-cash-and-pledges.md` SCN-0117 |
 | GP-01 | Gulf Plains | residential, unincorporated area | — | Texas law binds; rates invented per scenario until the tariff is drafted |
 | PL-01 | Prairie Line (Fremont) | residential | — | deposit $200 |
 | PL-03 | Prairie Line (Fremont) | homeowner in the City of Lakeview (invented) | — | `tax.md` SCN-0112 |
