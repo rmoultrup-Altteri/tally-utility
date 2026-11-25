@@ -13,7 +13,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0117 — A lockbox check with no account number is held, never guessed, and keeps the day it came
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. The receipt is built (CI-053, v5.4.2-24); the late-penalty rules are not (R-11).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. The receipt is built (CI-053, v5.4.2-24); the late-penalty rules are not (R-11).
 *Rule:* money that cannot be attributed is held as a receipt with its evidence, apart from every customer, however good a guess looks. When it is identified it becomes that customer's payment, posted in the open period. The payment's customer's date is no later than the day the money came, so a customer who paid on time stays on time. Sources: CI-053 (no guessed account); the wave-2 inventory, U2 (resolved by a payment naming the receipt, with its reason and user); CI-058; design §2.3; SCN-0034 (a penalty reversed when the payment proves on time).
 
 **Given**
@@ -47,7 +47,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0118 — One check pays two accounts, and nothing past what it holds
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-24).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-24).
 *Rule:* one receipt may become several payments of different customers, each with its reason. Together they never exceed the receipt, on any date. Money not yet identified stays held, and its age runs from the day it came, not from the day part of it was resolved. A landlord's or relative's check is the customer's own payment, not an agency's. Sources: design §2.3 (the cap; the household paying two accounts); CI-053; Ryan 2026-11-07 (DECISION-LOG: "a relative or landlord paying is the customer's own payment").
 
 **Given**
@@ -75,7 +75,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0119 — Money nobody claims goes back to whoever sent it, or is reported as unclaimed property, and never becomes revenue
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-24). When the state's dormancy period ends is the core's to compute, from the state's rule.
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-24). When the state's dormancy period ends is the core's to compute, from the state's rule.
 *Rule:* once the utility's retention period has passed, held money is returned to whoever sent it if they can be found. Money whose owner cannot be found is held until the state's dormancy period has run, and is then reported as unclaimed property. A return that is sent but never cashed is undone, and the money is held again. Nothing happens on a clock: the core flags each step and an operator acts. Sources: CI-053 (refund to the originating party after the tenant's retention; escheat per jurisdiction); design §2.3 and §2.4; Texas Property Code §72.101(a) (presumed abandoned after more than three years with the owner's location unknown and no claim), §76.001 and §76.301(a) (a municipality holding property of $100 or less that is presumed abandoned delivers it, with its report, to its own treasurer by Nov 1 after the June 30 it holds it; texas.public.law, verified May 26, 2025).
 
 **Given** Bluebonnet's retention is 180 days (`cast.md` §5). Two receipts are never identified (**invented**):
@@ -100,7 +100,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0120 — Held money past the service level bars disconnecting the customers it might belong to
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. The aged list and its candidates are built (CI-056, v5.4.2-24); the bar on disconnection is the collections rules' condition for aged held money (-26; which acts it bars is wave 7's rule data).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. The aged list and its candidates are built (CI-056, v5.4.2-24); the bar on disconnection is the collections rules' condition for aged held money (-26; which acts it bars is wave 7's rule data).
 *Rule:* a receipt still holding money past the utility's service level is aged. It is listed for the operator, oldest first, with its candidates, and it bars a disconnection of each candidate. A customer nobody listed is not protected. While a utility's service level is unset, which receipts are aged cannot be known: the list refuses to run, and the collections rule treats the bar as unevaluable, so the disconnection waits. Sources: CI-056 (fail loud: an operator surface, a disconnection pause); design §2.4; -26 (an unevaluable condition blocks the act); limit L1 (candidates are as good as intake made them).
 
 **Given**
@@ -122,7 +122,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0121 — Money resolved to the wrong customer comes back to the receipt and goes to the right one
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-23, the reversal; v5.4.2-24, the return; AC-49, AC-53).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-23, the reversal; v5.4.2-24, the return; AC-49, AC-53).
 *Rule:* a payment from a receipt that went to the wrong customer is reversed as misposted. Its money is then returned to the receipt by a recorded return naming the payment, dated on or after the reversal, for exactly what was reversed. Only then can it be posted to the right customer. Until the return is recorded, the money is on no customer's account and in no receipt's figure: it is on the list of returns owed, and a reconciliation adds that list to what receipts hold. A payment caught before it posted is voided instead, and a voided payment never took the receipt's money. Sources: design §2.3 (a misposting return gives the money back; a bounce does not); AC-49; AC-53; R-02 and CI-017.
 
 **Given** SCN-0117's receipt, but on Fri Dec 4 the operator resolved it to **BB-16**, whose bill was $71.40, without calling. The payment posted the same day. On Mon Dec 7 BB-01 calls to say the check was theirs.
@@ -152,7 +152,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0122 — A held check bounces: the bank takes back what is still held, and what became a payment bounces as that payment
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-23, the bounce; v5.4.2-24, the bank's return on a receipt; AC-51 for (b)).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-23, the bounce; v5.4.2-24, the bank's return on a receipt; AC-51 for (b)).
 *Rule:* when the bank takes back money still held, the receipt records the bank's return, with the bank's code where it gave one. Money that already became a payment bounces as that payment, under the cash rules, and stays spent: it never becomes available to another customer. A bank's code learned only after a payment was reversed as misposted is not added to that payment. The money is returned to the receipt as misposted, and the bank's return is then recorded on the receipt. Sources: design §2.3 (the bank takes it back); AC-51; SCN-0084.
 
 **Given** SCN-0118 (b) on Dec 3: PF-06 was paid $75.50 from the landlord's $120.80 check, and its $7.55 penalty reversed; the receipt still holds $45.30.
@@ -179,7 +179,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0123 — An electronic payment for an unknown account is recorded once, as a receipt, and never again as a payment
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (CI-055: v5.4.2-19 within payments, v5.4.2-24 across payments and receipts; AC-48).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (CI-055: v5.4.2-19 within payments, v5.4.2-24 across payments and receipts; AC-48).
 *Rule:* a provider's transaction is recorded once across payments and receipts. A payment message for an account that does not exist becomes a receipt. When the processor re-sends the same transaction with a corrected account, the operator resolves the receipt; the re-sent message is not a second payment. The same holds the other way round. Sources: CI-055; design §2.1; SCN-0094 (a message received twice posts once).
 
 **Given** on Wed Dec 2 Bluebonnet's card processor sends a $65.83 payment, transaction T-88120 (**invented**), for account 10-4471, one digit off BB-01's account number. No account 10-4471 exists. It is recorded as a receipt with the transaction id and the account as written.
@@ -196,7 +196,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0124 — A pledge from an energy-assistance agency stops a disconnection while the agency has time to pay
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. The pledge is built (CI-056, v5.4.2-24). Its protection is the collections rules' condition for a pledge (-26) and, at Gulf Plains, Texas's law row (wave 7; limit L2). Neither is written yet, so the protection below is the stream's reading of the rule, to be confirmed.
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. The pledge is built (CI-056, v5.4.2-24). Its protection is the collections rules' condition for a pledge (-26) and, at Gulf Plains, Texas's law row (wave 7; limit L2). Neither is written yet, so the protection below is the stream's reading of the rule, to be confirmed.
 *Rule:* a pledge records the agency, the amount, the agency's date, the day the utility received it (Ryan 2026-11-25; not yet built) beside when it was keyed, the form it came in, and the agency's agreement in force on the pledge date. The database computes the date the agency must pay by from that agreement. That date never changes, even if a new agreement is entered later. Where 16 TAC §7.460(b)(2) binds, a delinquent residential customer is not disconnected "for a billing period in which the provider receives a written pledge … from an energy assistance provider that it is forwarding sufficient payment to continue service". At a city system no statute binds, and what a pledge does is the city's own rule. Sources: design §4.1; 16 TAC §7.460(b)(2); 16 TAC §7.45 (a bill is due no sooner than 15 days after issue, is delinquent if unpaid by then, and may ground a disconnection five working days after that, with notice); the CEAP vendor agreement (design source VA-26: the agency pays within 45 days; the pledged portion is not delinquent if paid in that time); memory `texas-muni-outside-gura`.
 
 **Given**
@@ -227,7 +227,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0125 — Two agencies pledge for the same customer, and each pays only its own pledge
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-24; D7-1, an agency's restriction on the payment).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-24; D7-1, an agency's restriction on the payment).
 *Rule:* several pledges coexist, of different agencies or the same one. A payment naming a pledge must be of that pledge's agency and customer, and every agency payment names its agency. A pledge made toward one bill limits its payment to that bill. A pledge counts as paid by what its payments have brought and not taken back: a pending payment counts nothing yet, and one that bounces or is reversed counts nothing. Which agency wrote a check is the operator's to key right: the database cannot tell. Sources: design §4.1–§4.3 (several pledges; a key, not a name); D7-1 (an agency payment's restriction wins over the posting order); CI-064.
 
 **Given** GP-06's two bills (SCN-0124). Here, in place of SCN-0124's pledge, there are two pledges. Coastal Prairie's, dated Thu Sep 10 and received Sep 11, is **$47.80** toward the July bill, pay by Sun Oct 25. St. Brigid's Helping Hands (a charity, `cast.md` §5) pledges **$39.60** toward the August bill on Mon Sep 14, pay by Wed Oct 14 (Sep 14 + 30 days).
@@ -246,7 +246,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0126 — A pledge not paid in full lapses: what was paid is on record, the rest is the customer's, and late money is still taken
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-24). Recording the lapse is the core's, once the date has passed.
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-24). Recording the lapse is the core's, once the date has passed.
 *Rule:* a pledge ends once: withdrawn by the agency, lapsed after its pay-by date, or recorded in error. A lapse can be recorded only once the pay-by date has passed everywhere, and is dated after it. A pledge paid in full can be neither withdrawn nor lapsed. Money an agency sends after the pledge lapsed is still taken and still names it, and full payment outranks the lapse. A pledge cannot be recorded in error while any payment that was not voided names it. Sources: design §4.2; VA-26 ("the gap is the customer's"); CI-056 (a pledge made and not honoured stays on record).
 
 **Given** SCN-0124 (a): Coastal Prairie's $87.40 pledge for GP-06, pay by Sun Oct 25.
@@ -264,7 +264,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0127 — An agency's leftover money goes back to the agency, never to the customer
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. The database enforces this for refunds of payments, overpayment credits and the two reissues (v5.4.2-24). It does not for a deposit or another kind of credit (limits L5, L6; AC-52), where the core must.
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. The database enforces this for refunds of payments, overpayment credits and the two reissues (v5.4.2-24). It does not for a deposit or another kind of credit (limits L5, L6; AC-52), where the core must.
 *Rule:* an agency's money may pay the customer's bills, and what is left of it may be held as a credit for later bills. A refund of it goes to the agency, never to the customer or another agency. A refund of the customer's own money names no agency. The core never moves an agency's money into a credit the database cannot trace back to the agency. Sources: Ryan 2026-11-07 (DECISION-LOG: for every agency; the two limits recorded as limits); 10 TAC §6.312(f) ("a Vendor Refund … must be reimbursed to the Subrecipient, and not the customer"); VA-26; CI-053.
 
 **Given** GP-06 owes $87.40 for the July and August bills. Coastal Prairie's pledge is $87.40, but on Oct 20 its check is for **$100.00**, more than it pledged, restricted by the agency to the July and August bills (D7-1). The pledge reads *paid*. Because of the restriction, the **$12.60** left on the agency's payment cannot pay the September bill. It is neither applied nor approved as a credit (SCN-0082's Open: who is asked when an agency's check overpays?). GP-06 moves out on Mon Dec 14 and pays its final bill itself.
@@ -283,7 +283,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0128 — A pledge whose agreement is not yet on file is still recorded, and blocks the act that reads it
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-24).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-24).
 *Rule:* a pledge from an agency with no agreement in force on the pledge date is recorded with no agreement and no pay-by date, rather than refused, so the customer has a record of it. It cannot lapse. To the collections rules it is unevaluable, which blocks the act. The agreement is chosen once, when the pledge is recorded. An agency retired from the platform takes no new pledge or agreement, but its money is still taken. Sources: design §4.1 (fail toward protection; -26 reads "no agreement" as unevaluable); §3 (an agency is retired, never deleted).
 
 **Given** Bluebonnet takes its first pledge from the Bluebonnet Area Ministries food pantry (a charity, `cast.md` §5) for BB-09: **$60.00**, dated Tue Dec 8 (**invented**), before Bluebonnet has entered an agreement with it.
@@ -299,7 +299,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 
 ### SCN-0129 — An agency's remittance for several customers: what can be matched pays the pledges, and the rest is held as the agency's
 
-*Status:* draft (2026-11-25), not yet sent to Kyle. Built (v5.4.2-24); matching a batch line to a pledge is the core's (limit L3).
+*Status:* draft (2026-11-25); in batch 6 for Kyle (K-19), not yet sent. Built (v5.4.2-24); matching a batch line to a pledge is the core's (limit L3).
 *Rule:* an agency's check covering several customers is split into payments, one per pledge, each naming the agency and its pledge. A line that matches no customer is held as a receipt that names the agency, and any payment made from it later is that agency's. The leftover rule then follows the money (SCN-0127). Sources: design §2.1 (a remitting agency on the receipt), §4.3; limits L1 and L3.
 
 **Given** Pecan Flat's agreement with the Mesquite County Community Action Agency (CEAP, `cast.md` §5). Open pledges: PF-01 $75.50, dated Fri Nov 20 (pay by Mon Jan 4, 2027), and PF-02 $40.00, dated Mon Nov 23 (pay by Thu Jan 7, 2027). On Mon Dec 7 the agency's check for **$180.30** arrives with a list of three names: PF-01 $75.50, PF-02 $40.00, and "D. Reyes" $64.80, whom Pecan Flat cannot find (**invented**). PF-06 owes $64.80 here (**invented**) and has no pledge on record.
