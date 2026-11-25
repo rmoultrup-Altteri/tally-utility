@@ -7,7 +7,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 **Common to every scenario here.**
 - The tax rows are the utility's own: each says which place levies it, its rate in percent, its position in the stack, which other taxes (if any) it is charged on top of, its source and citation, and whether it reaches residential gas (Kyle 10-14, answers 1, 2; Ryan 2026-09-30: a value the utility answers for stays its own). The Comptroller's published rate is a reference: it never bills, and a difference is reported (SCN-0109).
 - A premise is in a place for tax only by its own recorded membership on the tax axis, with its dates and evidence. Being inside a city does not by itself put it in a citywide district: each membership is recorded (CI-047).
-- Bluebonnet's rows and their stack positions are in `cast.md` §2 ("Tax rows"): 1 the state, 2 Bluebonnet County, 3 the city, 4 the crime-control district (from Jan 1, 2027), 5 the hospital district, 6 the transit authority (both east of Main Street only, until Sep 30, 2027; SCN-0115). Every local tax at a location counts toward Texas's 2% limit, a transit authority's included (Tax Code §321.101(f)): east of Main Street the local total is exactly 2.0% in 2027 until both end, and 2.0% west of it once the city's rate rises in SCN-0109. Each is on the lines flagged taxable and never on another tax (no tax on tax in Texas unless a place declares it). Bills list tax lines in stack order.
+- Bluebonnet's rows and their stack positions are in `cast.md` §2 ("Tax rows"): 1 the state, 2 Bluebonnet County, 3 the city, 4 the crime-control district (from Jan 1, 2027), 5 the transit authority (east of Main Street only, until Sep 30, 2027; SCN-0115). Every local tax at a location counts toward Texas's 2% limit, a transit authority's included (Tax Code §321.101(f)): east of Main Street the local total is exactly 2.0% in 2027 until the transit authority ends, and 2.0% west of it once the city's rate rises in SCN-0109. Each is on the lines flagged taxable and never on another tax (no tax on tax in Texas unless a place declares it). Bills list tax lines in stack order.
 - Residential gas in Texas pays only the city's tax, where the city may and does tax it, and a fire-control or crime-control district's in that city, where it has chosen to (Tax Code §151.317, §321.105, §321.201(a), §321.1055; 34 TAC §3.334(k)(8), (l)(1)). Whether gas is residential follows the rate class and the premise's use, and is not a stored exemption (Kyle R-13). A tax that does not reach residential gas adds no line to a residential bill (the stream's reading: a $0.00 line is for an exempt customer, SCN-0107).
 - **The state rate is 6.25%**: "The sales tax rate is 6-1/4 percent of the sales price of the taxable item sold" (Tax Code §151.051(b); read 2026-11-24 from texas.public.law, marked verified May 26, 2025).
 - A city system collects the state's sales tax on taxable gas like any seller. This is the stream's reading of Tax Code ch. 151; a tax advisor confirms before go-live.
@@ -168,7 +168,7 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 *Rule:* a new published rate never bills by itself. The utility's operator approves it by recording a new row from the quarter's first day; the old row is closed, not edited. Until then the bill uses the utility's own row and a report lists every place where the published rate differs from it, or where a place a premise is in publishes a rate and the utility has no row. A billing run reads the tax rows and the premise's places at one instant, chosen when no earlier transaction is still open, and each bill records the rows and places it used. Sources: Kyle 10-14, answer 1 ("no rate change goes live without operator approval"); Ryan 2026-09-30; -30 (the gaps report; rows never edited, closed once); AC-47.
 
 **Given**
-- The Comptroller's file for the quarter beginning Fri Oct 1, 2027 publishes the City of Bluebonnet's rate as 1.25% (**invented**). The hospital district and the transit authority ended Sep 30, 2027 (**invented**, `cast.md` §2), so with the county's 0.5% and the crime-control district's 0.25% the local total is 2.0% everywhere in the city; had the transit authority still overlapped (or a district whose tax pays its debt), the city could not have raised its rate; a district without such debt would instead have been reduced automatically (Tax Code §321.101(f), §321.102(e)–(h); that case is under "Not yet written"). The platform loads it as the city's reference rate.
+- The Comptroller's file for the quarter beginning Fri Oct 1, 2027 publishes the City of Bluebonnet's rate as 1.25% (**invented**). The transit authority ended Sep 30, 2027 (**invented**, `cast.md` §2), so with the county's 0.5% and the crime-control district's 0.25% the local total is 2.0% everywhere in the city; had the transit authority still overlapped (or a district whose tax pays its debt), the city could not have raised its rate; a district without such debt would instead have been reduced automatically (Tax Code §321.101(f), §321.102(e)–(h); that case is under "Not yet written"). The platform loads it as the city's reference rate.
 - Bills for the period Oct 15 – Nov 14 are issued Mon Nov 15, 2027 by one run: BB-01 (residential, $65.18) and BB-10 (the bakery, $187.40), both recorded in the city and the district.
 
 **When** (a) nobody approves the change before Nov 15; (b) an operator approves it on Tue Oct 5; (c) an operator approves it on Sat Nov 20, after the bills; (d) the clerk tries to approve it by changing the rate on the existing row; (e) as (b), but the approval was being saved, not yet committed, when the run began.
@@ -318,13 +318,13 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 
 ---
 
-### SCN-0115 — Places that overlap: a district on part of the city, and a transit authority
+### SCN-0115 — Places that overlap: a transit authority on part of the city
 
-*Status:* draft (2026-11-24), written after review round 5 (Codex 8, Fable missing cases 2 and 7, Opus M9); second pass applied. Not yet sent to Kyle.
-*Rule:* a premise pays the tax of each place it is recorded in, decided premise by premise, not by its city; a district that covers part of a city taxes only the premises inside it. A transit authority's tax and most districts' never reach residential gas. Sources: Kyle 10-14, answer 1 ("a service location links to every jurisdiction it sits in"); 34 TAC §3.334(k)(8), (l)(1)(A); Tax Code §321.101(f) (every local tax at a location, a transit authority's included, counts toward the 2% limit) and §321.102(e)-(h) (a transit authority's rate is never the one automatically reduced).
+*Status:* draft (2026-11-24), written after review round 5 (Codex 8, Fable missing cases 2 and 7, Opus M9); second pass applied. Changed 2026-11-25 (review round 6, Fable S-G2): the transit authority is 0.25%, the least Texas allows, and the hospital district is removed so east of Main stays at the 2% limit; BB-13 is $202.86. Not yet sent to Kyle.
+*Rule:* a premise pays the tax of each place it is recorded in, decided premise by premise, not by its city; a place that covers part of a city (a transit authority here; a district alike) taxes only the premises inside it. A transit authority's tax and most districts' never reach residential gas. Sources: Kyle 10-14, answer 1 ("a service location links to every jurisdiction it sits in"); 34 TAC §3.334(k)(8), (l)(1)(A); Tax Code §321.101(f) (every local tax at a location, a transit authority's included, counts toward the 2% limit) and §321.102(e)-(h) (a transit authority's rate is never the one automatically reduced).
 
 **Given**
-- The Bluebonnet Hospital District (**invented**), 0.125%, covers the part of the city east of Main Street, and does not tax residential gas. The Bluebonnet Area Transit Authority (**invented**), 0.125%, covers the same part, and does not tax residential gas. Both end Sep 30, 2027 (**invented**; SCN-0109). With the city's 1%, the county's 0.5% and the crime-control district's 0.25%, the local total east of Main is 2.0%, the limit.
+- The Bluebonnet Area Transit Authority (**invented**), 0.25%, the least a Texas transit authority may levy (Transportation Code §451.404(a), §452.401(a), §460.551(a)), covers the part of the city east of Main Street, and does not tax residential gas. It ends Sep 30, 2027 (**invented**; SCN-0109). With the city's 1%, the county's 0.5% and the crime-control district's 0.25%, the local total east of Main is 2.0%, the limit.
 - February 2027 bills (period Jan 15 – Feb 14). **BB-13 (invented)**, a hardware store east of Main, schedule SC-U, 20.0 Mcf; BB-10, the bakery, west of Main; **BB-14 (invented)**, a home east of Main, R-U, 6.0 Mcf. Each premise's memberships are recorded as stated.
 
 **When** the bills are issued.
@@ -338,11 +338,10 @@ Which taxes a bill carries, decided by where the gas is delivered, who the custo
 | 2 County 0.5% | $0.94 | $0.94 | none |
 | 3 City 1% | $1.87 | $1.87 | $0.65 |
 | 4 Crime-control district 0.25% | $0.47 | $0.47 | $0.16 |
-| 5 Hospital district 0.125% | 0.2343 → $0.23 | none: outside | none: residential |
-| 6 Transit authority 0.125% | 0.2343 → $0.23 | none: outside | none: residential |
-| **Total** | **$202.85** | **$202.39** | **$65.99** |
+| 5 Transit authority 0.25% | 0.4685 → $0.47 | none: outside | none: residential |
+| **Total** | **$202.86** | **$202.39** | **$65.99** |
 
-- Two businesses in the same city pay different taxes because of where each is; a core that keys districts or transit to the city would bill BB-10 $0.46 too much.
+- Two businesses in the same city pay different taxes because of where each is; a core that keys transit to the city would bill BB-10 $0.47 too much.
 
 ---
 
