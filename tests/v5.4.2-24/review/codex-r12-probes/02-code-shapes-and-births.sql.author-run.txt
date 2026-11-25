@@ -1,0 +1,220 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:199: NOTICE:  caught SQLSTATE=23001 message=account_ledger 00000000-0000-4000-8000-0000000c2514 gives money back to payment 00000000-0000-4000-8000-0000000c2511, which has ended: post a new payment (guard the act; CI-013, v5.4.2-23)
+psql:/tmp/probe.sql:199: NOTICE:  PASS whole leaf cannot acquire later negative child: refused by has ended (account_ledger 00000000-0000-4000-8000-0000000c2514 gives money back to payment 00000000-0000-4000-8000-0000000c2511, wh)
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:205: NOTICE:  caught SQLSTATE=23514 message=payment P24-2521: reversed takes a bank return code only where the row it names takes back the whole payment and nothing is filed beneath it (or the bank took it all as nsf rows): the code says what that one row is, and the rest could never come back. End it without the code, return what was misposted to the receipt, and record what the bank took there as bank_returned with its code (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:205: NOTICE:  PASS negative child of named row even with whole replaced at root: refused by nothing is filed beneath it (payment P24-2521: reversed takes a bank return code only where the row it names takes back the whole payment and nothing)
+UPDATE 1
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+UPDATE 1
+psql:/tmp/probe.sql:213: NOTICE:  PASS all typed NSF beneath undo is allowed: share zero
+ ok 
+----
+ 
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:217: NOTICE:  caught SQLSTATE=23503 message=payment P24-2541: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-0000000c2543) — a ledger row (not nsf) reversing its posting entry, which then has nothing left (Q1 (a), v5.4.2-23)
+psql:/tmp/probe.sql:217: NOTICE:  PASS named cause typed NSF rejected before r12 rule: refused by move to reversed names the row (payment P24-2541: the move to reversed names the row behind it in status_cause_id (00000000-0000-4000-8000-0000000c2543))
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+ rev 
+-----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:226: NOTICE:  caught SQLSTATE=23514 message=payment P24-2551: reversed takes a bank return code only where the row it names takes back the whole payment and nothing is filed beneath it (or the bank took it all as nsf rows): the code says what that one row is, and the rest could never come back. End it without the code, return what was misposted to the receipt, and record what the bank took there as bank_returned with its code (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:226: NOTICE:  PASS another level down and later-dated rows still reject code: refused by nothing is filed beneath it (payment P24-2551: reversed takes a bank return code only where the row it names takes back the whole payment and nothing)
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+psql:/tmp/probe.sql:229: NOTICE:  caught SQLSTATE=23514 message=payment P24-2551: reversed takes a bank return code only where the row it names takes back the whole payment and nothing is filed beneath it (or the bank took it all as nsf rows): the code says what that one row is, and the rest could never come back. End it without the code, return what was misposted to the receipt, and record what the bank took there as bank_returned with its code (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:229: NOTICE:  PASS owner replica cannot bypass same descendant rule: refused by nothing is filed beneath it (payment P24-2551: reversed takes a bank return code only where the row it names takes back the whole payment and nothing)
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+ rcpt 
+------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:232: NOTICE:  caught SQLSTATE=23514 message=payment birth2 is born posted from receipt 00000000-0000-4000-8000-0000000c2560: load it pending and move it through its rows (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:232: NOTICE:  PASS multi-row birth includes posted: refused by load it pending and move it (payment birth2 is born posted from receipt 00000000-0000-4000-8000-0000000c2560: load it pending and move it through its)
+ refuses_at 
+------------
+ 
+(1 row)
+
+DO
+psql:/tmp/probe.sql:244: NOTICE:  COPY born posted SQLSTATE=23514 message=payment copy-born-posted is born posted from receipt 00000000-0000-4000-8000-0000000c2560: load it pending and move it through its rows (CI-053, v5.4.2-24)
+psql:/tmp/probe.sql:245: NOTICE:  PASS failed multi-row and COPY births leave all 100 held
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

@@ -1,0 +1,5 @@
+Wrote [the full review](tests/v5.4.2-24/review/codex-r12.md) and 13 probes.
+
+**Verdict: ready.** One predicted should-fix: S4c double-counts pending payments that already have posting entries.
+
+All seven checksums match. No database commands, races, CI or mutation runner were executed.

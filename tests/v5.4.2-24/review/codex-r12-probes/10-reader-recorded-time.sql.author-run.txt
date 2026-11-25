@@ -1,0 +1,114 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:178: NOTICE:  PASS B1 prerequisite: later recorded reversal
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:180: NOTICE:  PASS B1 prerequisite: reversal timestamp really exceeds now()
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:182: NOTICE:  PASS B1 prerequisite: default status time remains transaction start
+ admits 
+--------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:185: NOTICE:  PASS B1 prerequisite: status precedes reversal recording
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:188: NOTICE:  PASS B1 recorded: payment received 100 at transaction start
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:190: NOTICE:  PASS B1 recorded: receipt holds zero at transaction start
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:192: NOTICE:  PASS B1 prediction: r11 lists no due at transaction start
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:195: NOTICE:  caught SQLSTATE=40001 message=a misposting return of payment P24-241c: a row under its posting entry was recorded at 2026-11-25 02:51:38.486694+00, after this transaction began (2026-11-25 02:51:38.468803+00); retry (v5.4.2-24)
+psql:/tmp/probe.sql:195: NOTICE:  PASS r6 B1 write fixed: default return retries: refused by a row under its posting entry was recorded at (a misposting return of payment P24-241c: a row under its posting entry was recorded at 2026-11-25 02:51:38.486694+00, af)
+psql:/tmp/probe.sql:200: NOTICE:  caught SQLSTATE=23514 message=a misposting return of payment P24-241c is recorded at 2026-11-25 02:51:38.477749+00, before a row under its posting entry recorded at 2026-11-25 02:51:38.486694+00: money comes back only after what gives it back is known (v5.4.2-24)
+psql:/tmp/probe.sql:200: NOTICE:  PASS chosen earlier time refused: refused by before a row under its posting entry recorded at (a misposting return of payment P24-241c is recorded at 2026-11-25 02:51:38.477749+00, before a row under its posting ent)
+ refuses_at 
+------------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:204: NOTICE:  PASS current coordinate control: payment zero, due 100, level unknown
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+psql:/tmp/probe.sql:208: NOTICE:  PASS r11 later return preserves correct earlier reading
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:211: NOTICE:  PASS current control after return: held 100 and no due row
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK

@@ -1,0 +1,148 @@
+--- battery-24-frozen-r12.sql	2026-11-24 20:43:38
++++ battery-24-frozen-r13.sql	2026-11-24 22:21:36
+@@ -93,11 +93,13 @@
+   UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'posted to the wrong customer', status_cause_id = v_row
+    WHERE id = p_pay;
+ END $$;
++-- r13: a fixture id names its rows by its last four hex digits; a random id
++-- by twelve, so it cannot take a fixture's number (a 1-in-thousands P9 flake).
+ -- rcpt(): a receipt of T1 with a check number as its evidence.
+ CREATE FUNCTION pg_temp.rcpt(p_id uuid, p_amount numeric, p_on date, p_check text DEFAULT NULL, p_agency uuid DEFAULT NULL) RETURNS void LANGUAGE plpgsql AS $$
+ BEGIN
+   INSERT INTO public.suspense_receipts (id, tenant_id, receipt_number, amount, received_on, channel, source_system, check_number, payer_name, agency_id, recorded_by)
+-  VALUES (p_id, pg_temp.t1(), 'R24-' || right(p_id::text, 4), p_amount, p_on, 'lockbox', 'bank_lockbox', coalesce(p_check, 'CHK-' || right(p_id::text, 4)),
++  VALUES (p_id, pg_temp.t1(), 'R24-' || right(p_id::text, CASE WHEN p_id::text LIKE '00000000-0000-4000-8000-0000000%' THEN 4 ELSE 12 END), p_amount, p_on, 'lockbox', 'bank_lockbox', coalesce(p_check, 'CHK-' || right(p_id::text, CASE WHEN p_id::text LIKE '00000000-0000-4000-8000-0000000%' THEN 4 ELSE 12 END)),
+           'J. Smith', p_agency, pg_temp.op());
+ END $$;
+ -- fromr(): a pending payment of p_cust made from receipt p_r, carrying its
+@@ -112,7 +114,7 @@
+   INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, effective_date, effective_date_method, amount, payment_method, channel, source_system,
+                                reference_number, check_number, check_date, check_bank_name, payer_class, agency_id,
+                                suspense_receipt_id, suspense_resolution_reason, suspense_resolved_by, is_deposit)
+-  VALUES (p_id, pg_temp.t1(), 'P24-' || right(p_id::text, 4), p_cust, coalesce(p_on, r.received_on), r.received_on, 'lockbox_receipt', p_amount, 'check', r.channel, r.source_system,
++  VALUES (p_id, pg_temp.t1(), 'P24-' || right(p_id::text, CASE WHEN p_id::text LIKE '00000000-0000-4000-8000-0000000%' THEN 4 ELSE 12 END), p_cust, coalesce(p_on, r.received_on), r.received_on, 'lockbox_receipt', p_amount, 'check', r.channel, r.source_system,
+           r.reference_number, r.check_number, r.check_date, r.check_bank_name,
+           CASE WHEN p_agency IS NULL THEN 'customer' ELSE 'agency' END, p_agency,
+           p_r, 'the customer called with the check number', pg_temp.op(), p_deposit);
+@@ -144,13 +146,13 @@
+ CREATE FUNCTION pg_temp.pledge(p_id uuid, p_cust uuid, p_ag uuid, p_amount numeric, p_on date) RETURNS void LANGUAGE plpgsql AS $$
+ BEGIN
+   INSERT INTO public.agency_pledges (id, tenant_id, customer_id, agency_id, amount, pledged_on, form, agency_reference, recorded_by)
+-  VALUES (p_id, pg_temp.t1(), p_cust, p_ag, p_amount, p_on, 'written', 'PL-' || right(p_id::text, 4), pg_temp.op());
++  VALUES (p_id, pg_temp.t1(), p_cust, p_ag, p_amount, p_on, 'written', 'PL-' || right(p_id::text, CASE WHEN p_id::text LIKE '00000000-0000-4000-8000-0000000%' THEN 4 ELSE 12 END), pg_temp.op());
+ END $$;
+ -- apay(): an agency payment of p_cust from p_ag, naming pledge p_pl; posted.
+ CREATE FUNCTION pg_temp.apay(p_id uuid, p_entry uuid, p_cust uuid, p_ag uuid, p_pl uuid, p_amount numeric, p_on date, p_post boolean DEFAULT true) RETURNS void LANGUAGE plpgsql AS $$
+ BEGIN
+   INSERT INTO public.payments (id, tenant_id, payment_number, customer_id, payment_date, amount, payment_method, payer_class, agency_id, agency_pledge_id)
+-  VALUES (p_id, pg_temp.t1(), 'A24-' || right(p_id::text, 4), p_cust, p_on, p_amount, 'check', 'agency', p_ag, p_pl);
++  VALUES (p_id, pg_temp.t1(), 'A24-' || right(p_id::text, CASE WHEN p_id::text LIKE '00000000-0000-4000-8000-0000000%' THEN 4 ELSE 12 END), p_cust, p_on, p_amount, 'check', 'agency', p_ag, p_pl);
+   IF p_post THEN PERFORM pg_temp.post(p_id, p_entry); END IF;
+ END $$;
+ -- pst(): a pledge's state and paid, as text.
+@@ -1314,8 +1316,9 @@
+ SELECT pg_temp.ok('D1 a receipt''s deposit payment posts a deposit entry, and the receipt holds nothing',
+   (SELECT transaction_type FROM public.account_ledger WHERE id = pg_temp.n('d3')) = 'deposit' AND pg_temp.held(pg_temp.n('d1')) = 0);
+ SELECT pg_temp.rev(pg_temp.n('d4'), pg_temp.n('d2'), pg_temp.n('d3'), 'adjustment', 60, DATE '2026-03-11');
+-SELECT pg_temp.ok('D2 its misposted 60 is the share, listed from the day', public.suspense_misposted_share(pg_temp.n('d2')) = 60
+-  AND pg_temp.due(pg_temp.n('d2'), DATE '2026-03-11') = '60.00 since 2026-03-11' AND pg_temp.due(pg_temp.n('d2'), DATE '2026-03-10') = 'none');
++SELECT pg_temp.ok('D2 its misposted 60 is the share', public.suspense_misposted_share(pg_temp.n('d2')) = 60);
++SELECT pg_temp.ok('D2b listed from the day it was reversed', pg_temp.due(pg_temp.n('d2'), DATE '2026-03-11') = '60.00 since 2026-03-11');
++SELECT pg_temp.ok('D2c and not the day before (Fable r12 N3: D2 split)', pg_temp.due(pg_temp.n('d2'), DATE '2026-03-10') = 'none');
+ SELECT pg_temp.rev(pg_temp.n('d5'), pg_temp.n('d2'), pg_temp.n('d3'), 'nsf', 40, DATE '2026-03-12');
+ SELECT pg_temp.refuses_at('D3 reversed with a code naming the 60 is refused for a deposit too',
+   $q$UPDATE public.payments SET status = 'reversed', reversed_at = now(), reversed_by = pg_temp.op(), reversed_reason = 'm', return_code = 'R01', status_cause_id = pg_temp.n('d4') WHERE id = pg_temp.n('d2')$q$,
+@@ -1363,6 +1366,24 @@
+ VALUES (pg_temp.n('f2'), pg_temp.t1(), :c1, DATE '2026-03-11', 'nsf', 'the bank takes the whole', 100, pg_temp.n('ef'));
+ UPDATE public.payments SET status = 'nsf', nsf_date = DATE '2026-03-11', status_cause_id = pg_temp.n('f2') WHERE id = pg_temp.n('ee');
+ SELECT pg_temp.ok('P24b a bounce with no reference: nothing held, nothing due', pg_temp.held(pg_temp.n('ed')) = 0 AND pg_temp.due(pg_temp.n('ee'), DATE '2026-03-20') = 'none');
++-- r13 (Codex r12 S1, Opus r12 S1): the two shapes S4c read wrong. Rp0a: a
++-- pending payment whose posting entry is written, left pending. Rp0d: a
++-- posted payment whose posting entry is dated after its payment date.
++SELECT pg_temp.rcpt(pg_temp.n('0a'), 100, DATE '2026-03-10');
++SELECT pg_temp.fromr(pg_temp.n('0b'), NULL, pg_temp.n('0a'), :c1, 100, false);
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
++VALUES (pg_temp.n('0c'), pg_temp.t1(), :c1, DATE '2026-03-10', 'payment', 'posted', -100, 'payment', pg_temp.n('0b'));
++SELECT pg_temp.ok('P25 a pending payment with its posting entry: the receipt holds nothing, the ledger has it',
++  pg_temp.held(pg_temp.n('0a')) = 0 AND (SELECT received FROM public.payment_position_as_of(pg_temp.n('0b'), DATE '2026-03-10', clock_timestamp())) = 100);
++SELECT pg_temp.rcpt(pg_temp.n('0d'), 100, DATE '2026-03-10');
++SELECT pg_temp.fromr(pg_temp.n('0e'), NULL, pg_temp.n('0d'), :c1, 100, false);
++INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
++VALUES (pg_temp.n('0f'), pg_temp.t1(), :c1, DATE '2026-03-12', 'payment', 'posted', -100, 'payment', pg_temp.n('0e'));
++UPDATE public.payments SET status = 'posted', status_cause_id = pg_temp.n('0f') WHERE id = pg_temp.n('0e');
++SELECT pg_temp.ok('P25b a posting entry dated after its payment: on the ledger from that date only',
++  pg_temp.held(pg_temp.n('0d')) = 0
++  AND (SELECT received FROM public.payment_position_as_of(pg_temp.n('0e'), DATE '2026-03-11', clock_timestamp())) = 0
++  AND (SELECT received FROM public.payment_position_as_of(pg_temp.n('0e'), DATE '2026-03-12', clock_timestamp())) = 100);
+ SELECT pg_temp.rcpt(pg_temp.n('b4'), 100, DATE '2026-03-10');
+ SELECT pg_temp.fromr(pg_temp.n('14'), pg_temp.n('24'), pg_temp.n('b4'), :c1, 100);
+ SELECT pg_temp.rev(pg_temp.n('34'), pg_temp.n('14'), pg_temp.n('24'), 'adjustment', 60, DATE '2026-03-11');
+@@ -1829,7 +1850,8 @@
+ -- r10 (Codex r9 S1), r12 (Codex r11 S1, Opus r11 N2, Fable r11 N1): money is
+ -- never in no place. For every receipt of T1, at every date anything of T1 is
+ -- dated on (positions step only there), read now: what it holds, what its
+--- payments hold on the ledger or pending, what left it to a sender, a bank or
++-- payments hold on the ledger or before their posting entry's date (r13:
++-- whatever their status; Codex r12 S1, Opus r12 S1), what left it to a sender, a bank or
+ -- a state, what is owed back to it, and what the bank took equal the receipt.
+ -- The bank's part walks each payment's posting tree once, by link: every row
+ -- in or under the first nsf row that takes money, once; and a payment ended
+@@ -1857,15 +1879,15 @@
+     SELECT 1 FROM public.suspense_receipts r CROSS JOIN ds
+       CROSS JOIN LATERAL (SELECT coalesce((SELECT x.held FROM public.suspense_receipt_position_as_of(r.id, ds.d, clock_timestamp()) x), 0)
+              + coalesce((SELECT sum(y.received) FROM public.payments p CROSS JOIN LATERAL public.payment_position_as_of(p.id, ds.d, clock_timestamp()) y WHERE p.suspense_receipt_id = r.id), 0)
+-             + coalesce((SELECT sum(p.amount) FROM public.payments p WHERE p.suspense_receipt_id = r.id AND p.status = 'pending' AND p.payment_date <= ds.d), 0)
++             + coalesce((SELECT sum(p.amount) FROM public.payments p
++                           WHERE p.suspense_receipt_id = r.id AND p.status <> 'voided' AND p.payment_date <= ds.d
++                             AND NOT EXISTS (SELECT 1 FROM public.account_ledger e
++                                              WHERE e.reference_type = 'payment' AND e.reference_id = p.id AND e.reverses_ledger_entry_id IS NULL
++                                                AND e.transaction_type IN ('payment', 'deposit') AND e.transaction_date <= ds.d)), 0)
+              + coalesce((SELECT sum(x.amount) FROM public.suspense_receipt_dispositions x WHERE x.suspense_receipt_id = r.id AND x.kind <> 'misposting_returned' AND x.disposed_on <= ds.d), 0)
+              + coalesce((SELECT w.owed FROM due w WHERE w.d = ds.d AND w.receipt_id = r.id), 0)
+              + coalesce((SELECT sum(t.amount) FROM tree t WHERE t.rid = r.id AND t.under_nsf AND t.transaction_date <= ds.d), 0)
+              + coalesce((SELECT sum(y.share) FROM public.payments p CROSS JOIN LATERAL public.suspense_misposted_share_as_of(p.id, ds.d, clock_timestamp()) y
+                            WHERE p.suspense_receipt_id = r.id AND p.status = 'reversed' AND p.return_code IS NOT NULL), 0) AS total) t
+      WHERE r.tenant_id = pg_temp.t1() AND r.received_on <= ds.d AND t.total <> r.amount));
+-SELECT pg_temp.ok('S4d S4c reads every receipt of T1 (none is skipped by its dates)',
+-  (SELECT count(*) FROM public.suspense_receipts r WHERE r.tenant_id = pg_temp.t1()
+-     AND r.received_on <= (SELECT max(transaction_date) FROM public.account_ledger WHERE tenant_id = pg_temp.t1())) =
+-  (SELECT count(*) FROM public.suspense_receipts WHERE tenant_id = pg_temp.t1()));
+ ROLLBACK;
+--- mutations-24-frozen-r12.py	2026-11-24 20:43:38
++++ mutations-24-frozen-r13.py	2026-11-24 22:21:36
+@@ -358,7 +358,7 @@
+          "            RETURN NULL;\n            RAISE EXCEPTION USING\n                MESSAGE = format('a misposting return of payment %s is recorded at %s, before a row under its posting entry")),
+     ("M117", "the returns-due reader lists a payment whose share has come back (r8; Opus r7 S1)", "S8g",
+      rep("WHERE d.returned_payment_id = p.id AND d.disposed_on <= p_on", "WHERE false AND d.returned_payment_id = p.id AND d.disposed_on <= p_on")),
+-    ("M118", "the returns-due reader lists a payment with no share (r8)", "D2",
++    ("M118", "the returns-due reader lists a payment with no share (r8)", "D2c",
+      rep("       AND s.share > 0\n", "")),
+     # ---- r10 (M119, the status row's date, went with the filter it removed)
+     ("M120", "a bounced payment gives nothing back (Opus r9 S2)", "P15b",
+@@ -384,7 +384,7 @@
+           rep("    PERFORM public.cash_coordinates_required('suspense_misposted_share_as_of', p_on, p_recorded_at);\n", ""))),
+     ("M137", "the reader lists the newest first", "S8p",
+      rep("     ORDER BY s.since, p.id;", "     ORDER BY s.since DESC, p.id;")),
+-    ("M138", "the share at the coordinates is the final share (r9; Codex B1, Opus and Fable S1)", "D2",
++    ("M138", "the share at the coordinates is the final share (r9; Codex B1, Opus and Fable S1)", "D2c",
+      both(rep("JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)\n         WHERE l.transaction_date <= p_on AND l.created_at <= p_recorded_at\n", "JOIN public.account_ledger l ON l.reverses_ledger_entry_id = e.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)\n"),
+           rep("JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)\n         WHERE l.transaction_date <= p_on AND l.created_at <= p_recorded_at\n", "JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)\n"))),
+     ("M139", "a reversal counts before it is recorded", "S8k",
+@@ -405,7 +405,7 @@
+      rep("AND NEW.status = 'reversed' AND OLD.status = 'reversed' THEN", "AND OLD.status IN ('reversed', 'nsf') THEN")),
+     ("M128", "the reader lists a payment reversed with a bank's code", "S8i",
+      rep("       AND NOT (p.status = 'reversed' AND p.return_code IS NOT NULL AND p.status_recorded_at <= p_recorded_at)\n", "")),
+-    ("M129", "the reader lists only a reversed payment", "D2",
++    ("M129", "the reader lists only a reversed payment", "D2b",
+      rep("       AND NOT (p.status = 'reversed' AND p.return_code IS NOT NULL AND p.status_recorded_at <= p_recorded_at)\n", "       AND p.status = 'reversed' AND p.return_code IS NULL\n")),
+     # ---- r11
+     ("M145", "reversed takes a code whatever its rows are", "P16",
+@@ -470,7 +470,7 @@
+      rep("v_entry.transaction_type NOT IN ('payment', 'deposit')", "v_entry.transaction_type NOT IN ('payment')")),
+     ("M174", "the return's date walk takes no deposit", "D4b",
+      rep("l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL\n               AND l.transaction_type IN ('payment', 'deposit')", "l.reference_id = v_pay.id AND l.reverses_ledger_entry_id IS NULL\n               AND l.transaction_type IN ('payment')")),
+-    ("M175", "the share at coordinates walks no deposit", "D2",
++    ("M175", "the share at coordinates walks no deposit", "D2b",
+      rep("WHERE l.reverses_ledger_entry_id IS NULL AND l.transaction_type IN ('payment', 'deposit')", "WHERE l.reverses_ledger_entry_id IS NULL AND l.transaction_type IN ('payment')")),
+     ("M111", "an nsf row giving money back is left out of the misposted share (r5; Opus r5 B1)", "P14e",
+      rep("SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND NOT (l.transaction_type = 'nsf' AND l.amount > 0)", "SELECT l.id, l.amount FROM down d JOIN public.account_ledger l ON l.reverses_ledger_entry_id = d.id AND l.transaction_type <> 'nsf'")),

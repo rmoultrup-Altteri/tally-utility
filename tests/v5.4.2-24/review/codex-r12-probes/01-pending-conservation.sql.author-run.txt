@@ -1,0 +1,80 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+GRANT
+INSERT 0 2
+INSERT 0 2
+INSERT 0 5
+CREATE FUNCTION
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000a24b1
+(1 row)
+
+ rcpt 
+------
+ 
+(1 row)
+
+ fromr 
+-------
+ 
+(1 row)
+
+psql:/tmp/probe.sql:227: NOTICE:  PASS pending without root: S4c balances
+ ok 
+----
+ 
+(1 row)
+
+INSERT 0 1
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:230: NOTICE:  PASS pending with root is represented on ledger
+psql:/tmp/probe.sql:231: NOTICE:  PASS receipt holds zero
+ ok 
+----
+ 
+(1 row)
+
+                 rid                  |     d      | total  | amount 
+--------------------------------------+------------+--------+--------
+ 00000000-0000-4000-8000-0000000c2501 | 2026-03-10 | 200.00 | 100.00
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+psql:/tmp/probe.sql:233: NOTICE:  PASS S1 counterexample: S4c counts 200 for this receipt of 100
+UPDATE 1
+psql:/tmp/probe.sql:235: NOTICE:  PASS moving to posted repairs only oracle double count
+ ok 
+----
+ 
+(1 row)
+
+ROLLBACK
