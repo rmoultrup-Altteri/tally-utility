@@ -119,7 +119,7 @@ The 45 days and 5 business days are the CEAP vendor agreement's terms (design so
 
 Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a source is named.
 
-**Billing days.** Pecan Flat reads around the 15th and issues bills on the 20th, due the 1st (the 20th is SCN-0053's). Bluebonnet reads most meters on the 15th and issues bills the next day (the reference bill, Nov 16); BB-17 and BB-19 are on cycles described in their scenarios. Gulf Plains reads on the 1st and bills on the 5th (§3).
+**Billing days.** Pecan Flat reads around the 15th and issues bills on the 20th, due the 1st (the 20th is SCN-0053's). Bluebonnet reads most meters on the 15th and issues bills the next day (the reference bill, Nov 16); BB-17 reads on the last day of the month (its scenario says when it bills). Gulf Plains reads on the 1st and bills on the 5th (§3).
 
 **Gas cost figures.** Each figure is one per billing month, never split, and fixed once locked (Kyle 11-03, answer 1). A bill's billing month is the month it is issued, at all three utilities.
 
@@ -131,11 +131,11 @@ Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a
 
 **Gulf Plains' rates** (until its tariff is drafted): customer charge $15.00 a month, delivery $4.10 per Mcf (GP-06's figures, `cash.md`), plus the gas cost factor; no tax line.
 
-**Pressure zones (Bluebonnet).** Bluebonnet defines its zones itself (Kyle 10-15, K-02): *Standard delivery*, factor 1.0000; *Industrial Park*, factor 1.0400 (BB-08's, SCN-0055), and 1.0600 from Mar 1, 2027 after the city raises the line pressure there; *Courthouse Square*, BB-03's (SCN-0078). Every meter's zone is confirmed when the meter is activated.
+**Pressure zones (Bluebonnet).** Bluebonnet defines its zones itself (Kyle 10-15, K-02): *Standard delivery*, factor 1.0000; *Industrial Park*, factor 1.0400 (BB-08's, SCN-0055), and 1.0600 from Mar 1, 2027 after the city raises the line pressure there; *Courthouse Square*, BB-03's: 1.0500, and 1.0800 from Mar 1, 2027 (SCN-0078). A zone is assigned to the premise, with dates; each meter set there is confirmed against it by a named person before it is activated.
 
-**Estimates.** Pecan Flat and Bluebonnet: an estimate is the customer's average usage over its last three billed months, at most 3 estimates in a row (the platform default cap; the source tariffs say nothing about estimates). Gulf Plains: the same month last year, at most 3 in a row; Texas requires an actual reading at least every six months there (16 TAC §7.45(6)(C)).
+**Estimates.** Pecan Flat and Bluebonnet: an estimate is the customer's average usage over its last three billed months, a cap of 3 estimates in a row (the platform default; the source tariffs say nothing about estimates). Gulf Plains: the same month last year, the same cap. Under the cap as built, the third estimate in a row raises an exception and is approved only after a supervisor resolves it, by an override or a field order. At Gulf Plains, Texas also requires an actual reading at least every six months (16 TAC §7.45(6)(C)).
 
-**Meters.** Pecan Flat's residential meters have a four-dial index in hundreds of cubic feet (Ccf), which rolls over after 9,999. Bluebonnet's and Gulf Plains' residential meters read in Mcf to a tenth. BB-19's meter reads in units of 10 Mcf (an index multiplier of 10).
+**Meters.** Pecan Flat's residential meters normally have a four-dial index in hundreds of cubic feet (Ccf), which rolls over after 9,999; PF-01's reads in Mcf to a tenth. Bluebonnet's and Gulf Plains' residential meters read in Mcf to a tenth. BB-19's meter reads in units of 10 Mcf (an index multiplier of 10).
 
 ---
 

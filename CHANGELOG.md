@@ -6,6 +6,19 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-25 (scenarios, later) — gas cost, zones and reads (SCN-0130 – 0145), ahead of their patches; reviewed; Kyle batch 7
+
+**What was done:**
+- **`scenarios/gas-cost-zones-and-reads.md`, 16 scenarios**, written ahead of the rates stream's patches on Ryan's go-ahead (DECISION-LOG, departing from the 10-29 ordering): the gas cost figure picked by billing month (the issue month), none locked, keyed wrong and corrected, a later rebill at the original figure, the billing-side record for the utility's reconciliation, Pecan Flat's minimum bill; pressure zones confirmed before activation, a factor change mid-period, a wrong multiplier backbilled; a high read re-read, re-read fees, an estimate and its catch-up, Gulf Plains' estimates under 16 TAC §7.45 (card, cap, cut-off), rollover, a meter change, a meter moved. Cast §6 and customers BB-17, BB-18, BB-19, GP-08.
+- **Review round 7** (Opus, Fable, Codex; `scenarios/review/2026-11-25-gas/`) applied.
+- Board note to rates (seven points); Kyle batch 7 (`application/kyle-brief-2026-11-25-scenario-batch-7.md`, K-20, 17 questions); roadmap K-20 uploaded (dataset `decisions` v22).
+
+**Decisions:** Ryan: write the family now, ahead of its patches. This stream's readings, Open with Kyle: billing month = issue month; a factor change states its method; a locked figure is corrected by a supervisor's record.
+
+**Failed approaches / corrections:** reviewers caught the March pipeline safety fee left off, "by cycle" used with the old factor (SCN-0001 means the new), a re-read request dated before its read, the built estimate cap firing a step earlier than written, an estimate's base month before Gulf Plains' go-live, built confirmation records called "not built", and R-30's skip-reason buckets cited as Kyle's ruling (they are a proposal). The source inventory's §7.5519 summary (from GBM's knowledge page) was wrong: the rule sets no effective date.
+
+**Next:** Ryan sends batches 3 – 7; the gas family's remaining gaps (handoff item 1) or another family, Ryan's choice.
+
 ## 2026-11-25 (scenarios) — unmatched cash and pledges (SCN-0117 – 0129), reviewed; two of Ryan's rulings; the transit rate fixed; Kyle batch 6
 
 **What was done:**
