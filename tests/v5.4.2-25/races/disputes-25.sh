@@ -205,9 +205,9 @@ INSERT INTO public.dispute_amounts (id, tenant_id, dispute_id, amount, determine
 COMMIT;
 SQL
 
-waiting() {
+waiting() {  # polls POLLS times (default 10)
 local n i
-for i in 1 2 3 4 5 6 7 8 9 10; do
+for i in $(seq 1 "${POLLS:-10}"); do
   n=$(docker exec -i tally-pg psql -U tally -d "$DB" -At -c "SELECT count(*) FROM pg_stat_activity b JOIN pg_stat_activity a ON a.datname = b.datname AND a.application_name = 'race25_a' WHERE b.datname = current_database() AND b.application_name = 'race25_b' AND a.pid = ANY (pg_blocking_pids(b.pid))" 2>/dev/null)
   if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ]; then echo 1; return; fi
   sleep 0.15
@@ -216,14 +216,15 @@ echo 0
 }
 AS_OP="SET LOCAL app.user_id = '$OP'; SET ROLE tally_app;"
 
-two() {  # $1 A's statement, $2 B's statement, $3 B's role prefix (default: the operator), $4 A's (default: the operator)
+two() {  # $1 A's statement, $2 B's statement, $3 B's role prefix (default: the operator), $4 A's (default: the operator);
+        # HOLD: A's hold in seconds (default 3)
 local b_as="${3:-$AS_OP}" a_as="${4:-$AS_OP}"
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 SET application_name = 'race25_a';
 BEGIN;
 $a_as
 $1
-SELECT pg_sleep(3);
+SELECT pg_sleep(${HOLD:-3});
 COMMIT;
 SQL
 APID=$!
@@ -259,8 +260,8 @@ if [ "$2" = "$3" ]; then echo "PASS $1"; else echo "FAIL $1: got [$2], expected 
 two "$(det 1 40)" "$(det 1 30)"
 verdict "DR1 two first determinations for one dispute: the second waits on the dispute, then is refused (one live)" 1 "[D4m]"
 
-# DR2
-two "$(det 2 30 00000000-0000-4000-8000-000000002651)" "$(det 2 20 00000000-0000-4000-8000-000000002651)"
+# DR2 (r6: A holds 6 s and B is polled for longer; twice under load B was not seen waiting in the 3 s window)
+HOLD=6 POLLS=30 two "$(det 2 30 00000000-0000-4000-8000-000000002651)" "$(det 2 20 00000000-0000-4000-8000-000000002651)"
 verdict "DR2 two supersessions of one determination: the second waits, then is refused" 1 "[D4m]"
 
 # DR3

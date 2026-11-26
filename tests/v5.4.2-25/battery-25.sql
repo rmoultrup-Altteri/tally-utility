@@ -1569,6 +1569,150 @@ SELECT pg_temp.refuses_at('D9i a policy filed while the law is in force is still
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
                      pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 3, "no_history": "similar_customers", "version": 1, "id": "m1"}}')), '23514', 'must_pay');
 
+-- ============================================================== D9 r6 (Codex B1, B2, S1; Opus S1, S2, N1, N4; Fable S1, N3, N5, N6, N9)
+-- verdicts(tariff, law overrides): the comparator's findings by direct call, section:verdict in order.
+CREATE FUNCTION pg_temp.verdicts(p_tdoc jsonb, p_over jsonb) RETURNS text[] LANGUAGE sql AS $f$
+  SELECT coalesce(array_agg(f.section || ':' || f.verdict ORDER BY f.n), '{}')
+    FROM public.dispute_tariff_compare_sections(jsonb_build_object('terms', p_tdoc),
+           jsonb_build_array(jsonb_build_object('id', 'x', 'customer_class', 'protected',
+             'terms', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected') || p_over))) WITH ORDINALITY f(section, verdict, problem, n)
+$f$;
+-- file2_sql(tariff, law overrides): a stricter law from June 1 (7.45 closed), then T2's policy filed July 1 under it.
+CREATE FUNCTION pg_temp.file2_sql(p_tdoc jsonb, p_over jsonb) RETURNS text LANGUAGE sql AS $f$
+  SELECT format($q$UPDATE public.dispute_rules SET effective_to = DATE '2026-06-01' WHERE id = %L$q$, pg_temp.law('investor_owned', 'protected')) || '; '
+    || format($q$INSERT INTO public.dispute_rules (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
+                     effective_from, source_note, terms_kind, terms_version, terms_source)
+                 VALUES ('TX', 'gas', '{cooperative,investor_owned}', '{distribution}', NULL, 'protected', DATE '2026-06-01', 'battery: a stricter law', 'dispute', 1, %L)$q$,
+              ((SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected') || p_over)::text) || '; '
+    || pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-07-01', p_tdoc)
+$f$;
+-- st3b(): st3 with the law's own 15-day regulator (not final: its governing-body appeal follows), so no stage finding under 7.45.
+CREATE FUNCTION pg_temp.st3b() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": false},
+                                   {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": false},
+                                   {"id": "s3", "decider": "governing_body", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 30}, "final": true}]}')
+$f$;
+CREATE FUNCTION pg_temp.wcap(p_fraction numeric, p_id text) RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT jsonb_build_object('strategy', 'withhold_cap', 'version', 1, 'id', p_id, 'fraction', p_fraction, 'citation', 'battery')
+$f$;
+CREATE FUNCTION pg_temp.undisp(p_id text) RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT jsonb_build_object('strategy', 'undisputed_charges', 'version', 1, 'id', p_id, 'citation', 'battery')
+$f$;
+
+-- Item 1: the law's final flag in every combined record.
+SELECT pg_temp.admits_undone('D9j a policy no looser in its stages (7.45''s, then its own governing-body appeal; its regulator not final) under a law of the same stage terms: the combined regulator is final, the rest as the policy has it',
+  pg_temp.tight2_sql(pg_temp.st3b(), '{}') || pg_temp.det2_sql('m1', NULL) || '; '
+  || $q$DO $d$ DECLARE v jsonb; BEGIN
+    SELECT public.dispute_determination_terms(r.id, t.id, NULL) -> 'stages' INTO v
+      FROM public.dispute_rules r, public.dispute_tariffs t
+     WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
+    IF NOT (jsonb_array_length(v) = 3 AND v #>> '{0,decide_within,days}' = '10' AND v #>> '{0,final}' = 'false'
+            AND v #>> '{1,id}' = 's2' AND v #>> '{1,decide_within,days}' = '15' AND v #>> '{1,final}' = 'true'
+            AND v #>> '{2,id}' = 's3' AND v #>> '{2,decider}' = 'governing_body') THEN
+      RAISE EXCEPTION 'stages: %', v;
+    END IF;
+  END $d$$q$);
+SELECT pg_temp.ok('D9j2 … and under a law that only adds a block: the regulator is final there too, the block among the policy''s',
+  (SELECT v #>> '{stages,1,final}' = 'true' AND v #> '{blocks,codes}' ? 'credit_reporting' AND jsonb_array_length(v -> 'stages') = 3
+     FROM pg_temp.combo(pg_temp.st3b(), '{"blocks": {"codes": ["credit_reporting", "disconnect_execute", "disconnect_order", "late_fee"], "citation": "battery"}}') v));
+
+-- Item 2: undisputed charges against a withholding cap compare as a fraction of 1, both ways.
+SELECT pg_temp.ok('D9k undisputed charges against a cap: no finding under 0.9 or 1, narrower under 1.1; a cap against undisputed charges: narrower at 0.9, none at 1 or 1.1',
+  pg_temp.verdicts(pg_temp.tdoc(), jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm2'))) = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc(), jsonb_build_object('must_pay', pg_temp.wcap(1, 'm2'))) = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc(), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) = '{must_pay:looser}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm1'))), jsonb_build_object('must_pay', pg_temp.undisp('m2'))) = '{must_pay:looser}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(1, 'm1'))), jsonb_build_object('must_pay', pg_temp.undisp('m2'))) = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm1'))), jsonb_build_object('must_pay', pg_temp.undisp('m2'))) = '{}');
+SELECT pg_temp.refuses_at('D9k2 a policy of undisputed charges filed under a law withholding up to 1.1 (X8, N7d''s twin) is refused',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt"}}')),
+  '23514', 'must_pay');
+SELECT pg_temp.admits_undone('D9k3 a policy withholding up to 1.1 filed under a law of undisputed charges is admitted',
+  pg_temp.file2_sql(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm1') - 'citation')), jsonb_build_object('must_pay', pg_temp.undisp('m2'))));
+SELECT pg_temp.refuses_at('D9k4 … one withholding up to 0.9 is refused',
+  pg_temp.file2_sql(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm1') - 'citation')), jsonb_build_object('must_pay', pg_temp.undisp('m2'))),
+  '23514', 'must_pay');
+SELECT pg_temp.refuses_at('D9k5 a policy of undisputed charges under a later law withholding up to 1.1: the policy''s component is refused',
+  pg_temp.tight2_sql(pg_temp.tdoc(), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) || pg_temp.det2_sql('m1', NULL), '23514', '[D4g]');
+SELECT pg_temp.admits_undone('D9k6 … the law''s is admitted',
+  pg_temp.tight2_sql(pg_temp.tdoc(), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) || pg_temp.det2_sql('m2', NULL));
+SELECT pg_temp.ok('D9k7 a policy withholding up to 1.1 under a later law of undisputed charges keeps its own',
+  (SELECT v -> 'must_pay' = pg_temp.wcap(1.1, 'm1') - 'citation'
+     FROM pg_temp.combo(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm1') - 'citation')), jsonb_build_object('must_pay', pg_temp.undisp('m2'))) v));
+
+-- Item 3: every looser branch and every part of the merge reached (Fable S1, Opus S2).
+SELECT pg_temp.refuses_at('D9l an end of 60 days under a later law ending at resolution: the law''s end, so a last day is refused',
+  pg_temp.tight2_sql(pg_temp.e60t(), '{"shelter_ends": {"kind": "resolution", "citation": "battery"}}') || pg_temp.det2_sql('m1', DATE '2026-08-01'), '23514', '[D4s]');
+SELECT pg_temp.admits_undone('D9l2 … no last day is admitted',
+  pg_temp.tight2_sql(pg_temp.e60t(), '{"shelter_ends": {"kind": "resolution", "citation": "battery"}}') || pg_temp.det2_sql('m1', NULL));
+SELECT pg_temp.ok('D9m a full-bill policy under the law''s average cap: the law''s must-pay, not both (a full-bill policy is refused at filing, so by direct call)',
+  (SELECT v -> 'must_pay' = (SELECT doc -> 'must_pay' FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
+     FROM pg_temp.combo(pg_temp.tdoc('{"must_pay": {"strategy": "full_bill", "version": 1, "id": "mf"}}'), '{}') v));
+SELECT pg_temp.ok('D9n a policy withholding up to 0.5 under a law of 0.8: the law''s, not both',
+  (SELECT v -> 'must_pay' = pg_temp.wcap(0.8, 'm2')
+     FROM pg_temp.combo(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(0.5, 'mw') - 'citation')), jsonb_build_object('must_pay', pg_temp.wcap(0.8, 'm2'))) v));
+SELECT pg_temp.ok('D9o a section the policy leaves unruled is narrower (by direct call: a policy cannot leave one unruled), and the law''s is taken',
+  pg_temp.verdicts(pg_temp.tdoc('{"shelter_ends": {"kind": "unruled"}}'), '{}') = '{shelter_ends:looser}'
+  AND (SELECT v -> 'shelter_ends' = (SELECT doc -> 'shelter_ends' FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
+         FROM pg_temp.combo(pg_temp.tdoc('{"shelter_ends": {"kind": "unruled"}}'), '{}') v));
+SELECT pg_temp.ok('D9o2 a start of fewer days from the same anchor is narrower',
+  pg_temp.verdicts(pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 20, "from": "issue"}}'),
+                   '{"shelter_earned": {"kind": "within_days", "days": 30, "from": "issue", "citation": "battery"}}') = '{shelter_earned:looser}');
+SELECT pg_temp.admits_undone('D9g4 the 60-day end against the regulator''s close (as D9g): the 60th day, August 8, is admitted',
+  pg_temp.tight2_sql(pg_temp.e60t(), pg_temp.erc()) || pg_temp.det2_sql('m1', DATE '2026-08-08'));
+SELECT pg_temp.refuses_at('D9g5 … August 9 fits neither',
+  pg_temp.tight2_sql(pg_temp.e60t(), pg_temp.erc()) || pg_temp.det2_sql('m1', DATE '2026-08-09'), '23514', '[D4t]');
+SELECT pg_temp.ok('D9p a policy stage with no decision deadline under the law''s 5 days: the combined stage decides within 5',
+  (SELECT v #> '{stages,1,decide_within}' = '{"kind": "days", "days": 5}'
+     FROM pg_temp.combo(pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                                  {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": true}]}'),
+                        '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                     {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 5}, "final": true}]}') v));
+SELECT pg_temp.ok('D9p2 starts within days of two anchors (30 of issue, 21 of receipt) cannot be ranked: both kept',
+  pg_temp.verdicts(pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 30, "from": "issue"}}'),
+                   '{"shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt", "citation": "battery"}}') = '{shelter_earned:not_comparable}'
+  AND (SELECT jsonb_array_length(v #> '{shelter_earned,either}') = 2
+         FROM pg_temp.combo(pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 30, "from": "issue"}}'),
+                            '{"shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt", "citation": "battery"}}') v));
+CREATE FUNCTION pg_temp.regw(p_days integer) RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT jsonb_build_object('stages', jsonb_build_array(
+    '{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}'::jsonb,
+    jsonb_build_object('id', 's2', 'decider', 'regulator', 'file_within', jsonb_build_object('kind', 'days', 'days', p_days, 'from', 'prior_decision'),
+                       'decide_within', '{"kind": "days", "days": 15}'::jsonb, 'final', true)))
+$f$;
+SELECT pg_temp.ok('D9p3 filing windows of one anchor: the wider is kept, the policy''s (30 against 20) or the law''s (30 against 20)',
+  (SELECT v #>> '{stages,1,file_within,days}' = '30' FROM pg_temp.combo(pg_temp.tdoc(pg_temp.regw(30)), pg_temp.regw(20)) v)
+  AND (SELECT v #>> '{stages,1,file_within,days}' = '30' FROM pg_temp.combo(pg_temp.tdoc(pg_temp.regw(20)), pg_temp.regw(30)) v));
+
+-- Notes: any time is the widest start (Opus N1, Fable N3); a displaced stage on the real path (Fable N5); lists lack (Codex S1).
+SELECT pg_temp.ok('D9q a start of any time is no narrower than a window, and a window is narrower than any time',
+  pg_temp.verdicts(pg_temp.tdoc('{"shelter_earned": {"kind": "any_time"}}'), '{"shelter_earned": {"kind": "within_days", "days": 21, "from": "receipt", "citation": "battery"}}') = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc('{"shelter_earned": {"kind": "any_time"}}'), '{"shelter_earned": {"kind": "on_regulator_complaint", "citation": "battery"}}') = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc('{"shelter_earned": {"kind": "within_days", "days": 30, "from": "issue"}}'), '{"shelter_earned": {"kind": "any_time", "citation": "battery"}}') = '{shelter_earned:looser}');
+SELECT pg_temp.admits_undone('D9q2 a policy sheltering any time is filed under X8''s 21-day window',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a4', DATE '2026-02-01', pg_temp.tdoc(
+    '{"shelter_earned": {"kind": "any_time"}, "must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.1}}')));
+CREATE FUNCTION pg_temp.lawgb() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false, "citation": "battery"},
+                      {"id": "s2", "decider": "governing_body", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 30}, "final": false, "citation": "battery"},
+                      {"id": "s3", "decider": "regulator", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 10}, "final": true, "citation": "battery"}]}'::jsonb
+$f$;
+SELECT pg_temp.admits_undone('D9r a law that puts a stage mid-list: the policy''s displaced regulator follows the law''s last, and a stage event at the law''s marked id is admitted',
+  pg_temp.tight2_sql(pg_temp.tdoc(), pg_temp.lawgb()) || pg_temp.det2_sql('m1', NULL) || '; '
+  || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', 'stage_entered', DATE '2026-06-20', 'law:s2', 'governing_body') || '; '
+  || $q$DO $d$ DECLARE v jsonb; BEGIN
+    SELECT public.dispute_determination_terms(r.id, t.id, NULL) -> 'stages' INTO v
+      FROM public.dispute_rules r, public.dispute_tariffs t
+     WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
+    IF array(SELECT x ->> 'id' || '/' || (x ->> 'decider') FROM jsonb_array_elements(v) x)
+       IS DISTINCT FROM ARRAY['s1/designated_employee', 'law:s2/governing_body', 's3/regulator', 's2/regulator'] THEN
+      RAISE EXCEPTION 'stages: %', v;
+    END IF;
+  END $d$$q$);
+SELECT pg_temp.ok('D9s a list that misses one of the law''s says it lacks it (blocks, duties, stages, subjects); the single terms keep looser and not comparable',
+  pg_temp.verdicts(pg_temp.tdoc('{"blocks": {"codes": []}, "duties": {"codes": []}, "stages": [], "subjects": {"kind": "listed", "codes": ["calculation"], "excluded": []}}'), '{}')
+    = '{blocks:lacks,duties:lacks,stages:lacks,subjects:lacks}');
+
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 a law row is never edited',
   format($q$UPDATE public.dispute_rules SET source_note = 'x' WHERE id = %L$q$, pg_temp.law('investor_owned', 'protected')), '23001', 'dispute_rules');
