@@ -41,6 +41,20 @@
 #        IMMEDIATE), and holds; B withdraws the second and runs its check:
 #        waits on the reading, then is refused (the reading would be left
 #        disputed with no open dispute; T2c).
+#   r4 (Codex S1, Opus S2, Fable S1 and N3, N9): the reading's lock is
+#   FOR NO KEY UPDATE.
+#   DR13c as DR13 on a second reading, but B's check runs at its own COMMIT.
+#   DR14 reading R3 is active. A opens a dispute naming it (a key-share lock,
+#        as any row that references the reading takes) and, two seconds on,
+#        withdraws it and runs its check; B does the same a second behind A:
+#        B waits on the reading, then commits (FOR UPDATE deadlocked here:
+#        each check waited on the other's key-share lock).
+#   DR15 A moves reading R4 into disputed under its open dispute and holds;
+#        B withdraws that dispute: waits on the dispute, then is refused at
+#        commit (the reading would stay disputed with no open dispute; T2c).
+#   DR15b A withdraws the dispute and moves the reading out, and holds; B
+#        does the same: waits, then is refused (one closing event; D5f); the
+#        reading ends active, the dispute withdrawn.
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -336,6 +350,53 @@ two "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occur
     "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRB', 'withdrawn', DATE '2026-04-10'); SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;"
 verdict "DR13 two closes of one reading's two disputes: the second waits on the reading, then is refused (not left disputed with no open dispute)" 1 "[T2c]"
 expect "DR13b … and the reading is still disputed under the open second dispute" "$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD' AND d.id = '$DRB'")" "disputed/open"
+
+# DR13c (r4, Fable N9): the same on a second reading, B's check at its own COMMIT.
+RD2=00000000-0000-4000-8000-0000000025fd
+DRC=00000000-0000-4000-8000-00000000263f
+DRD=00000000-0000-4000-8000-000000002640
+RD3=00000000-0000-4000-8000-0000000025fe
+DRE=00000000-0000-4000-8000-00000000265a
+DRF=00000000-0000-4000-8000-00000000265b
+RD4=00000000-0000-4000-8000-0000000025ff
+DRG=00000000-0000-4000-8000-00000000265c
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: the readings of DR13c-DR15 (r4)"; exit 2; }
+BEGIN;
+INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, reading_value) VALUES
+  ('$RD2', '$T', '$M', DATE '2026-01-31', 40), ('$RD3', '$T', '$M', DATE '2025-12-31', 30), ('$RD4', '$T', '$M', DATE '2025-11-30', 20);
+$AS_OP
+INSERT INTO public.disputes (id, tenant_id, customer_id, reading_id, subject, received_on, channel) VALUES
+  ('$DRC', '$T', '$C', '$RD2', 'meter_accuracy', DATE '2026-03-05', 'written'),
+  ('$DRD', '$T', '$C', '$RD2', 'meter_accuracy', DATE '2026-03-05', 'written'),
+  ('$DRG', '$T', '$C', '$RD4', 'meter_accuracy', DATE '2026-03-05', 'written');
+UPDATE public.meter_readings SET status = 'disputed' WHERE id = '$RD2';
+COMMIT;
+SQL
+two "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRC', 'withdrawn', DATE '2026-04-10'); SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;" \
+    "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRD', 'withdrawn', DATE '2026-04-10');"
+verdict "DR13c … with B's check at its own COMMIT: B waits on the reading, then is refused" 1 "[T2c]"
+expect "DR13d … and the reading is still disputed under the open second dispute" "$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD2' AND d.id = '$DRD'")" "disputed/open"
+
+# DR14 (r4, Codex S1 probe 07): a row that references the reading takes its key-share lock; the close's
+# lock on the reading must not conflict with it.
+two "INSERT INTO public.disputes (id, tenant_id, customer_id, reading_id, subject, received_on, channel) VALUES ('$DRE', '$T', '$C', '$RD3', 'meter_accuracy', DATE '2026-03-05', 'written');
+     SELECT pg_sleep(2);
+     INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRE', 'withdrawn', DATE '2026-04-10'); SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;" \
+    "INSERT INTO public.disputes (id, tenant_id, customer_id, reading_id, subject, received_on, channel) VALUES ('$DRF', '$T', '$C', '$RD3', 'meter_accuracy', DATE '2026-03-05', 'written');
+     SELECT pg_sleep(2);
+     INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRF', 'withdrawn', DATE '2026-04-10'); SET CONSTRAINTS public.zz_dispute_reading_released IMMEDIATE;"
+verdict "DR14 two clerks each open and withdraw a dispute on one reading: the second waits on the reading, then commits (no deadlock)" 0 ""
+expect "DR14b … both disputes are withdrawn and the reading is untouched" "$("${PSQL[@]}" -c "SELECT r.status || '/' || string_agg(d.status, ',' ORDER BY d.id) FROM public.meter_readings r JOIN public.disputes d ON d.reading_id = r.id WHERE r.id = '$RD3' GROUP BY r.status")" "active/withdrawn,withdrawn"
+
+# DR15 (r4, Fable N3): a close against the reading's own move.
+two "UPDATE public.meter_readings SET status = 'disputed' WHERE id = '$RD4';" \
+    "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRG', 'withdrawn', DATE '2026-04-10');"
+verdict "DR15 A marks the reading disputed under its open dispute and holds; B withdraws that dispute: waits, then is refused" 1 "[T2c]"
+expect "DR15a … the reading is disputed, its dispute open" "$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD4' AND d.id = '$DRG'")" "disputed/open"
+two "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRG', 'withdrawn', DATE '2026-04-10'); UPDATE public.meter_readings SET status = 'active' WHERE id = '$RD4';" \
+    "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRG', 'withdrawn', DATE '2026-04-10'); UPDATE public.meter_readings SET status = 'active' WHERE id = '$RD4';"
+verdict "DR15b two clerks each withdraw the dispute and move the reading out: the second waits, then is refused (one closing event)" 1 "[D5f]"
+expect "DR15c … the reading ends active, its dispute withdrawn" "$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD4' AND d.id = '$DRG'")" "active/withdrawn"
 
 # DR12 (not a race): a session that never set app.user_id.
 OUT=$("${PSQL[@]}" 2>&1 <<SQL

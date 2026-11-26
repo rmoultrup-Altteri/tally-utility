@@ -235,7 +235,8 @@ CREATE FUNCTION pg_temp.tariff_sql(p_id text, p_tenant text, p_from date, p_doc 
                    VALUES (%s, %L, 'TX', 'gas', 'distribution', %L, 'battery tariff', 'dispute_tariff', 1, %L)$q$,
                 CASE WHEN p_id IS NULL THEN 'DEFAULT' ELSE quote_literal(p_id) END, p_tenant, p_from, p_doc::text)
 $$;
--- tdoc(overrides): a dispute tariff document (CPS-shaped), with top-level sections replaced.
+-- tdoc(overrides): a dispute tariff document (CPS-shaped), with top-level sections replaced. r4: its stages
+-- are 7.45's own (the law's stages come first, with nothing between; Opus S3, Fable S2).
 CREATE FUNCTION pg_temp.tdoc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$
   SELECT '{"citation": "Battery tariff, disputes",
            "subjects": {"kind": "any", "excluded": []},
@@ -243,8 +244,7 @@ CREATE FUNCTION pg_temp.tdoc(p_over jsonb DEFAULT '{}') RETURNS jsonb LANGUAGE s
            "must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m1"},
            "shelter_ends": {"kind": "resolution"},
            "stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
-                      {"id": "s2", "decider": "executive", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 90}, "final": false},
-                      {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": true}],
+                      {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": true}],
            "blocks": {"codes": ["notice_issue", "disconnect_order", "disconnect_execute", "late_fee"]},
            "duties": {"codes": ["investigate", "report_result", "inform_complaint_route"]}}'::jsonb || p_over
 $$;
@@ -588,8 +588,18 @@ SELECT pg_temp.refuses_at('N9e … or sets the customer a filing deadline where 
 SELECT pg_temp.refuses_at('N9f … or puts the regulator before the designated employee',
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": false}, {"id": "s2", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": true}]}')),
   '23514', 'stages');
-SELECT pg_temp.admits_undone('N9g a quicker regulator (10 days) with a stage of its own between is admitted',
-  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "manager", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 30}, "final": false}, {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}')));
+-- r4 (Opus S3, Opus N2, Fable S2; never looser): the law's stages are the tariff's first, in order, with
+-- nothing between; a stage of the tariff's own only after the law's last (it delays none of the law's).
+SELECT pg_temp.refuses_at('N9g a quicker regulator (10 days), but a manager''s stage of the tariff''s own between (it may delay the regulator)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "manager", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}')),
+  '23514', 'nothing between');
+SELECT pg_temp.refuses_at('N9h … or an executive''s stage before the law''s first (a one-day filing gate in front of the whole process)',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "executive", "file_within": {"kind": "days", "days": 1, "from": "receipt"}, "decide_within": {"kind": "days", "days": 30}, "final": false}, {"id": "s2", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": true}]}')),
+  '23514', 'nothing between');
+SELECT pg_temp.admits_undone('N9i a stage of the tariff''s own after the law''s last (a governing body''s, after the regulator) is admitted: it delays none of the law''s',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": false}, {"id": "s3", "decider": "governing_body", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 30}, "final": true}]}')));
+SELECT pg_temp.admits_undone('N9j the law''s own stages, the regulator quicker (10 days), is admitted',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false}, {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}')));
 -- N7: T4 is a special district; its law is X8's row (shelter within 21 days of receipt, withhold up to 1.1).
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b5', true);
 SELECT pg_temp.refuses_at('N7a a shorter window: 20 days of receipt against 21',
@@ -850,17 +860,48 @@ SELECT pg_temp.refuses_at('D4d under a delegation, a shelter with no tariff behi
 SELECT pg_temp.refuses_at('D4e "no terms" while the utility''s tariff is in force (March 12)',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
                   'protected', pg_temp.law('municipal', 'protected'), NULL, 'no_terms', 0, NULL, NULL, NULL, '{}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4e]');
-SELECT pg_temp.refuses_at('D4f another utility''s tariff (T2''s, which T1 cannot see)',
-  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
-                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ac', 'sheltered', 40, 50, 'm1', NULL,
-                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
--- r3 (Codex S2): D4f above meets a tariff T1 cannot see (N1b's, undone); here the owner, who sees
--- every tenant, cites a real T2 tariff written in the same statement.
+-- r3 (Codex S2): the owner, who sees every tenant, cites a real T2 tariff written in the same statement.
+-- r4 (Codex S2): D4f itself, a real tariff T1 cannot see, is after D7j (T3's policy); here each of the
+-- other comparisons alone, on T1's own policies of another state, service and system.
 RESET ROLE;
 SELECT pg_temp.refuses_at('D4f2 … and as the owner, a real tariff of T2''s (written in the same statement)',
   pg_temp.tariff_sql('00000000-0000-4000-8000-0000000025ae', '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc()) || '; '
   || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ae', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
+-- elsewhere_sql(): as the owner, T1 gets a service profile, a law row (a delegation) and its own policy in
+-- another state, service or system (and, for another state, its state place and customer class).
+CREATE FUNCTION pg_temp.elsewhere_sql(p_id text, p_state text, p_service text, p_system text) RETURNS text LANGUAGE sql AS $f$
+  SELECT CASE WHEN p_state <> 'TX' THEN format($q$INSERT INTO public.places (kind_code, state_code, place_code, name, effective_from, source_note)
+                                                  VALUES ('state', %L, %L, 'Elsewhere', DATE '1900-01-01', 'battery-25'); $q$, p_state, p_state) ELSE '' END
+      || CASE WHEN (p_state, p_service) <> ('TX', 'gas') THEN format($q$INSERT INTO public.dispute_customer_classes (state_code, service_type, class_code, description, source_note)
+                                                  VALUES (%L, %L, 'protected', 'battery class', 'battery-25'); $q$, p_state, p_service) ELSE '' END
+      || format($q$INSERT INTO public.utility_service_profiles (tenant_id, service_type, system_kind, state_code, owner_type, commission_jurisdiction, owning_place_id,
+                                                               effective_from, evidence_reference, evidence_date)
+                   VALUES ('00000000-0000-4000-8000-0000000025a1', %L, %L, %L, 'investor_owned', true, NULL, DATE '2000-01-01', 'battery-25', DATE '2000-01-01'); $q$,
+                p_service, p_system, p_state)
+      || format($q$INSERT INTO public.dispute_rules (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
+                                                    effective_from, source_note, terms_kind, terms_version, terms_source)
+                   VALUES (%L, %L, '{investor_owned}', %L, NULL, 'protected', DATE '2000-01-01', 'battery: elsewhere', 'dispute', 1,
+                           '{"citation": "battery", "governs": "delegated_to_utility", "note": "battery"}'); $q$, p_state, p_service, ARRAY[p_system])
+      || format($q$INSERT INTO public.dispute_tariffs (id, tenant_id, state_code, service_type, system_kind, effective_from, tariff_reference, terms_kind, terms_version, terms_source)
+                   VALUES (%L, '00000000-0000-4000-8000-0000000025a1', %L, %L, %L, DATE '2026-01-01', 'battery: elsewhere', 'dispute_tariff', 1, %L); $q$,
+                p_id, p_state, p_service, p_system, pg_temp.tdoc()::text)
+$f$;
+SELECT pg_temp.refuses_at('D4f3 … and T1''s own policy, but for another state (Oklahoma)',
+  pg_temp.elsewhere_sql('00000000-0000-4000-8000-0000000025af', 'OK', 'gas', 'distribution')
+  || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025af', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
+SELECT pg_temp.refuses_at('D4f4 … or another service (water)',
+  pg_temp.elsewhere_sql('00000000-0000-4000-8000-0000000025b8', 'TX', 'water', 'distribution')
+  || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025b8', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
+SELECT pg_temp.refuses_at('D4f5 … or another system (a master meter)',
+  pg_temp.elsewhere_sql('00000000-0000-4000-8000-0000000025b9', 'TX', 'gas', 'master_meter')
+  || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002541',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025b9', 'sheltered', 40, 50, 'm1', NULL,
                   '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '00000000-0000-4000-8000-000000002551'), '23514', '[D4f]');
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b1', true);
@@ -1269,6 +1310,16 @@ SELECT pg_temp.refuses_at('D7i the default has no review stages: a stage event u
   pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253a', 'stage_entered', DATE '2026-11-24', 's1', 'designated_employee'), '23514', '[D5b]');
 SELECT pg_temp.admits('D7j T3 writes its own policy from November 24',
   pg_temp.tariff_sql('00000000-0000-4000-8000-0000000025ad', '00000000-0000-4000-8000-0000000025a3', DATE '2026-11-24', pg_temp.tdoc()));
+-- r4 (Codex S2): D4f, a real tariff of another utility (T3's, just written), which T1 cannot see.
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b1', true);
+SELECT pg_temp.refuses_at('D4f another utility''s tariff (T3''s, real, which T1 cannot see), on a new dispute of C1''s',
+  pg_temp.dispute_sql('00000000-0000-4000-8000-000000002560', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-0000000025c1',
+                      '00000000-0000-4000-8000-000000002501', NULL, 'calculation', DATE '2026-03-12') || '; '
+  || pg_temp.amount_sql('00000000-0000-4000-8000-000000002561', '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002560', 40, 'customer_claim', DATE '2026-03-12') || '; '
+  || pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002560', '00000000-0000-4000-8000-000000002561',
+                  'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ad', 'sheltered', 40, 50, 'm1', NULL,
+                  '{notice_issue,disconnect_order,disconnect_execute,late_fee}'), '23514', '[D4f]');
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b3', true);
 SELECT pg_temp.refuses_at('D7k November 24: the default is refused — the city''s own policy is in force from that day (it replaces the default)',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a3', '00000000-0000-4000-8000-00000000253c', '00000000-0000-4000-8000-00000000254e',
                   'protected', pg_temp.law('municipal', 'protected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2027-01-21',
@@ -1302,10 +1353,13 @@ SELECT pg_temp.refuses_at('D7p the protected default, cited for a dispute receiv
 SELECT pg_temp.admits_undone('D7p2 … November 23 is fine',
   format($q$UPDATE public.dispute_platform_defaults SET effective_to = DATE '2026-11-23' WHERE id = %L$q$, pg_temp.pdef('protected')));
 
--- ============================================================== D8 a law that tightens after a tariff (r3, Opus S1)
--- T2 writes a wider tariff from January 1; 7.45 is then closed on June 1 and a stricter law (also stopping
--- credit reporting) takes over. A dispute received June 12, on a bill of June 10: the tariff is now looser
--- than the law, so the law is cited (fail toward protection), never the looser tariff.
+-- ============================================================== D8 a law that tightens after a tariff (r3, Opus S1; r4, Opus S1)
+-- T2 writes a wider tariff from January 1; 7.45 is then closed on June 1 and a stricter law takes over (it
+-- also stops credit reporting, requires a payment arrangement to be offered, and the regulator decides
+-- within 10 days, not 15). A dispute received
+-- June 12, on a bill of June 10: the tariff is now looser in part. r4 (fail toward protection): it is cited
+-- with the law, and the record follows the two combined — the tariff's end at resolution and its
+-- undisputed-charges must-pay (no looser), the law's stages (the tariff's are looser), both blocks.
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000025b2', true);
 CREATE FUNCTION pg_temp.tight_sql() RETURNS text LANGUAGE sql AS $f$
   SELECT pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', pg_temp.tdoc()) || '; '
@@ -1314,26 +1368,57 @@ CREATE FUNCTION pg_temp.tight_sql() RETURNS text LANGUAGE sql AS $f$
                      effective_from, source_note, terms_kind, terms_version, terms_source)
                  VALUES ('TX', 'gas', '{cooperative,investor_owned}', '{distribution}', NULL, 'protected', DATE '2026-06-01', 'battery: a stricter law', 'dispute', 1, %L)$q$,
               ((SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
-               || '{"blocks": {"codes": ["disconnect_order", "disconnect_execute", "late_fee", "credit_reporting"], "citation": "battery"}}')::text) || '; '
+               || '{"blocks": {"codes": ["disconnect_order", "disconnect_execute", "late_fee", "credit_reporting"], "citation": "battery"},
+                    "duties": {"codes": ["investigate", "report_result", "inform_complaint_route", "offer_payment_arrangement"], "citation": "battery"},
+                    "stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false, "citation": "battery"},
+                               {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": true, "citation": "battery"}]}')::text) || '; '
     || $q$SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000250a', 'B25-I10', '00000000-0000-4000-8000-0000000025c5',
                               '00000000-0000-4000-8000-0000000025d5', '00000000-0000-4000-8000-0000000025e5', '00000000-0000-4000-8000-0000000025e6',
                               '00000000-0000-4000-8000-0000000025e7', DATE '2026-06-10')$q$ || '; '
     || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-0000000025c5', '00000000-0000-4000-8000-00000000250a', NULL, 'calculation', DATE '2026-06-12') || '; '
     || pg_temp.amount_sql('00000000-0000-4000-8000-000000002540', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', 40, 'customer_claim', DATE '2026-06-12') || '; '
 $f$;
-SELECT pg_temp.refuses_at('D8e the tariff, now looser than the law in force (it does not stop credit reporting), is refused',
+SELECT pg_temp.refuses_at('D8e the tariff cited with its own blocks only (credit reporting, the law''s, left out) is refused',
   pg_temp.tight_sql() || format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
        customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
      SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
-            r.id, t.id, 'sheltered', 40, 50, 'm1', NULL, '{notice_issue,disconnect_order,disconnect_execute,late_fee}', '{}', 'fp-d8e', 'core-battery-25'
+            r.id, t.id, 'sheltered', 40, 50, 'm1', NULL, '{disconnect_execute,disconnect_order,late_fee,notice_issue}', '{}', 'fp-d8e', 'core-battery-25'
        FROM public.dispute_rules r, public.dispute_tariffs t
-      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$), '23514', '[D4r]');
-SELECT pg_temp.admits_undone('D8f … and the law alone is admitted, with the law''s blocks, until August 8 (day 60)',
+      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$), '23514', '[D4h]');
+SELECT pg_temp.refuses_at('D8f … and the law alone, while the tariff is in force, is refused (it would drop the tariff''s end at resolution and its notice block)',
   pg_temp.tight_sql() || format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
        customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
      SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
             r.id, NULL, 'sheltered', 40, 50, 'm1', DATE '2026-08-08', '{credit_reporting,disconnect_execute,disconnect_order,late_fee}', '{}', 'fp-d8f', 'core-battery-25'
-       FROM public.dispute_rules r WHERE r.source_note = 'battery: a stricter law'$q$));
+       FROM public.dispute_rules r, public.dispute_tariffs t
+      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$), '23514', '[D4q]');
+SELECT pg_temp.admits_undone('D8g … the tariff cited, with both documents'' blocks and no last day (the tariff''s end at resolution), is admitted',
+  pg_temp.tight_sql() || format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
+       customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
+     SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
+            r.id, t.id, 'sheltered', 40, 50, 'm1', NULL, '{credit_reporting,disconnect_execute,disconnect_order,late_fee,notice_issue}', '{}', 'fp-d8g', 'core-battery-25'
+       FROM public.dispute_rules r, public.dispute_tariffs t
+      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$));
+SELECT pg_temp.refuses_at('D8k … but not with the law''s last day (August 8): the combined document ends the shelter at resolution',
+  pg_temp.tight_sql() || format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
+       customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
+     SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
+            r.id, t.id, 'sheltered', 40, 50, 'm1', DATE '2026-08-08', '{credit_reporting,disconnect_execute,disconnect_order,late_fee,notice_issue}', '{}', 'fp-d8k', 'core-battery-25'
+       FROM public.dispute_rules r, public.dispute_tariffs t
+      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$), '23514', '[D4s]');
+SELECT pg_temp.admits_undone('D8j the combined document: the law''s stages, the tariff''s end and must-pay, both documents'' blocks and duties',
+  pg_temp.tight_sql() || $q$DO $d$ DECLARE v jsonb; BEGIN
+    SELECT public.dispute_determination_terms(r.id, t.id, NULL) INTO v
+      FROM public.dispute_rules r, public.dispute_tariffs t
+     WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
+    IF NOT (v #>> '{stages,1,decide_within,days}' = '10' AND jsonb_array_length(v -> 'stages') = 2
+            AND v #>> '{shelter_ends,kind}' = 'resolution' AND v #>> '{must_pay,strategy}' = 'undisputed_charges'
+            AND v #> '{blocks,codes}' = '["credit_reporting", "disconnect_execute", "disconnect_order", "late_fee", "notice_issue"]'
+            AND v #> '{duties,codes}' = '["inform_complaint_route", "investigate", "offer_payment_arrangement", "report_result"]'
+            AND v #>> '{shelter_earned,kind}' = 'before_termination') THEN
+      RAISE EXCEPTION 'combined: %', v;
+    END IF;
+  END $d$$q$);
 
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 a law row is never edited',
@@ -1407,6 +1492,8 @@ SELECT pg_temp.refuses_at('H16b2 … or a listed column grant revoked (the statu
   $q$REVOKE UPDATE (status_recorded_at) ON public.disputes FROM tally_dispute; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'column grants');
 SELECT pg_temp.refuses_at('H16b3 … or an UPDATE granted on the record sequence that orders "nothing after the resolution" (r3, Fable S2)',
   $q$GRANT UPDATE ON SEQUENCE public.dispute_record_seq TO tally_app; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'grants or row security');
+SELECT pg_temp.refuses_at('H16b4 … or the record sequence set to cycle (r4, Fable N8: its settings are pinned)',
+  $q$ALTER SEQUENCE public.dispute_record_seq CYCLE; SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'a sequence''s settings');
 SELECT pg_temp.refuses_at('H16c … a guard''s body replaced',
   $q$CREATE OR REPLACE FUNCTION public.enforce_dispute_reading_released() RETURNS trigger LANGUAGE plpgsql SET search_path = public, pg_temp AS $b$ BEGIN RETURN NULL; END $b$;
      SELECT public.assert_dispute_guard_invariants()$q$, '0LP01', 'enforce_dispute_reading_released');

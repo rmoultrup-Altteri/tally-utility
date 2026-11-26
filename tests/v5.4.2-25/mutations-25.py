@@ -215,12 +215,19 @@ MUTATIONS = [
     ("M64", "a law citation takes no lock", "DR6b",
      rep("    PERFORM public.rule_law_row_cite('public.dispute_rules', NEW.rule_id, NEW.tenant_id, NEW.service_type, NEW.system_kind, NEW.state_code,\n"
          "                                     jsonb_build_object('customer_class', NEW.customer_class), d.received_on);\n", "")),
-    ("M65", "another utility's tariff", "D4f",
-     rep("        IF NOT FOUND OR t.tenant_id <> NEW.tenant_id OR t.state_code <> NEW.state_code OR t.service_type <> NEW.service_type\n           OR t.system_kind <> NEW.system_kind THEN",
-         "        IF false THEN")),
+    # r4 (Codex S2): the not-visible leg alone, against a real tariff of another utility.
+    ("M65", "another utility's tariff, which the application cannot see", "D4f",
+     rep("        IF NOT FOUND OR t.tenant_id <> NEW.tenant_id OR t.state_code", "        IF t.tenant_id <> NEW.tenant_id OR t.state_code")),
     # r3 (Codex S2): the tenant leg alone, against a tariff the owner sees.
     ("M65b", "another utility's tariff, seen by the owner", "D4f2",
      rep("        IF NOT FOUND OR t.tenant_id <> NEW.tenant_id OR t.state_code", "        IF NOT FOUND OR t.state_code")),
+    # r4 (Codex S2): each other comparison alone.
+    ("M65c", "the utility's own policy for another state", "D4f3",
+     rep(" OR t.state_code <> NEW.state_code OR t.service_type", " OR t.service_type")),
+    ("M65d", "the utility's own policy for another service", "D4f4",
+     rep(" OR t.service_type <> NEW.service_type\n", "\n")),
+    ("M65e", "the utility's own policy for another system", "D4f5",
+     rep("           OR t.system_kind <> NEW.system_kind THEN", "           THEN")),
     ("M66", "a tariff not in force", "D4c",
      rep("        IF NOT daterange(t.effective_from, t.effective_to, '[)') @> d.received_on THEN", "        IF false THEN")),
     ("M67", "a tariff citation takes no lock", "DR6",
@@ -344,7 +351,7 @@ MUTATIONS = [
     ("M115", "a shelter under a counted end may run past it", "D4p",
      rep("        IF NEW.shelter_ends_on IS NULL OR v_last IS NULL OR NEW.shelter_ends_on > v_last THEN", "        IF false THEN")),
     ("M116", "the law alone may be cited while the utility's policy is in force", "D4q",
-     rep("            IF NEW.tariff_id IS NULL AND v_tariff_holds THEN", "            IF false THEN")),
+     rep("    IF r.terms ->> 'governs' = 'law' AND NEW.tariff_id IS NULL\n", "    IF false\n")),
     ("M117", "a closed dispute may leave its reading marked disputed", "T2e0",
      rep("       AND NOT EXISTS (SELECT 1 FROM public.disputes x WHERE x.reading_id = v_reading AND x.status = 'open') THEN", "       AND false THEN")),
     ("M118", "a dispute may name another tenant's bill in a load with foreign keys off", "H17",
@@ -419,11 +426,16 @@ MUTATIONS = [
      rep("CREATE TRIGGER z_enforce_dispute_nothing_after_close AFTER INSERT ON public.dispute_amount_lines FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_nothing_after_close();\n"
          "ALTER TABLE public.dispute_amount_lines ENABLE ALWAYS TRIGGER z_enforce_dispute_nothing_after_close;\n", "")),
     ("M145", "the release check does not serialise on the reading", "DR13",
-     rep("        PERFORM 1 FROM public.meter_readings m WHERE m.id = v_reading FOR UPDATE;\n", "")),
-    ("M146", "a tariff looser than the law may be cited", "D8e",
-     rep("            IF NEW.tariff_id IS NOT NULL AND NOT coalesce(v_tariff_holds, false) THEN", "            IF false THEN")),
-    ("M147", "a tariff looser than the law must still be cited", "D8f",
-     rep("            IF NEW.tariff_id IS NULL AND v_tariff_holds THEN", "            IF NEW.tariff_id IS NULL THEN")),
+     rep("        PERFORM 1 FROM public.meter_readings m WHERE m.id = v_reading FOR NO KEY UPDATE;\n", "")),
+    # r4 (Opus S1): the combined record.
+    ("M146", "a tariff looser in part than the law is checked against itself alone", "D8e",
+     rep("CASE WHEN r.terms ->> 'governs' = 'law' THEN public.dispute_terms_combined(to_jsonb(t), to_jsonb(r)) ELSE t.terms END", "t.terms")),
+    ("M147", "the law's sections never replace the tariff's looser ones", "D8j",
+     rep("        CONTINUE WHEN v_section IN ('blocks', 'duties');", "        CONTINUE;")),
+    ("M147b", "the combined blocks are the tariff's alone", "D8e",
+     rep("    FOREACH v_part IN ARRAY ARRAY['blocks', 'duties'] LOOP", "    FOREACH v_part IN ARRAY ARRAY['duties'] LOOP")),
+    ("M147c", "the combined duties are the tariff's alone", "D8j",
+     rep("    FOREACH v_part IN ARRAY ARRAY['blocks', 'duties'] LOOP", "    FOREACH v_part IN ARRAY ARRAY['blocks'] LOOP")),
     ("M148", "a last day under a document ended by resolution", "D8h",
      rep("    IF NEW.outcome = 'sheltered' AND v_doc #>> '{shelter_ends,kind}' IN ('resolution', 'through_regulator_close') AND NEW.shelter_ends_on IS NOT NULL THEN",
          "    IF false THEN")),
@@ -432,9 +444,19 @@ MUTATIONS = [
     ("M150", "a stage's filing window is not compared", "N9e",
      rep("               AND (ts #>> '{file_within,kind}' = 'none'\n", "               AND (true\n")),
     ("M151", "the law's stage order is not kept", "N9f",
-     rep("             WHERE j > v_pos AND ts ->> 'decider' = v_ls ->> 'decider'", "             WHERE ts ->> 'decider' = v_ls ->> 'decider'")),
+     rep("             WHERE j = v_li AND ts ->> 'decider' = v_ls ->> 'decider'", "             WHERE ts ->> 'decider' = v_ls ->> 'decider'")),
     ("M152", "the record sequence's grants are not pinned", "H16b3",
-     rep("        'dispute_record_seq | {tally=rwU/tally,tally_app=U/tally} | false | false',\n", "")),
+     rep("        'dispute_record_seq | {tally=rwU/tally,tally_app=U/tally} | false | false | tally | 1,1,1,9223372036854775807,false',\n", "")),
+    # r4 (Codex S1, Opus S2, Fable S1): the reading's lock no stronger than the conflict it needs.
+    ("M153", "the release check locks the reading FOR UPDATE (it deadlocks with a row that references it)", "DR14",
+     rep("FOR NO KEY UPDATE;", "FOR UPDATE;")),
+    # r4 (Opus S3, Fable S2): the law's stages first, nothing between.
+    ("M154", "a stage of the tariff's own may sit between the law's", "N9g",
+     rep("             WHERE j = v_li AND ts ->> 'decider' = v_ls ->> 'decider'", "             WHERE j > v_pos AND ts ->> 'decider' = v_ls ->> 'decider'")),
+    # r4 (Fable N8): the sequence's settings pinned.
+    ("M155", "the record sequence's settings are not pinned", "H16b4",
+     rep("coalesce((SELECT q.seqstart || ',' || q.seqincrement || ',' || q.seqmin || ',' || q.seqmax || ',' || q.seqcycle\n",
+         "coalesce((SELECT '1,1,1,9223372036854775807,false'\n")),
 ]
 
 

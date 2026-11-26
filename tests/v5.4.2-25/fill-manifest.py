@@ -85,7 +85,10 @@ if __name__ == "__main__":
       where c.relnamespace = 'public'::regnamespace and c.relname in ({tl}) and a.attnum > 0 and a.attnotnull and not a.attisdropped order by 1""")
     # r3 (Fable S2): the record sequence's grants are pinned with the tables'.
     sl = ",".join(f"'{x}'" for x in sorted(set(re.findall(r"CREATE SEQUENCE public\.([a-z_0-9]+)", s))))
+    # r4 (Fable N8): the owner, and a sequence's settings.
     tabs = psql(DB, f"""select c.relname || ' | ' || coalesce(c.relacl::text, '-') || ' | ' || c.relrowsecurity::text || ' | ' || c.relforcerowsecurity::text
+      || ' | ' || pg_get_userbyid(c.relowner)
+      || ' | ' || coalesce((select q.seqstart || ',' || q.seqincrement || ',' || q.seqmin || ',' || q.seqmax || ',' || q.seqcycle from pg_sequence q where q.seqrelid = c.oid), '-')
       from pg_class c where c.relnamespace = 'public'::regnamespace and c.relname in ({tl}{',' + sl if sl else ''}) order by 1""")
     pols = psql(DB, f"""select p.tablename || ' | ' || p.policyname || ' | ' || p.cmd || ' | ' || p.permissive || ' | ' || p.roles::text || ' | '
       || coalesce(p.qual, '-') || ' | ' || coalesce(p.with_check, '-') from pg_policies p where p.schemaname = 'public' and p.tablename in ({tl}) order by 1""")
