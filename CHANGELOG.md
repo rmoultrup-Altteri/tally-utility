@@ -17,7 +17,9 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 **Failed approaches / corrections:** reviewers caught the March pipeline safety fee left off, "by cycle" used with the old factor (SCN-0001 means the new), a re-read request dated before its read, the built estimate cap firing a step earlier than written, an estimate's base month before Gulf Plains' go-live, built confirmation records called "not built", and R-30's skip-reason buckets cited as Kyle's ruling (they are a proposal). The source inventory's §7.5519 summary (from GBM's knowledge page) was wrong: the rule sets no effective date.
 
-**Next:** Ryan sends batches 3 – 7; the gas family's remaining gaps (handoff item 1) or another family, Ryan's choice.
+- **Nine more cases (SCN-0146 – 0154)**, the reviewers' gaps, and **review round 8** (`scenarios/review/2026-11-25-gas-2/`) applied: the move-out bill follows the built part-month default (a share by days); Gulf Plains' six-month breach is surfaced and the bill still goes out (R-21; bills monthly); a stopped meter's unbilled month is an estimated bill, not a backbill, and Texas's three-month rule doesn't reach a city; the empty taxed rental replaced by a residential customer; due dates (Feb 1, not the Jan 16 issue day); BB-02 and PF-03 reuse conflicts removed. Batch 7 is 25 questions. Board note to rates (six more points).
+
+**Next:** Ryan sends batches 3 – 7; round 8's small remaining gaps (handoff item 1) or another family, Ryan's choice.
 
 ## 2026-11-25 (scenarios) — unmatched cash and pledges (SCN-0117 – 0129), reviewed; two of Ryan's rulings; the transit rate fixed; Kyle batch 6
 

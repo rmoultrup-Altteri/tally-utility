@@ -4,7 +4,7 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 **Generated**: 2026-11-25, end of the seventh scenarios session (continued after the gas family).
 **Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (Kyle also posts in the Slack DM, D0B0GRDQYLR; this session had no Slack tool, so the DM was not read).
-**Status**: 145 scenarios (SCN-0001 – 0145). The gas cost, zones and reads family (0130 – 0145) is written ahead of its patches (Ryan's go-ahead) and reviewed (round 7, all three reviewers, applied). Five batches of questions for Kyle are drafted as files, none sent.
+**Status**: 154 scenarios (SCN-0001 – 0154). The gas cost, zones and reads family (0130 – 0154) is written ahead of its patches (Ryan's go-ahead) and reviewed (rounds 7 and 8, all three reviewers, applied). Five batches of questions for Kyle are drafted as files, none sent.
 
 ## Goal
 
@@ -12,11 +12,11 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Where things are
 
-- `scenarios/README.md`: shape, conventions, file index, **next free ID SCN-0146**.
-- `scenarios/cast.md`: Pecan Flat, Bluebonnet (five tax rows now: the hospital district is gone, transit 0.25%), Gulf Plains (billing days now stated: read the 1st, billed the 5th, due 20 days later), Fremont / Prairie Line, §5 held money and agencies, **§6 gas cost, zones and reads** (billing days, gas cost figures by billing month, Gulf Plains' rates, Bluebonnet's pressure zones, estimate methods and the cap, meter dials); customers BB-17, BB-18, BB-19, GP-08.
-- Families: billing pipeline, cancel-rebill, deposits, backbilling, periods and aging, tenant isolation, date-tracking, cash (0081–0103), tax (0104–0116), unmatched cash and pledges (0117–0129), **gas cost, zones and reads (0130–0145)**.
-- Reviews: `scenarios/review/<date>/`; round 6 is `2026-11-25/`; **round 7 is `2026-11-25-gas/`** (brief.md, codex.md, opus.md, fable.md).
-- Kyle briefs: batch 3 `application/kyle-brief-2026-11-22-scenario-batch-3.md` (K-14), batch 4 (K-16), batch 5 `…-2026-11-24-…-batch-5.md` (K-18), batch 6 `…-2026-11-25-…-batch-6.md` (K-19), **batch 7 `…-2026-11-25-…-batch-7.md` (K-20, 17 questions)**.
+- `scenarios/README.md`: shape, conventions, file index, **next free ID SCN-0155**.
+- `scenarios/cast.md`: Pecan Flat, Bluebonnet (five tax rows now: the hospital district is gone, transit 0.25%), Gulf Plains (billing days now stated: read the 1st, billed the 5th, due 20 days later), Fremont / Prairie Line, §5 held money and agencies, **§6 gas cost, zones and reads** (billing days, gas cost figures by billing month, Gulf Plains' rates, Bluebonnet's pressure zones, estimate methods and the cap, meter dials); customers BB-17 – BB-21, GP-08, GP-09; Bluebonnet's part-month customer charge is the platform default, a share by days.
+- Families: billing pipeline, cancel-rebill, deposits, backbilling, periods and aging, tenant isolation, date-tracking, cash (0081–0103), tax (0104–0116), unmatched cash and pledges (0117–0129), **gas cost, zones and reads (0130–0154)**.
+- Reviews: `scenarios/review/<date>/`; round 6 is `2026-11-25/`; **round 7 is `2026-11-25-gas/`, round 8 `2026-11-25-gas-2/`** (brief.md, codex.md, opus.md, fable.md each).
+- Kyle briefs: batch 3 `application/kyle-brief-2026-11-22-scenario-batch-3.md` (K-14), batch 4 (K-16), batch 5 `…-2026-11-24-…-batch-5.md` (K-18), batch 6 `…-2026-11-25-…-batch-6.md` (K-19), **batch 7 `…-2026-11-25-…-batch-7.md` (K-20, 25 questions)**.
 
 ## Completed this session
 
@@ -30,6 +30,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 - [x] Review round 7 (Opus, Fable, Codex) applied: the March pipeline fee; "by cycle" as SCN-0001; the built cap fires at the third estimate; the estimate's base month; dates; what is built (zone and pressure confirmations, the billing guard); R-30's list is a proposal; §7.45's approved-plan and customer-readable conditions.
 - [x] Law read: 16 TAC §7.45 (6)(B), (6)(C), (4)(E)(vii), (7)(B)(iv); §7.5519 sets no effective date (GBM's knowledge page says otherwise).
 - [x] Board note to rates (seven points); batch 7 drafted; roadmap K-20; dashboard dataset `decisions` v22.
+- [x] **Nine more cases (SCN-0146 – 0154)** from round 7's gaps (Ryan: "write the remaining gas cases"): a move-out mid-month; a missed month billed on one read; Gulf Plains six months without an actual; Gulf Plains' factor carried forward; a destroyed meter with no history; Bluebonnet at its cap; a stopped meter and a true zero; pressure factors wrong, missing or misplaced; a multiplier and a factor together. Round 8 applied: the part-month customer charge follows the built default (a share by days, $25.71); the six-month breach is surfaced, not a held bill (R-21, monthly billing); a stopped meter's unbilled month is the month's own estimated bill, not a backbill; taxes, due dates, reused customers; batch 7 now 25 questions.
 
 ## Waiting on Ryan
 
@@ -41,7 +42,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Not yet done (in order)
 
-1. [ ] Gas family gaps the reviewers named, not yet written: a final bill or two bills for one meter in a billing month; two months billed on one read; Gulf Plains' six-month actual read missed (the Jul/Sep deadline); Gulf Plains' factor not filed; an estimated removal read; an estimate with no history; a city at its estimate cap; a zero or stuck read; a standard-pressure meter wrongly given a factor; a multiplier and a pressure factor on one meter; a zone confirmed wrong. Energy-unit (therm) billing waits for Gulf Plains' tariff to be drafted from a real Railroad Commission tariff. Ryan's question in SCN-0145 (a meter recorded at the wrong address: correction or move) to ask when the rates stream reaches it.
+1. [ ] Gas family, round 8's remaining gaps (small): a final reading that can't be taken (estimated move-out); a missed month at Bluebonnet (customer charges owed); a rebill of a carried-forward figure; a self-read card that comes back (waits on Kyle); a second estimate under the three-month average (does an estimate feed the next); a back-dated actual; a Gulf Plains new customer with no same-month history; a final bill corrected in a later month. Energy-unit (therm) billing waits for Gulf Plains' tariff to be drafted from a real Railroad Commission tariff. Ryan's question in SCN-0145 (a meter recorded at the wrong address: correction or move) to ask when the rates stream reaches it.
 2. [ ] Tax, not yet written: a rise that would pass 2% where a district overlaps (needs a district of its own: east of Main is full at 2%); disannexation; a premise with no city status on the tax axis; a use change partway through a period; franchise fees (after -31). Citation checks open: how annexation moves a transit authority's boundary; whether §321.3025 reaches a crime-control district; Property Code §76.601–.602 (what a city treasurer does with unclaimed property).
 3. [ ] Weather normalization; state machines, exception paths, the persona matrix.
 4. [ ] Families after their patches mirror: disputes (-25), collections (-26).
