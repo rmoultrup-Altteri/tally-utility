@@ -1,0 +1,25 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+INSERT 0 1
+SAVEPOINT
+psql:/tmp/p.sql:28: ERROR:  23514: dispute_events: dispute 00000000-0000-4000-8000-000000002d31 was withdrawn by event ac6336f0-9c48-44e7-a689-6aa64065bc64, recorded before this row — nothing is recorded on it after [D5f] (v5.4.2-25)
+CONTEXT:  PL/pgSQL function enforce_dispute_nothing_after_close() line 19 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:/tmp/p.sql:30: error: ERROR:  23514: dispute_events: dispute 00000000-0000-4000-8000-000000002d31 was withdrawn by event ac6336f0-9c48-44e7-a689-6aa64065bc64, recorded before this row — nothing is recorded on it after [D5f] (v5.4.2-25)
+CONTEXT:  PL/pgSQL function enforce_dispute_nothing_after_close() line 19 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK
+ closing_rows_after_failed_copy 
+--------------------------------
+                              0
+(1 row)
+
+ROLLBACK
+exit 0

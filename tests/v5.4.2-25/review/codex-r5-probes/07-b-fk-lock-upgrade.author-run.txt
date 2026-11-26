@@ -1,0 +1,11 @@
+BEGIN
+SET
+SET
+SET
+INSERT 0 1
+INSERT 0 1
+psql:/tmp/b7.sql:20: NOTICE:  00000: FK upgrade B SQLSTATE=00000 release accepted
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ROLLBACK
+exit 0
