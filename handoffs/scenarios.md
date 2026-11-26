@@ -4,7 +4,7 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 **Generated**: 2026-11-25, end of the seventh scenarios session (continued after the gas family).
 **Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (Kyle also posts in the Slack DM, D0B0GRDQYLR; this session had no Slack tool, so the DM was not read).
-**Status**: 154 scenarios (SCN-0001 – 0154). The gas cost, zones and reads family (0130 – 0154) is written ahead of its patches (Ryan's go-ahead) and reviewed (rounds 7 and 8, all three reviewers, applied). Five batches of questions for Kyle are drafted as files, none sent.
+**Status**: 154 scenarios (SCN-0001 – 0154). The gas cost, zones and reads family (0130 – 0154) is written ahead of its patches (Ryan's go-ahead) and reviewed (rounds 7 and 8, all three reviewers, applied). Five batches of questions for Kyle are drafted as files, none sent, **triaged from 83 questions to 28 and five figure checks** (Ryan; DECISION-LOG).
 
 ## Goal
 
@@ -16,7 +16,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 - `scenarios/cast.md`: Pecan Flat, Bluebonnet (five tax rows now: the hospital district is gone, transit 0.25%), Gulf Plains (billing days now stated: read the 1st, billed the 5th, due 20 days later), Fremont / Prairie Line, §5 held money and agencies, **§6 gas cost, zones and reads** (billing days, gas cost figures by billing month, Gulf Plains' rates, Bluebonnet's pressure zones, estimate methods and the cap, meter dials); customers BB-17 – BB-21, GP-08, GP-09; Bluebonnet's part-month customer charge is the platform default, a share by days.
 - Families: billing pipeline, cancel-rebill, deposits, backbilling, periods and aging, tenant isolation, date-tracking, cash (0081–0103), tax (0104–0116), unmatched cash and pledges (0117–0129), **gas cost, zones and reads (0130–0154)**.
 - Reviews: `scenarios/review/<date>/`; round 6 is `2026-11-25/`; **round 7 is `2026-11-25-gas/`, round 8 `2026-11-25-gas-2/`** (brief.md, codex.md, opus.md, fable.md each).
-- Kyle briefs: batch 3 `application/kyle-brief-2026-11-22-scenario-batch-3.md` (K-14), batch 4 (K-16), batch 5 `…-2026-11-24-…-batch-5.md` (K-18), batch 6 `…-2026-11-25-…-batch-6.md` (K-19), **batch 7 `…-2026-11-25-…-batch-7.md` (K-20, 25 questions)**.
+- Kyle briefs: batch 3 `application/kyle-brief-2026-11-22-scenario-batch-3.md` (K-14), batch 4 (K-16), batch 5 `…-2026-11-24-…-batch-5.md` (K-18), batch 6 `…-2026-11-25-…-batch-6.md` (K-19), **batch 7 `…-2026-11-25-…-batch-7.md` (K-20, 7 questions after triage)**.
 
 ## Completed this session
 
@@ -35,6 +35,8 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 ## Waiting on Ryan
 
 - **Send batches 3, 4, 5, 6, then 7**, each pasted from below its "Paste from here". If an older batch 3 draft is in Kyle's DM, delete it first.
+
+- **One decision of Ryan's, to raise next:** netting a credit against a bounced payment, recorded at the bounce or at the refund (SCN-0087, SCN-0103; Kyle 10-30 left it to Ryan).
 
 ## Waiting on Kyle
 

@@ -41,7 +41,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - The receipt now holds $0.00. The payment carries the check's details exactly as the receipt records them (number, date, bank, channel), and a payment that differs is refused.
 - Refused: the payment dated before Dec 2 (a payment is dated no earlier than the money came); a customer's date after Dec 2 (the money was here by then); a payment from the receipt with no reason or no operator.
 - **A closed month.** Had the check come on Mon Nov 30, been recorded that day, and November been closed before it was identified, the payment would still be posted in December with customer's date Nov 28. A closed month does not stop a held receipt from being resolved. A check *found* after November closed, with a bank date of Nov 30, is another matter: a receipt cannot be recorded with a date in a closed month. It is recorded with the first open day as its date, and the bank's date goes in its evidence. Its age then starts late, and its payment's customer's date can be no later than that recorded date. (Board note to money: a found-late receipt's true date.)
-- **Open (Kyle):** the penalty posted on Dec 2 while the utility already held the customer's money unidentified. Should the core hold penalties on a receipt's candidates until it is resolved, or post and reverse them as here?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the penalty posts and is reversed, as here. The owner ends in the same place, because the penalty is reversed and a reversed penalty never counts against the customer (Kyle 11-05, answer 5), while holding penalties on every possible owner would wrongly delay real penalties for the customers the money did not belong to. This is bookkeeping, the stream's to settle.
 
 ---
 
@@ -68,8 +68,9 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - Both bills were paid on time (the day received counts at Pecan Flat, `cast.md` §1), so both Dec 2 penalties, $7.55 and $4.53, are reversed on Dec 3, each naming its penalty, as in SCN-0117 (b).
 - A third payment from the receipt, of any amount, is refused. So is payment 2 for $45.31 instead of $45.30.
 - **(b)** On Dec 3 the receipt holds $45.30, and PF-06's $7.55 is reversed. The receipt is 6 days old on Dec 3 (counted from Nov 27, not from the first resolution) and 11 on Dec 8, past Pecan Flat's 10-day service level from Dec 8 (SCN-0120). PF-07's $4.53 is reversed on Dec 8 when payment 2 is posted with customer's date Nov 27.
-- SCN-0117's Open (hold penalties on a receipt's candidates?) would not help here: this receipt lists no candidate.
-- Each payment is the customer's own, so a later refund of it names no agency. **Open (Kyle):** if the landlord's check had overpaid, is the refund check made out to the tenant (the account holder) or to the landlord who wrote the check?
+- Holding penalties on a receipt's possible owners (SCN-0117, settled as post and reverse) would not have helped here anyway: this receipt lists no possible owner.
+- Each payment is the customer's own, so a later refund of it names no agency.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** had the landlord's check overpaid, the refund check is made out to the tenant, the account holder: a relative or landlord paying is the customer's own payment (Ryan 2026-11-07, DECISION-LOG).
 
 ---
 
@@ -92,9 +93,10 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - R2 has no sender, so it can only be held until the dormancy period ends.
 - **(d)** R2 is presumed abandoned once more than three years have passed since Dec 2, 2026 with its owner unknown and no claim: from Mon Dec 3, 2029. On Sun Jun 30, 2030 Bluebonnet still holds it. Bluebonnet is a city and R2 is $100 or less, so it goes to the city's own treasurer with the report by Fri Nov 1, 2030 (SCN-0103 uses the same date). R1 is the same if its owner counts as unknown from the start. If the three years run only from Jul 6, 2027, when its address proved wrong, R1 is presumed abandoned from Jul 7, 2030 and reported by Nov 1, 2031 (Open, below). Each receipt then records "reported as unclaimed property", state TX, with the report's reference, for what it holds ($38.00; $20.00), and holds $0.00. A report with no state or no reference is refused. Neither receipt ever reaches a customer's ledger.
 - At Gulf Plains, which is not a city, the same money would be reported to the state under Property Code ch. 74.
-- **Open (Kyle or a tax advisor):** does R1's three years run from the day the money came or from the day its sender's address proved wrong?
+- **Open (counsel):** does R1's three years run from the day the money came or from the day its sender's address proved wrong?
 - **Open (a citation check):** what the city's treasurer does with property delivered under chapter 76 (§76.601–§76.602, not yet read). Is it held for the owner in the city's own fund, and is that fund ever the city's revenue?
-- **Open (Kyle):** retention (180 days here) and dormancy (more than three years) are two deadlines, and only a return to the sender fits inside the shorter one. Is 180 days a sensible default suggestion at onboarding for a city system, and does a city really return checks to senders it can find before the dormancy period?
+- Retention (180 days here) and dormancy (more than three years) are two deadlines, and only a return to the sender fits inside the shorter one.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** no platform default is needed: each utility states its retention period before it goes live (Ryan 2026-11-25, DECISION-LOG), so the 180 days here is a test value. Whether a city returns checks to senders it can find is its own practice, stated with that setting.
 
 ---
 
@@ -173,7 +175,7 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - If PF-07 is identified later, nothing is left to pay it with: PF-07's bill was never paid.
 - Whether PF-06's Dec 2 penalty, reversed on Dec 3, is charged again now that the check never paid is SCN-0084's Open.
 - **(b)** On Dec 4, adding the bank's code to PF-06's reversed payment is refused. The operator returns the $75.50 to the receipt as misposted (it then holds $120.80), then records the bank's return of $120.80 on the receipt with the bank's code. The receipt holds $0.00. The core records the return and the bank's return together, so the $75.50 is never available for PF-07 in between. PF-06 owes $75.50 again by the reversal, and the returned-check charges follow from the bank's return as in (a).
-- **Open (Kyle):** the landlord's check bounced, but the fees fall on the tenant's account (PF-06). Is that right for a third party's check? Does PF-07 owe a fee for the part that was never posted to it?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the landlord's check bounced, and the returned-check fees fall on the tenant whose account it was posted to (PF-06): a relative or landlord paying is the customer's own payment (Ryan 2026-11-07, DECISION-LOG). PF-07 owes no fee for the part never posted to it, because no payment of PF-07's ever existed (the choice that protects the customer).
 
 ---
 
@@ -217,11 +219,11 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - **Open (Kyle):** the protection lasts "for a billing period", here to Sep 30, while the agency has to Oct 25. If the pledge is unpaid on Oct 1, may Gulf Plains disconnect for the July bill? Or does the agreement's "not delinquent if paid within 45 days" hold the pledged amount to Oct 25? The agreement is between the agency and the utility, not a rule the customer holds.
 - **Open (Kyle):** "sufficient payment to continue service". A pledge of $30.00 against the $47.80 delinquent: does it protect? The vendor agreement says a short pledge does not oblige a *reconnection*.
 - **Open (Kyle):** does a pledge entered in the agency's web portal count as "other written notification"?
-- **Open (Kyle):** the pay-by date, Oct 25, is a Sunday. Does the agency have until Monday?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the pay-by date, Oct 25, is a Sunday, so the agency has until Monday, the next business day. Where the agreement is silent, the default protects the customer (Kyle 11-03); it only delays a cut-off by a day or two and charges no one. An agreement that says otherwise is entered as one of its terms.
 - **Open (Kyle):** the vendor agreement keeps service on for up to five business days while the agency checks eligibility, before any pledge exists. Nothing records "the agency is checking this customer": a pledge needs an amount. How do the utilities learn of it, and what should hold the cut-off in those days? (Board note to money.)
 - **Settled (Ryan, 2026-11-25, DECISION-LOG): a pledge carries the day the utility received it**, entered by the operator, no earlier than the agency's date and no later than the day it is keyed, written once; the protection reads it, and the keying stamp stays as the audit trail. A letter that arrives Wed Sep 30 and is keyed Thu Oct 1 reads as received Sep 30, in September's period. **Not yet built** (money's patch): until it is, the record holds only the keying time.
 - **Settled (Ryan, 2026-11-25, DECISION-LOG):** a city states its pledge rule before it goes live, even if the rule is "a pledge gives no protection", so (d) never meets a silent tariff on a live utility. Pecan Flat's rule is not yet in the cast: until a scenario needs it, (d) shows only what is recorded.
-- **Open (Kyle, for city systems):** what do the cities do with a pledge in practice: follow the CEAP agreement's 45 days, or something else?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** no platform default for city systems is needed: each city states its pledge rule before it goes live (Ryan 2026-11-25, DECISION-LOG, the note above), and that rule may be "a pledge gives no protection".
 
 ---
 
@@ -310,5 +312,5 @@ Money the utility holds but cannot yet attribute to a customer, and pledges from
 - **(a)** Two agency payments, PF-01 $75.50 and PF-02 $40.00, each naming its pledge. Both pledges read *paid*. A receipt of $64.80 names the agency, with the list line as evidence. The check reconciles: $75.50 + $40.00 + $64.80 = $180.30.
 - **(b)** PF-06's payment of $64.80 from the receipt is the agency's, naming the agency and no pledge. A payment from that receipt marked as the customer's own is refused.
 - **(c)** The receipt is 3 days old, not aged, and lists no candidate, so nothing bars the cut-off: PF-06 is cut off on Dec 10 while the agency's money for it sits held. This is limit L1, and SCN-0120's first Open.
-- **Open (Kyle):** should intake list as candidates every customer with an open pledge from the agency that sent the money, or every customer the agency is known to serve?
-- **Open (Kyle):** the agency paid for a customer with no pledge on file. Should the core ask the agency for the pledge, or is the payment enough?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** intake lists as possible owners every customer with an open pledge from the agency that sent the money. It is intake procedure, the stream's to settle; the wider list only protects customers once the handling limit passes, and charges no one.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the agency paid for a customer with no pledge on file, and the payment is enough. It is recorded as the agency's payment, so a refund of it goes to the agency (Ryan 2026-11-07, DECISION-LOG); asking the agency for the pledge is optional practice for the core.

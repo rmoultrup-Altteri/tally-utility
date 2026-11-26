@@ -99,7 +99,7 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 - Pecan Flat's cut-off on the 10th and its separate $20 service charge follow from the unpaid bill; this scenario stops at the return.
 - (b)'s $20.00 is this stream's reading of "insufficient-funds late fee $20 if after the 10th" as the day the check comes back. **Open (Kyle):** or does it mean not made good by the 10th, so that (a) owes it too once the 10th passes? Is it charged beside the $20 service charge? And are the $25, $7 and $20 in next month's penalty base (full amount owed, excluding earlier penalties)?
 - **Open (Kyle):** the check reached Pecan Flat before the 1st, but never paid. Does the ordinary 10% late penalty ($7.55 here) post as well, because the bill turns out unpaid on the 1st? If so, is it dated the 2nd or the day the check comes back? The $20 fee may be Stinnett's substitute for it. The same question at Bluebonnet, whose gross rate would add $6.52 and $0.07 to the reference bill.
-- **Open (Kyle):** is the fee charged when the bank, not the customer, caused the return? (His flag 2 asks the same of the deposit count, SCN-0045.)
+- **Open (Kyle):** is the fee charged when the bank, not the customer, caused the return? (The same case for the deposit's returned-check count is settled by rule in SCN-0045: it is left out of the count.)
 
 ---
 
@@ -156,7 +156,7 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 **Then**
 - BB-09 sees one figure: **$10.00 owed**. Never "credit $20.00" beside "owed $30.00".
-- The figure is net at once; the record is made on Dec 12, because a refund is asked for. This stream's reading: not at the bounce, since Ryan's rule of 11-02 (a state may bar the setoff before escheat, SCN-0103) would then never apply. The $20.00 is applied to the shortfall. The credit then holds $0.00, the shortfall is $10.00, and the ledger does not move: −$50.00 + $30.00 + $50.00 − $20.00 = **$10.00** before and after. **Open (Kyle):** his words are "use up whatever is in the total credit"; does he mean it recorded at the bounce?
+- The figure is net at once; the record is made on Dec 12, because a refund is asked for. This stream's reading: not at the bounce, since Ryan's rule of 11-02 (a state may bar the setoff before escheat, SCN-0103) would then never apply. The $20.00 is applied to the shortfall. The credit then holds $0.00, the shortfall is $10.00, and the ledger does not move: −$50.00 + $30.00 + $50.00 − $20.00 = **$10.00** before and after. **Open (Ryan):** his words are "use up whatever is in the total credit"; does he mean it recorded at the bounce?
 - The refund is refused by the core. **The database alone would allow it** if the netting had not been recorded first; a test pins the core's order.
 - Applying more than $20.00 from the credit is refused. With a credit of $40.00 instead, applying $30.01 to the shortfall is refused and $30.00 accepted.
 
@@ -201,7 +201,8 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 - The application to the old bill is undone and $52.61 (a) or $65.83 (b) applied to the correction, each step with its reason. The payment's date is still Nov 18: no penalty.
 - **(b)** The $65.83 fills the part of each line due now, as SCN-0033's table, leaving the $13.23 on its four lines. It is due with the December bill, which prints it without charging it again.
 - The next bill's starting read is the true read; a December bill that starts from the keyed one is refused (SCN-0027 b; Kyle's flag 3 of 11-03).
-- This stream's reading: "credit and rebill" makes the same records as "void and rebill", and differs only in the payment. **Open (Kyle):** is that right, or should the customer see a separate credit memo?
+- "Credit and rebill" makes the same records as "void and rebill", and differs only in the payment.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** no separate credit memo. How the records are shaped and shown is bookkeeping, the stream's to settle, and the amounts are the same either way.
 - **Open (Kyle):** in (a) the $13.22 left over comes from our error, not from the customer paying too much. Must BB-01 approve holding it (R-06), or is it held as a credit, or sent back, without asking?
 
 ---
@@ -277,7 +278,8 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 | **Total** | **$100.00** | **$23.40** |
 
 - What may ground a disconnection: **nothing**. Oldest bill first without the floor would pay July whole ($65.80) and $34.20 of August, leaving $5.40 of gas open to disconnection: refused.
-- This stream's reading where a regulated backbill (which cannot ground a disconnection) and an unregulated charge are both open: the backbill first, by CI-050's floor. Kyle's second tier says oldest first among charges that cannot ground one, and names only backbills. **Open (Kyle):** is the floor right there too?
+- Where a regulated backbill (which cannot ground a disconnection) and an unregulated charge are both open, the backbill is paid first.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the backbill first. Kyle pays charges that can lead to a disconnection first, then the rest oldest first (Kyle 11-05, answer 16). The rule that regulated charges are paid before unregulated ones (CI-050) orders the charges within that second group, and does not contradict him. The customer's total is the same either way.
 - 16 TAC §7.45(4)(E)(ii) bars disconnection for "merchandise or charges for nonutility service" (read 2026-11-22), so the plan's charges never ground one where Texas law binds.
 - **Open (Kyle):** GP-06 directs the $100.00 to the July bill, plan included (answer 16 says follow the customer). CI-050 says the floor ranks above the customer's direction, and that the customer is told. Which wins?
 - **Open (Kyle):** an agency's payment restricted to an unregulated charge. Restriction wins over the posting order (D7-1 (b)), but the floor ranks above the order. Which wins? The database can record either for an agency's restriction.
@@ -321,8 +323,10 @@ And for BB-09, also on draft, with a C01 notice of its own on Nov 30 and not yet
 - **(d)** Refused. The database refuses it for an ACH payment recorded as returned; a draft stored as another method, or a return recorded as a reversal, is accepted without a code, so the core records every draft as ACH, every return as a return, and refuses a missing code itself.
 - **(e)** The payment stands. The corrected account is a new record naming the old one, the code and the day it came; the old record stays, unchanged and inactive; not drawing on it again is the core's. The last day to act is **Tue Dec 8**, the sixth banking day after Nov 30.
 - **(f)** The draft failed inside the window, before there was reasonable opportunity to act: reversed as (a), and no late penalty posts on the $60.00 (CI-057).
-- **(g)** **Open (Kyle):** the window ended Dec 8 with the notice not acted on. CI-057 does not say. Is the customer still exempt (this stream's reading: yes, the failure is the utility's), and if so is the penalty never charged, or charged and reversed?
-- **Open (Kyle):** where a tariff has a returned-payment fee, is it charged in (b)? And what follows (a) when the second presentment fails too, or the account is closed (R02)?
+- **(g)** The window ended Dec 8 with the notice not acted on, so the failure is the utility's, and no late penalty posts on the $60.00.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** no late penalty in (g). The rule on a corrected account number (CI-057) does not say, so the default protects the customer, because the failure is the utility's (Kyle 11-03, answer 12: "protect the customer"). Whether the penalty is never charged, or charged and reversed, is bookkeeping, the stream's to settle: the customer ends in the same place, and a reversed penalty never counts against them (Kyle 11-05, answer 5).
+- **Open (Kyle):** where a tariff has a returned-payment fee, is it charged in (b)?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** when the second presentment in (a) fails too, or the account is closed (R02), the return is reversed with its code and sent to an operator, with no new debit, as already built (see (c)). The bill is then simply unpaid under the ordinary payment and tariff rules, and any fee follows the tariff (Kyle 11-03; the question above, for a return the bank caused).
 
 ---
 
@@ -391,7 +395,8 @@ And for BB-09, also on draft, with a C01 notice of its own on Nov 30 and not yet
 - **(b)** Refused until the application is undone; then the shortfall is $10.00 again, and the balance **$10.00**.
 - Applying a deposit payment to the shortfall is refused. A bounced deposit payment is not a shortfall the pot repays: the deposit rules govern it.
 - **(c)** What the credit paid stays paid; **$40.00** is owed on the bill, not as a shortfall. (A credit made from the same check goes with it: SCN-0086 c.)
-- **Open (Kyle):** BB-09 owes the $10.00 and an open bill, and pays less than both: which first? Does the $10.00 have a due date, take a late penalty, or ground a disconnection? And how old is it: from the refund (Dec 8; the mirrored aging's answer) or the return (Dec 11)? It is also neither regulated nor unregulated by any record (SCN-0093's floor).
+- **Open (Kyle):** does the $10.00 have a due date, take a late penalty, or ground a disconnection? It is also neither regulated nor unregulated by any record (SCN-0093's floor).
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** which BB-09's short payment covers first, the $10.00 or the open bill, follows from that answer: charges that can lead to a disconnection first, then the rest oldest first (Kyle 11-05, answer 16), so the $10.00 goes first if it can ground a disconnection, and after the open bill if it cannot. The $10.00 ages from the refund (Dec 8), not the return (Dec 11), as the built aging already does; age is a report bucket, so this is bookkeeping, the stream's to settle, though it can move a write-off a few days.
 
 ---
 
@@ -454,5 +459,5 @@ And for BB-09, also on draft, with a C01 notice of its own on Nov 30 and not yet
 
 **Then**
 - **Fremont (PL-02):** the $20.00 is netted, recorded as in SCN-0087; nothing is reported; $10.00 owed.
-- **Texas (BB-09):** the $20.00 is reported whole; BB-09 still owes **$30.00**, shown as $30.00 from that day and collected separately. **Open (Kyle):** the figure rises from $10.00 to $30.00 though BB-09 did nothing. Is that right, or should the pot have been used up at the bounce (SCN-0087's Open)?
+- **Texas (BB-09):** the $20.00 is reported whole; BB-09 still owes **$30.00**, shown as $30.00 from that day and collected separately. **Open (Ryan):** the figure rises from $10.00 to $30.00 though BB-09 did nothing. Is that right, or should the pot have been used up at the bounce (SCN-0087's Open)?
 - This is the opposite of SCN-0087's refund: before a refund the pot nets in every state (Kyle 10-30).

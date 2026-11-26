@@ -104,7 +104,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 **Then**
 - **(a)** The deposit is **$40.00**, category senior, law class residential, citing Pecan Flat's tariff record.
 - **(b)** The deposit is **$100.00**, category residential. When PF-02 later proves a date of birth, the $60.00 difference is returned right away, as a correction of the deposit, not a deposit refund: on the next bill as a credit, or by check if PF-02 asks. Pecan Flat's no-refund-while-service-continues rule does not apply to it (Kyle 11-05, answer 7). The deposit is then $40.00, category senior.
-- **Open (Kyle's flag 2, not ruled):** whether the proof is the same identity check as at sign-up, and whether the correction has a time limit. Not to be built until ruled.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the proof is the same date-of-birth check as at sign-up, which Kyle already uses as proof of age (Kyle 11-05, answer 18). The $60.00 correction has no time limit unless the tariff states one: Kyle calls it a correction returned right away (Kyle 11-05, answer 7), and a missing rule never holds back money owed to the customer (Kyle 11-03, answer 8).
 
 ---
 
@@ -240,7 +240,7 @@ Taking, holding, refunding and applying a customer's deposit. Invariants: CI-125
 - On Jan 5, 2027 no due record is written: a returned check falls in the last twelve months.
 - On **Aug 11, 2027**, the first day the returned check is more than twelve months old, the due record is written, citing the clean months. The next bill carries the $250.00 credit, unless BB-02 asks for a check.
 - The window is Bluebonnet's setting, here the default; a tariff that states its own window governs (Kyle 11-05, answer 6).
-- **Open (Kyle's flag 2, not ruled):** whether a check returned for the bank's own error is left out of the count. Not to be built until ruled.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** a check returned through the bank's own error is left out of the count. The count is a utility setting, and the tariff governs where it speaks (Kyle 11-05, answer 6); where it is silent, the default protects the customer. It changes only how soon the deposit comes back, never an amount. Whether a returned-check fee is charged in that case is still asked (SCN-0084).
 
 ---
 

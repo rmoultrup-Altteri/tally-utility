@@ -8,42 +8,21 @@ blocks: the cash scenarios being marked checked
 
 # To Kyle: scenario batch 4 (cash, and the rest of SCN-0033)
 
-Drafted 2026-11-22 by the scenarios stream, for Ryan to send **after batch 3 is sent** (batch 3 is `kyle-brief-2026-11-22-scenario-batch-3.md`, rebuilt from the Slack draft on 2026-11-24; its item 6 asks whether the hidden $13.23 may be one charge with part due later, and questions 18–22 here assume it). K-16 in the roadmap. Sources: the "Open (Kyle)" notes in `scenarios/cash.md` and in SCN-0033 (`scenarios/cancel-rebill.md`). Not asked here, for counsel: unclaimed-property dating and setoff (SCN-0088 c, 0100, 0103), §7.45's current text.
+Drafted 2026-11-22 by the scenarios stream, for Ryan to send **after batch 3 is sent** (batch 3 is `kyle-brief-2026-11-22-scenario-batch-3.md`, rebuilt from the Slack draft on 2026-11-24). The hidden $13.23 as one charge with part of it due later rests on Ryan's ruling of 2026-11-22 (DECISION-LOG), not on Kyle accepting batch 3's old item 6, which is no longer asked. K-16 in the roadmap. Sources: the "Open (Kyle)" notes in `scenarios/cash.md` and in SCN-0033 (`scenarios/cancel-rebill.md`). Not asked here, for counsel: unclaimed-property dating and setoff (SCN-0088 c, 0100, 0103), §7.45's current text. **Triaged 2026-11-25 (Ryan agreed):** of 22 draft questions, 10 are settled by standing rules (follow the tariff, with the platform default only where it is silent; an existing ruling of Kyle's answers it; built behaviour is kept; bookkeeping and record shapes are the stream's) and recorded in the scenarios as "Settled by rule". Two (whether a credit is used up against a bounce's shortfall at the bounce or only before a refund, SCN-0087 and SCN-0103) are Ryan's to decide, as Kyle's ruling of 10-30 left them to him, and are asked separately, not here. Three pairs are merged. Seven questions and the figures check remain.
 
 Paste from here.
 
 ---
 
-Kyle, batch 4: the cash scenarios (payments, refunds, bounces) and the rest of the corrected-bill case. It's 22 questions, and each says what we've written so far, so "yes" is enough where we have it right. The worked cases are in `scenarios/cash.md`; SCN-0033 is in `scenarios/cancel-rebill.md`.
+Kyle, batch 4: the cash scenarios (payments, refunds, bounces) and the rest of the corrected-bill case. 7 questions and a figures check, most important first; each says what we've written so far, so "yes" is enough where we have it right. The worked cases are in `scenarios/cash.md`; SCN-0033 is in `scenarios/cancel-rebill.md`. Where a tariff is silent we've used your rule (follow the tariff; the platform default only where it's silent), and where one of your answers already covers a point we've applied it, so we only ask what could make a bill wrong or turns on a rule we don't have.
 
-*Overpayments and credits*
-1. (SCN-0082) Your rule: extra money becomes a credit only if the customer approves. With a mailed or online overpayment there's no one to ask. Until they answer, does the extra pay the next bill anyway, go back to them, or become a credit under an approval taken at sign-up?
-2. (SCN-0089) A paid bill is corrected down because of our error, leaving $13.22. Must the customer approve holding it, or do we hold it or send it back without asking?
-3. (SCN-0089) "Credit and rebill" for a paid bill: we make the same records as void and rebill, and move the payment to the corrected bill. Right, or should the customer see a separate credit memo?
-4. (SCN-0087) A customer has a $20 credit and a bounce leaves them owing $30. They see "$10 owed" at once. We record the $20 as used only before a refund, not at the bounce. Is that what you meant by "use up whatever is in the total credit"?
-5. (SCN-0103) If the $20 is instead reported to the state as unclaimed, and that state doesn't let us net it first, their figure goes from $10 owed to $30 owed. Acceptable, or should the credit be used up at the bounce?
+1. (SCN-0082, 0089) Your rule: extra money becomes a credit only if the customer approves. Two cases leave money over with no approval in hand: a mailed or online overpayment (an $80.00 check on a $65.83 bill, so $14.17 extra), and a paid bill corrected down because of our error (leaving $13.22). Each utility already has a setting: hold such money as a credit, or refund it automatically. Our proposal is to follow that setting in both cases without asking. Is that right, or must the customer approve first, and if so, until they answer, does the extra pay the next bill anyway or go back to them? (Money left unassigned on a payment isn't a credit and starts no unclaimed-property clock.)
+2. (SCN-0093) Regulated charges are paid before unregulated ones (a service plan), whatever their age, so nothing regulated is left open to a cut-off (CI-050). What if the payer directs the money: a customer directs a payment to one bill, service plan included, while regulated gas is open on another (your answer 16 says follow the customer), or an agency restricts its payment to an unregulated charge (your July ruling says follow the restriction)? As CI-050 is written, the regulated-first rule wins over both, and the customer is told what it paid instead. Right, or does the payer's direction win?
+3. (SCN-0084) Stinnett's returned check. Its tariff says "$20 late fee if after the 10th". We charge it when the check comes back after the 10th, beside the $25 returned-check charge and $7 certified mail. Right, or does it mean not made good by the 10th? Is it charged beside the $20 service charge at cut-off? Are the $25, $7 and $20 in next month's penalty base? And when a check arrives on time and then bounces, does the ordinary late penalty post too (Pecan Flat's 10%, $7.55 here; at Bluebonnet $6.52 and $0.07), and if so, dated the day after the due date or the day the check came back?
+4. (SCN-0084, 0095) Where a tariff has a returned-payment fee, is it charged when the bank, not the customer, caused the return, or when the customer says the bank draft was never authorized? We suggest none in either case, since the customer didn't cause it. Right? (We've settled the deposit side the same way: a return the bank caused doesn't count against the customer's deposit refund.)
+5. (SCN-0033, 0096) A bill is partly paid before its due date. Is Bluebonnet's 10% on the whole bill's priced lines, or only on what's unpaid of them? Our invariant on penalties (CI-054) says the overdue principal, so we'd say only what's unpaid. The same for the hidden $13.23: if part of it is paid, is the 10% on what's left of its $13.10?
+6. (SCN-0033) Can the hidden $13.23 ground a disconnection once the next bill's due date passes unpaid? Your answer 15 put a six-month disconnection limit on a keying-error rebill where §7.45 binds, and this is close to that. We've written both branches: if it can, a payment covers it first as the older charge; if not, last, after the charges that can.
+7. (SCN-0099) A bounce after a refund left BB-09 owing $10.00 on no bill. We suggest it's owed at once, takes no late penalty, and can't ground a disconnection, since no bill shows it. Right? That answer also decides which a short payment covers first, the $10.00 or an open bill.
 
-*Returned checks and drafts*
-6. (SCN-0084) Stinnett: "$20 late fee if after the 10th". We charge it when the check comes back after the 10th. Or does it mean not made good by the 10th? Is it charged beside the $20 service charge? Are the $25, $7 and $20 in next month's penalty base?
-7. (SCN-0084) A check arrives on time, then bounces. Does the ordinary late penalty post too (at both cities)? If so, dated the day after the due date or the day it came back?
-8. (SCN-0084, 0095) Is a returned-payment fee charged when the bank caused the return, or when the debit was unauthorized (R10)?
-9. (SCN-0095) A draft is presented again and fails again, or the account is closed (R02). What happens next?
-10. (SCN-0095) The bank tells us of a corrected account number and we don't act in its 6 banking days. A draft fails after that. We say no late penalty, because it's our failure. Right? And is the penalty never charged, or charged and reversed?
-
-*What a payment pays*
-11. (SCN-0093) A backbill and an unregulated charge (a service plan) are both open; neither can ground a disconnection. We pay the backbill first. Right?
-12. (SCN-0093) A customer directs a payment to one bill, service plan included, while regulated gas is open on another. Follow the customer (your answer 16), or regulated first (CI-050)?
-13. (SCN-0093) An agency restricts its payment to an unregulated charge. Follow the restriction (your July ruling), or regulated first?
-14. (SCN-0099) A customer owes $10 left by a bounce (a refund had already gone out), on no bill, and also an open bill. A payment doesn't cover both. Which first?
-15. (SCN-0099) Does that $10 have a due date, take a late penalty, or ground a disconnection?
-16. (SCN-0099) How old is it: from the refund, or from the bounce?
-17. (SCN-0033, 0096) A bill is partly paid before its due date. Is Bluebonnet's 10% on the whole bill, or only on what's unpaid?
-
-*The hidden $13.23 (if you accept item 6 of batch 3)*
-18. A payment covers what is due now before the $13.23. Agree?
-19. If the $13.23 is unpaid after the next bill's due date, we charge 10% of its priced part ($13.10): $1.31 plus $0.01 tax. It's separate from the next bill's own penalty and names the corrected bill. Agree? And if only part of the $13.23 is paid, is the 10% on what's left?
-20. Can the $13.23 ground a disconnection?
-21. Once it's due beside the next bill's own charges, which does a payment cover first? (If it can ground a disconnection we'd pay it first, as the older; if not, last.)
-22. If the corrected bill is the final bill, there's no next bill. When is the hidden extra due?
-
-*Figures to check, when you have time:* SCN-0081 to 0103, and in SCN-0033 (b) the split by line ($4.44, $8.03, $0.63, $0.13), the table of five payments, and the Dec 10 and Dec 20 aging ($85.65 and $155.65); SCN-0024's $144.21.
+*Figures*
+8. When you have time: SCN-0081 to 0103, and in SCN-0033 (b) the split by line ($4.44, $8.03, $0.63, $0.13), the table of five payments, and the Dec 10 and Dec 20 aging ($85.65 and $155.65); SCN-0024's $144.21.
