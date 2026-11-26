@@ -137,6 +137,8 @@ Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a
 
 **Estimates.** Pecan Flat and Bluebonnet: an estimate is the customer's average usage over its last three billed months, a cap of 3 estimates in a row (the cap is the platform default; the source tariffs say nothing about estimates). Gulf Plains: the same month last year, the same cap. Under the cap as built, the third estimate in a row raises an exception and is approved only after a supervisor resolves it, by an override or a field order. At Gulf Plains, Texas also requires an actual reading at least every six months (16 TAC §7.45(6)(C)).
 
+**Estimated bills and cut-offs.** Pecan Flat's and Bluebonnet's tariffs say nothing, so each stated its rule before go-live (Ryan 2026-11-25, the go-live rule): an estimated bill may ground a cut-off like any other (**invented**). At Gulf Plains, 16 TAC §7.45(4)(E)(vii) decides.
+
 **Meters.** Pecan Flat's residential meters normally have a four-dial index in hundreds of cubic feet (Ccf), which rolls over after 9,999; PF-01's reads in Mcf to a tenth. Bluebonnet's and Gulf Plains' residential meters read in Mcf to a tenth. BB-19's and BB-21's meters have an index multiplier of 10 (BB-21's reads to hundredths).
 
 ---

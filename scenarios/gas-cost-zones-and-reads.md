@@ -40,7 +40,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - BB-17's gas was all used in November, but its bill is issued in December, so it takes December's figure. Had the figure followed the month the gas was used, it would be $0.42 and the bill $74.65.
 - (c) is the same gas and the same period as (a), but it costs $0.97 more because the bill was issued late. That follows from the billing month being the issue month.
 - Each bill records its billing month and the figure. A later read of the bill, or a rebill of it, gets the same figure (SCN-0133).
-- **Open (Kyle):** is "the month the bill is issued" what a city means by a billing month, given (c)? Should each utility state it at onboarding, with no default, as it states its method for a rate change? The alternative is the month of the period's last day or the read date, which gives BB-17 $0.42 and leaves (c) at $65.83.
+- **Open (Kyle):** each utility states its billing month at onboarding (the issue month, or the month the period ends), as it states its method for a rate change. Is the issue month the right platform default, given (c)? The alternative gives BB-17 $0.42 and leaves (c) at $65.83.
 
 ---
 
@@ -58,7 +58,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(b)** Still held: an entered figure is not a locked one.
 - **(c)** The bills are issued Dec 22. PF-01: 8.0 Mcf × $9.00 = $72.00, plus gas cost 8.0 Mcf × $6.85 = $54.80: **$126.80**, due Jan 1, 2027 as always. At $6.10 the gas cost would have been $48.80, and the bill $120.80.
 - The figure's record shows who entered it, who approved it and when, and the supplier invoice it came from (an attached document).
-- **Open (Kyle):** Kyle's ruling says the figure is set at month end. Pecan Flat sets its figure mid-month, from an invoice: is that acceptable for the month's bills? Is the lock the supervisor's approval, or the start of the first run that uses it? Should a late bill keep the usual due date (Jan 1, ten days after issue here, and a holiday), or get the usual time to pay? Pecan Flat's tariff doesn't say whether a due date on a holiday moves.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** a figure set mid-month from the supplier's invoice is the city's tariff ("adjusted monthly as necessary"); the lock is the supervisor's approval, as for a weather adjustment; a late bill keeps the due date its tariff states (the 1st here). Rule: follow the tariff, the platform default only where it is silent (Kyle 11-03).
 
 ---
 
@@ -123,7 +123,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 - Each row gives the figure, the volume, the revenue and the month posted, so the utility can total by either month. A rebill never moves revenue to a figure it was not billed at.
 - Nothing here is a gas purchase or a balance. Billed revenue against the utility's cost is the utility's reconciliation, outside the platform.
-- **Open (Kyle):** does a city's reconciliation count a correction in the month of the figure, or in the month it posts? The record carries both, so the report can show either.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the record carries both months, and the report totals by either; a report's layout is the stream's to settle.
 
 ---
 
@@ -147,7 +147,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 - In both, the gas cost billed is $5.48, and the billing-side record (SCN-0134) counts $5.48 and 0.8 Mcf. The adjustment is not gas cost revenue.
 - The expected result is (a). PF-02 is residential, so it pays no tax and the difference between the invariant and the schema does not show here; for a taxed customer it would (a minimum before tax, then tax on it, against a floor that includes the tax).
-- **Open (Kyle):** does any city's minimum bill floor the rate only, leaving the gas cost on top (b)? If so, the platform needs a way to say so.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the minimum floors the whole bill, gas cost included, as CI-103 and the built schedule do (reading (a)). A city whose tariff floors the rate only would state it at onboarding.
 
 ---
 
@@ -172,8 +172,8 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 ### SCN-0137 — A zone's factor changes partway through a billing period
 
-*Status:* draft (2026-11-25); in batch 7 for Kyle (K-20), not yet sent. **Not built** (zones and dated factors, CI-020, CI-026). No ruling covers a factor change mid-period. Kyle's "never split" covers the gas cost figure only, so the expected result is this stream's reading, and so is refusing a change entered with no method.
-*Rule (provisional):* a factor change is handled like a rate change. When the utility enters the change, it states whether it is split by days, applied by read date, or applied by cycle, with no default. "By cycle" means what it means in SCN-0001: a period that straddles the change is billed wholly at the new factor. Sources: Kyle 11-03, answer 1 (the method for a rate change); SCN-0001; GBM's cross-month factor table (design, not a ruling: a factor that changes inside a period is weighted by days); Kyle 10-15, K-02.
+*Status:* draft (2026-11-25); in batch 7 for Kyle (K-20), not yet sent. **Not built** (zones and dated factors, CI-020, CI-026). Kyle's "never split" covers the gas cost figure only; a factor change follows his rate-change rule (settled by rule, below), and refusing a change entered with no method is the core's.
+*Rule:* a factor change is handled like a rate change. When the utility enters the change, it states whether it is split by days, applied by read date, or applied by cycle, with no default. "By cycle" means what it means in SCN-0001: a period that straddles the change is billed wholly at the new factor. Sources: Kyle 11-03, answer 1 (the method for a rate change); SCN-0001; GBM's cross-month factor table (design, not a ruling: a factor that changes inside a period is weighted by days); Kyle 10-15, K-02.
 
 **Given** BB-08 (LC-R, outside the city; $82.90 a month, $2.31 per Mcf), in the Industrial Park zone. The factor is 1.0400 until Feb 28, 2027, and 1.0600 from Mar 1. The period is Feb 15 – Mar 14, 2027 (28 days), with a raw reading of 40.0 Mcf, issued Mar 16 in the March billing month ($0.49). The state's 6.25% and the county's 0.5% apply (not residential; `tax.md` SCN-0106). The March bill carries Bluebonnet's pipeline safety fee, $1.00 for BB-08's one service line, outside every tax base (SCN-0054).
 
@@ -196,7 +196,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - By read date and by cycle agree here, as in SCN-0001. Had the old factor stayed for the whole period, the bill would be 41.6000 Mcf and $451.42.
 - The gas cost figure is still one for the whole bill ($0.49). Only the factor is split.
 - A factor change entered with no method is refused when it is entered, not at billing.
-- **Open (Kyle):** should a factor change follow the rate-change rule? Or is a pressure or heating value factor always split by days (the industry table), or always the factor at the read date?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** a factor change follows the rate-change rule: the utility states the method when it enters the change, with no default (Kyle 11-03, answer 1, applied to factors).
 
 ---
 
@@ -260,7 +260,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(b)** A **$5.00** re-read fee on the next bill, naming the request.
 - **(c)** No fee: the city's read was wrong. The re-read replaces the keyed reading ("dispute recheck"). The bill overcharged 2.7 Mcf, so it is voided and rebilled, or credited and rebilled if paid (SCN-0002). It is not left to catch up on the next read, since a refund is never held back (Kyle 11-03, answer 8; this stream's reading). Only the fee is under test here.
 - Each request is recorded with its date, its result and whether a fee was charged or why not.
-- **Open (Kyle):** does a request that finds the city wrong (c) use up the free one for the year? Here (a) had already used it, so it doesn't matter; if (c) had come first, would (a) then cost $5? And may a keyed-too-high read ever catch up on the next read instead of a rebill?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** (1) a request that finds the city wrong is waived and doesn't use up the free one (the reading that favours the customer, where the tariff is silent); (2) a read keyed too high is always rebilled, never left to catch up, because a refund is never held back (Kyle 11-03, answer 8).
 
 ---
 
@@ -278,7 +278,8 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(b)** January bills 2,325.9 − 2,316.6 = **9.3 Mcf** at January's rates: $14.75, distribution $31.71, commodity $49.76, gas cost 9.3 × $0.71 = $6.60, for **$102.82**. In all, 15.9 Mcf billed over the two months: the true usage.
 - **(b′)** The actual is below the estimate: December was over-estimated by 2.0 Mcf. This is a credit, never a rollover (SCN-0143). The read pair raises a review exception, and January's bill waits until a reviewer confirms the reading. It then bills the customer charge, $14.75, and a credit for 2.0 Mcf: distribution −$6.82, commodity −$10.70, gas cost 2.0 × −$0.71 = −$1.42. The bill is **−$4.19**, a credit. December's overbilled gas cost was at $0.58 and is credited at $0.71, a 26¢ difference.
 - The billed December estimate is never deleted or replaced. The January actual is the meter's next reading, and the run of estimates ends with it. ("Estimate replaced by an actual", Kyle's reason, is for an estimate not yet billed: an actual for the same date that arrives before the bill.)
-- **Open (Kyle):** (1) at a city, is catch-up on the next read the usual method, or is the estimated bill voided and rebilled? (2) In (b′), is a credit for usage below the estimate allowed at all (whether usage can ever be negative is not ruled), and should it be priced at the estimated month's rates? (3) A bill with a credit line reads open after it is paid (the money stream's note on negative lines), so (b′) needs that rule too.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the method, catch-up or rebill, is the utility's setting (CI-114; Kyle 10-15, R-11), and catch-up is the platform default.
+- **Open (Kyle):** in (b′), is a credit for usage below the estimate right (whether usage can ever be negative is not ruled), and should it be priced at the estimated month's rates? A bill with a credit line also reads open after it is paid (the money stream's note on negative lines), so (b′) needs that rule too.
 
 ---
 
@@ -297,7 +298,8 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(c)** A third estimate (4.8 Mcf) would reach Gulf Plains' cap. The read gate raises an exception, and the estimate is not approved until a supervisor resolves it. Here the supervisor records an override ("dog; customer contacted; appointment set for Jun 8"). The Jun 5 bill is then estimated: **$51.00**. Estimates in a row: 3.
 - **(d)** A fourth estimate raises the exception again. The supervisor dispatches a field order, and the bill waits for its result. Texas's limit is the outer bound in any case: an actual reading by Sep 1, six months after Mar 1.
 - **(e)** The June bill is estimated. The recorded reason, a dog, is beyond the utility's control under the engineering proposal, so §7.45(4)(E)(vii) would not bar a cut-off for it (provisional, pending the Open). Had the reason been "network meter offline", within the utility's control, the June bill could not ground a cut-off. The check reads the reason recorded on each estimated reading behind the bill, and the more protective reading wins.
-- **Open (Kyle, or tariff counsel):** (1) is an aggressive dog beyond a utility's control? The sorting of reasons is a proposal. (2) A card the customer returns is a customer reading. Does it end the run of estimates, and does it count as the actual reading Texas requires every six months? Kyle 07-10 said "no customer-initiated reads in v1"; this one the utility asked for. (3) Should an actual reading dated earlier than estimates already entered raise its own review? (A cap above Texas's six months is ruled out by DE-1 but not yet enforced: noted for the rates stream.)
+- **Open (Kyle, or tariff counsel):** (1) is an aggressive dog beyond a utility's control? The sorting of reasons is a proposal. (2) A card the customer returns is a customer reading. Does it end the run of estimates, and does it count as the actual reading Texas requires every six months? Kyle 07-10 said "no customer-initiated reads in v1"; this one the utility asked for.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** an actual reading dated earlier than estimates already entered raises its own review, and does not clear the run (the built rule; the conservative choice). A cap above Texas's six months is ruled out by DE-1, not yet enforced: noted for the rates stream.
 
 ---
 
@@ -378,14 +380,14 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(b)** January's figure, $0.71, though all BB-20's gas was used in December: the bill is issued in January (SCN-0130). Dec 11 – 31 is 21 days: customer charge 12.80 × 21 ÷ 31 = 8.6710, so $8.67; distribution 5.1 × $2.96 = $15.10; commodity 5.1 × $5.35 = $27.29; gas cost 5.1 × $0.71 = $3.62; city sales tax 1% on $54.68 = $0.55: **$55.23**. Its taxes are the period's, 2026's, with no crime-control district (as in SCN-0138).
 - The two customer charges, $4.13 and $8.67, add to $12.80: one month's charge for the premise.
 - The Dec 10 reading ends BB-17's billing and starts BB-20's: one reading of the meter, named by both bills.
-- **Open (Kyle):** do cities charge a share by days on a final or first bill, or does "every month" mean the full charge to each customer?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** a share by days, the platform's built default, applies where the tariff is silent (Kyle 11-03: the platform default where the tariff is silent). A city whose tariff charges each customer the full month sets that at onboarding.
 
 ---
 
 ### SCN-0147 — A month missed with no estimate: two months billed on one read
 
 *Status:* draft (2026-11-25); in batch 7 for Kyle (K-20), not yet sent. **Built:** the choice not to estimate is recorded as a setting (estimates allowed or not, for the utility, a rate schedule or a meter, with a reason), and a billing run records a meter skipped for no read. **Not built:** a dated record that one month's route was skipped and why; the gas cost figure by billing month (as SCN-0130); a minimum bill that counts per month covered (the minimum is one amount per bill).
-*Rule (this stream's reading):* at a utility with no fixed monthly charge, when a meter is not read and the utility has chosen not to estimate, no bill is issued that month. The next reading bills all the gas since the last one, on one bill, at that bill's billing month's figure. The minimum bill counts once per month covered. The high-usage check compares usage per month covered. (At a utility with a monthly customer charge, the skipped month's charge is still owed; CI-102.) Sources: Kyle 11-03, answer 1 (never split within a billing month); Pecan Flat's tariff (`cast.md` §1, $20.00 a month); CI-102.
+*Rule:* at a utility with no fixed monthly charge, when a meter is not read and the utility has chosen not to estimate, no bill is issued that month. The next reading bills all the gas since the last one, on one bill, at that bill's billing month's figure. The minimum bill counts once per month covered. The high-usage check compares usage per month covered. (At a utility with a monthly customer charge, the skipped month's charge is still owed; CI-102.) Sources: Kyle 11-03, answer 1 (never split within a billing month); Pecan Flat's tariff (`cast.md` §1, $20.00 a month); CI-102.
 
 **Given** Pecan Flat, which has no customer charge; PF-01 (its meter reads in Mcf). The Oct 15 reading is 1,172.0. Pecan Flat's November route is not read (the reader is ill), and the city records its choice not to estimate it. November's figure was $6.10, December's is $6.85. In the same months last year PF-01 used 7.6 and 7.9 Mcf.
 
@@ -396,7 +398,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(b)** 2.0 Mcf: $18.00 + $13.70 = $31.70, raised to the two-month minimum by an adjustment of $8.30: **$40.00**. (Counted once per bill, $31.70 would pass the $20.00 minimum.)
 - No gas is billed at November's $6.10: no bill was issued in November. Nothing fell due on Dec 1, and no penalty runs on it.
 - The bill shows both readings, their dates, and that it covers two months.
-- **Open (Kyle):** (1) is a missed month billed this way at a city, or must the city estimate November (so its gas carries $6.10)? In (a), billing the whole 16.0 Mcf at December's figure moves about $6 of gas cost to the later month. (2) Does the $20.00 minimum count twice on a two-month bill?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** (1) whether to estimate a missed month or skip it is the utility's built setting; (2) the $20.00 minimum is "a month" in the tariff, so it counts per month covered.
 
 ---
 
@@ -430,7 +432,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(b)** The bills are not held, unlike Pecan Flat's (SCN-0131). GP-08: $15.00, delivery 2.9 × $4.10 = $11.89, gas cost 2.9 × $3.40 = $9.86: **$36.75**. The bill shows the gas cost as $3.40 per Mcf beside its total.
 - **(c)** The $3.90 is November's figure. October's bills are not rebilled. At $3.90, GP-08's bill would have been $38.20.
 - **(d)** Still $3.40: October's figure is locked for every October bill.
-- **Open (Kyle):** do Texas gas utilities' approved tariffs usually carry the last factor forward? Does a factor filed in a month ever apply to that month's later bills, or reach back to ones already issued? (The term here is invented for Gulf Plains.)
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** carrying a factor forward, and when a late filing applies, are the utility's approved tariff terms, entered at onboarding.
 
 ---
 
@@ -447,7 +449,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - There are not three billed months, so Bluebonnet's method can't run, and the removal reading is held for a supervisor. The supervisor sets it at 28.8 Mcf of use since Dec 15: BB-18's daily average (30.0 over 25 days, 1.2 a day) for the 24 days to Jan 8. The basis is recorded, with the reason "other: meter destroyed".
 - The bill is marked "Estimated": 28.8 estimated + 7.0 actual = 35.8 Mcf raw × 1.0400 = 37.2320 Mcf. That is $82.90, distribution $86.01, commodity $199.19, gas cost 37.232 × $0.71 = $26.43, state $24.66, county $1.97: **$421.16**. The line shows both meters, the estimated part and the factor.
 - The run of estimates for the new meter starts at zero. The destroyed meter's estimated removal reading is its last.
-- **Open (Kyle):** is a daily average of the history there is a fair basis, or should a new customer's estimate use the class's usage?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the supervisor chooses the basis case by case and records it; the record is what matters, not a fixed method.
 
 ---
 
@@ -463,8 +465,8 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 **Then**
 - December and January are estimated, and each bill is marked. On Feb 15 the third estimate raises the exception. The supervisor's override is recorded, and the February estimate is approved, as at Gulf Plains (SCN-0142 (c)).
 - No card is required in January, and no six-month reading is required.
-- Nothing bars a cut-off for the unpaid estimated bill because it is estimated: Bluebonnet's tariff has no such rule. (Where the collections rules read this is not built.)
-- **Open (Kyle):** do city systems in practice protect a customer from a cut-off on an estimated bill? Should the platform suggest it at onboarding, as it suggests a pledge rule?
+- Bluebonnet's tariff is silent on a cut-off for an estimated bill, so under the go-live rule it stated one at onboarding: an estimated bill may ground a cut-off (`cast.md` §6, **invented**). So nothing bars the cut-off because the bill is estimated. (Where the collections rules read this is not built.)
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** whether an estimated bill can ground a cut-off at a city is one of the settings the cut-off checks need, so the city states it before go-live (Ryan 2026-11-25, the go-live rule).
 
 ---
 
@@ -480,7 +482,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 **Then**
 - **(a)** Zero at an open café is flagged, and the read is held. The re-read finds the same index with the burners on: a lead. The field check finds the dial stopped and is recorded as the finding. The meter is replaced. December's bill is estimated, reason "meter malfunction", at 29.0 Mcf, the café's three-month average (30.0, 30.0 and 27.0, **invented**), with the supervisor's approval: 29.0 × $9.00 = $261.00, gas cost 29.0 × $6.85 = $198.65, state 6.25% of $459.65 = $28.73, city 1.5% = $6.89: **$495.27**, marked "Estimated". No backbilling limit comes into it: nothing was billed short.
 - **(b)** Zero is flagged (under 25% of PF-02's own history). The re-read confirms 1,312, and the house is empty. The bill is zero usage, raised to the **$20.00** minimum (PF-02 is residential, so no tax). The record shows the re-read and why the zero stood.
-- **Open (Kyle):** (1) at a city with one class, what is a café's low-usage check measured against? (2) Had the café's November bill already gone out at zero, is that a backbill under the city's six-month default (SCN-0019), or does Texas's three-month rule for a stopped meter have any place at a city?
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** (1) the low-usage check is the utility's setting, built as a fraction of the customer's own history; (2) a zero bill already issued is corrected under the city's six-month default for an undercharge (SCN-0019; Kyle 11-05, answers 10 – 12); Texas's three-month rule for a stopped meter binds regulated utilities only.
 
 ---
 
