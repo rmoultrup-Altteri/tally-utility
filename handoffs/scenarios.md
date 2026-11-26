@@ -16,7 +16,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 - `scenarios/cast.md`: Pecan Flat, Bluebonnet (five tax rows now: the hospital district is gone, transit 0.25%), Gulf Plains (billing days now stated: read the 1st, billed the 5th, due 20 days later), Fremont / Prairie Line, §5 held money and agencies, **§6 gas cost, zones and reads** (billing days, gas cost figures by billing month, Gulf Plains' rates, Bluebonnet's pressure zones, estimate methods and the cap, meter dials); customers BB-17 – BB-21, GP-08, GP-09; Bluebonnet's part-month customer charge is the platform default, a share by days.
 - Families: billing pipeline, cancel-rebill, deposits, backbilling, periods and aging, tenant isolation, date-tracking, cash (0081–0103), tax (0104–0116), unmatched cash and pledges (0117–0129), **gas cost, zones and reads (0130–0162)**.
 - Reviews: `scenarios/review/<date>/`; round 6 is `2026-11-25/`; **round 7 is `2026-11-25-gas/`, round 8 `2026-11-25-gas-2/`, round 9 `2026-11-26-gas-3/`** (brief.md, codex.md, opus.md, fable.md each).
-- Kyle briefs: batch 3 `application/kyle-brief-2026-11-22-scenario-batch-3.md` (K-14), batch 4 (K-16), batch 5 `…-2026-11-24-…-batch-5.md` (K-18), batch 6 `…-2026-11-25-…-batch-6.md` (K-19), **batch 7 `…-2026-11-25-…-batch-7.md` (K-20, 7 questions after triage)**; batch 8 `…-2026-11-26-…-batch-8.md` (K-21, 1 question and a figures check, drafted, not sent).
+- Kyle briefs: batch 3 `application/kyle-brief-2026-11-22-scenario-batch-3.md` (K-14), batch 4 (K-16), batch 5 `…-2026-11-24-…-batch-5.md` (K-18), batch 6 `…-2026-11-25-…-batch-6.md` (K-19), **batch 7 `…-2026-11-25-…-batch-7.md` (K-20, 7 questions after triage)**; batch 8 `…-2026-11-26-…-batch-8.md` (K-21, 1 question and a figures check, sent 2026-11-26).
 
 ## Completed this session
 
@@ -36,11 +36,11 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Waiting on Ryan
 
-- **Send batch 8** (K-21), pasted from below its "Paste from here". Batches 3 to 7 were sent to Kyle on 2026-11-26 (Ryan, by Slack, in two messages: batches 3 – 5, then 6 – 7).
+- Nothing. Batch 8 (K-21) was sent on 2026-11-26; batches 3 to 7 were sent to Kyle on 2026-11-26 (Ryan, by Slack, in two messages: batches 3 – 5, then 6 – 7).
 
 ## Waiting on Kyle
 
-- K-14, K-16, K-18, K-19, K-20 (batches 3 to 7, sent 2026-11-26; when answers come, fold them into the scenarios and mark each brief answered). Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
+- K-14, K-16, K-18, K-19, K-20, K-21 (batches 3 to 8, sent 2026-11-26; when answers come, fold them into the scenarios and mark each brief answered). Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
 
 ## Not yet done (in order)
 

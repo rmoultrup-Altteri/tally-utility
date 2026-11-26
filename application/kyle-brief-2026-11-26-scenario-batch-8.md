@@ -1,7 +1,7 @@
 ---
 title: Scenario batch 8 (gas reads, the second set of added cases): question for Kyle
 type: brief
-status: DRAFT, not sent (Ryan sends)
+status: SENT 2026-11-26 (Ryan, by Slack), awaiting answers
 created: 2026-11-26
 blocks: SCN-0155 being marked checked; the figures of SCN-0155 – 0162
 ---
