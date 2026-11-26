@@ -121,7 +121,9 @@ Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a
 
 **Part-month customer charges.** Bluebonnet keeps the platform default, a share by days (**invented**: its setting; SCN-0146). Gulf Plains uses the platform default until its tariff is drafted (SCN-0161).
 
-**Billing days.** Pecan Flat reads around the 15th and issues bills on the 20th, due the 1st (the 20th is SCN-0053's). Bluebonnet reads most meters on the 15th, weekends included, and issues bills the next day (the reference bill, Nov 16); BB-17, BB-22 and BB-23 read on the last day of the month (their scenarios say when they bill). Gulf Plains reads on the 1st and bills on the 5th (§3).
+**Part-month minimum.** Pecan Flat shares its $20.00 monthly minimum by days for a part month (**invented**: its setting, separate from the customer-charge setting since Pecan Flat has no customer charge; SCN-0164).
+
+**Billing days.** Pecan Flat reads around the 15th and issues bills on the 20th, due the 1st (the 20th is SCN-0053's). Bluebonnet reads most meters on the 15th, weekends included, and issues bills the next day (the reference bill, Nov 16); BB-17, BB-22, BB-23 and BB-27 read on the last day of the month (their scenarios say when they bill). Gulf Plains reads on the 1st and bills on the 5th (§3), or the next workday when the 5th is a holiday (**invented**; SCN-0168).
 
 **Gas cost figures.** Each figure is one per billing month, never split, and fixed once locked (Kyle 11-03, answer 1). A bill's billing month is the month it is issued, at all three utilities.
 
@@ -184,6 +186,12 @@ Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a
 | GP-10 | Gulf Plains | residential, a newly built house from Feb 10, 2027 | — | SCN-0161 |
 | GP-11 | Gulf Plains | residential, an existing house from Feb 10, 2027 | — | SCN-0161 |
 | PF-08 | Pecan Flat | residential, moves out Nov 30; its meter reads in Mcf to a tenth | — | deposit $100; SCN-0162 |
+| PF-09 | Pecan Flat | residential, moves out Nov 25; its meter reads in Mcf to a tenth | — | deposit $100; SCN-0164 |
+| PF-10 | Pecan Flat | residential, takes PF-09's house from Nov 26 | — | SCN-0164 |
+| BB-27 | Bluebonnet | renter inside the city, read on the last day of the month; moves out Dec 10, no one follows | R-U | deposit $250; SCN-0167 |
+| BB-28 | Bluebonnet | homeowner outside the city | R-R | SCN-0166 |
+| GP-12 | Gulf Plains | residential, unincorporated, from Jan 15, 2027; moves out Jun 10, 2027 | — | $200 cash deposit at 2.5%; SCN-0168 |
+| GP-13 | Gulf Plains | residential, takes GP-12's house from Jun 11, 2027 | — | SCN-0168 |
 | PL-01 | Prairie Line (Fremont) | residential | — | deposit $200 |
 | PL-03 | Prairie Line (Fremont) | homeowner in the City of Lakeview (invented) | — | `tax.md` SCN-0112 |
 
