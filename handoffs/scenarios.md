@@ -2,7 +2,7 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 # Handoff: scenarios and test strategy (roadmap P2, gate step 2)
 
-**Generated**: 2026-11-25, end of the seventh scenarios session (continued after the gas family).
+**Generated**: 2026-11-25, end of the seventh scenarios session (unmatched cash, the transit fix, the gas family, the triage of Kyle's questions).
 **Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (Kyle also posts in the Slack DM, D0B0GRDQYLR; this session had no Slack tool, so the DM was not read).
 **Status**: 154 scenarios (SCN-0001 – 0154). The gas cost, zones and reads family (0130 – 0154) is written ahead of its patches (Ryan's go-ahead) and reviewed (rounds 7 and 8, all three reviewers, applied). Five batches of questions for Kyle are drafted as files, none sent, **triaged from 83 questions to 28 and five figure checks** (Ryan; DECISION-LOG).
 
@@ -34,7 +34,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 ## Waiting on Ryan
 
-- **Send batches 3, 4, 5, 6, then 7**, each pasted from below its "Paste from here". If an older batch 3 draft is in Kyle's DM, delete it first.
+- **Send batches 3, 4, 5, 6, then 7** (now 3, 7, 5, 6 and 7 questions, each with a figures check), each pasted from below its "Paste from here". If an older batch 3 draft is in Kyle's DM, delete it first.
 
 ## Waiting on Kyle
 
@@ -73,6 +73,8 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 - From earlier sessions: §321.102(h) misread; an undated cast place; a statute cited without its scope; the matched pair of lines; reusing a cast customer unchecked.
 
 ## Warnings
+
+- **Don't turn every open point into a question for Kyle.** Settle what a standing rule decides (follow the tariff, the platform default where silent; the go-live rule; a refund never held back; bookkeeping is ours) and write it into the scenario as "Settled by rule". Where a choice is a utility's policy, offer Ryan a utility setting with a default (he asked "shouldn't this be configurable?").
 
 - Other streams rule on the same topics in parallel. Before recording a ruling, pull and grep the DECISION-LOG and the board.
 - Check own sources before telling Ryan a source is silent (`law/`, `application/places-sources/`, `application/texas-only-audit-2026-09-28/`, the inventories).
