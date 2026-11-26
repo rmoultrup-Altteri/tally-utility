@@ -19,6 +19,7 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 - **Nine more cases (SCN-0146 – 0154)**, the reviewers' gaps, and **review round 8** (`scenarios/review/2026-11-25-gas-2/`) applied: the move-out bill follows the built part-month default (a share by days); Gulf Plains' six-month breach is surfaced and the bill still goes out (R-21; bills monthly); a stopped meter's unbilled month is an estimated bill, not a backbill, and Texas's three-month rule doesn't reach a city; the empty taxed rental replaced by a residential customer; due dates (Feb 1, not the Jan 16 issue day); BB-02 and PF-03 reuse conflicts removed. Batch 7 is 25 questions. Board note to rates (six more points).
 
+- **Ryan: netting a credit against a bounce is a utility setting, default at the bounce** (DECISION-LOG); SCN-0087 and SCN-0103 reworked with both settings; board note to money.
 - **Kyle's questions triaged** (Ryan): 83 to 28 and five figure checks; 43 points settled by standing rules and recorded in the scenarios as "Settled by rule"; two to Ryan (netting against a bounce), one to counsel (unclaimed-money dating). DECISION-LOG.
 
 **Next:** Ryan sends batches 3 – 7; round 8's small remaining gaps (handoff item 1) or another family, Ryan's choice.

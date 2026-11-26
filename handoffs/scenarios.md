@@ -36,8 +36,6 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 
 - **Send batches 3, 4, 5, 6, then 7**, each pasted from below its "Paste from here". If an older batch 3 draft is in Kyle's DM, delete it first.
 
-- **One decision of Ryan's, to raise next:** netting a credit against a bounced payment, recorded at the bounce or at the refund (SCN-0087, SCN-0103; Kyle 10-30 left it to Ryan).
-
 ## Waiting on Kyle
 
 - K-14, K-16, K-18, K-19, K-20. Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
@@ -60,6 +58,8 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 | A pledge carries the day the utility received it, entered by the operator, beside the keying stamp | Ryan 2026-11-25 | §7.460(b)(2) turns on the billing period the pledge is received in; a late keying moved it |
 | Unidentified money a city holds, $100 or less: presumed abandoned after 3 years, then to the city's own treasurer by Nov 1 | statute (Prop. Code §72.101, §76.001, §76.301) | settled by source, recorded in SCN-0119 |
 | Transit authority 0.25%, no hospital district | statute (Transp. Code) | 0.125% is no Texas transit rate |
+| A credit is netted against a bounce at the bounce by default; "at a refund" is a utility setting | Ryan 2026-11-25 | Kyle's words; the balance never jumps at escheat; a utility may keep credits intact |
+| Kyle's questions triaged by standing rules before sending (83 to 28) | Ryan 2026-11-25 | the batches buried the questions that matter |
 | Gas cost, zones and reads written ahead of their patches | Ryan 2026-11-25 | the patches are unclaimed; the scenarios become their specification |
 | A bill's billing month is its issue month (all three cast utilities); a factor change states its method like a rate change | this stream's reading, Open with Kyle (K-20) | Kyle's "per billing month" doesn't define the month; "never split" covers the gas cost only |
 

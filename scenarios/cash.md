@@ -147,17 +147,18 @@ Payments, what they pay, what is left over, refunds, and payments that come back
 
 ### SCN-0087 — A credit from one payment covers what another payment's bounce left owed
 
-*Status:* draft (2026-11-22), not yet sent to Kyle. Built as a record (v5.4.2-27); deciding to net, and refusing the refund, are the core's (AC-44).
-*Rule:* all of a customer's credits are one pot, shown as one net figure from the day of the bounce. A bounce's shortfall uses up the pot and the customer owes the rest. The netting is recorded, before any refund of a credit, as money applied to the bounced payment's shortfall, never as a charge. Sources: Kyle 10-30; Ryan 11-02; AC-44.
+*Status:* draft (2026-11-22), not yet sent to Kyle; changed 2026-11-25 by Ryan's ruling on when the netting is recorded (DECISION-LOG). Built as a record (v5.4.2-27); deciding to net, and refusing the refund, are the core's (AC-44). **Not built:** the utility's setting for when the netting is recorded (the money stream's).
+*Rule:* all of a customer's credits are one pot, shown as one net figure from the day of the bounce. A bounce's shortfall uses up the pot and the customer owes the rest. The netting is recorded as money applied to the bounced payment's shortfall, never as a charge. When it is recorded is a utility setting: **at the bounce** (the platform default) or **at a refund**, when a refund of a credit is asked for; under either, it is recorded before any refund of a credit. Sources: Kyle 10-30 (one net figure; how the pieces are tracked is Ryan's); Ryan 2026-11-25 (the setting and its default); Ryan 11-02; AC-44.
 
 **Given** SCN-0085's base case, with one change: before it, a different payment had left BB-09 a credit of **$20.00** (approved, **invented**), so BB-09 starts at −$20.00. BB-09 owes $30.00 on the bounced payment, on no bill.
 
-**When** BB-09's account is read on Dec 12, and BB-09 asks for the $20.00 back.
+**When** (a) the check is returned on Dec 11, under Bluebonnet's setting, the default "at the bounce"; BB-09's account is read on Dec 12, and BB-09 asks for the $20.00 back; (b) the same, at a utility whose setting is "at a refund".
 
 **Then**
 - BB-09 sees one figure: **$10.00 owed**. Never "credit $20.00" beside "owed $30.00".
-- The figure is net at once; the record is made on Dec 12, because a refund is asked for. This stream's reading: not at the bounce, since Ryan's rule of 11-02 (a state may bar the setoff before escheat, SCN-0103) would then never apply. The $20.00 is applied to the shortfall. The credit then holds $0.00, the shortfall is $10.00, and the ledger does not move: −$50.00 + $30.00 + $50.00 − $20.00 = **$10.00** before and after. **Open (Ryan):** his words are "use up whatever is in the total credit"; does he mean it recorded at the bounce?
-- The refund is refused by the core. **The database alone would allow it** if the netting had not been recorded first; a test pins the core's order.
+- **(a)** The netting is recorded on Dec 11, with the bounce: the $20.00 is applied to the shortfall. The credit then holds $0.00, the shortfall is $10.00, and the ledger does not move: −$50.00 + $30.00 + $50.00 − $20.00 = **$10.00** before and after. On Dec 12 there is no credit to refund.
+- **(b)** The figure is the same $10.00 from Dec 11, but the $20.00 stays a credit until Dec 12, when the refund is asked for, and the netting is recorded then, as in (a). Had no refund ever been asked for, the credit would stay a credit, and the state's rule on deducting a debt before unclaimed money is reported decides what happens to it (SCN-0103).
+- In (b), the refund is refused by the core. **The database alone would allow it** if the netting had not been recorded first; a test pins the core's order.
 - Applying more than $20.00 from the credit is refused. With a credit of $40.00 instead, applying $30.01 to the shortfall is refused and $30.00 accepted.
 
 ---
@@ -451,13 +452,14 @@ And for BB-09, also on draft, with a C01 notice of its own on Nov 30 and not yet
 ### SCN-0103 — Before unclaimed money goes to the state, a debt is netted only where the state allows it
 
 *Status:* draft (2026-11-22), not yet sent to Kyle. The netting and the escheat guards are built (v5.4.2-23, -27); the state's row and the netting decision are the core's and **not built**. Whether any state allows the setoff has not been read (counsel).
-*Rule:* netting a credit against another payment's debt, before reporting it as unclaimed, is a per-state rule; where the state does not allow it, or has no row, the credit is reported whole and the debt collected separately. Netting within one payment's own credits always applies. Sources: Ryan 11-02; AC-44.
+*Rule:* under the default (netting at the bounce, SCN-0087 (a)) the credit is used up when the debt arises, so nothing of it is left to report. Under the "at a refund" setting, netting a credit against another payment's debt before reporting it as unclaimed is a per-state rule; where the state does not allow it, or has no row, the credit is reported whole and the debt collected separately. Netting within one payment's own credits always applies. Sources: Ryan 11-02; AC-44.
 
-**Given** PL-02 and BB-09, each on SCN-0087's facts, and neither ever asked for a refund, so no netting was recorded: each owes $30.00 on a bounced payment of December 2026 and holds a credit of $20.00 from another payment, dormant on Nov 1, 2030 (dates **invented**). The state is that of the owner's last known address (**invented** as the test's fact; counsel confirms the rule): PL-02's is in **Fremont**, whose row allows the setoff (`cast.md`); BB-09's in **Texas**, with no row.
+**Given** PL-02 and BB-09, each on SCN-0087's facts, at utilities whose setting is "at a refund" (Prairie Line and, in this scenario, Bluebonnet; **invented**), and neither ever asked for a refund, so no netting was recorded: each owes $30.00 on a bounced payment of December 2026 and holds a credit of $20.00 from another payment, dormant on Nov 1, 2030 (dates **invented**). The state is that of the owner's last known address (**invented** as the test's fact; counsel confirms the rule): PL-02's is in **Fremont**, whose row allows the setoff (`cast.md`); BB-09's in **Texas**, with no row.
 
 **When** the escheat run of Nov 1, 2030 reads each credit. Until then each customer is shown one figure, **$10.00** owed.
 
 **Then**
 - **Fremont (PL-02):** the $20.00 is netted, recorded as in SCN-0087; nothing is reported; $10.00 owed.
-- **Texas (BB-09):** the $20.00 is reported whole; BB-09 still owes **$30.00**, shown as $30.00 from that day and collected separately. **Open (Ryan):** the figure rises from $10.00 to $30.00 though BB-09 did nothing. Is that right, or should the pot have been used up at the bounce (SCN-0087's Open)?
-- This is the opposite of SCN-0087's refund: before a refund the pot nets in every state (Kyle 10-30).
+- **Texas (BB-09):** the $20.00 is reported whole; BB-09 still owes **$30.00**, shown as $30.00 from that day and collected separately. The figure rises from $10.00 to $30.00 though BB-09 did nothing. That is the cost of the "at a refund" setting, which is why it is not the default (Ryan 2026-11-25).
+- Under the default, both utilities would have recorded the netting in December 2026: nothing is reported, and each customer owes $10.00 in both states.
+- This is the opposite of SCN-0087's refund: before a refund the pot nets in every state, under either setting (Kyle 10-30).
