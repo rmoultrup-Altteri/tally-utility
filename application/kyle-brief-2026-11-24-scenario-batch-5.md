@@ -1,7 +1,7 @@
 ---
 title: Scenario batch 5 (tax by location): questions for Kyle
 type: brief
-status: DRAFT, not sent (Ryan sends, after batches 3 and 4)
+status: SENT 2026-11-26 (Ryan, by Slack: batches 3 to 7 in two messages), awaiting answers
 created: 2026-11-24
 blocks: the tax scenarios being marked checked
 ---

@@ -29,16 +29,16 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 - [x] **`scenarios/gas-cost-zones-and-reads.md`, 16 scenarios, ahead of the rates stream's patches** (Ryan: "start the gas cost, zones and reads scenarios"; DECISION-LOG): the gas cost figure by billing month (issue month), none locked, keyed wrong, a later rebill, the billing-side record, Pecan Flat's minimum; pressure zones confirmed before activation, a factor changing mid-period, a wrong multiplier; a high read re-read, re-read fees, an estimate and its catch-up, Gulf Plains' estimates (card, cap, cut-off), rollover, a meter change, a meter moved.
 - [x] Review round 7 (Opus, Fable, Codex) applied: the March pipeline fee; "by cycle" as SCN-0001; the built cap fires at the third estimate; the estimate's base month; dates; what is built (zone and pressure confirmations, the billing guard); R-30's list is a proposal; §7.45's approved-plan and customer-readable conditions.
 - [x] Law read: 16 TAC §7.45 (6)(B), (6)(C), (4)(E)(vii), (7)(B)(iv); §7.5519 sets no effective date (GBM's knowledge page says otherwise).
-- [x] Board note to rates (seven points); batch 7 drafted; roadmap K-20; dashboard dataset `decisions` v22.
+- [x] Board note to rates (seven points); batch 7 drafted; roadmap K-20; dashboard dataset `decisions` v22 (v25 after the 2026-11-26 send).
 - [x] **Nine more cases (SCN-0146 – 0154)** from round 7's gaps (Ryan: "write the remaining gas cases"): a move-out mid-month; a missed month billed on one read; Gulf Plains six months without an actual; Gulf Plains' factor carried forward; a destroyed meter with no history; Bluebonnet at its cap; a stopped meter and a true zero; pressure factors wrong, missing or misplaced; a multiplier and a factor together. Round 8 applied: the part-month customer charge follows the built default (a share by days, $25.71); the six-month breach is surfaced, not a held bill (R-21, monthly billing); a stopped meter's unbilled month is the month's own estimated bill, not a backbill; taxes, due dates, reused customers; batch 7 now 25 questions.
 
 ## Waiting on Ryan
 
-- **Send batches 3, 4, 5, 6, then 7** (now 3, 7, 5, 6 and 7 questions, each with a figures check), each pasted from below its "Paste from here". If an older batch 3 draft is in Kyle's DM, delete it first.
+- Nothing. Batches 3 to 7 were sent to Kyle on 2026-11-26 (Ryan, by Slack, in two messages: batches 3 – 5, then 6 – 7).
 
 ## Waiting on Kyle
 
-- K-14, K-16, K-18, K-19, K-20. Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
+- K-14, K-16, K-18, K-19, K-20 (batches 3 to 7, sent 2026-11-26; when answers come, fold them into the scenarios and mark each brief answered). Not to build until ruled: bank-error returned checks (SCN-0045), the senior's proof details (SCN-0011).
 
 ## Not yet done (in order)
 

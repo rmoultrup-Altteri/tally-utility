@@ -1,7 +1,7 @@
 ---
 title: Scenario batch 4 (cash, and the rest of SCN-0033): questions for Kyle
 type: brief
-status: DRAFT, not sent (Ryan sends, after K-14)
+status: SENT 2026-11-26 (Ryan, by Slack: batches 3 to 7 in two messages), awaiting answers
 created: 2026-11-22
 blocks: the cash scenarios being marked checked
 ---

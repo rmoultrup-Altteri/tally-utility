@@ -1,7 +1,7 @@
 ---
 title: Scenario batch 6 (unmatched cash and agency pledges): questions for Kyle
 type: brief
-status: DRAFT, not sent (Ryan sends, after batches 3, 4 and 5)
+status: SENT 2026-11-26 (Ryan, by Slack: batches 3 to 7 in two messages), awaiting answers
 created: 2026-11-25
 blocks: the unmatched-cash and pledge scenarios being marked checked
 ---

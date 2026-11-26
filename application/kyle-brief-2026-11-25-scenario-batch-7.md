@@ -1,7 +1,7 @@
 ---
 title: Scenario batch 7 (gas cost, zones and factors, meter reads): questions for Kyle
 type: brief
-status: DRAFT, not sent (Ryan sends, after batches 3 to 6)
+status: SENT 2026-11-26 (Ryan, by Slack: batches 3 to 7 in two messages), awaiting answers
 created: 2026-11-25
 blocks: the gas cost, zone and read scenarios being marked checked; the rates stream's patches for them
 ---

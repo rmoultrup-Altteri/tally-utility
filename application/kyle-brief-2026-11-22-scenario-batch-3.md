@@ -1,7 +1,7 @@
 ---
 title: Scenario batch 3 (disputes, penalties and corrections, backbilling): questions for Kyle
 type: brief
-status: DRAFT, not sent (Ryan sends first; batches 4 to 7 follow it)
+status: SENT 2026-11-26 (Ryan, by Slack: batches 3 to 7 in two messages), awaiting answers
 created: 2026-11-22 (as a Slack draft); rebuilt as a file 2026-11-24
 blocks: the batch 2 scenarios being marked checked
 ---
