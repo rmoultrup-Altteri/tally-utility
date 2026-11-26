@@ -14,7 +14,7 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 - **Review round 9** (`scenarios/review/2026-11-26-gas-3/`, Opus, Fable, Codex): all figures and weekdays recomputed clean; claims fixed (CI-122; built vs the core's; deposit entries never reopened, SCN-0029; estimate defaults as utility settings, not rulings; SCN-0162's due date by SCN-0033's settled rule, whose wording now covers a fixed due day; SCN-0142's Open narrowed; SCN-0146's boundary reading is built). Cast: BB-22 – 26, GP-10, GP-11, PF-08; estimate wording; Gulf Plains' part-month default.
 - Batch 8 drafted (1 question and a figures check); roadmap K-21, dataset `decisions` v26.
 
-**Next:** Ryan sends batch 8; round 9's small gaps are optional; then weather normalization and state machines, or the tax items.
+**Next:** batch 8 was sent by Ryan the same day (all six batches now with Kyle); fold in Kyle's answers when they come; round 9's small gaps are optional; then weather normalization and state machines, or the tax items.
 
 ---
 

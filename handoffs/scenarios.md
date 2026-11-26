@@ -2,9 +2,9 @@ Folder: `~/code/tally-utility-scenarios`. If your working directory is not this 
 
 # Handoff: scenarios and test strategy (roadmap P2, gate step 2)
 
-**Generated**: 2026-11-25, end of the seventh scenarios session (unmatched cash, the transit fix, the gas family, the triage of Kyle's questions).
+**Generated**: 2026-11-26, end of the seventh scenarios session (unmatched cash, the transit fix, the gas family and its read cases, the triage of Kyle's questions, batches 3 to 8 sent).
 **Branch**: `main`. `git pull --ff-only` first, and check GBM `HEAD..origin/main` for Kyle's answers (Kyle also posts in the Slack DM, D0B0GRDQYLR; this session had no Slack tool, so the DM was not read).
-**Status**: 162 scenarios (SCN-0001 – 0162; 0155 – 0162 added 2026-11-26, reviewed in round 9 and applied). The gas cost, zones and reads family (0130 – 0154) is written ahead of its patches (Ryan's go-ahead) and reviewed (rounds 7 and 8, all three reviewers, applied). Five batches of questions for Kyle are drafted as files, none sent, **triaged from 83 questions to 28 and five figure checks** (Ryan; DECISION-LOG).
+**Status**: 162 scenarios (SCN-0001 – 0162; 0155 – 0162 added 2026-11-26, reviewed in round 9 and applied). The gas cost, zones and reads family (0130 – 0154) is written ahead of its patches (Ryan's go-ahead) and reviewed (rounds 7 and 8, all three reviewers, applied). Six batches of questions for Kyle (3 to 8) are **all sent** (Ryan, 2026-11-26, by Slack), after triage by standing rules (Ryan; DECISION-LOG); none answered yet.
 
 ## Goal
 
@@ -50,7 +50,7 @@ Write the scenarios the C# core must pass, have Kyle check the dollar figures, a
 4. [ ] Families after their patches mirror: disputes (-25), collections (-26).
 5. [ ] One meter across premises with different rules.
 6. [ ] The coverage audit against all 135 invariants; then the test strategy (roadmap R-15). Note for it: -24's dates refuse anything after the real today, so these tests need a controlled clock.
-7. [ ] Fold in K-14, K-16, K-18, K-19, K-20 when answered.
+7. [ ] Fold in K-14, K-16, K-18, K-19, K-20, K-21 when answered.
 
 ## Key decisions
 
