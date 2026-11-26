@@ -8,7 +8,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **A factor is stored with the raw quantity it multiplied** (Ryan 2026-11-04). A bill line shows the raw reading, each factor and the billed volume. All three utilities bill in Mcf, so no heating value or therm figures appear. No cast utility bills in an energy unit or has weather normalization; those wait for Gulf Plains' tariff and the weather family. **Today a bill line in Mcf without therm figures is refused at issue.** The money stream's patch carrying Ryan's 2026-11-04 decision is not drafted, so every worked bill here waits on it.
 - **A reading is never overwritten once billed.** A re-read is a new reading that replaces the earlier one, names it, and states a reason from Kyle's list: re-read for high or low usage, re-read for a zero or missing read, re-read after an access problem, meter malfunction, estimate replaced by an actual, dispute recheck, tamper investigation, wrong meter, typo correction, other. Both readings stay (Kyle 08-18, D-5; Kyle 10-15, K-03). A reading's history stays with the meter and with the address (Kyle 08-18, D-3; Kyle 10-15, R-10).
 - **Texas's meter-reading rule binds only Gulf Plains.** 16 TAC §7.45 sets standards for residential and small commercial gas service by a regulated utility, of its own force in unincorporated areas, and inside a city only where they don't conflict with the city's standards. GP-08 is in an unincorporated area. City systems such as Pecan Flat and Bluebonnet are not bound by it, even for customers outside the city limits. Their tariffs say nothing about estimates, so their settings in `cast.md` §6 are invented.
-- **Dates** are 2026 unless stated. Every value in `cast.md` §6 is **invented**. New customers: BB-17 – BB-21, GP-08, GP-09 (`cast.md`). Each scenario stands alone unless it says it continues another.
+- **Dates** are 2026 unless stated. Every value in `cast.md` §6 is **invented**. New customers: BB-17 – BB-26, GP-08 – GP-11, PF-08 (`cast.md`). Each scenario stands alone unless it says it continues another.
 
 ---
 
@@ -298,8 +298,8 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - **(c)** A third estimate (4.8 Mcf) would reach Gulf Plains' cap. The read gate raises an exception, and the estimate is not approved until a supervisor resolves it. Here the supervisor records an override ("dog; customer contacted; appointment set for Jun 8"). The Jun 5 bill is then estimated: **$51.00**. Estimates in a row: 3.
 - **(d)** A fourth estimate raises the exception again. The supervisor dispatches a field order, and the bill waits for its result. Texas's limit is the outer bound in any case: an actual reading by Sep 1, six months after Mar 1.
 - **(e)** The June bill is estimated. The recorded reason, a dog, is beyond the utility's control under the engineering proposal, so §7.45(4)(E)(vii) would not bar a cut-off for it (provisional, pending the Open). Had the reason been "network meter offline", within the utility's control, the June bill could not ground a cut-off. The check reads the reason recorded on each estimated reading behind the bill, and the more protective reading wins.
-- **Open (Kyle, or tariff counsel):** (1) is an aggressive dog beyond a utility's control? The sorting of reasons is a proposal. (2) A card the customer returns is a customer reading. Does it end the run of estimates, and does it count as the actual reading Texas requires every six months? Kyle 07-10 said "no customer-initiated reads in v1"; this one the utility asked for.
-- **Settled by rule (2026-11-25, triage of Kyle's questions):** an actual reading dated earlier than estimates already entered raises its own review, and does not clear the run (the built rule; the conservative choice). A cap above Texas's six months is ruled out by DE-1, not yet enforced: noted for the rates stream.
+- **Open (Kyle, or tariff counsel):** (1) is an aggressive dog beyond a utility's control? The sorting of reasons is a proposal. (2) A card the customer returns is a customer reading. Does it count as the actual reading Texas requires every six months? (That it ends the run of estimates is built behaviour, SCN-0158; batch 7 asked both halves before this was seen, and a different answer on the run would change the built rule.) Kyle 07-10 said "no customer-initiated reads in v1"; this one the utility asked for.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** an actual reading dated earlier than estimates already entered does not clear the run (the built rule, AC-21; the conservative choice), and the core raises a review on it (SCN-0160). A cap above Texas's six months is ruled out by DE-1, not yet enforced: noted for the rates stream.
 
 ---
 
@@ -357,7 +357,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 ### SCN-0146 — A move-out partway through the month: two bills for one meter in one billing month, one figure
 
-*Status:* draft (2026-11-25); in batch 7 for Kyle (K-20), not yet sent. **Built:** a utility setting, with a per-schedule override, for the fixed charge when a customer changes partway through a period: a share by days (the platform default), both customers pay in full, or whoever holds the account at the period's end pays in full. The line records which was applied. **Not built:** the gas cost figure by billing month (as SCN-0130); one reading that is both one customer's final and the next one's first has no single purpose in the list a reading carries, so how it is recorded is the core's.
+*Status:* draft (2026-11-25); in batch 7 for Kyle (K-20), not yet sent. **Built:** a utility setting, with a per-schedule override, for the fixed charge when a customer changes partway through a period: a share by days (the platform default), both customers pay in full, or whoever holds the account at the period's end pays in full. The line records which was applied. **Not built:** the gas cost figure by billing month (as SCN-0130); one reading that is both one customer's final and the next one's first is recorded once, marked as the boundary between the two customers (built), and named by both bills.
 *Rule:* every bill issued in a billing month uses that month's one figure, however many bills a meter has that month and whatever period each covers. A final bill is a bill like any other. A part-month customer charge follows the utility's setting; where the tariff is silent, the platform default, a share by days, applies. Sources: Kyle 11-03, answer 1; SCN-0130; Kyle 11-03 (standing rule: the platform default where the tariff is silent).
 
 **Given** Bluebonnet; BB-17 (R-U, inside the city, read on the last day of the month). Its bill for November's gas was issued Wed Dec 2 (SCN-0130 (b), $0.58). BB-17 moves out on Thu Dec 10, and the final reading that day shows 2.4 Mcf since Nov 30. BB-20 takes service from Fri Dec 11 at that reading; its Dec 31 reading shows 5.1 Mcf. Bluebonnet's tariff bills "the customer charge for each month of the year, regardless of whether service is disconnected during the summer months" (Brenham's words). That speaks to a customer with service all year, not to a part month, so Bluebonnet keeps the platform default (**invented**: its setting).
@@ -524,3 +524,155 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 - 4.27 × 10 = 42.70 Mcf metered, × 1.0437 = 44.56599, carried as **44.5660 Mcf** billed. The line shows 4.27, 10, 42.70, 1.0437 and 44.5660.
 - $82.90; distribution 44.5660 × $2.31 = 102.9475, so $102.95; commodity 44.5660 × $5.35 = 238.4281, so $238.43; gas cost 44.5660 × $0.58 = 25.8483, so $25.85; state 6.25% of $450.13 = $28.13; county 0.5% = $2.25: **$480.51**.
 - Here the unrounded volume gives the same cents. The test asserts the carried 44.5660 and the order of the steps.
+
+---
+
+## Added cases (2026-11-26, round 8's remaining gaps; reviewed in round 9, `review/2026-11-26-gas-3/`)
+
+### SCN-0155 — A final reading that can't be taken: the estimated final bill is put right at the next occupant's first actual
+
+*Status:* draft (2026-11-26); the question below is for Kyle's batch 8. **Built:** a reading can be recorded as estimated, with the purpose "final read", and marked as the boundary between an outgoing and an incoming customer; the part-month customer charge setting (as SCN-0146). **Not built:** the move-out itself, a final reading, a final bill and the deposit's disposition, is the core's (CI-122, partly built); so is sharing the gas between two actual readings across a change of customer; the gas cost figure by billing month (as SCN-0130).
+*Rule (this stream's reading):* when a move-out reading can't be taken, the final reading is estimated, marked, and closes one customer's billing and opens the next one's. An estimated final bill is not left to stand, because the departing customer has no later bill to catch it up. When the next actual reading comes, the gas between the last actual before the move and that one is shared by days between the two customers. A replacement final reading, at the departing customer's share, replaces the estimate; both are kept. The final bill is voided and corrected at its own billing month's figure, and the new customer's first bill starts from the replacement reading. A part-month estimate is the utility's monthly estimate shared by the days covered, rounded half-up to the meter's tenth. Sources: GBM `application/configurable-rules/workflows/final-bill-generation.md`, exception 1 only (an estimated final bill has "no next cycle to true it up in"; the same workflow's full customer charge on a final bill is superseded here by SCN-0146; its invariant numbers are an older numbering); `knowledge/24-billing-failures-index.md` (the named failure: an estimated final bill "never reissued when actual differs"); CI-122; SCN-0133 (a correction uses the voided bill's billing month); Kyle 11-03, answer 17, and SCN-0029 (a credit left when a deposit-paid final bill is corrected down is a deposit refund, paid out whatever its size); SCN-0146.
+
+**Given** Bluebonnet; BB-22 (R-U, inside the city, read on the last day of the month; deposit $150). Its Nov 30 actual reading is 4,100.0, and its last three months billed on actual readings averaged 9.3 Mcf. Its December 2 bill, for November's gas, is paid. BB-22 moves out on Thu Dec 10. The house is locked and the meter is inside a locked yard, so the final reading can't be taken. BB-23 (R-U, the new owner, also read on the last day of the month) takes service from Fri Dec 11. BB-23's first actual reading, on Thu Dec 31, is 4,108.0. December's figure is $0.58, January's $0.71. Both customer charges are a share by days (Bluebonnet's setting, `cast.md` §6).
+
+**When** (a) the final bill is issued Fri Dec 11, and the deposit's remainder is refunded by check on Mon Dec 14; (b) the Dec 31 actual is validated, and on Mon Jan 4, 2027 the final bill is corrected and BB-23's first bill is issued; (b′) instead, the Dec 31 actual is 4,112.0.
+
+**Then**
+- **(a)** The final reading is estimated at 4,103.0: 9.3 × 10 ÷ 31 = 3.0 Mcf, for 10 of December's 31 days. Its reason is "access issue: locked gate", and it is marked as the final reading, an estimate, and the boundary between BB-22 and BB-23. The final bill, marked "Estimated": customer charge $4.13 (as SCN-0146), distribution 3.0 × $2.96 = $8.88, commodity $16.05, gas cost 3.0 × $0.58 = $1.74, city sales tax 1% on $30.80 = $0.31: **$31.11**, due Mon Dec 28. The deposit pays it, and **$118.89** is refunded on Dec 14 (Bluebonnet's route (b), at disconnection).
+- **(b)** From Nov 30 to Dec 31 the meter moved 8.0 Mcf over 31 days: 10 days BB-22's, 21 days BB-23's. BB-22's share is 8.0 × 10 ÷ 31 = 2.5806, so 2.6 Mcf. BB-23's is the rest, 5.4 Mcf: the second share takes the remainder, so the two add to what the meter measured. The replacement final reading is 4,102.6, reason "other: shared by days at the next actual", naming the estimate.
+  - The final bill is voided and corrected at December's figure, $0.58, its own billing month's, though the correction is issued in January (SCN-0133): $4.13, distribution $7.70, commodity $13.91, gas cost $1.51, tax 1% on $27.25 = $0.27: **$27.52**. Its taxes are 2026's, the period's. The void and the correction leave BB-22 a credit of **$3.59**. The deposit's application and the Dec 14 refund stay as they happened (SCN-0029). The $3.59 is paid out as a further deposit refund, so $122.48 is refunded in all, and the account can't close until it is paid.
+  - BB-23's first bill starts from 4,102.6, at January's figure (SCN-0146 (b)): customer charge $8.67, distribution 5.4 × $2.96 = $15.98, commodity $28.89, gas cost 5.4 × $0.71 = $3.83, tax 1% on $57.37 = $0.57: **$57.94**. Its taxes are 2026's (as SCN-0146).
+  - Had BB-23 instead been billed from the estimated reading, it would pay for 5.0 Mcf ($54.31) and BB-22 would keep its 3.0, whatever the meter showed. The estimate's error would stay with whichever customer it happened to favour.
+- **(b′)** 12.0 Mcf over the 31 days: BB-22's share 12.0 × 10 ÷ 31 = 3.8710, so 3.9 Mcf, and BB-23's 8.1. The estimate was low. BB-22's corrected final bill: $4.13, $11.54, $20.87, $2.26, tax on $38.80 = $0.39: **$39.19**, so BB-22 owes **$8.08** more after the deposit's remainder has gone back. There is no next bill, so it is due 15 days after the correction, Tue Jan 19, 2027 (SCN-0033's rule for a corrected final bill). BB-23's first bill is 8.1 Mcf: $8.67, $23.98, $43.34, $5.75, tax on $81.74 = $0.82: **$82.56**. (Billed from the estimated reading it would be 9.0 Mcf, $90.75.)
+- BB-23's bill shows that its starting reading replaced an estimate and that the gas was shared by days.
+- **Open (Kyle):** when a final reading is estimated, is the gas up to the next actual reading shared by days between the two customers, with the final bill corrected either way, as here? Or does the new customer bill from the estimated reading, so the final bill stands? We'd make it a utility setting, with sharing by days as the default.
+
+---
+
+### SCN-0156 — A month missed with no estimate at Bluebonnet: the customer charge is still billed that month
+
+*Status:* draft (2026-11-26). **Built:** the choice not to estimate, as a setting for a rate schedule or a meter (as SCN-0147); a billing run records a meter skipped for no read; a fixed monthly charge exists as a kind of charge. **Not built:** billing the customer charge whatever the usage, so that a skipped read never drops it, is the core's (CI-102, no schema guard); a bill of the customer charge alone, marked "no reading this month"; a dated record that one month's route was skipped and why (as SCN-0147); the gas cost figure by billing month (as SCN-0130).
+*Rule:* at a utility with a monthly customer charge, a month with no reading and no estimate still has a bill: the customer charge alone, marked "no reading this month". The next reading bills all the gas since the last one, at that bill's billing month's figure, with one month's customer charge. The high-usage check compares usage per month covered. Sources: CI-102 (a customer with no usage still gets a bill carrying the customer charge; the parity record says the core must not let a skipped read drop it); Bluebonnet's minimum bill, the customer charge every month (`cast.md` §2); SCN-0147.
+
+**Given** Bluebonnet; BB-24 (R-R, outside the city: $14.75 a month, $3.41 per Mcf; no tax). The Oct 15 actual reading is 820.0. The Sun Nov 15 route is not read (the reader is ill), and Bluebonnet records its choice not to estimate it. In the same months last year BB-24 used 6.8 and 7.4 Mcf (its history from the old system, loaded at go-live). November's figure is $0.42, December's $0.58.
+
+**When** (a) the November bills are issued Mon Nov 16; (b) the Dec 15 actual reading is 834.4, and the December bill is issued Wed Dec 16.
+
+**Then**
+- **(a)** BB-24's November bill is the customer charge for Oct 16 – Nov 15, **$14.75**, marked "no reading this month", due Tue Dec 1. No gas is billed at November's $0.42.
+- **(b)** 14.4 Mcf over two months is 7.2 a month, within 150% of last year's month, so the read passes with the reason "two months on one read". The bill covers the gas from Oct 15 to Dec 15 and the customer charge for Nov 16 – Dec 15: $14.75, distribution 14.4 × $3.41 = $49.10, commodity 14.4 × $5.35 = $77.04, gas cost 14.4 × $0.58 = $8.35: **$149.24**. It carries one customer charge, not two: November's was billed in November.
+- The bill shows both readings, their dates, and that its gas covers two months.
+- **Settled by rule (2026-11-26):** a customer charge is billed in the month it is owed, so a skipped read never drops it (CI-102). Holding it for a two-month bill instead ($29.50 on a $163.99 bill) is the alternative a utility could state at onboarding; nothing in Bluebonnet's tariff asks for it.
+
+---
+
+### SCN-0157 — A rebill of a bill that used a carried-forward figure keeps the carried figure
+
+*Status:* draft (2026-11-26). **Not built** (as SCN-0133 and SCN-0149).
+*Rule:* a correction uses the voided bill's billing month's figure (SCN-0133). Where that figure was carried forward under the tariff, the carried figure is the month's figure, so the correction uses it, even after a later figure has been filed. A downward correction keeps the original due date. Sources: SCN-0133; SCN-0149; Kyle 10-14, answer 6 ("rebills use the factor in effect at the time"); Kyle 11-05, answer 2 (the amount the customer already knew about keeps its due date), and SCN-0033.
+
+**Given** SCN-0149's facts: Gulf Plains carried $3.40 forward as October 2027's figure, and $3.90 was filed on Fri Oct 8 for November's bills. GP-08's October bill, issued Tue Oct 5 for 2.9 Mcf, was **$36.75**, due Mon Oct 25, and is unpaid. On Thu Oct 21 the reading is found keyed wrong: the meter photo shows 2.4 Mcf used.
+
+**When** the October bill is voided and corrected on Oct 21.
+
+**Then**
+- The correction uses October's figure, $3.40, though $3.90 is now on file: $15.00, delivery 2.4 × $4.10 = $9.84, gas cost 2.4 × $3.40 = $8.16: **$33.00**, still due Mon Oct 25. At $3.90 it would be $34.20, and issuing it so is refused by the core (SCN-0133).
+- The correction names October as its billing month, with the figure marked carried, and the billing-side record counts the change against October's figure (SCN-0134).
+- A correction issued in December, or a year later, gives the same $33.00.
+
+---
+
+### SCN-0158 — Gulf Plains: the self-read card comes back
+
+*Status:* draft (2026-11-26); part of it is with Kyle (batch 7, question 6). **Built:** the reading method "customer reported"; the run of estimates ends at a validated reading not marked as an estimate, whatever its method (AC-21); a same-day estimate beside an actual is not counted. **Not built:** the card itself (the communication log, CI-095); entering the card's reading as not an estimate, which the core does (nothing stops a customer reading being entered as an estimate); the six-month check (CI-090), which would decide whether a customer's reading counts.
+*Rule:* a reading the customer sends on the utility's card is recorded with the method "customer reported", is checked like any other reading, and once validated is the meter's reading for the period. Where it arrives in time for billing, the bill is rendered on it, catching up the gas the estimates missed. Where it arrives after the bill, the billed estimate stands and the reading is kept and reviewed (as SCN-0160). As built, a validated customer reading is not an estimate, so it ends the run of estimates. Whether it is the actual reading Texas requires every six months is Kyle's question. Sources: 16 TAC §7.45(6)(C) (the card in the second straight month without access; "If such a postcard is not received by the utility in time for billing, the utility may estimate"); AC-21; SCN-0141 (catch-up); SCN-0142.
+
+**Given** SCN-0142's facts, with readings: GP-08's actual reading on Mon Mar 1, 2027 is 1,050.0. The Apr 1 read fails (an aggressive dog), and April's bill was estimated at 9.0 Mcf, $82.50, an estimated reading of 1,059.0. The May 1 read fails too, and the reader leaves the card. GP-08 reads the meter that evening, Sat May 1, and fills in 1,066.1.
+
+**When** (a) the card reaches Gulf Plains on Mon May 3, and the May bill is issued Wed May 5; (b) instead, the card reaches Gulf Plains on Fri May 7.
+
+**Then**
+- **(a)** The reading is dated May 1, with the method "customer reported" and the card's arrival date. It passes the usage checks and is validated, so no estimate is made for May. The May bill bills 1,066.1 − 1,059.0 = 7.1 Mcf: $15.00, delivery 7.1 × $4.10 = $29.11, gas cost 7.1 × $3.40 = $24.14: **$68.25**, not marked "Estimated". Over March and April, 16.1 Mcf has been billed: what the meter shows. Estimates in a row: 0.
+- **(b)** The May 5 bill was estimated at 7.2 Mcf, **$69.00**, an estimated reading of 1,066.2 dated May 1 (SCN-0142 (b)). The card's reading, the same date and 0.1 Mcf lower, is kept and reviewed; the billed estimate stands, and June catches up from 1,066.2. As built, the run of estimates ends: the card's reading is an actual dated the same day as the estimate, and a same-day estimate beside an actual is not counted. That is unlike SCN-0160, where an actual dated two days earlier leaves the run as it was.
+- If Kyle rules that a customer's reading is not Texas's actual reading, the run still ends as built, but the six months still count from Mar 1, so an actual is needed by Sep 1. The six-month check (CI-090) would then have to tell a customer's reading from the utility's.
+
+---
+
+### SCN-0159 — A second and third estimate under the three-month average: estimated months don't feed the next estimate
+
+*Status:* draft (2026-11-26). **Built:** the three-month average as a method; the cap and its exception (AC-20, AC-21). **Not built:** which months the average reads. The method is a name in a list, and what it averages is the core's. (A built three-month average on a meter's summary mixes estimated readings with actual ones; it is not the estimator, and the core must not reuse it.)
+*Rule:* Bluebonnet's stated method averages the customer's last three months billed on actual readings: estimated months are skipped, so an estimate is never built on another estimate (**invented**: its setting, `cast.md` §6). The average is worked to four decimals and rounded half-up to the meter's tenth. A catch-up reading is checked on the gas since the last actual reading, per month covered. Sources: `cast.md` §6 (Bluebonnet's method and cap); Kyle 10-15, R-11 (estimation is dated rule data, so a utility's method is its own); Kyle 10-15, K-06 (four decimals, half-up); AC-21; SCN-0141; SCN-0156.
+
+**Given** Bluebonnet; BB-25 (R-R, outside the city; no tax). Its last three months billed on actual readings, to Jun 15, Jul 15 and Aug 15, used 1.8, 2.1 and 3.0 Mcf, an average of 2.3. The Aug 15 reading is 600.0. The gate is locked on Sep 15, Oct 15 and Nov 15. In the same four months last year BB-25 used 2.6, 3.1, 3.4 and 5.2 Mcf. The figures are September's $0.30, October's and November's $0.42, December's $0.58. On Dec 15 the actual reading is 614.0.
+
+**When** the four bills are issued, Sep 16, Oct 16, Nov 16 and Dec 16; at Nov 15 the third estimate raises the cap's exception, and the supervisor resolves it by an override.
+
+**Then**
+
+| Bill | Estimate (actual months only, expected) | Bill | If estimated months fed the average | Bill |
+|---|---|---|---|---|
+| Sep 16 | 2.3 Mcf | $35.59 | 2.3 Mcf | $35.59 |
+| Oct 16 | 2.3 Mcf | $35.87 | (2.1 + 3.0 + 2.3) ÷ 3 = 2.4667, so 2.5 Mcf | $37.71 |
+| Nov 16 | 2.3 Mcf | $35.87 | (3.0 + 2.3 + 2.5) ÷ 3 = 2.6 Mcf | $38.62 |
+| Dec 16, actual 614.0 | 614.0 − 606.9 = 7.1 Mcf | $81.07 | 614.0 − 607.4 = 6.6 Mcf | $76.40 |
+
+- Each bill is $14.75 plus the gas at $3.41, $5.35 and the month's figure. September's: $14.75 + $7.84 + $12.31 + $0.69. December's catch-up: $14.75 + $24.21 + $37.99 + $4.12.
+- The Dec 15 reading passes the high-usage check: 14.0 Mcf since the Aug 15 actual, 3.5 a month, against last year's 14.3 over the same four months.
+- Either way, 14.0 Mcf is billed in all: the meter's 614.0 − 600.0. The two methods differ in which months the gas is billed in, and so at which figure ($188.40 in all against $188.32).
+- Each estimated bill is marked, with the method and the months it averaged.
+- **Settled by rule (2026-11-26):** which months an average reads is part of the utility's stated method (Kyle 10-15, R-11), stated at onboarding. Actual months only is this stream's proposal for the platform default, because feeding estimates into estimates carries one guess into the next.
+
+---
+
+### SCN-0160 — An actual reading dated before an estimate already billed
+
+*Status:* draft (2026-11-26). **Built:** the run of estimates counts estimates dated after the latest validated actual, so a back-dated actual doesn't end it (AC-21); a review can be recorded on a reading, and a reading with an open review can't be approved (AC-20). **Not built:** raising the review, which is the core's (no rule in the built list names a back-dated actual, so it is recorded as "other"); the catch-up method (CI-114).
+*Rule:* an actual reading that arrives after an estimate was billed, but is dated before it, is kept in the meter's history and reviewed before it is approved. It does not reopen the billed estimate, and it does not end the run of estimates. The next actual reading catches up all the gas from the last billed reading, the estimate (catch-up, the platform default). Sources: AC-20, AC-21; SCN-0141; SCN-0142.
+
+**Given** Bluebonnet; BB-26 (R-R, outside the city; no tax). The Oct 15 actual reading is 500.0, and BB-26's three-month average is 4.0 Mcf. In November and December last year BB-26 used 6.1 and 6.5 Mcf. The Sun Nov 15 read fails (a locked gate). The estimated reading of 504.0 is billed on Mon Nov 16 at November's $0.42: **$51.47**, marked "Estimated". On Fri Nov 20 a service technician's reading, taken on a leak call on Fri Nov 13, is entered: 506.2.
+
+**When** (a) the Nov 13 reading is entered; (b) the Dec 15 actual is 512.0, and the December bill is issued Wed Dec 16; (b′) instead, the Dec 15 read fails too.
+
+**Then**
+- **(a)** The core raises a review on the Nov 13 reading: an actual dated before an estimate already billed. The meter's history now steps back, 506.2 on Nov 13 and then 504.0 on Nov 15; that is not a rollover (SCN-0143), and no review can be raised on the billed estimate. The reading shows that November's estimate was low by at least 2.2 Mcf; its 6.2 Mcf in 29 days passes the high-usage check against last year's 6.1. The reviewer resolves the review by an override, "billed estimate stands; catch up at the next actual", and the reading is then validated. The November bill is not rebilled.
+- **(b)** The December bill catches up from the estimated reading: 512.0 − 504.0 = 8.0 Mcf at December's $0.58: $14.75, distribution $27.28, commodity $42.80, gas cost $4.64: **$89.47**. The read passes the high-usage check: 12.0 Mcf since the Oct 15 actual, 6.0 a month, against last year's 6.1 and 6.5. The Dec 15 actual ends the run of estimates.
+- **(b′)** The December estimate is the second in a row, though a real reading from Nov 13 is on file: that reading is dated before the Nov 15 estimate, so it doesn't end the run. The estimate is the three-month average, 4.0 Mcf (the Nov 13 reading ended no billed month, so it doesn't feed the average, SCN-0159), from the billed 504.0: an estimated reading of 508.0, and a bill of $14.75 + $13.64 + $21.40 + $2.32 = **$52.11**.
+- **Settled by rule (2026-11-26):** the review and the run as built; catch-up is the platform default where the utility states no method (SCN-0141).
+
+---
+
+### SCN-0161 — Gulf Plains: a new customer with no "same month last year"
+
+*Status:* draft (2026-11-26). **Built:** the estimate methods, a fixed list; the part-month customer charge setting, default a share by days. **Not built:** an estimate set by a supervisor, with its basis (as SCN-0150); a premise's reading history across meter changes (a net-new item in GBM's list from Kyle's 08-18 rulings); whether "same month last year" reads the customer's history or the address's.
+*Rule:* Gulf Plains' stated method reads the readings taken at the address, across meters, so a new customer in an existing house is estimated from the house's own use (**invented**: its setting, `cast.md` §6). Where there is no history at the address, the method can't run, and a supervisor sets the estimate with its basis, as at Bluebonnet (SCN-0150). This is this stream's reading, by analogy with the Texas rule for gas used but not metered, which looks first to the same customer at the same location, then to "consumption under similar conditions at the same location or of other similarly situated customers". Sources: 16 TAC §7.45(7)(B)(v)(II) (the analogy); Kyle 08-18, D-3, and Kyle 10-15, R-10 (a reading's history stays with the meter and the address); SCN-0150; `cast.md` §6.
+
+**Given** Gulf Plains (live since Jan 15, 2026); its rates, $15.00 a month, $4.10 per Mcf, and $3.40 gas cost; the part-month customer charge, a share by days (`cast.md` §6). (a) GP-10 moves into a newly built house on Wed Feb 10, 2027, with a new meter set at 0.0. The Mar 1 actual reading is 3.8. (b) GP-11 moves into an existing house on Wed Feb 10, 2027, at a reading of 2,210.0. The Mar 1 actual reading is 2,214.4. Its earlier occupant used 8.4 Mcf there in March 2026. For both, the Apr 1 read fails: a locked construction gate across the road.
+
+**When** the March and April bills are issued, Fri Mar 5 and Mon Apr 5.
+
+**Then**
+- **(a)** GP-10's first bill (19 of February's 28 days): customer charge 15.00 × 19 ÷ 28 = 10.1786, so $10.18; delivery 3.8 × $4.10 = $15.58; gas cost 3.8 × $3.40 = $12.92: **$38.68**. In April there is no March 2026 at this address, so the method can't run, and the estimate is held for a supervisor. The supervisor sets 6.2 Mcf, GP-10's own 0.2 Mcf a day for March's 31 days, and records the basis. The Apr 5 bill, marked "Estimated": $15.00 + $25.42 + $21.08 = **$61.50**.
+- **(b)** GP-11's first bill: $10.18, delivery 4.4 × $4.10 = $18.04, gas cost 4.4 × $3.40 = $14.96: **$43.18**. Its April estimate is the house's March 2026, 8.4 Mcf: $15.00 + $34.44 + $28.56 = **$78.00**, marked "Estimated", with the basis "same month last year at this address". The bill doesn't show the earlier occupant's name or account. Had Gulf Plains stated that only a customer's own history counts, GP-11's estimate would be held for a supervisor, as in (a).
+- The construction gate is a reason beyond the utility's control under the engineering proposal (SCN-0142 (e)).
+- **Settled by rule (2026-11-26):** which history the method reads is part of the utility's stated method, stated at onboarding. The address's history is this stream's proposal for the platform default, following Kyle's rulings that keep a reading's history with the address.
+
+---
+
+### SCN-0162 — A final bill corrected in a later month, after the deposit was applied
+
+*Status:* draft (2026-11-26). **Built:** voiding and rebilling; a final bill's deposit application and refund are entries never edited. **Not built:** the gas cost figure by billing month (as SCN-0133); the due date of a hidden undercharge on a corrected final bill (one due date per bill today, as SCN-0033); collections.
+*Rule:* a final bill corrected later uses its own billing month's figure (SCN-0133). The void and the correction leave one net balance; the deposit's application and its refund stay as they happened. A credit left is paid out as a deposit refund, since no account remains to hold it. An undercharge the utility's error hid is owed on the corrected final bill with a new due date from the correction, and takes a penalty only if unpaid after it. The corrected reading is also the next occupant's starting reading. Sources: SCN-0133; Kyle 11-03, answer 17, and SCN-0029 (the deposit's entries are not edited; the credit is a deposit refund); `cash.md` SCN-0089 (money freed by a correction); SCN-0033 (settled by rule, 2026-11-25: a corrected final bill's hidden extra takes a new due date from the correction, Kyle 11-03, answer 10; a penalty only after it, Kyle 11-05, answers 1 and 2); the six-month default for a silent city (Kyle 11-05, answers 10 – 12; SCN-0019).
+
+**Given** Pecan Flat; PF-08 (residential; deposit $100; its meter reads in Mcf to a tenth). Its Nov 15 reading is 2,038.0, and its November bill is paid. PF-08 moves out on Mon Nov 30. The final bill is issued that day at November's $6.10, due Tue Dec 1. The deposit pays the final bill, and the rest is refunded. On Wed Dec 9 a photo review finds the final reading keyed wrong. December's figure is $6.85. A new tenant took service from Dec 1 at the keyed reading.
+- (a) Keyed 2,046.0 (8.0 Mcf); the photo shows 2,040.6 (2.6 Mcf). The final bill was $72.00 + $48.80 = $120.80. The deposit paid $100.00, and PF-08 paid the other $20.80 at the counter on Tue Dec 1.
+- (b) Instead, keyed 2,040.6; the photo shows 2,046.0. The final bill was $23.40 + $15.86 = $39.26. The deposit paid it, and $60.74 was refunded on Wed Dec 2.
+
+**When** the final bill is voided and corrected on Dec 9.
+
+**Then**
+- A replacement reading, reason "typo correction", replaces the keyed final reading. Both PF-08's corrected bill and the new tenant's first bill use it. Catching up on the next read isn't offered, because the next read belongs to another customer.
+- Both corrections name November as their billing month and use $6.10. At December's $6.85 the corrected bill in (a) would be $41.21.
+- **(a)** The corrected final bill: 2.6 × $9.00 = $23.40, gas cost 2.6 × $6.10 = $15.86: **$39.26**. The void (−$120.80) and the correction (+$39.26) leave PF-08 a credit of **$81.54**, refunded by check to its forwarding address as a deposit refund. The deposit's $100.00 application and the $20.80 payment stay as they happened. Recording the refund as $60.74 of deposit and $20.80 of payment (the freed deposit money pays the correction first) is this stream's reading: Kyle's answer 17 covers a final bill paid wholly from the deposit.
+- **(b)** The corrected final bill is **$120.80**. The void (−$39.26) and the correction leave PF-08 owing **$81.54**, an undercharge the city's keying hid, within Pecan Flat's six-month default for an undercharge (cause "keying error"). There is no next bill, so it takes a new due date from the correction: Pecan Flat's due day, Fri Jan 1, 2027, the first at least its ordinary gap after Dec 9 (the tariff doesn't move a holiday due date, as SCN-0131). If it is unpaid, Pecan Flat's 10% posts on Sat Jan 2: **$8.15**. A cut-off has no meaning here, since the account is closed. What follows, collections, is not built or ruled.
+- **Settled by rule (2026-11-26):** the due date and the penalty in (b) follow SCN-0033's rule for a corrected final bill, with Pecan Flat's fixed due day as the new due date.

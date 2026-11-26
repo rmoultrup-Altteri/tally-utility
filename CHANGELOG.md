@@ -6,6 +6,18 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-26 (scenarios) — batches 3 – 7 sent; the remaining gas read cases (SCN-0155 – 0162); Kyle batch 8
+
+**What was done:**
+- Ryan sent Kyle batches 3 to 7 (Slack, two messages); the five briefs and the roadmap marked sent.
+- **Eight gas read cases**, round 8's gaps: an estimated final reading, shared by days at the next actual and the final bill corrected (both directions); a missed month at Bluebonnet still billing its customer charge (CI-102); a rebill keeping a carried-forward figure; the self-read card in time and after the bill; estimated months not feeding the three-month average; an actual dated before a billed estimate; a new Gulf Plains customer estimated from the address's history; a final bill corrected after the deposit was applied, both ways.
+- **Review round 9** (`scenarios/review/2026-11-26-gas-3/`, Opus, Fable, Codex): all figures and weekdays recomputed clean; claims fixed (CI-122; built vs the core's; deposit entries never reopened, SCN-0029; estimate defaults as utility settings, not rulings; SCN-0162's due date by SCN-0033's settled rule, whose wording now covers a fixed due day; SCN-0142's Open narrowed; SCN-0146's boundary reading is built). Cast: BB-22 – 26, GP-10, GP-11, PF-08; estimate wording; Gulf Plains' part-month default.
+- Batch 8 drafted (1 question and a figures check); roadmap K-21, dataset `decisions` v26.
+
+**Next:** Ryan sends batch 8; round 9's small gaps are optional; then weather normalization and state machines, or the tax items.
+
+---
+
 ## 2026-11-25 (scenarios, later) — gas cost, zones and reads (SCN-0130 – 0145), ahead of their patches; reviewed; Kyle batch 7
 
 **What was done:**

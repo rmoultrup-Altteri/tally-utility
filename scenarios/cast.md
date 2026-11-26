@@ -119,9 +119,9 @@ The 45 days and 5 business days are the CEAP vendor agreement's terms (design so
 
 Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a source is named.
 
-**Part-month customer charges.** Bluebonnet keeps the platform default, a share by days (**invented**: its setting; SCN-0146).
+**Part-month customer charges.** Bluebonnet keeps the platform default, a share by days (**invented**: its setting; SCN-0146). Gulf Plains uses the platform default until its tariff is drafted (SCN-0161).
 
-**Billing days.** Pecan Flat reads around the 15th and issues bills on the 20th, due the 1st (the 20th is SCN-0053's). Bluebonnet reads most meters on the 15th and issues bills the next day (the reference bill, Nov 16); BB-17 reads on the last day of the month (its scenario says when it bills). Gulf Plains reads on the 1st and bills on the 5th (§3).
+**Billing days.** Pecan Flat reads around the 15th and issues bills on the 20th, due the 1st (the 20th is SCN-0053's). Bluebonnet reads most meters on the 15th, weekends included, and issues bills the next day (the reference bill, Nov 16); BB-17, BB-22 and BB-23 read on the last day of the month (their scenarios say when they bill). Gulf Plains reads on the 1st and bills on the 5th (§3).
 
 **Gas cost figures.** Each figure is one per billing month, never split, and fixed once locked (Kyle 11-03, answer 1). A bill's billing month is the month it is issued, at all three utilities.
 
@@ -135,7 +135,7 @@ Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a
 
 **Pressure zones (Bluebonnet).** Bluebonnet defines its zones itself (Kyle 10-15, K-02): *Standard delivery*, factor 1.0000; *Industrial Park*, factor 1.0400 (BB-08's, SCN-0055), and 1.0600 from Mar 1, 2027 after the city raises the line pressure there; *Mill Road*, factor 1.0437 (BB-21's, SCN-0154); *Courthouse Square*, BB-03's: 1.0500, and 1.0800 from Mar 1, 2027 (SCN-0078). A zone is assigned to the premise, with dates; each meter set there is confirmed against it by a named person before it is activated.
 
-**Estimates.** Pecan Flat and Bluebonnet: an estimate is the customer's average usage over its last three billed months, a cap of 3 estimates in a row (the cap is the platform default; the source tariffs say nothing about estimates). Gulf Plains: the same month last year, the same cap. Under the cap as built, the third estimate in a row raises an exception and is approved only after a supervisor resolves it, by an override or a field order. At Gulf Plains, Texas also requires an actual reading at least every six months (16 TAC §7.45(6)(C)).
+**Estimates.** Pecan Flat and Bluebonnet: an estimate is the customer's average usage over its last three months billed on actual readings, estimated months skipped (SCN-0159), rounded half-up to the meter's tenth, a cap of 3 estimates in a row (the cap is the platform default; the source tariffs say nothing about estimates). Gulf Plains: the same month last year, read from the readings taken at the address across meters and customers (SCN-0161), the same cap. Under the cap as built, the third estimate in a row raises an exception and is approved only after a supervisor resolves it, by an override or a field order. At Gulf Plains, Texas also requires an actual reading at least every six months (16 TAC §7.45(6)(C)).
 
 **Estimated bills and cut-offs.** Pecan Flat's and Bluebonnet's tariffs say nothing, so each stated its rule before go-live (Ryan 2026-11-25, the go-live rule): an estimated bill may ground a cut-off like any other (**invented**). At Gulf Plains, 16 TAC §7.45(4)(E)(vii) decides.
 
@@ -176,6 +176,14 @@ Used by `gas-cost-zones-and-reads.md`. Every value here is **invented** unless a
 | BB-20 | Bluebonnet | homeowner inside the city, taking over BB-17's house from Dec 11 | R-U | `gas-cost-zones-and-reads.md` SCN-0146 |
 | BB-21 | Bluebonnet | a dry cleaner on Mill Road, outside the city, on a meter with a multiplier of 10 | LC-R | `gas-cost-zones-and-reads.md` SCN-0154 |
 | GP-09 | Gulf Plains | residential, unincorporated area, behind a locked gate the customer keeps closed | — | `gas-cost-zones-and-reads.md` SCN-0148 |
+| BB-22 | Bluebonnet | homeowner inside the city, read on the last day of the month; moves out Dec 10 | R-U | deposit $150; `gas-cost-zones-and-reads.md` SCN-0155 |
+| BB-23 | Bluebonnet | new owner of BB-22's house from Dec 11, read on the last day of the month | R-U | SCN-0155 |
+| BB-24 | Bluebonnet | homeowner outside the city | R-R | SCN-0156 |
+| BB-25 | Bluebonnet | homeowner outside the city, behind a gate locked for three months | R-R | SCN-0159 |
+| BB-26 | Bluebonnet | homeowner outside the city | R-R | SCN-0160 |
+| GP-10 | Gulf Plains | residential, a newly built house from Feb 10, 2027 | — | SCN-0161 |
+| GP-11 | Gulf Plains | residential, an existing house from Feb 10, 2027 | — | SCN-0161 |
+| PF-08 | Pecan Flat | residential, moves out Nov 30; its meter reads in Mcf to a tenth | — | deposit $100; SCN-0162 |
 | PL-01 | Prairie Line (Fremont) | residential | — | deposit $200 |
 | PL-03 | Prairie Line (Fremont) | homeowner in the City of Lakeview (invented) | — | `tax.md` SCN-0112 |
 
