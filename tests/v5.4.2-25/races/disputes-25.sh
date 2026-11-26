@@ -55,6 +55,18 @@
 #   DR15b A withdraws the dispute and moves the reading out, and holds; B
 #        does the same: waits, then is refused (one closing event; D5f); the
 #        reading ends active, the dispute withdrawn.
+#   r5 (Codex S1, Fable N3; Opus N1, Fable N2): the two deadlocks the lock
+#   order admits as a rule, each with its end state (either loser retries).
+#   DR16 reading R5 is active under one open dispute. A withdraws it and holds
+#        before its commit check; B moves the reading into disputed (it takes
+#        the reading's row, then waits on the dispute). A's check then waits
+#        on the reading: one session gets 40P01, the other commits, and the
+#        end state is consistent (disputed/open, or active/withdrawn).
+#   DR17 reading R6 is disputed under two open disputes. A edits the
+#        reading's note and, 2.5 seconds on, records an amount on the second
+#        dispute; B withdraws that dispute and commits (its check waits on
+#        the reading). One gets 40P01; the reading stays disputed under the
+#        first dispute.
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -397,6 +409,45 @@ two "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occur
     "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRG', 'withdrawn', DATE '2026-04-10'); UPDATE public.meter_readings SET status = 'active' WHERE id = '$RD4';"
 verdict "DR15b two clerks each withdraw the dispute and move the reading out: the second waits, then is refused (one closing event)" 1 "[D5f]"
 expect "DR15c … the reading ends active, its dispute withdrawn" "$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD4' AND d.id = '$DRG'")" "active/withdrawn"
+
+# DR16, DR17 (r5): the deadlocks the lock order admits; exactly one session loses (40P01).
+RD5=00000000-0000-4000-8000-0000000026a1
+RD6=00000000-0000-4000-8000-0000000026a2
+DRH=00000000-0000-4000-8000-0000000026b1
+DRI=00000000-0000-4000-8000-0000000026b2
+DRJ=00000000-0000-4000-8000-0000000026b3
+"${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: the readings of DR16-DR17 (r5)"; exit 2; }
+BEGIN;
+INSERT INTO public.meter_readings (id, tenant_id, meter_id, reading_date, reading_value) VALUES
+  ('$RD5', '$T', '$M', DATE '2025-10-31', 10), ('$RD6', '$T', '$M', DATE '2025-09-30', 5);
+$AS_OP
+INSERT INTO public.disputes (id, tenant_id, customer_id, reading_id, subject, received_on, channel) VALUES
+  ('$DRH', '$T', '$C', '$RD5', 'meter_accuracy', DATE '2026-03-05', 'written'),
+  ('$DRI', '$T', '$C', '$RD6', 'meter_accuracy', DATE '2026-03-05', 'written'),
+  ('$DRJ', '$T', '$C', '$RD6', 'meter_accuracy', DATE '2026-03-05', 'written');
+UPDATE public.meter_readings SET status = 'disputed' WHERE id = '$RD6';
+COMMIT;
+SQL
+one_lost() {  # $1 label: exactly one session failed, and with 40P01
+local a b; a=$(grep -c "40P01" "$A_OUT"); b=$(grep -c "40P01" "$B_OUT")
+if [ "${WAITED:-0}" -lt 1 ]; then echo "FAIL $1: session B was never seen waiting on a lock: A ($AST): $(cat "$A_OUT") B ($BST): $(cat "$B_OUT")"; fail=1; return; fi
+if { [ "$AST" -ne 0 ] && [ "$a" -ge 1 ] && [ "$BST" -eq 0 ]; } || { [ "$BST" -ne 0 ] && [ "$b" -ge 1 ] && [ "$AST" -eq 0 ]; }; then
+  echo "PASS $1 ($( [ "$AST" -ne 0 ] && echo A || echo B ) lost)"
+else echo "FAIL $1: A ($AST): $(cat "$A_OUT") B ($BST): $(cat "$B_OUT")"; fail=1; fi
+}
+two "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRH', 'withdrawn', DATE '2026-04-10');" \
+    "UPDATE public.meter_readings SET status = 'disputed' WHERE id = '$RD5';"
+one_lost "DR16 A withdraws the reading's only dispute and holds before its check; B moves the reading into disputed: one session deadlocks (40P01), the other commits"
+ST=$("${PSQL[@]}" -c "SELECT r.status || '/' || d.status FROM public.meter_readings r, public.disputes d WHERE r.id = '$RD5' AND d.id = '$DRH'")
+if [ "$ST" = "disputed/open" ] || [ "$ST" = "active/withdrawn" ]; then echo "PASS DR16a … the end state is consistent ($ST)"; else echo "FAIL DR16a: got [$ST]"; fail=1; fi
+# A's amount comes 2.5 s in, after B's own deadlock check (at B's first second of waiting) found no cycle.
+two "UPDATE public.meter_readings SET notes = 'clerk note (race25)' WHERE id = '$RD6';
+     SELECT pg_sleep(2.5);
+     INSERT INTO public.dispute_amounts (tenant_id, dispute_id, amount, determined_by, effective_on) VALUES ('$T', '$DRJ', 12, 'customer_claim', DATE '2026-04-10');" \
+    "INSERT INTO public.dispute_events (tenant_id, dispute_id, event_type, occurred_on) VALUES ('$T', '$DRJ', 'withdrawn', DATE '2026-04-10');"
+one_lost "DR17 A edits the reading's note, then records an amount on its second dispute; B withdraws that dispute: one session deadlocks (40P01), the other commits"
+ST=$("${PSQL[@]}" -c "SELECT r.status || '/' || string_agg(d.status, ',' ORDER BY d.id) FROM public.meter_readings r JOIN public.disputes d ON d.reading_id = r.id WHERE r.id = '$RD6' GROUP BY r.status")
+if [ "$ST" = "disputed/open,withdrawn" ] || [ "$ST" = "disputed/open,open" ]; then echo "PASS DR17a … the reading stays disputed under its first dispute ($ST)"; else echo "FAIL DR17a: got [$ST]"; fail=1; fi
 
 # DR12 (not a race): a session that never set app.user_id.
 OUT=$("${PSQL[@]}" 2>&1 <<SQL

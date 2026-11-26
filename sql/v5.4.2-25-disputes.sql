@@ -73,7 +73,12 @@
 --     [D7k]; with neither, only "no terms" [D4d]; where the law governs, the
 --     tariff in force is cited [D4q]; r4: where it is looser in part than
 --     the law row cited, the record is checked against the two combined
---     (each section the more protective; both documents' blocks) [D4r]; no
+--     (each section the more protective; both documents' blocks) [D4r];
+--     r5: lists merged within (subjects either admits; the law's stages
+--     with the tariff's kept where of the same decider, the tariff's own
+--     after); a start, end or must-pay the two cannot be ranked on kept
+--     both, the core applying the more protective (Ryan 2026-11-26), the
+--     record fitting either [D4g, D4t]; no
 --     last day under a document
 --     ended only by resolution (r3) [D4s]; outcome shapes [D4n]; the component [D4g] and blocks
 --     [D4h] are the cited document's; amounts [D4i]; one live row per
@@ -115,11 +120,12 @@
 --        in the way. The reading's row is the last lock a closing
 --        transaction takes, in the order its closing events were written;
 --     4. nothing else.
---   The reading's own move (an UPDATE of its status) takes the reading's row
---   first and the disputes' locks after (item 1), the reverse of a close.
---   So two deadlocks are admitted, and the loser retries: a close against
---   the reading's move, and two transactions closing disputes of two
---   readings in opposite order. No other is known (three reviews, r3).
+--   r5 (Opus N1, Fable N2), as a rule: a transaction that writes a
+--   reading's row (any column: its move into or out of 'disputed', a
+--   clerk's note) and then takes the lock of one of its disputes takes the
+--   two in the reverse of a close's order, and can deadlock with a close;
+--   so can two transactions closing disputes of two readings in opposite
+--   order. The loser retries.
 --   A rule row's close takes its own lock exclusive (-17) and reads the
 --   citations after it, so a close and a citation cannot cross. Every write
 --   that takes a dispute's lock runs at READ COMMITTED (25000 otherwise): it
@@ -156,9 +162,13 @@
 --   R8. r2: whether a dispute received ON the due date is "before
 --       delinquency" is the core's reading of the term, as under 7.45 (the
 --       bill is delinquent from the day after its due date).
+--   R9. r5 (Fable N8): a policy is compared with every class's law row, and
+--       the law's stages must be its first; where two classes of one state
+--       give different stage lists, no policy satisfies both, so the law
+--       alone is cited (fails toward the law). No seeded row is affected.
 --
--- Tests. battery-25 (296 checks), races/disputes-25.sh (DR1-DR15, 26 results),
---   terms-25.py, migration-25.py (P0-P4), mutations-25.py (161 mutations).
+-- Tests. battery-25 (318 checks), races/disputes-25.sh (DR1-DR17, 30 results),
+--   terms-25.py, migration-25.py (P0-P4), mutations-25.py (178 mutations).
 --
 -- PRECONDITION. v5.4.2-23 applied. No meter reading carries the old dispute
 --   notes or status 'disputed', and no customer is enrolled in
@@ -1790,12 +1800,17 @@ COMMENT ON FUNCTION public.dispute_subjects_admitted(jsonb) IS
 REVOKE ALL ON FUNCTION public.dispute_subjects_admitted(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.dispute_subjects_admitted(jsonb) TO tally_app, tally_core;
 
-CREATE OR REPLACE FUNCTION public.dispute_tariff_compare(p_tariff jsonb, p_law jsonb) RETURNS text[]
+-- r5 (Codex B1, Ryan 2026-11-26): the comparator's findings, one row each,
+-- with the section it names and its verdict: 'looser' where the law's term
+-- protects more for every customer, 'not_comparable' where which protects
+-- more depends on the customer. dispute_tariff_compare returns the messages;
+-- dispute_terms_combined reads the verdicts.
+CREATE OR REPLACE FUNCTION public.dispute_tariff_compare_sections(p_tariff jsonb, p_law jsonb)
+    RETURNS TABLE (section text, verdict text, problem text)
     LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    v_problem text[] := '{}';
     v_row     jsonb;
     v_l       jsonb;
     v_t       jsonb := p_tariff -> 'terms';
@@ -1808,7 +1823,6 @@ DECLARE
     v_ls      jsonb;
     v_li      bigint;
     v_tj      bigint;
-    v_pos     bigint;
     -- shelter_earned kinds in one order of breadth (wider first); the rest
     -- compare only with their own kind.
     c_rank    CONSTANT jsonb := '{"any_time": 4, "before_termination": 3, "before_delinquency": 2}';
@@ -1823,7 +1837,10 @@ BEGIN
           FROM jsonb_array_elements_text(v_l #> '{blocks,codes}') c
          WHERE NOT (v_t #> '{blocks,codes}') ? c;
         IF v_bad IS NOT NULL THEN
-            v_problem := v_problem || format('blocks: %s blocks %s; the tariff does not', v_law, v_bad);
+            section := 'blocks';
+            verdict := 'looser';
+            problem := format('blocks: %s blocks %s; the tariff does not', v_law, v_bad);
+            RETURN NEXT;
         END IF;
 
         -- r2 (Opus S1, Fable S2): duties, every duty of the law's
@@ -1831,7 +1848,10 @@ BEGIN
           FROM jsonb_array_elements_text(v_l #> '{duties,codes}') c
          WHERE NOT coalesce((v_t #> '{duties,codes}') ? c, false);
         IF v_bad IS NOT NULL THEN
-            v_problem := v_problem || format('duties: %s requires %s; the tariff does not', v_law, v_bad);
+            section := 'duties';
+            verdict := 'looser';
+            problem := format('duties: %s requires %s; the tariff does not', v_law, v_bad);
+            RETURN NEXT;
         END IF;
 
         -- r3 (Codex S1, Opus N4): stages. r4 (Opus S3, Opus N2, Fable S2):
@@ -1844,7 +1864,6 @@ BEGIN
         -- stage is filed from. One after the law's last delays none of the
         -- law's, and the law's decision binds the utility whatever follows; a
         -- shelter that ends at resolution only lasts longer.
-        v_pos := 0;
         FOR v_ls, v_li IN SELECT x, i FROM jsonb_array_elements(coalesce(v_l -> 'stages', '[]')) WITH ORDINALITY y(x, i) ORDER BY i LOOP
             SELECT j INTO v_tj
               FROM jsonb_array_elements(coalesce(v_t -> 'stages', '[]')) WITH ORDINALITY z(ts, j)
@@ -1856,11 +1875,13 @@ BEGIN
                     OR (ts #>> '{decide_within,kind}' = 'days'
                         AND (ts #>> '{decide_within,days}')::integer <= (v_ls #>> '{decide_within,days}')::integer));
             IF v_tj IS NULL THEN
-                v_problem := v_problem || format('stages: %s has stage %s (%s, filed within %s, decided within %s) at place %s; the tariff''s stage at place %s is not of that decider with a filing window as wide and a decision as prompt (the law''s stages come first, in order, with nothing between)',
+                section := 'stages';
+                verdict := 'looser';
+                problem := format('stages: %s has stage %s (%s, filed within %s, decided within %s) at place %s; the tariff''s stage at place %s is not of that decider with a filing window as wide and a decision as prompt (the law''s stages come first, in order, with nothing between)',
                                                  v_law, v_ls ->> 'id', v_ls ->> 'decider', v_ls -> 'file_within', v_ls -> 'decide_within', v_li, v_li);
+                RETURN NEXT;
                 EXIT;
             END IF;
-            v_pos := v_tj;
         END LOOP;
 
         -- subjects: every subject the law admits
@@ -1868,7 +1889,10 @@ BEGIN
           FROM unnest(public.dispute_subjects_admitted(v_l -> 'subjects')) c
          WHERE NOT c = ANY (public.dispute_subjects_admitted(v_t -> 'subjects'));
         IF v_bad IS NOT NULL THEN
-            v_problem := v_problem || format('subjects: %s admits %s; the tariff does not', v_law, v_bad);
+            section := 'subjects';
+            verdict := 'looser';
+            problem := format('subjects: %s admits %s; the tariff does not', v_law, v_bad);
+            RETURN NEXT;
         END IF;
 
         -- shelter_earned: no narrower; a pair outside one order is not
@@ -1879,15 +1903,21 @@ BEGIN
             NULL;
         ELSIF v_te ->> 'kind' = v_le ->> 'kind' AND v_le ->> 'kind' = 'within_days' THEN
             IF (v_te ->> 'days')::integer < (v_le ->> 'days')::integer OR v_te ->> 'from' <> v_le ->> 'from' THEN
-                v_problem := v_problem || format('shelter_earned: %s shelters a dispute within %s days of %s; the tariff''s %s days of %s is narrower or not comparable',
+                section := 'shelter_earned';
+                verdict := CASE WHEN v_te ->> 'from' = v_le ->> 'from' THEN 'looser' ELSE 'not_comparable' END;
+                problem := format('shelter_earned: %s shelters a dispute within %s days of %s; the tariff''s %s days of %s is narrower or not comparable',
                                                  v_law, v_le ->> 'days', v_le ->> 'from', v_te ->> 'days', v_te ->> 'from');
+                RETURN NEXT;
             END IF;
         ELSIF v_te ->> 'kind' = v_le ->> 'kind' THEN
             NULL;
         ELSIF NOT (c_rank ? (v_te ->> 'kind') AND c_rank ? (v_le ->> 'kind')
                    AND (c_rank ->> (v_te ->> 'kind'))::integer >= (c_rank ->> (v_le ->> 'kind'))::integer) THEN
-            v_problem := v_problem || format('shelter_earned: %s shelters a dispute %s; the tariff''s %s is narrower or not comparable (fail toward protection)',
+            section := 'shelter_earned';
+            verdict := CASE WHEN v_te ->> 'kind' = 'unruled' OR (c_rank ? (v_te ->> 'kind') AND c_rank ? (v_le ->> 'kind')) THEN 'looser' ELSE 'not_comparable' END;
+            problem := format('shelter_earned: %s shelters a dispute %s; the tariff''s %s is narrower or not comparable (fail toward protection)',
                                              v_law, v_le ->> 'kind', v_te ->> 'kind');
+            RETURN NEXT;
         END IF;
 
         -- shelter_ends: no sooner
@@ -1897,12 +1927,18 @@ BEGIN
             NULL;
         ELSIF v_te ->> 'kind' = v_le ->> 'kind' THEN
             IF v_le ->> 'kind' = 'earlier_of_resolution_and_days' AND (v_te ->> 'days')::integer < (v_le ->> 'days')::integer THEN
-                v_problem := v_problem || format('shelter_ends: %s ends the shelter %s days from issue at the earliest; the tariff ends it after %s',
+                section := 'shelter_ends';
+                verdict := 'looser';
+                problem := format('shelter_ends: %s ends the shelter %s days from issue at the earliest; the tariff ends it after %s',
                                                  v_law, v_le ->> 'days', v_te ->> 'days');
+                RETURN NEXT;
             END IF;
         ELSIF NOT (v_te ->> 'kind' = 'resolution' AND v_le ->> 'kind' = 'earlier_of_resolution_and_days') THEN
-            v_problem := v_problem || format('shelter_ends: %s ends the shelter at %s; the tariff''s %s is sooner or not comparable (fail toward protection)',
+            section := 'shelter_ends';
+            verdict := CASE WHEN v_te ->> 'kind' = 'unruled' OR (v_te ->> 'kind' = 'earlier_of_resolution_and_days' AND v_le ->> 'kind' = 'resolution') THEN 'looser' ELSE 'not_comparable' END;
+            problem := format('shelter_ends: %s ends the shelter at %s; the tariff''s %s is sooner or not comparable (fail toward protection)',
                                              v_law, v_le ->> 'kind', v_te ->> 'kind');
+            RETURN NEXT;
         END IF;
 
         -- must_pay: asks no more. undisputed_charges asks no more than any
@@ -1913,22 +1949,35 @@ BEGIN
             NULL;
         ELSIF v_tp ->> 'strategy' = v_lp ->> 'strategy' AND v_lp ->> 'strategy' = 'withhold_cap' THEN
             IF (v_tp ->> 'fraction')::numeric < (v_lp ->> 'fraction')::numeric THEN
-                v_problem := v_problem || format('must_pay: %s lets the customer withhold %s of the disputed amount; the tariff only %s',
+                section := 'must_pay';
+                verdict := 'looser';
+                problem := format('must_pay: %s lets the customer withhold %s of the disputed amount; the tariff only %s',
                                                  v_law, v_lp ->> 'fraction', v_tp ->> 'fraction');
+                RETURN NEXT;
             END IF;
         ELSIF v_tp ->> 'strategy' = v_lp ->> 'strategy' AND v_lp ->> 'strategy' = 'average_usage_cap'
               AND (v_tp -> 'history_years') = (v_lp -> 'history_years') AND (v_tp -> 'no_history') = (v_lp -> 'no_history') THEN
             NULL;
         ELSE
-            v_problem := v_problem || format('must_pay: %s asks for %s; the tariff''s %s asks more or is not comparable (fail toward protection)',
+            section := 'must_pay';
+            verdict := CASE WHEN v_tp ->> 'strategy' IN ('unruled', 'full_bill') OR v_lp ->> 'strategy' = 'undisputed_charges' THEN 'looser' ELSE 'not_comparable' END;
+            problem := format('must_pay: %s asks for %s; the tariff''s %s asks more or is not comparable (fail toward protection)',
                                              v_law, v_lp - ARRAY['id', 'version', 'citation'], v_tp - ARRAY['id', 'version']);
+            RETURN NEXT;
         END IF;
     END LOOP;
-    RETURN v_problem;
+    RETURN;
 END;
 $$;
+CREATE OR REPLACE FUNCTION public.dispute_tariff_compare(p_tariff jsonb, p_law jsonb) RETURNS text[]
+    LANGUAGE sql STABLE
+    SET search_path = public, pg_temp
+    AS $$
+    SELECT coalesce(array_agg(f.problem ORDER BY f.n), '{}')
+      FROM public.dispute_tariff_compare_sections(p_tariff, p_law) WITH ORDINALITY f(section, verdict, problem, n)
+$$;
 COMMENT ON FUNCTION public.dispute_tariff_compare(jsonb, jsonb) IS
-    'v5.4.2-25 (L6). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused when its blocks lack one of the law''s; it admits fewer subjects; its shelter starts narrower (any_time, before_termination, before_delinquency in that order; within_days against its own kind only, the same anchor and at least the days; any other pair not comparable); its shelter ends sooner (resolution beats earlier-of-resolution-and-days; days against days; any other pair not comparable); or its must-pay asks more (undisputed_charges asks no more than any strategy, a law of full_bill or unruled is never exceeded, equal strategies compare figures — withholding by fraction, the average cap only when equal — and any other pair is not comparable). Not comparable is refused (fail toward protection). A delegation compares nothing. r2: its duties lack one of the law''s; r3: or its stages do not match the law''s — r4: the law''s stages are the tariff''s first, in order, with nothing between, each of its decider with a filing window no shorter and a decision window no longer; a stage of the tariff''s own only after the law''s last.';
+    'v5.4.2-25 (L6). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused when its blocks lack one of the law''s; it admits fewer subjects; its shelter starts narrower (any_time, before_termination, before_delinquency in that order; within_days against its own kind only, the same anchor and at least the days; any other pair not comparable); its shelter ends sooner (resolution beats earlier-of-resolution-and-days; days against days; any other pair not comparable); or its must-pay asks more (undisputed_charges asks no more than any strategy, a law of full_bill or unruled is never exceeded, equal strategies compare figures — withholding by fraction, the average cap only when equal — and any other pair is not comparable). Not comparable is refused (fail toward protection). A delegation compares nothing. r2: its duties lack one of the law''s; r3: or its stages do not match the law''s — r4: the law''s stages are the tariff''s first, in order, with nothing between, each of its decider with a filing window no shorter and a decision window no longer; a stage of the tariff''s own only after the law''s last. r5: the findings and their verdicts are dispute_tariff_compare_sections''s; this returns their messages, in order.';
 
 DO $register$
 BEGIN
@@ -1941,6 +1990,10 @@ $register$;
 REVOKE ALL ON FUNCTION public.dispute_tariff_close_floor(uuid), public.dispute_tariff_insert_check(jsonb), public.dispute_tariff_compare(jsonb, jsonb)
     FROM PUBLIC, tally_core;
 GRANT EXECUTE ON FUNCTION public.dispute_tariff_close_floor(uuid), public.dispute_tariff_insert_check(jsonb), public.dispute_tariff_compare(jsonb, jsonb) TO tally_app;
+COMMENT ON FUNCTION public.dispute_tariff_compare_sections(jsonb, jsonb) IS
+    'v5.4.2-25 r5 (Codex B1; Ryan 2026-11-26). dispute_tariff_compare''s findings, one row each, in its order: the section named (blocks, duties, stages, subjects, shelter_earned, shelter_ends, must_pay), the verdict and the message. looser: the law''s term protects more whatever the customer (a list lacks one of the law''s; a narrower start of one order or one anchor; a sooner end of one kind, or the earlier of resolution and days against resolution; a smaller withholding fraction; a must-pay of full_bill, or against a law of undisputed_charges; a section the tariff leaves unruled). not_comparable: which protects more depends on the customer (any other pair). Invoker rights.';
+REVOKE ALL ON FUNCTION public.dispute_tariff_compare_sections(jsonb, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.dispute_tariff_compare_sections(jsonb, jsonb) TO tally_app, tally_core;
 COMMENT ON TABLE public.dispute_tariffs IS
     'v5.4.2-25 (L5, L6; K-07), on the rule-terms convention. The utility''s own dispute policy, from its tariff, per (tenant, state, service, system, dates): one row of the kind dispute_tariff, in the dispute law''s sections, never edited — the one change is a stamped close above the close floor (the latest received date of a dispute whose determination cites it). Measured against dispute_rules when written: never looser than any law row in force for the utility (dispute_tariff_compare). No default row: the tenant enters its own at setup (K-07). The core evaluates it; a determination cites it.';
 
@@ -2161,7 +2214,7 @@ CREATE TABLE public.dispute_amount_lines (
 CREATE INDEX idx_dispute_amount_lines_line ON public.dispute_amount_lines (invoice_line_item_id);
 CREATE INDEX idx_dispute_amount_lines_tenant ON public.dispute_amount_lines (tenant_id);
 COMMENT ON TABLE public.dispute_amount_lines IS
-    'v5.4.2-25 (D2). The bill lines a disputed amount falls on: each a positive line of the dispute''s own bill (invoice_id is the database''s, from the dispute), at most the line''s charge, written in the amount row''s own transaction; the lines of an amount sum to it at commit. Add-only.';
+    'v5.4.2-25 (D2). The bill lines a disputed amount falls on: each a positive line of the dispute''s own bill (invoice_id is the database''s, from the dispute), at most the line''s charge, written in the amount row''s own transaction; the lines of an amount sum to it at commit. Each line is numbered (record_seq, the database''s, from dispute_record_seq, r5: Fable N1). Add-only.';
 
 CREATE TABLE public.dispute_determinations (
     id                  uuid DEFAULT public.uuid_generate_v4() NOT NULL,
@@ -2626,12 +2679,28 @@ CREATE CONSTRAINT TRIGGER z_enforce_dispute_amount_lines_sum AFTER INSERT ON pub
 ALTER TABLE public.dispute_amount_lines ENABLE ALWAYS TRIGGER z_enforce_dispute_amount_lines_sum;
 
 -- r4 (Opus S1; fail toward protection): a tariff cited where the law
--- governs, combined with the law row cited. Each section is the tariff's
--- where it is no looser than the law's and the law's where it is looser (the
--- comparator's own findings, one per section, name which); the blocks and
--- the duties are both documents' together. A tariff no looser in every
--- respect comes back as it is, with the law's blocks and duties already
--- among its own.
+-- governs, combined with the law row cited. r5 (Codex B1, Opus S1, Fable S1;
+-- Ryan 2026-11-26): by the comparator's verdicts, section by section.
+--   * blocks, duties: both documents' together (r4).
+--   * subjects, on a finding: what either admits.
+--   * stages, on a finding: at each of the law's places, the tariff's stage
+--     there when it is of the law's decider, with the wider filing window
+--     and the quicker decision of the two (filing windows from two anchors
+--     cannot be ranked: both are kept); else the law's stage. Then the
+--     tariff's other stages, in its order, after the law's last. Ids are the
+--     tariff's where its stage is kept, the law's elsewhere ('law:' before
+--     one that a tariff stage already uses); the law's place keeps the law's
+--     final flag.
+--   * shelter_earned, shelter_ends, must_pay: the law's term where the
+--     tariff's is looser; where the two cannot be ranked, both, as
+--     {"either": [tariff's, law's]} (a law must-pay id the tariff's uses is
+--     written 'law:' and the id): the core applies the one more protective
+--     for the customer, and the record is checked against one of them.
+-- A tariff no looser in every respect comes back as it is, with the law's
+-- blocks and duties among its own. The document validates against neither
+-- schema; the core reads it as data. It is recomputed whenever it is read:
+-- a later change to the comparator, or a new platform subject code under a
+-- subjects section of kind any, reads every combined record anew.
 CREATE OR REPLACE FUNCTION public.dispute_terms_combined(p_tariff jsonb, p_law jsonb) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     SET search_path = public, pg_temp
@@ -2639,14 +2708,88 @@ CREATE OR REPLACE FUNCTION public.dispute_terms_combined(p_tariff jsonb, p_law j
 DECLARE
     v_doc     jsonb := p_tariff -> 'terms';
     v_law     jsonb := p_law -> 'terms';
-    v_section text;
+    v_f       record;
     v_part    text;
+    v_ts      jsonb := coalesce(p_tariff #> '{terms,stages}', '[]');
+    v_ls      jsonb;
+    v_t       jsonb;
+    v_out     jsonb := '[]';
+    v_kept    bigint[] := '{}';
+    v_i       bigint;
+    v_tw      jsonb;
+    v_lw      jsonb;
+    v_id      text;
+    v_tid     text[];
+    v_lt      jsonb;
+    v_ll      jsonb;
 BEGIN
-    FOR v_section IN
-        SELECT DISTINCT split_part(x, ':', 1) FROM unnest(public.dispute_tariff_compare(p_tariff, jsonb_build_array(p_law))) x
+    FOR v_f IN
+        SELECT f.section, bool_or(f.verdict = 'not_comparable') AS unranked
+          FROM public.dispute_tariff_compare_sections(p_tariff, jsonb_build_array(p_law)) f
+         GROUP BY f.section
     LOOP
-        CONTINUE WHEN v_section IN ('blocks', 'duties');
-        v_doc := jsonb_set(v_doc, ARRAY[v_section], v_law -> v_section, true);
+        IF v_f.section IN ('shelter_earned', 'shelter_ends', 'must_pay') THEN
+            IF v_f.unranked THEN
+                v_lt := v_law -> v_f.section;
+                IF v_f.section = 'must_pay' AND v_lt ->> 'id' = v_doc #>> '{must_pay,id}' THEN
+                    v_lt := jsonb_set(v_lt, '{id}', to_jsonb('law:' || (v_lt ->> 'id')));
+                END IF;
+                v_doc := jsonb_set(v_doc, ARRAY[v_f.section], jsonb_build_object('either', jsonb_build_array(v_doc -> v_f.section, v_lt)), true);
+            ELSE
+                v_doc := jsonb_set(v_doc, ARRAY[v_f.section], v_law -> v_f.section, true);
+            END IF;
+        ELSIF v_f.section = 'subjects' THEN
+            v_lt := v_doc -> 'subjects';
+            v_ll := v_law -> 'subjects';
+            v_doc := jsonb_set(v_doc, '{subjects}',
+                CASE WHEN v_lt ->> 'kind' = 'any' AND v_ll ->> 'kind' = 'any' THEN
+                          jsonb_build_object('kind', 'any', 'excluded',
+                              (SELECT coalesce(jsonb_agg(c ORDER BY c), '[]') FROM jsonb_array_elements_text(coalesce(v_lt -> 'excluded', '[]')) c
+                                WHERE coalesce(v_ll -> 'excluded', '[]') ? c))
+                     WHEN v_lt ->> 'kind' = 'any' OR v_ll ->> 'kind' = 'any' THEN
+                          jsonb_build_object('kind', 'any', 'excluded',
+                              (SELECT coalesce(jsonb_agg(c ORDER BY c), '[]')
+                                 FROM jsonb_array_elements_text(coalesce((CASE WHEN v_lt ->> 'kind' = 'any' THEN v_lt ELSE v_ll END) -> 'excluded', '[]')) c
+                                WHERE NOT c = ANY (public.dispute_subjects_admitted(CASE WHEN v_lt ->> 'kind' = 'any' THEN v_ll ELSE v_lt END))))
+                     ELSE jsonb_build_object('kind', 'listed', 'excluded', '[]'::jsonb, 'codes',
+                              (SELECT coalesce(jsonb_agg(DISTINCT c ORDER BY c), '[]')
+                                 FROM (SELECT unnest(public.dispute_subjects_admitted(v_lt)) c
+                                       UNION SELECT unnest(public.dispute_subjects_admitted(v_ll))) u)) END
+                || CASE WHEN v_lt ? 'citation' THEN jsonb_build_object('citation', v_lt -> 'citation') ELSE '{}'::jsonb END, true);
+        ELSIF v_f.section = 'stages' THEN
+            SELECT coalesce(array_agg(x ->> 'id'), '{}') INTO v_tid FROM jsonb_array_elements(v_ts) x;
+            FOR v_ls, v_i IN SELECT x, i FROM jsonb_array_elements(coalesce(v_law -> 'stages', '[]')) WITH ORDINALITY y(x, i) ORDER BY i LOOP
+                v_t := v_ts -> (v_i::integer - 1);
+                IF v_t IS NOT NULL AND v_t ->> 'decider' = v_ls ->> 'decider' THEN
+                    v_kept := v_kept || v_i;
+                    v_tw := v_t -> 'file_within';
+                    v_lw := v_ls -> 'file_within';
+                    v_t := jsonb_set(v_t, '{file_within}',
+                        CASE WHEN v_tw ->> 'kind' = 'none' OR v_lw ->> 'kind' = 'none' THEN '{"kind": "none"}'::jsonb
+                             WHEN v_tw ->> 'from' = v_lw ->> 'from' THEN CASE WHEN (v_tw ->> 'days')::integer >= (v_lw ->> 'days')::integer THEN v_tw ELSE v_lw END
+                             ELSE jsonb_build_object('either', jsonb_build_array(v_tw, v_lw)) END);
+                    v_tw := v_t -> 'decide_within';
+                    v_lw := v_ls -> 'decide_within';
+                    v_t := jsonb_set(v_t, '{decide_within}',
+                        CASE WHEN v_tw ->> 'kind' = 'none' THEN v_lw
+                             WHEN v_lw ->> 'kind' = 'none' THEN v_tw
+                             WHEN (v_tw ->> 'days')::integer <= (v_lw ->> 'days')::integer THEN v_tw ELSE v_lw END);
+                    v_t := jsonb_set(v_t, '{final}', coalesce(v_ls -> 'final', 'false'));
+                    v_out := v_out || jsonb_build_array(v_t);
+                ELSE
+                    v_id := v_ls ->> 'id';
+                    IF v_id = ANY (v_tid) THEN
+                        v_ls := jsonb_set(v_ls, '{id}', to_jsonb('law:' || v_id));
+                    END IF;
+                    v_out := v_out || jsonb_build_array(v_ls);
+                END IF;
+            END LOOP;
+            FOR v_t, v_i IN SELECT x, i FROM jsonb_array_elements(v_ts) WITH ORDINALITY y(x, i) ORDER BY i LOOP
+                CONTINUE WHEN v_i = ANY (v_kept);
+                v_out := v_out || jsonb_build_array(v_t);
+            END LOOP;
+            v_doc := jsonb_set(v_doc, '{stages}', v_out, true);
+        END IF;
     END LOOP;
     FOREACH v_part IN ARRAY ARRAY['blocks', 'duties'] LOOP
         IF v_law ? v_part OR v_doc ? v_part THEN
@@ -2660,7 +2803,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.dispute_terms_combined(jsonb, jsonb) IS
-    'v5.4.2-25 r4 (D4r; Opus S1, fail toward protection). A tariff row cited where the law governs, combined with the law row cited: each section the tariff''s where it is no looser than the law''s and the law''s where it is looser (by dispute_tariff_compare''s findings, each named by its section), the blocks and duties both documents'' together. So a law that tightened after the tariff was written takes nothing the tariff gives: the later shelter end, the smaller must-pay and every block of either. Invoker rights.';
+    'v5.4.2-25 r4 (D4r; Opus S1, fail toward protection). A tariff row cited where the law governs, combined with the law row cited, by dispute_tariff_compare_sections''s verdicts (r5: Codex B1, Opus S1, Fable S1; Ryan 2026-11-26): blocks and duties both documents'' together; subjects what either admits; stages the law''s places, each the tariff''s stage there when of the law''s decider (the wider filing window, the quicker decision; two anchors both kept), else the law''s (''law:'' before an id the tariff uses), then the tariff''s other stages after the law''s last; a start, end or must-pay the law''s where the tariff''s is looser, and {"either": [tariff''s, law''s]} where the two cannot be ranked — the core applies the one more protective for the customer. A tariff no looser in every respect comes back as it is. Recomputed when read: a later change to the comparator, or a new subject code, reads every combined record anew. Invoker rights.';
 REVOKE ALL ON FUNCTION public.dispute_terms_combined(jsonb, jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.dispute_terms_combined(jsonb, jsonb) TO tally_app, tally_core;
 GRANT EXECUTE ON FUNCTION public.dispute_tariff_compare(jsonb, jsonb) TO tally_core;
@@ -2702,6 +2845,9 @@ DECLARE
     v_last      date;
     v_blocks    text[];
     v_default   uuid;
+    v_alt       jsonb;
+    v_alts      jsonb;
+    v_fits      boolean;
 BEGIN
     -- An outcome outside the three is the CHECK's to refuse: each check
     -- below names the outcome it applies to.
@@ -2867,9 +3013,13 @@ BEGIN
 
     IF NEW.outcome <> 'no_terms' THEN
         v_doc := public.dispute_determination_terms(NEW.rule_id, NEW.tariff_id, NEW.platform_default_id);
-        IF NOT coalesce(v_doc #>> '{must_pay,id}' = NEW.must_pay_component, false) THEN
+        -- r5 (Ryan 2026-11-26): a must-pay the combination keeps both of
+        -- (they cannot be ranked) admits the component of either.
+        v_alts := CASE WHEN v_doc -> 'must_pay' ? 'either' THEN v_doc #> '{must_pay,either}' ELSE jsonb_build_array(v_doc -> 'must_pay') END;
+        IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_alts) m WHERE m ->> 'id' = NEW.must_pay_component) THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('dispute determination: must-pay component %s is not the cited document''s (%s) [D4g] (v5.4.2-25)', NEW.must_pay_component, v_doc #>> '{must_pay,id}'),
+                MESSAGE = format('dispute determination: must-pay component %s is not the cited document''s (%s) [D4g] (v5.4.2-25)', NEW.must_pay_component,
+                                 (SELECT string_agg(m ->> 'id', ' or ') FROM jsonb_array_elements(v_alts) m)),
                 ERRCODE = 'check_violation';
         END IF;
         IF NEW.outcome = 'sheltered' THEN
@@ -2895,26 +3045,45 @@ BEGIN
     END IF;
     -- r3 (Fable N3): a document that ends the shelter only at the resolution
     -- (or the regulator's close) has no last day to record [D4s].
-    IF NEW.outcome = 'sheltered' AND v_doc #>> '{shelter_ends,kind}' IN ('resolution', 'through_regulator_close') AND NEW.shelter_ends_on IS NOT NULL THEN
-        RAISE EXCEPTION USING
-            MESSAGE = format('dispute determination: the cited document ends the shelter at %s, so it records no last day (%s given) [D4s] (v5.4.2-25)',
-                             v_doc #>> '{shelter_ends,kind}', NEW.shelter_ends_on),
-            ERRCODE = 'check_violation';
-    END IF;
     -- r2 (Fable S1): where the cited document ends the shelter at the
     -- earlier of the resolution and a count of days, a shelter records its
-    -- last day, no later than the document's (the anchor's day counted).
-    IF NEW.outcome = 'sheltered' AND v_doc #>> '{shelter_ends,kind}' = 'earlier_of_resolution_and_days' THEN
-        v_anchor := CASE v_doc #>> '{shelter_ends,from}'
-                      WHEN 'issue' THEN (SELECT i.invoice_date FROM public.invoices i WHERE i.id = d.invoice_id)
-                      ELSE d.received_on END;
-        v_last := v_anchor + ((v_doc #>> '{shelter_ends,days}')::integer - 1);
-        IF NEW.shelter_ends_on IS NULL OR v_last IS NULL OR NEW.shelter_ends_on > v_last THEN
-            RAISE EXCEPTION USING
-                MESSAGE = format('dispute determination: the shelter ends on %s; the cited document ends it by %s (%s days from %s) [D4p] (v5.4.2-25)',
-                                 coalesce(NEW.shelter_ends_on::text, 'no date'), coalesce(v_last::text, 'an unknown day'),
-                                 v_doc #>> '{shelter_ends,days}', v_doc #>> '{shelter_ends,from}'),
-                ERRCODE = 'check_violation';
+    -- last day, no later than the document's (the anchor's day counted) [D4p].
+    -- r5 (Ryan 2026-11-26): an end the combination keeps both of (they
+    -- cannot be ranked) admits a record that fits either [D4t].
+    IF NEW.outcome = 'sheltered' THEN
+        v_alts := CASE WHEN v_doc -> 'shelter_ends' ? 'either' THEN v_doc #> '{shelter_ends,either}' ELSE jsonb_build_array(v_doc -> 'shelter_ends') END;
+        v_fits := false;
+        v_msg := NULL;
+        FOR v_alt IN SELECT x FROM jsonb_array_elements(v_alts) x LOOP
+            IF v_alt ->> 'kind' IN ('resolution', 'through_regulator_close') THEN
+                IF NEW.shelter_ends_on IS NULL THEN
+                    v_fits := true;
+                ELSE
+                    v_msg := format('dispute determination: the cited document ends the shelter at %s, so it records no last day (%s given) [D4s] (v5.4.2-25)',
+                                    v_alt ->> 'kind', NEW.shelter_ends_on);
+                END IF;
+            ELSIF v_alt ->> 'kind' = 'earlier_of_resolution_and_days' THEN
+                v_anchor := CASE v_alt ->> 'from'
+                              WHEN 'issue' THEN (SELECT i.invoice_date FROM public.invoices i WHERE i.id = d.invoice_id)
+                              ELSE d.received_on END;
+                v_last := v_anchor + ((v_alt ->> 'days')::integer - 1);
+                IF NEW.shelter_ends_on IS NOT NULL AND v_last IS NOT NULL AND NEW.shelter_ends_on <= v_last THEN
+                    v_fits := true;
+                ELSE
+                    v_msg := format('dispute determination: the shelter ends on %s; the cited document ends it by %s (%s days from %s) [D4p] (v5.4.2-25)',
+                                    coalesce(NEW.shelter_ends_on::text, 'no date'), coalesce(v_last::text, 'an unknown day'),
+                                    v_alt ->> 'days', v_alt ->> 'from');
+                END IF;
+            ELSE
+                v_fits := true;
+            END IF;
+        END LOOP;
+        IF NOT v_fits AND jsonb_array_length(v_alts) > 1 THEN
+            v_msg := format('dispute determination: the shelter ends on %s, which fits neither end the combined document keeps (%s) [D4t] (v5.4.2-25)',
+                            coalesce(NEW.shelter_ends_on::text, 'no last day'), v_alts);
+        END IF;
+        IF NOT v_fits THEN
+            RAISE EXCEPTION USING MESSAGE = v_msg, ERRCODE = 'check_violation';
         END IF;
     END IF;
 
@@ -2929,7 +3098,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_dispute_determination() IS
-    'v5.4.2-25 (D3, D4). BEFORE INSERT on dispute_determinations — record integrity, not evaluation (the core''s): the writer''s own tenant; under the dispute''s lock (READ COMMITTED) the dispute is open [D4k]; the amount row is the dispute''s, recorded before [D4j]; one live row — a first row, or a successor of the live row [D4m]; the class is the state''s (23503); the law row is the one in force for the utility''s profile in the recorded state, service and system, for the recorded class, on the received date (rule_law_row_cite) [D4a]; a tariff is the utility''s own policy for that state, service and system [D4f] and in force on the received date (rule_row_cite) [D4c]; r2: the platform default is cited only under a delegation with no tariff cited [D7k]; under a delegation with no tariff cited, the utility''s policy in force is cited [D4e], else the platform default in force for the utility''s profile, the class and the received date (rule_law_row_cite) — none cited when none is in force [D7a], the one in force when one is [D7b] — and with neither, the answer is "no terms" [D4d]; r2: where the law governs, the utility''s policy in force is cited [D4q] — r4: always, and where it is looser in part than the law row cited, the record is checked against the two combined (dispute_terms_combined) [D4r]; the outcome''s shape [D4n]; the must-pay component [D4g] and, for a shelter, the blocks [D4h] are the cited document''s (the tariff''s when one applied, else the platform default''s when one is cited); sheltered between 0 and the amount, to pay at least 0 [D4i]; the shelter ends no earlier than the received date [D4o]; r2: under a document that ends it at the earlier of the resolution and a count of days, a shelter records its last day, no later than the document''s [D4p]; r3: under a document ended by resolution, none [D4s]. Stamps created_by, recorded_txid and record_seq.';
+    'v5.4.2-25 (D3, D4). BEFORE INSERT on dispute_determinations — record integrity, not evaluation (the core''s): the writer''s own tenant; under the dispute''s lock (READ COMMITTED) the dispute is open [D4k]; the amount row is the dispute''s, recorded before [D4j]; one live row — a first row, or a successor of the live row [D4m]; the class is the state''s (23503); the law row is the one in force for the utility''s profile in the recorded state, service and system, for the recorded class, on the received date (rule_law_row_cite) [D4a]; a tariff is the utility''s own policy for that state, service and system [D4f] and in force on the received date (rule_row_cite) [D4c]; r2: the platform default is cited only under a delegation with no tariff cited [D7k]; under a delegation with no tariff cited, the utility''s policy in force is cited [D4e], else the platform default in force for the utility''s profile, the class and the received date (rule_law_row_cite) — none cited when none is in force [D7a], the one in force when one is [D7b] — and with neither, the answer is "no terms" [D4d]; r2: where the law governs, the utility''s policy in force is cited [D4q] — r4: always, and where it is looser in part than the law row cited, the record is checked against the two combined (dispute_terms_combined) [D4r]; the outcome''s shape [D4n]; the must-pay component [D4g] and, for a shelter, the blocks [D4h] are the cited document''s (the tariff''s when one applied, else the platform default''s when one is cited); sheltered between 0 and the amount, to pay at least 0 [D4i]; the shelter ends no earlier than the received date [D4o]; r2: under a document that ends it at the earlier of the resolution and a count of days, a shelter records its last day, no later than the document''s [D4p]; r3: under a document ended by resolution, none [D4s]; r5: where the combined document keeps two must-pay terms or two ends that cannot be ranked, the component is either''s [D4g] and the last day (or none) fits either [D4t]. Stamps created_by, recorded_txid and record_seq.';
 REVOKE ALL ON FUNCTION public.enforce_dispute_determination() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_dispute_determination BEFORE INSERT ON public.dispute_determinations FOR EACH ROW EXECUTE FUNCTION public.enforce_dispute_determination();
 ALTER TABLE public.dispute_determinations ENABLE ALWAYS TRIGGER b_enforce_dispute_determination;
@@ -3990,15 +4159,16 @@ DECLARE
         'dispute_shelter_as_of(uuid,date,timestamp with time zone) @b2426c66663f996c951d9c2959855faf',
         'dispute_subjects_admitted(jsonb) @1b5a024bfdb603d05b419084e8f44a42',
         'dispute_tariff_close_floor(uuid) @4a80839446f3510d63fb9cc4e118aff9',
-        'dispute_tariff_compare(jsonb,jsonb) @a9a36f492207adb17ed3488643ff58e9',
+        'dispute_tariff_compare(jsonb,jsonb) @f0a2a59633421cf3d80513f715cb5a5e',
+        'dispute_tariff_compare_sections(jsonb,jsonb) @d40f5ffc55360a14d26414e0dd121f5c',
         'dispute_tariff_insert_check(jsonb) @637164b15f1a7f2983964dafa3c41b89',
         'dispute_tenant_check(text,uuid) @67fa787a3162c95f44eb4be63c758d63',
         'dispute_terms_check(text,jsonb) @fd00cdb4f3292c8c59b19e63b30bdd98',
-        'dispute_terms_combined(jsonb,jsonb) @29d12a2bb72efdd38a7aa7ce79c27c94',
+        'dispute_terms_combined(jsonb,jsonb) @f272ce1224b50bc3f6167820a473ad73',
         'enforce_dispute_amount() @2598d7b4a699403bbb09a683ea62cec6',
         'enforce_dispute_amount_line() @9007d92b8fea34f969409dae3353b7be',
         'enforce_dispute_amount_lines_sum() @9abd8a4e51a1171bc32b2e5c4467f3c7',
-        'enforce_dispute_determination() @6e70da21ed004b5c3d8e3ed8960c1c9c',
+        'enforce_dispute_determination() @ed8a07a209eaac304c02e4bff714c619',
         'enforce_dispute_event() @69f92c98fca05b610b1d0f0ae2b133c5',
         'enforce_dispute_insert() @8b95d05590ff7c32ab9c3977952ca68f',
         'enforce_dispute_nothing_after_close() @b8b17a03a1943d3daa87d6f095f367c8',
@@ -4023,6 +4193,7 @@ DECLARE
         'dispute_subjects_admitted(jsonb) | s | false | tally | search_path=public, pg_temp',
         'dispute_tariff_close_floor(uuid) | s | false | tally | search_path=public, pg_temp',
         'dispute_tariff_compare(jsonb,jsonb) | s | false | tally | search_path=public, pg_temp',
+        'dispute_tariff_compare_sections(jsonb,jsonb) | s | false | tally | search_path=public, pg_temp',
         'dispute_tariff_insert_check(jsonb) | s | false | tally | search_path=public, pg_temp',
         'dispute_tenant_check(text,uuid) | s | false | tally | search_path=public, pg_temp',
         'dispute_terms_check(text,jsonb) | s | false | tally | search_path=public, pg_temp',
@@ -4190,6 +4361,7 @@ DECLARE
         'dispute_subjects_admitted(jsonb) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
         'dispute_tariff_close_floor(uuid) | {tally=X/tally,tally_app=X/tally}',
         'dispute_tariff_compare(jsonb,jsonb) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
+        'dispute_tariff_compare_sections(jsonb,jsonb) | {tally=X/tally,tally_app=X/tally,tally_core=X/tally}',
         'dispute_tariff_insert_check(jsonb) | {tally=X/tally,tally_app=X/tally}',
         'dispute_tenant_check(text,uuid) | {tally=X/tally,tally_app=X/tally}',
         'dispute_terms_check(text,jsonb) | {tally=X/tally,tally_app=X/tally}',

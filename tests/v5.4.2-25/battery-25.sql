@@ -1420,6 +1420,155 @@ SELECT pg_temp.admits_undone('D8j the combined document: the law''s stages, the 
     END IF;
   END $d$$q$);
 
+-- ============================================================== D9 the combination section by section (r5: Codex B1, Opus S1, Fable S1; Ryan 2026-11-26)
+-- tight2_sql(tariff, law overrides): D8's shape with any tariff (written January 1 under 7.45) and any
+-- stricter law (7.45's protected document with sections replaced). det2_sql(component, last day): the
+-- combined determination, its blocks read from the combined document.
+CREATE FUNCTION pg_temp.tight2_sql(p_tdoc jsonb, p_over jsonb) RETURNS text LANGUAGE sql AS $f$
+  SELECT pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01', p_tdoc) || '; '
+    || format($q$UPDATE public.dispute_rules SET effective_to = DATE '2026-06-01' WHERE id = %L$q$, pg_temp.law('investor_owned', 'protected')) || '; '
+    || format($q$INSERT INTO public.dispute_rules (state_code, service_type, owner_types, system_kinds, commission_jurisdiction, customer_class,
+                     effective_from, source_note, terms_kind, terms_version, terms_source)
+                 VALUES ('TX', 'gas', '{cooperative,investor_owned}', '{distribution}', NULL, 'protected', DATE '2026-06-01', 'battery: a stricter law', 'dispute', 1, %L)$q$,
+              ((SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected') || p_over)::text) || '; '
+    || $q$SELECT pg_temp.bill('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000250a', 'B25-I10', '00000000-0000-4000-8000-0000000025c5',
+                              '00000000-0000-4000-8000-0000000025d5', '00000000-0000-4000-8000-0000000025e5', '00000000-0000-4000-8000-0000000025e6',
+                              '00000000-0000-4000-8000-0000000025e7', DATE '2026-06-10')$q$ || '; '
+    || pg_temp.dispute_sql('00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-0000000025c5', '00000000-0000-4000-8000-00000000250a', NULL, 'calculation', DATE '2026-06-12') || '; '
+    || pg_temp.amount_sql('00000000-0000-4000-8000-000000002540', '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', 40, 'customer_claim', DATE '2026-06-12') || '; '
+$f$;
+CREATE FUNCTION pg_temp.det2_sql(p_comp text, p_ends date) RETURNS text LANGUAGE sql AS $f$
+  SELECT format($q$INSERT INTO public.dispute_determinations (tenant_id, dispute_id, dispute_amount_id, state_code, service_type, system_kind,
+       customer_class, rule_id, tariff_id, outcome, sheltered_amount, must_pay_amount, must_pay_component, shelter_ends_on, blocks, inputs, inputs_fingerprint, calculated_by)
+     SELECT '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', '00000000-0000-4000-8000-000000002540', 'TX', 'gas', 'distribution', 'protected',
+            r.id, t.id, 'sheltered', 40, 50, %L, %L,
+            ARRAY(SELECT jsonb_array_elements_text(public.dispute_determination_terms(r.id, t.id, NULL) #> '{blocks,codes}')), '{}', 'fp-d9', 'core-battery-25'
+       FROM public.dispute_rules r, public.dispute_tariffs t
+      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2'$q$, p_comp, p_ends)
+$f$;
+-- combo(tariff, law overrides): the combination of two documents, by direct call.
+CREATE FUNCTION pg_temp.combo(p_tdoc jsonb, p_over jsonb) RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT public.dispute_terms_combined(jsonb_build_object('terms', p_tdoc),
+           jsonb_build_object('id', 'battery-law', 'customer_class', 'protected',
+                              'terms', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected') || p_over))
+$f$;
+
+-- Stages: the tariff's own appeal to the governing body, after the law's, and its 10-day first decision.
+CREATE FUNCTION pg_temp.st3() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": false},
+                                   {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": false},
+                                   {"id": "s3", "decider": "governing_body", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 30}, "final": true}]}')
+$f$;
+CREATE FUNCTION pg_temp.law10() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false, "citation": "battery"},
+                      {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 10}, "final": true, "citation": "battery"}]}'::jsonb
+$f$;
+SELECT pg_temp.admits_undone('D9a under a tightened regulator, the combined stages keep the tariff''s 10-day first decision, take the law''s 10-day regulator (final), and keep the tariff''s governing-body appeal after; its stage event is admitted',
+  pg_temp.tight2_sql(pg_temp.st3(), pg_temp.law10()) || pg_temp.det2_sql('m1', NULL) || '; '
+  || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', 'stage_entered', DATE '2026-06-20', 's3', 'governing_body') || '; '
+  || $q$DO $d$ DECLARE v jsonb; BEGIN
+    SELECT public.dispute_determination_terms(r.id, t.id, NULL) -> 'stages' INTO v
+      FROM public.dispute_rules r, public.dispute_tariffs t
+     WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
+    IF NOT (jsonb_array_length(v) = 3 AND v #>> '{0,id}' = 's1' AND v #>> '{0,decide_within,days}' = '10'
+            AND v #>> '{1,id}' = 's2' AND v #>> '{1,decide_within,days}' = '10' AND v #>> '{1,final}' = 'true'
+            AND v #>> '{2,id}' = 's3' AND v #>> '{2,decider}' = 'governing_body') THEN
+      RAISE EXCEPTION 'stages: %', v;
+    END IF;
+  END $d$$q$);
+SELECT pg_temp.refuses_at('D9a2 … a stage event naming the appeal before another decider is still refused',
+  pg_temp.tight2_sql(pg_temp.st3(), pg_temp.law10()) || pg_temp.det2_sql('m1', NULL) || '; '
+  || pg_temp.ev_sql('00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-00000000253d', 'stage_entered', DATE '2026-06-20', 's3', 'regulator'), '23514', '[D5b]');
+SELECT pg_temp.ok('D9b a stage of the law''s decider keeps the wider filing window (the tariff''s none) beside the law''s quicker decision',
+  (SELECT v #> '{stages,1,file_within}' = '{"kind": "none"}' AND v #>> '{stages,1,decide_within,days}' = '10'
+     FROM pg_temp.combo(pg_temp.tdoc(), '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                                     {"id": "s2", "decider": "regulator", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}') v));
+SELECT pg_temp.ok('D9b2 … and filing windows counted from two anchors are both kept',
+  (SELECT v #> '{stages,1,file_within,either}' = '[{"kind": "days", "days": 20, "from": "issue"}, {"kind": "days", "days": 30, "from": "prior_decision"}]'
+     FROM pg_temp.combo(pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                                  {"id": "s2", "decider": "regulator", "file_within": {"kind": "days", "days": 20, "from": "issue"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}'),
+                        '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                     {"id": "s2", "decider": "regulator", "file_within": {"kind": "days", "days": 30, "from": "prior_decision"}, "decide_within": {"kind": "days", "days": 10}, "final": true}]}') v));
+SELECT pg_temp.ok('D9b3 a tariff stage of another decider at the law''s place: the law''s stage there (its id marked, the tariff uses s2), then the tariff''s other stages in order',
+  (SELECT array(SELECT x ->> 'id' || '/' || (x ->> 'decider') FROM jsonb_array_elements(v -> 'stages') x)
+          = ARRAY['s1/designated_employee', 'law:s2/regulator', 's2/governing_body', 's3/regulator']
+     FROM pg_temp.combo(pg_temp.tdoc('{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                                  {"id": "s2", "decider": "governing_body", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 30}, "final": false},
+                                                  {"id": "s3", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": true}]}'),
+                        pg_temp.law10()) v));
+SELECT pg_temp.ok('D9c subjects: what either admits (listed: the tariff''s deposit beside the law''s meter accuracy)',
+  (SELECT public.dispute_subjects_admitted(v -> 'subjects') = ARRAY['calculation', 'deposit', 'meter_accuracy']
+     FROM pg_temp.combo(pg_temp.tdoc('{"subjects": {"kind": "listed", "codes": ["calculation", "deposit"], "excluded": []}}'),
+                        '{"subjects": {"kind": "listed", "codes": ["calculation", "meter_accuracy"], "excluded": [], "citation": "battery"}}') v));
+SELECT pg_temp.ok('D9c2 … (any: excluded only where both exclude; the tariff admits identity theft, the law tamper findings)',
+  (SELECT v -> 'subjects' = '{"kind": "any", "excluded": []}'
+     FROM pg_temp.combo(pg_temp.tdoc('{"subjects": {"kind": "any", "excluded": ["tamper_finding"]}}'),
+                        '{"subjects": {"kind": "any", "excluded": ["identity_theft"], "citation": "battery"}}') v));
+SELECT pg_temp.ok('D9c3 … (one any, one listed: excluded only what the listed one does not admit)',
+  (SELECT v #> '{subjects,excluded}' = '["tamper_finding"]' AND v #>> '{subjects,kind}' = 'any'
+     FROM pg_temp.combo(pg_temp.tdoc('{"subjects": {"kind": "any", "excluded": ["identity_theft", "tamper_finding"]}}'),
+                        '{"subjects": {"kind": "listed", "codes": ["calculation", "identity_theft"], "excluded": [], "citation": "battery"}}') v));
+
+-- Terms that rank: the law's wins (Opus N6).
+SELECT pg_temp.refuses_at('D9d a must-pay the law ranks below (undisputed charges, id m2, against the tariff''s average cap): the tariff''s component is refused',
+  pg_temp.tight2_sql(pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 2, "no_history": "similar_customers", "version": 1, "id": "m1"}}'),
+                     '{"must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m2", "citation": "battery"}}') || pg_temp.det2_sql('m1', NULL), '23514', '[D4g]');
+SELECT pg_temp.admits_undone('D9d2 … the law''s is admitted',
+  pg_temp.tight2_sql(pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 2, "no_history": "similar_customers", "version": 1, "id": "m1"}}'),
+                     '{"must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m2", "citation": "battery"}}') || pg_temp.det2_sql('m2', NULL));
+SELECT pg_temp.admits_undone('D9e an end the law ranks later (90 days from issue, against the tariff''s 60): a last day of August 20, past the tariff''s August 8, is admitted',
+  pg_temp.tight2_sql(pg_temp.tdoc('{"shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 60, "from": "issue"}}'),
+                     '{"shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 90, "from": "issue", "citation": "battery"}}') || pg_temp.det2_sql('m1', DATE '2026-08-20'));
+SELECT pg_temp.refuses_at('D9e2 … September 8, past the law''s September 7, is refused',
+  pg_temp.tight2_sql(pg_temp.tdoc('{"shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 60, "from": "issue"}}'),
+                     '{"shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 90, "from": "issue", "citation": "battery"}}') || pg_temp.det2_sql('m1', DATE '2026-09-08'), '23514', '[D4p]');
+
+-- Terms that cannot be ranked: both kept, the record fitting either (Ryan 2026-11-26).
+SELECT pg_temp.ok('D9f the comparator names the verdicts: an average over 2 years against 3 cannot be ranked; an average cap against undisputed charges is looser',
+  (SELECT array_agg(verdict) = '{not_comparable}' FROM public.dispute_tariff_compare_sections(jsonb_build_object('terms',
+            pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 2, "no_history": "similar_customers", "version": 1, "id": "m1"}}')),
+          jsonb_build_array(jsonb_build_object('id', 'x', 'terms', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
+                                                                  || '{"must_pay": {"strategy": "average_usage_cap", "history_years": 3, "no_history": "similar_customers", "version": 1, "id": "m1", "citation": "battery"}}'))))
+  AND (SELECT array_agg(verdict) = '{looser}' FROM public.dispute_tariff_compare_sections(jsonb_build_object('terms',
+            pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 2, "no_history": "similar_customers", "version": 1, "id": "m1"}}')),
+          jsonb_build_array(jsonb_build_object('id', 'x', 'terms', (SELECT doc FROM k25 WHERE owner = 'investor_owned' AND class = 'protected')
+                                                                  || '{"must_pay": {"strategy": "undisputed_charges", "version": 1, "id": "m2", "citation": "battery"}}')))));
+CREATE FUNCTION pg_temp.avg3() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT '{"must_pay": {"strategy": "average_usage_cap", "history_years": 3, "no_history": "similar_customers", "version": 1, "id": "m1", "citation": "battery"}}'::jsonb
+$f$;
+CREATE FUNCTION pg_temp.avg2t() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 2, "no_history": "similar_customers", "version": 1, "id": "m1"}}')
+$f$;
+SELECT pg_temp.ok('D9f2 … the combined must-pay keeps both, the law''s id marked',
+  (SELECT v #> '{must_pay,either}' -> 0 ->> 'history_years' = '2' AND v #> '{must_pay,either}' -> 1 ->> 'history_years' = '3'
+          AND v #> '{must_pay,either}' -> 1 ->> 'id' = 'law:m1' FROM pg_temp.combo(pg_temp.avg2t(), pg_temp.avg3()) v));
+SELECT pg_temp.admits_undone('D9f3 … the tariff''s component (the 2-year average) is admitted',
+  pg_temp.tight2_sql(pg_temp.avg2t(), pg_temp.avg3()) || pg_temp.det2_sql('m1', NULL));
+SELECT pg_temp.admits_undone('D9f4 … the law''s (the 3-year average) is admitted',
+  pg_temp.tight2_sql(pg_temp.avg2t(), pg_temp.avg3()) || pg_temp.det2_sql('law:m1', NULL));
+SELECT pg_temp.refuses_at('D9f5 … any other is refused',
+  pg_temp.tight2_sql(pg_temp.avg2t(), pg_temp.avg3()) || pg_temp.det2_sql('m3', NULL), '23514', '[D4g]');
+CREATE FUNCTION pg_temp.e60t() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT pg_temp.tdoc('{"shelter_ends": {"kind": "earlier_of_resolution_and_days", "days": 60, "from": "issue"}}')
+$f$;
+CREATE FUNCTION pg_temp.erc() RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT '{"shelter_ends": {"kind": "through_regulator_close", "citation": "battery"}}'::jsonb
+$f$;
+SELECT pg_temp.admits_undone('D9g an end that cannot be ranked (the tariff''s 60 days against the law''s regulator''s close): a last day within the tariff''s is admitted',
+  pg_temp.tight2_sql(pg_temp.e60t(), pg_temp.erc()) || pg_temp.det2_sql('m1', DATE '2026-08-01'));
+SELECT pg_temp.admits_undone('D9g2 … no last day (the regulator''s close) is admitted',
+  pg_temp.tight2_sql(pg_temp.e60t(), pg_temp.erc()) || pg_temp.det2_sql('m1', NULL));
+SELECT pg_temp.refuses_at('D9g3 … a last day past the tariff''s fits neither',
+  pg_temp.tight2_sql(pg_temp.e60t(), pg_temp.erc()) || pg_temp.det2_sql('m1', DATE '2026-08-20'), '23514', '[D4t]');
+SELECT pg_temp.ok('D9h a start that cannot be ranked (the tariff''s before termination, the law''s within 30 days of issue) keeps both; a ranked start takes the law''s',
+  (SELECT v #> '{shelter_earned,either}' -> 0 ->> 'kind' = 'before_termination' AND v #> '{shelter_earned,either}' -> 1 ->> 'kind' = 'within_days'
+     FROM pg_temp.combo(pg_temp.tdoc(), '{"shelter_earned": {"kind": "within_days", "days": 30, "from": "issue", "citation": "battery"}}') v)
+  AND (SELECT v #>> '{shelter_earned,kind}' = 'any_time'
+     FROM pg_temp.combo(pg_temp.tdoc(), '{"shelter_earned": {"kind": "any_time", "citation": "battery"}}') v));
+SELECT pg_temp.refuses_at('D9i a policy filed while the law is in force is still refused where a term cannot be ranked',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
+                     pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "history_years": 3, "no_history": "similar_customers", "version": 1, "id": "m1"}}')), '23514', 'must_pay');
+
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 a law row is never edited',
   format($q$UPDATE public.dispute_rules SET source_note = 'x' WHERE id = %L$q$, pg_temp.law('investor_owned', 'protected')), '23001', 'dispute_rules');
