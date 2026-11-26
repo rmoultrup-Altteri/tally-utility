@@ -8,13 +8,13 @@ blocks: the gas cost, zone and read scenarios being marked checked; the rates st
 
 # To Kyle: scenario batch 7 (gas cost, zones and factors, meter reads)
 
-Drafted 2026-11-25 by the scenarios stream, for Ryan to send **after batches 3 (K-14), 4 (K-16), 5 (K-18) and 6 (K-19)**. Sources: the "Open (Kyle)" notes in `scenarios/gas-cost-zones-and-reads.md` (SCN-0130 – 0145) after review round 7, and a reading of 16 TAC §7.45 and §7.5519 (Cornell LII, 2026-11-25). The scenarios are written ahead of the rates stream's patches (Ryan, 2026-11-25), so these answers shape them. Schema points are on the board for the rates stream, not here. One question is Ryan's (a meter recorded at the wrong address), not asked here.
+Drafted 2026-11-25 by the scenarios stream, for Ryan to send **after batches 3 (K-14), 4 (K-16), 5 (K-18) and 6 (K-19)**. Sources: the "Open (Kyle)" notes in `scenarios/gas-cost-zones-and-reads.md` (SCN-0130 – 0154) after review round 7, and a reading of 16 TAC §7.45 and §7.5519 (Cornell LII, 2026-11-25). The scenarios are written ahead of the rates stream's patches (Ryan, 2026-11-25), so these answers shape them. Schema points are on the board for the rates stream, not here. One question is Ryan's (a meter recorded at the wrong address), not asked here.
 
 Paste from here.
 
 ---
 
-Kyle, batch 7: the gas cost figure on a bill, pressure factors, and meter reads. 17 questions; each says what we've written, so "yes" is enough where we have it right. The worked cases are in `scenarios/gas-cost-zones-and-reads.md`. Three things first. (1) We hold the billing side only, as you ruled: each month's gas cost figure, what was billed under it, and the volumes; purchases and the balance stay with the utility. (2) None of our three test utilities bills in therms or has weather normalization, so those wait. (3) 16 TAC §7.5519 doesn't say when a gas cost factor takes effect (it leaves that to the Commission case by case), so we take the timing from each utility's tariff.
+Kyle, batch 7: the gas cost figure on a bill, pressure factors, and meter reads. 23 questions; each says what we've written, so "yes" is enough where we have it right. The worked cases are in `scenarios/gas-cost-zones-and-reads.md`. Three things first. (1) We hold the billing side only, as you ruled: each month's gas cost figure, what was billed under it, and the volumes; purchases and the balance stay with the utility. (2) None of our three test utilities bills in therms or has weather normalization, so those wait. (3) 16 TAC §7.5519 doesn't say when a gas cost factor takes effect (it leaves that to the Commission case by case), so we take the timing from each utility's tariff.
 
 *The gas cost figure*
 1. (SCN-0130) We take "billing month" as the month a bill is issued, so a November-usage bill issued Dec 2 gets December's figure. A bill held by a read exception from Nov 16 to Dec 1 then also gets December's figure, only because it went out late. Is the issue month what a city means? Should each utility state it at onboarding (issue month, or the month the period ends), with no default?
@@ -40,5 +40,13 @@ Kyle, batch 7: the gas cost figure on a bill, pressure factors, and meter reads.
 15. (SCN-0142) An actual reading dated earlier than estimates already entered: should it raise its own review? (Open since August.)
 16. (SCN-0142) With a cap of 3, the third estimate in a row needs a supervisor's override or a field order. Is that how you meant the cap (the third needs a decision), or should three go through and the fourth stop?
 
+*More cases*
+17. (SCN-0146) A customer moves out on Dec 10. Does the final bill carry the full monthly customer charge or a share by days? (We charge the full one: "the customer charge, every month".)
+18. (SCN-0147) A small city misses a month's route and chooses not to estimate, so the next bill covers two months at the later month's gas cost figure. Is that done, or must it estimate the missed month?
+19. (SCN-0148) Gulf Plains goes six months with no actual reading (a locked gate). We hold the next bill until an actual is taken. May it issue one more estimate instead, with the breach recorded?
+20. (SCN-0149) Do Texas gas utilities' tariffs usually carry the last factor forward when none is filed, and can a late-filed factor reach back to bills already issued that month?
+21. (SCN-0150) A new customer's meter is destroyed with too little history for the usual estimate. We have a supervisor set it from the daily average there is. Fair, or use the class's usage?
+22. (SCN-0151) Do city systems protect a customer from a cut-off on an estimated bill, though Texas's rule doesn't bind them? Should we suggest it at onboarding?
+
 *Figures*
-17. Please check the dollar figures in `scenarios/gas-cost-zones-and-reads.md`. Invented for the tests: every gas cost figure, the pressure zones and their factors, Gulf Plains' rates and factor timing, the estimate methods and caps, and the meters' dials.
+23. Please check the dollar figures in `scenarios/gas-cost-zones-and-reads.md`. Invented for the tests: every gas cost figure, the pressure zones and their factors, Gulf Plains' rates and factor timing, the estimate methods and caps, and the meters' dials.
