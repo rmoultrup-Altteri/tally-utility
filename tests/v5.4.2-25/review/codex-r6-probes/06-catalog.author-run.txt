@@ -1,0 +1,59 @@
+BEGIN
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_dispute_guard_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_cash_guard_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_periods_guard_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_seal_role_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_core_role_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_tenant_isolation_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_rule_table_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_no_hard_delete_invariants SQLSTATE=00000 passed
+psql:/tmp/06-catalog.sql:17: NOTICE:  assert_wave1_guard_invariants SQLSTATE=00000 passed
+DO
+        table_name         | rule_role |   terms_kind   |     area_key     |   law_table   |                close_floor                 |                 insert_check                 
+---------------------------+-----------+----------------+------------------+---------------+--------------------------------------------+----------------------------------------------
+ dispute_rules             | law       | dispute        | {customer_class} |               | dispute_rule_close_floor(uuid)             | dispute_rule_insert_check(jsonb)
+ dispute_tariffs           | tariff    | dispute_tariff | {}               | dispute_rules | dispute_tariff_close_floor(uuid)           | dispute_tariff_insert_check(jsonb)
+ dispute_platform_defaults | law       | dispute        | {customer_class} |               | dispute_platform_default_close_floor(uuid) | dispute_platform_default_insert_check(jsonb)
+(3 rows)
+
+                                                                                                                                                                                                                                                                                  seal_role_privileges                                                                                                                                                                                                                                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {"column public.dispute_events.created_at SELECT","column public.dispute_events.dispute_id SELECT","column public.dispute_events.event_type SELECT","column public.dispute_events.id SELECT","column public.dispute_events.tenant_id SELECT","column public.disputes.id SELECT","column public.disputes.status UPDATE","column public.disputes.status_cause_id UPDATE","column public.disputes.status_recorded_at UPDATE","column public.disputes.tenant_id SELECT","function public.get_user_tenant_id() EXECUTE","function public.is_platform_admin() EXECUTE","schema public USAGE"}
+(1 row)
+
+        conrelid        |                   conname                    |                                                       pg_get_constraintdef                                                       
+------------------------+----------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------
+ dispute_tariffs        | dispute_tariffs_rule_closed_by_fkey          | FOREIGN KEY (closed_by) REFERENCES users(id)
+ dispute_tariffs        | dispute_tariffs_rule_created_by_fkey         | FOREIGN KEY (created_by) REFERENCES users(id)
+ dispute_tariffs        | dispute_tariffs_rule_schema_fkey             | FOREIGN KEY (terms_kind, terms_version) REFERENCES rule_term_schemas(terms_kind, terms_version)
+ dispute_tariffs        | dispute_tariffs_rule_system_fkey             | FOREIGN KEY (system_kind) REFERENCES utility_system_kinds(system_kind)
+ dispute_tariffs        | dispute_tariffs_rule_tenant_fkey             | FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+ disputes               | disputes_created_by_fkey                     | FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)
+ disputes               | disputes_customer_fkey                       | FOREIGN KEY (customer_id, tenant_id) REFERENCES customers(id, tenant_id)
+ disputes               | disputes_invoice_fkey                        | FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES invoices(id, tenant_id, customer_id)
+ disputes               | disputes_reading_fkey                        | FOREIGN KEY (reading_id, tenant_id) REFERENCES meter_readings(id, tenant_id)
+ disputes               | disputes_status_cause_fkey                   | FOREIGN KEY (status_cause_id, id) REFERENCES dispute_events(id, dispute_id)
+ disputes               | disputes_subject_fkey                        | FOREIGN KEY (subject) REFERENCES dispute_subjects(subject_code)
+ disputes               | disputes_tenant_id_fkey                      | FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+ dispute_amounts        | dispute_amounts_created_by_fkey              | FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)
+ dispute_amounts        | dispute_amounts_dispute_fkey                 | FOREIGN KEY (dispute_id, tenant_id) REFERENCES disputes(id, tenant_id)
+ dispute_amount_lines   | dispute_amount_lines_amount_fkey             | FOREIGN KEY (dispute_amount_id, tenant_id) REFERENCES dispute_amounts(id, tenant_id)
+ dispute_amount_lines   | dispute_amount_lines_line_fkey               | FOREIGN KEY (invoice_line_item_id, invoice_id) REFERENCES invoice_line_items(id, invoice_id)
+ dispute_determinations | dispute_determinations_amount_fkey           | FOREIGN KEY (dispute_amount_id, dispute_id) REFERENCES dispute_amounts(id, dispute_id)
+ dispute_determinations | dispute_determinations_class_fkey            | FOREIGN KEY (state_code, service_type, customer_class) REFERENCES dispute_customer_classes(state_code, service_type, class_code)
+ dispute_determinations | dispute_determinations_created_by_fkey       | FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)
+ dispute_determinations | dispute_determinations_dispute_fkey          | FOREIGN KEY (dispute_id, tenant_id) REFERENCES disputes(id, tenant_id)
+ dispute_determinations | dispute_determinations_platform_default_fkey | FOREIGN KEY (platform_default_id) REFERENCES dispute_platform_defaults(id)
+ dispute_determinations | dispute_determinations_rule_fkey             | FOREIGN KEY (rule_id) REFERENCES dispute_rules(id)
+ dispute_determinations | dispute_determinations_supersedes_fkey       | FOREIGN KEY (supersedes_id, dispute_id) REFERENCES dispute_determinations(id, dispute_id)
+ dispute_determinations | dispute_determinations_system_fkey           | FOREIGN KEY (system_kind) REFERENCES utility_system_kinds(system_kind)
+ dispute_determinations | dispute_determinations_tariff_fkey           | FOREIGN KEY (tariff_id, tenant_id) REFERENCES dispute_tariffs(id, tenant_id)
+ dispute_events         | dispute_events_created_by_fkey               | FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)
+ dispute_events         | dispute_events_credit_fkey                   | FOREIGN KEY (correction_credit_id, tenant_id) REFERENCES customer_credits(id, tenant_id)
+ dispute_events         | dispute_events_decider_fkey                  | FOREIGN KEY (decider_user_id, tenant_id) REFERENCES users(id, tenant_id)
+ dispute_events         | dispute_events_dispute_fkey                  | FOREIGN KEY (dispute_id, tenant_id) REFERENCES disputes(id, tenant_id)
+ dispute_events         | dispute_events_invoice_fkey                  | FOREIGN KEY (correction_invoice_id, tenant_id) REFERENCES invoices(id, tenant_id)
+ dispute_events         | dispute_events_ledger_fkey                   | FOREIGN KEY (correction_ledger_entry_id, tenant_id) REFERENCES account_ledger(id, tenant_id)
+(31 rows)
+
+ROLLBACK

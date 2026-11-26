@@ -1,0 +1,23 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+INSERT 0 1
+INSERT 0 1
+SET
+psql:/tmp/01-cross-table-id.sql:67: NOTICE:  00000: amount same_id=f caught SQLSTATE=23514 message=dispute_amounts: dispute 85bf5889-a5de-4c0b-9d0a-b90c8b38b335 was withdrawn by event a7e65572-65f8-4f37-857b-f8a701552bbe, recorded before this row — nothing is recorded on it after [D2e] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:/tmp/01-cross-table-id.sql:67: NOTICE:  00000: amount same_id=t caught SQLSTATE=23514 message=dispute_amounts: dispute c1e59355-aeb5-471c-bf04-34e9bdd24ef0 was withdrawn by event 7758fc98-c7fc-4a7b-816a-ac3df759e32d, recorded before this row — nothing is recorded on it after [D2e] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:/tmp/01-cross-table-id.sql:67: NOTICE:  00000: determination same_id=f caught SQLSTATE=23514 message=dispute_determinations: dispute a0fbc0ea-4ae4-4d2a-8bb6-fde356410db0 was withdrawn by event ff331a06-bb68-4ee5-9489-1d27932596e9, recorded before this row — nothing is recorded on it after [D4k] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+psql:/tmp/01-cross-table-id.sql:67: NOTICE:  00000: determination same_id=t caught SQLSTATE=23514 message=dispute_determinations: dispute 4fbddb2f-79b7-48e1-a67f-22378d67cdd6 was withdrawn by event f397e741-b882-4d9d-9da9-c76d03914aa7, recorded before this row — nothing is recorded on it after [D4k] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+RESET
+ROLLBACK

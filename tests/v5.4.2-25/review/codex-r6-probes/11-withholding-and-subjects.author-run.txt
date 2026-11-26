@@ -1,0 +1,27 @@
+BEGIN
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 0.9, tariff undisputed comparison=[]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 0.9, tariff undisputed SQLSTATE=00000 law={"id": "m1", "version": 1, "citation": "probe", "fraction": 0.9, "strategy": "withhold_cap"} tariff={"id": "m1", "version": 1, "strategy": "undisputed_charges"} combined={"id": "m1", "version": 1, "strategy": "undisputed_charges"}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 0.9, law undisputed comparison=[{"problem": "must_pay: law row  (, 16 TAC 7.45(6)(D)) lets the customer withhold 1 (the undisputed charges) of the disputed amount; the tariff only 0.9", "section": "must_pay", "verdict": "looser"}]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 0.9, law undisputed SQLSTATE=00000 law={"id": "m1", "version": 1, "citation": "probe", "strategy": "undisputed_charges"} tariff={"id": "m1", "version": 1, "fraction": 0.9, "strategy": "withhold_cap"} combined={"id": "m1", "version": 1, "citation": "probe", "strategy": "undisputed_charges"}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1, tariff undisputed comparison=[]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1, tariff undisputed SQLSTATE=00000 law={"id": "m1", "version": 1, "citation": "probe", "fraction": 1, "strategy": "withhold_cap"} tariff={"id": "m1", "version": 1, "strategy": "undisputed_charges"} combined={"id": "m1", "version": 1, "strategy": "undisputed_charges"}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1, law undisputed comparison=[]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1, law undisputed SQLSTATE=00000 law={"id": "m1", "version": 1, "citation": "probe", "strategy": "undisputed_charges"} tariff={"id": "m1", "version": 1, "fraction": 1, "strategy": "withhold_cap"} combined={"id": "m1", "version": 1, "fraction": 1, "strategy": "withhold_cap"}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1.1, tariff undisputed comparison=[{"problem": "must_pay: law row  (, 16 TAC 7.45(6)(D)) lets the customer withhold 1.1 of the disputed amount; the tariff only 1 (the undisputed charges)", "section": "must_pay", "verdict": "looser"}]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1.1, tariff undisputed SQLSTATE=00000 law={"id": "m1", "version": 1, "citation": "probe", "fraction": 1.1, "strategy": "withhold_cap"} tariff={"id": "m1", "version": 1, "strategy": "undisputed_charges"} combined={"id": "m1", "version": 1, "citation": "probe", "fraction": 1.1, "strategy": "withhold_cap"}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1.1, law undisputed comparison=[]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  B2 fraction 1.1, law undisputed SQLSTATE=00000 law={"id": "m1", "version": 1, "citation": "probe", "strategy": "undisputed_charges"} tariff={"id": "m1", "version": 1, "fraction": 1.1, "strategy": "withhold_cap"} combined={"id": "m1", "version": 1, "fraction": 1.1, "strategy": "withhold_cap"}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union any/any comparison=[{"problem": "subjects: law row  (, 16 TAC 7.45(6)(D)) admits calculation; the tariff does not", "section": "subjects", "verdict": "lacks"}]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union any/any SQLSTATE=00000 law={"kind": "any", "citation": "probe", "excluded": ["deposit"]} tariff={"kind": "any", "excluded": ["calculation"]} combined={"kind": "any", "excluded": []}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union any/listed comparison=[{"problem": "subjects: law row  (, 16 TAC 7.45(6)(D)) admits ability_to_pay, calculation, consumption_on_accurate_meter, credit, identity_theft, other, rate_application, responsible_party, service_not_rendered, tamper_finding; the tariff does not", "section": "subjects", "verdict": "lacks"}]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union any/listed SQLSTATE=00000 law={"kind": "any", "citation": "probe", "excluded": ["deposit"]} tariff={"kind": "listed", "codes": ["meter_accuracy"], "excluded": ["deposit"]} combined={"kind": "any", "excluded": ["deposit"]}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union listed/any comparison=[{"problem": "subjects: law row  (, 16 TAC 7.45(6)(D)) admits calculation; the tariff does not", "section": "subjects", "verdict": "lacks"}]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union listed/any SQLSTATE=00000 law={"kind": "listed", "codes": ["calculation", "deposit"], "citation": "probe", "excluded": []} tariff={"kind": "any", "excluded": ["calculation"]} combined={"kind": "any", "excluded": []}
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union listed/listed comparison=[{"problem": "subjects: law row  (, 16 TAC 7.45(6)(D)) admits calculation, deposit; the tariff does not", "section": "subjects", "verdict": "lacks"}]
+psql:/tmp/11-withholding-and-subjects.sql:212: NOTICE:  subject union listed/listed SQLSTATE=00000 law={"kind": "listed", "codes": ["calculation", "deposit"], "citation": "probe", "excluded": []} tariff={"kind": "listed", "codes": ["meter_accuracy"], "excluded": ["deposit"]} combined={"kind": "listed", "codes": ["calculation", "deposit", "meter_accuracy"], "excluded": []}
+DO
+SET
+psql:/tmp/11-withholding-and-subjects.sql:220: NOTICE:  core helper SQLSTATE=00000 terms_nonnull=t
+DO
+RESET
+ROLLBACK

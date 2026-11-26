@@ -1,0 +1,19 @@
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+COMMIT
+BEGIN
+SET
+SET
+SET
+INSERT 0 1
+INSERT 0 1
+DO
+psql:/tmp/pa.sql:37: NOTICE:  00000: FK upgrade A SQLSTATE=00000 release accepted
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK

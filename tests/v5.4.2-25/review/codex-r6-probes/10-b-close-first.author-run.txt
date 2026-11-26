@@ -1,0 +1,7 @@
+BEGIN
+SET
+SET
+psql:/tmp/pb.sql:15: NOTICE:  00000: close-first B SQLSTATE=00000 accepted
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ROLLBACK
