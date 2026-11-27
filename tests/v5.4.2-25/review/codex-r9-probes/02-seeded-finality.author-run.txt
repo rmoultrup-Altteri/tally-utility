@@ -1,0 +1,4 @@
+BEGIN
+psql:/tmp/02-seeded-finality.sql:27: NOTICE:  PASS SQLSTATE=00000 message=seeded first stage clears hypothetical older policy finality law=[{"id": "s1", "final": false, "decider": "designated_employee", "citation": "16 TAC 7.45(6)(D)(i)", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}}, {"id": "s2", "final": true, "decider": "regulator", "citation": "16 TAC 7.45(2)(C)", "file_within": {"kind": "none"}, "decide_within": {"days": 15, "kind": "days"}}] tariff=[{"id": "s1", "final": true, "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}}] combined=[{"id": "s1", "final": false, "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}}, {"id": "s2", "final": true, "decider": "regulator", "citation": "16 TAC 7.45(2)(C)", "file_within": {"kind": "none"}, "decide_within": {"days": 15, "kind": "days"}}]
+DO
+ROLLBACK
