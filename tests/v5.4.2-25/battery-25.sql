@@ -546,9 +546,15 @@ SELECT pg_temp.refuses_at('N5b the same strategy with other figures: three years
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
     pg_temp.tdoc('{"must_pay": {"strategy": "average_usage_cap", "version": 1, "id": "m1", "history_years": 3, "no_history": "similar_customers"}}')),
   '23514', 'must_pay');
-SELECT pg_temp.refuses_at('N5c a withholding cap against an average-usage cap (not comparable: refused)',
+SELECT pg_temp.admits_undone('N5c a withholding cap of 1.1 against an average-usage cap asks no more (r7, Fable S1: as undisputed charges)',
   pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
-    pg_temp.tdoc('{"must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.1}}')),
+    pg_temp.tdoc('{"must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1.1}}')));
+SELECT pg_temp.admits_undone('N5d … a cap of 1 too',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
+    pg_temp.tdoc('{"must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 1}}')));
+SELECT pg_temp.refuses_at('N5e … a cap of 0.9 against an average-usage cap is not comparable: refused',
+  pg_temp.tariff_sql(NULL, '00000000-0000-4000-8000-0000000025a2', DATE '2026-01-01',
+    pg_temp.tdoc('{"must_pay": {"strategy": "withhold_cap", "version": 1, "id": "m1", "fraction": 0.9}}')),
   '23514', 'must_pay');
 -- r2 (Opus S1, Fable S2): duties and stages are compared too.
 SELECT pg_temp.refuses_at('N9a a tariff without a duty the law requires (telling the customer the complaint route)',
@@ -1012,6 +1018,14 @@ SELECT pg_temp.admits('D4y T2: C6 is outside 7.45''s reach (unprotected): not sh
 SELECT pg_temp.refuses_at('D4z not sheltered that still shelters something',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002536', '00000000-0000-4000-8000-000000002546',
                   'unprotected', pg_temp.law('investor_owned', 'unprotected'), NULL, 'not_sheltered', 5, 85, 'm1', NULL, '{}', '00000000-0000-4000-8000-000000002556'), '23514', '[D4n]');
+-- r7 (Opus N1, Fable S2): the end check's unruled branch, reached on the real path. 7.45(1) leaves the
+-- unprotected class's end unruled; a sheltered record under it (the core's choice, never looser) fits.
+SELECT pg_temp.admits_undone('D4y2 a sheltered record for C6 under 7.45(1) alone, whose end is unruled, is admitted with a last day',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002536', '00000000-0000-4000-8000-000000002546',
+                  'unprotected', pg_temp.law('investor_owned', 'unprotected'), NULL, 'sheltered', 40, 50, 'm1', DATE '2026-05-01', '{}', '00000000-0000-4000-8000-000000002556'));
+SELECT pg_temp.admits_undone('D4y3 … and with none',
+  pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a2', '00000000-0000-4000-8000-000000002536', '00000000-0000-4000-8000-000000002546',
+                  'unprotected', pg_temp.law('investor_owned', 'unprotected'), NULL, 'sheltered', 40, 50, 'm1', NULL, '{}', '00000000-0000-4000-8000-000000002556'));
 SELECT pg_temp.refuses_at('D4z2 T2 cannot write a determination on T1''s dispute',
   pg_temp.det_sql(gen_random_uuid()::text, '00000000-0000-4000-8000-0000000025a1', '00000000-0000-4000-8000-000000002531', '00000000-0000-4000-8000-000000002542',
                   'protected', pg_temp.law('municipal', 'protected'), '00000000-0000-4000-8000-0000000025ab', 'sheltered', 35, 90, 'm1', NULL,
@@ -1411,11 +1425,11 @@ SELECT pg_temp.admits_undone('D8j the combined document: the law''s stages, the 
     SELECT public.dispute_determination_terms(r.id, t.id, NULL) INTO v
       FROM public.dispute_rules r, public.dispute_tariffs t
      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
-    IF NOT (v #>> '{stages,1,decide_within,days}' = '10' AND jsonb_array_length(v -> 'stages') = 2
+    IF (v #>> '{stages,1,decide_within,days}' = '10' AND jsonb_array_length(v -> 'stages') = 2
             AND v #>> '{shelter_ends,kind}' = 'resolution' AND v #>> '{must_pay,strategy}' = 'undisputed_charges'
             AND v #> '{blocks,codes}' = '["credit_reporting", "disconnect_execute", "disconnect_order", "late_fee", "notice_issue"]'
             AND v #> '{duties,codes}' = '["inform_complaint_route", "investigate", "offer_payment_arrangement", "report_result"]'
-            AND v #>> '{shelter_earned,kind}' = 'before_termination') THEN
+            AND v #>> '{shelter_earned,kind}' = 'before_termination') IS DISTINCT FROM true THEN
       RAISE EXCEPTION 'combined: %', v;
     END IF;
   END $d$$q$);
@@ -1470,9 +1484,9 @@ SELECT pg_temp.admits_undone('D9a under a tightened regulator, the combined stag
     SELECT public.dispute_determination_terms(r.id, t.id, NULL) -> 'stages' INTO v
       FROM public.dispute_rules r, public.dispute_tariffs t
      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
-    IF NOT (jsonb_array_length(v) = 3 AND v #>> '{0,id}' = 's1' AND v #>> '{0,decide_within,days}' = '10'
+    IF (jsonb_array_length(v) = 3 AND v #>> '{0,id}' = 's1' AND v #>> '{0,decide_within,days}' = '10'
             AND v #>> '{1,id}' = 's2' AND v #>> '{1,decide_within,days}' = '10' AND v #>> '{1,final}' = 'true'
-            AND v #>> '{2,id}' = 's3' AND v #>> '{2,decider}' = 'governing_body') THEN
+            AND v #>> '{2,id}' = 's3' AND v #>> '{2,decider}' = 'governing_body') IS DISTINCT FROM true THEN
       RAISE EXCEPTION 'stages: %', v;
     END IF;
   END $d$$q$);
@@ -1606,9 +1620,8 @@ SELECT pg_temp.admits_undone('D9j a policy no looser in its stages (7.45''s, the
     SELECT public.dispute_determination_terms(r.id, t.id, NULL) -> 'stages' INTO v
       FROM public.dispute_rules r, public.dispute_tariffs t
      WHERE r.source_note = 'battery: a stricter law' AND t.tenant_id = '00000000-0000-4000-8000-0000000025a2';
-    IF NOT (jsonb_array_length(v) = 3 AND v #>> '{0,decide_within,days}' = '10' AND v #>> '{0,final}' = 'false'
-            AND v #>> '{1,id}' = 's2' AND v #>> '{1,decide_within,days}' = '15' AND v #>> '{1,final}' = 'true'
-            AND v #>> '{2,id}' = 's3' AND v #>> '{2,decider}' = 'governing_body') THEN
+    -- r7 (Codex S2): the whole list, so a missing field fails the check
+    IF v IS DISTINCT FROM jsonb_set(pg_temp.st3b() -> 'stages', '{1,final}', 'true') THEN
       RAISE EXCEPTION 'stages: %', v;
     END IF;
   END $d$$q$);
@@ -1709,9 +1722,34 @@ SELECT pg_temp.admits_undone('D9r a law that puts a stage mid-list: the policy''
       RAISE EXCEPTION 'stages: %', v;
     END IF;
   END $d$$q$);
-SELECT pg_temp.ok('D9s a list that misses one of the law''s says it lacks it (blocks, duties, stages, subjects); the single terms keep looser and not comparable',
+SELECT pg_temp.ok('D9s a list that misses one of the law''s says it lacks it (blocks, duties, stages, subjects; the single terms'' verdicts are D9k, D9o, D9o2, D9p2)',
   pg_temp.verdicts(pg_temp.tdoc('{"blocks": {"codes": []}, "duties": {"codes": []}, "stages": [], "subjects": {"kind": "listed", "codes": ["calculation"], "excluded": []}}'), '{}')
     = '{blocks:lacks,duties:lacks,stages:lacks,subjects:lacks}');
+
+-- ============================================================== D9 r7 (Fable S1, S2, N3; Opus N1, N2)
+-- avg(id): 7.45's average-usage cap.
+CREATE FUNCTION pg_temp.avg(p_id text) RETURNS jsonb LANGUAGE sql AS $f$
+  SELECT jsonb_build_object('strategy', 'average_usage_cap', 'version', 1, 'id', p_id, 'history_years', 2, 'no_history', 'similar_customers')
+$f$;
+SELECT pg_temp.ok('D9t a withholding cap against the law''s average cap: none at 1 or 1.1, not comparable at 0.9; an average cap against a law''s cap: narrower at 1 and 1.1, not comparable at 0.9',
+  pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm1'))), '{}') = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(1, 'm1'))), '{}') = '{}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm1'))), '{}') = '{must_pay:not_comparable}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) = '{must_pay:looser}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(1, 'm2'))) = '{must_pay:looser}'
+  AND pg_temp.verdicts(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm2'))) = '{must_pay:not_comparable}');
+SELECT pg_temp.refuses_at('D9t2 an average-cap policy under a later law withholding up to 1.1: the policy''s component is refused',
+  pg_temp.tight2_sql(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) || pg_temp.det2_sql('m1', NULL), '23514', '[D4g]');
+SELECT pg_temp.admits_undone('D9t3 … the law''s is admitted',
+  pg_temp.tight2_sql(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) || pg_temp.det2_sql('m2', NULL));
+SELECT pg_temp.ok('D9t4 … and under a later law withholding up to 0.9 both are kept',
+  (SELECT jsonb_array_length(v #> '{must_pay,either}') = 2
+     FROM pg_temp.combo(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm2'))) v));
+-- The law's final flag, in the direction no seeded law has: a policy's final regulator under a law whose regulator is not final.
+SELECT pg_temp.ok('D9u the law''s final flag is taken at its places either way: a policy''s final regulator under a law whose regulator is not final comes back not final (residual R10)',
+  (SELECT v #>> '{stages,1,final}' = 'false'
+     FROM pg_temp.combo(pg_temp.tdoc(), '{"stages": [{"id": "s1", "decider": "designated_employee", "file_within": {"kind": "none"}, "decide_within": {"kind": "none"}, "final": false},
+                                                     {"id": "s2", "decider": "regulator", "file_within": {"kind": "none"}, "decide_within": {"kind": "days", "days": 15}, "final": false}]}') v));
 
 -- ============================================================== H history, grants, tenancy, invariants
 SELECT pg_temp.refuses_at('H1 a law row is never edited',
