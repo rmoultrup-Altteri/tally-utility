@@ -1,0 +1,7 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+psql:/tmp/03-d9t4.sql:44: NOTICE:  PASS SQLSTATE=00000 message=D9t4 exact ordered terms and all five negative controls result={"either": [{"id": "m1", "version": 1, "strategy": "average_usage_cap", "no_history": "similar_customers", "history_years": 2}, {"id": "m2", "version": 1, "citation": "battery", "fraction": 0.9, "strategy": "withhold_cap"}]}
+DO
+ROLLBACK
