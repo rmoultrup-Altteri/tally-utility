@@ -6,6 +6,19 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-26 (scenarios, later) — round 9's six gas gaps (SCN-0163 – 0168), reviewed in round 10; two of Ryan's rulings
+
+**What was done:**
+- **Six gas cases** (`scenarios/gas-cost-zones-and-reads.md`): a café under Pecan Flat's $20 minimum, with tax; a ten-day final bill against the minimum, shared by days (Pecan Flat's own setting); a Gulf Plains self-read card that fails the checks; a late same-day actual showing an over-estimate; an estimated final reading with no one following; a Gulf Plains estimated final bill, the deposit and interest refunded at once (16 TAC §7.45(5)(F)(i), (5)(C)(iv)(II), read on Cornell LII). Cast PF-09, PF-10, BB-27, BB-28, GP-12, GP-13.
+- **Review round 10** (`scenarios/review/2026-11-26-gas-4/`, Opus, Fable, Codex): figures, dates and law quotes held; claims fixed (the minimum comparison is not built, SCN-0135 too; the over-estimate proven only by a same-day reading; the empty-house payer provisional, for Kyle; a failed card rejected, never overridden, since an override ends the run of estimates; Gulf Plains' July bills after the observed holiday; corrected final bills stay marked "Estimated", SCN-0155 too).
+- **Ryan's rulings** (DECISION-LOG; roadmap R-29, R-30, dataset `decisions` v28): a late actual showing an over-estimate is the operator's choice, default a rebill while unpaid and catch-up once paid (SCN-0166, variant (c) added); a minimum bill floors the charges before tax, no setting for now (SCN-0163; the board note to rates says CI-103's wording is to correct).
+
+**Tried and dropped:** inferring an overbill from a reading two days before the estimate (the house could have used gas in between).
+
+**Next:** two Kyle questions held for a batch 9 (SCN-0165, SCN-0167; Ryan: "hold them"); then weather normalization and state machines, or the tax items.
+
+---
+
 ## 2026-11-26 (scenarios) — batches 3 – 7 sent; the remaining gas read cases (SCN-0155 – 0162); Kyle batch 8
 
 **What was done:**
