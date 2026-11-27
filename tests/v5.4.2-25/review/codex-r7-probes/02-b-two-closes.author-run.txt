@@ -1,0 +1,9 @@
+BEGIN
+SET
+SET
+SET
+INSERT 0 1
+psql:/tmp/pb.sql:18: NOTICE:  00000: B SQLSTATE=23514 message=dispute 00000000-0000-4000-8000-000000002d32 closed, and its reading 00000000-0000-4000-8000-000000002d71 is still marked disputed with no open dispute naming it — move the reading out of disputed in the same transaction [T2c] (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ROLLBACK

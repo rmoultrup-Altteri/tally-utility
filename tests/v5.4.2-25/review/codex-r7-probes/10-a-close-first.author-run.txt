@@ -1,0 +1,18 @@
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+INSERT 0 1
+COMMIT
+BEGIN
+SET
+SET
+INSERT 0 1
+DO
+psql:/tmp/pa.sql:34: NOTICE:  00000: close-first A SQLSTATE=40P01 message=deadlock detected
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK

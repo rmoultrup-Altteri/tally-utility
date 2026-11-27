@@ -1,0 +1,51 @@
+BEGIN
+SET
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+INSERT 0 1
+SET
+psql:/tmp/05-roles-and-isolation.sql:34: NOTICE:  00000: missing-identity close caught SQLSTATE=22P02 message=invalid input syntax for type uuid: ""
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+SET
+SET
+psql:/tmp/05-roles-and-isolation.sql:44: NOTICE:  00000: core update caught SQLSTATE=42501 message=permission denied for table disputes
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+RESET
+SET
+psql:/tmp/05-roles-and-isolation.sql:54: NOTICE:  00000: app update caught SQLSTATE=42501 message=permission denied for table disputes
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+RESET
+SET
+psql:/tmp/05-roles-and-isolation.sql:65: NOTICE:  00000: replica owner close SQLSTATE=00000 status=withdrawn
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+SET
+ assert_seal_role_invariants 
+-----------------------------
+ 
+(1 row)
+
+ROLLBACK
+BEGIN
+DO
+ROLLBACK
+psql:/tmp/05-roles-and-isolation.sql:75: NOTICE:  00000: RR caught SQLSTATE=25000 message=Codex repeatable read probe runs only under READ COMMITTED: the dispute is its records' mutex, and only READ COMMITTED reads what a writer it waited for committed (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+BEGIN
+DO
+psql:/tmp/05-roles-and-isolation.sql:83: NOTICE:  00000: serializable caught SQLSTATE=25000 message=Codex serializable probe runs only under READ COMMITTED: the dispute is its records' mutex, and only READ COMMITTED reads what a writer it waited for committed (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ROLLBACK
+BEGIN
+psql:/tmp/05-roles-and-isolation.sql:91: NOTICE:  00000: read-uncommitted caught SQLSTATE=25000 message=Codex read uncommitted probe runs only under READ COMMITTED: the dispute is its records' mutex, and only READ COMMITTED reads what a writer it waited for committed (v5.4.2-25)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+DO
+ROLLBACK
