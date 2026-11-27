@@ -147,7 +147,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 - In both, the gas cost billed is $5.48, and the billing-side record (SCN-0134) counts $5.48 and 0.8 Mcf. The adjustment is not gas cost revenue.
 - The expected result is (a). PF-02 is residential, so it pays no tax and the difference between the invariant and the schema does not show here; for a taxed customer it would (a minimum before tax, then tax on it, against a floor that includes the tax).
-- **Settled by rule (2026-11-25, triage of Kyle's questions):** the minimum floors the whole bill, gas cost included, as CI-103 says (reading (a)); whether before or after tax is SCN-0163's question. A city whose tariff floors the rate only would state it at onboarding.
+- **Settled by rule (2026-11-25, triage of Kyle's questions):** the minimum floors the whole bill, gas cost included, as CI-103 says (reading (a)); before tax (Ryan, 2026-11-26, SCN-0163). A city whose tariff floors the rate only would state it at onboarding.
 
 ---
 
@@ -683,8 +683,8 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 ### SCN-0163 — A café under Pecan Flat's $20 minimum: the minimum is before tax, and the tax is charged on it
 
-*Status:* draft (2026-11-26); before or after tax is with Ryan (below), so (a) is provisional. **Built:** the minimum is one amount on each dated version of the rate schedule, and the adjustment is a line of its own (as SCN-0135). **Not built:** comparing the minimum with the bill is the core's (SCN-0135's Status); which lines a tax row reaches is the rates stream's tax work (`tax.md`); a minimum adjustment flagged taxable like the gas is this stream's reading.
-*Rule (provisional):* a minimum bill is a rate, and a tariff's rates are before tax. The minimum floors the bill's subtotal before tax, gas cost included (SCN-0135), and the adjustment is a charge for the gas, so it carries every tax the gas on that bill carries. A taxed customer under the minimum pays the minimum plus tax. Sources: Pecan Flat's tariff (`cast.md` §1: minimum $20.00 a month; every gas line flagged taxable, `tax.md` SCN-0111); SCN-0135; CI-103 (the floor checked after the full stack; this case shows where it differs).
+*Status:* draft (2026-11-26); **before tax settled by Ryan, 2026-11-26** ("before tax, no setting for now"); whether the adjustment is taxed is still with the tax advisor (below). **Built:** the minimum is one amount on each dated version of the rate schedule, and the adjustment is a line of its own (as SCN-0135). **Not built:** comparing the minimum with the bill is the core's (SCN-0135's Status); which lines a tax row reaches is the rates stream's tax work (`tax.md`); a minimum adjustment flagged taxable like the gas is this stream's reading.
+*Rule:* a minimum bill is a rate, and a tariff's rates are before tax. The minimum floors the bill's subtotal before tax, gas cost included (SCN-0135), and the adjustment is a charge for the gas, so it carries every tax the gas on that bill carries. A taxed customer under the minimum pays the minimum plus tax. This is the platform's only reading: no utility setting for a minimum that includes tax until a real tariff reads that way (Ryan). Sources: Ryan 2026-11-26 (`application/DECISION-LOG.md`); Pecan Flat's tariff (`cast.md` §1: minimum $20.00 a month; every gas line flagged taxable, `tax.md` SCN-0111); SCN-0135; CI-103 (the floor checked after the full stack; this case shows where it differs).
 
 **Given** Pecan Flat, December's figure $6.85. PF-03, the café (taxed: state 6.25%, city 1.5%; `tax.md` SCN-0111), closes for a kitchen refit from Mon Nov 16 to Dec 15 and tells the city; pilot lights and cleaning use a little gas. This case stands alone: SCN-0152's stopped meter is not part of it. Its last three months averaged 30.0 Mcf (**invented**). Its meter reads in Ccf: 2,340 on Nov 15 and 2,349 on Dec 15, so 9 Ccf, 0.9 Mcf.
 
@@ -693,7 +693,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 **Then**
 - The read is flagged low (0.9 Mcf against the café's own average of 30.0). The review is resolved by an override, with the closure notice as its reason and the name of who made it, in place of the re-read SCN-0152's rule would send.
 
-| Line | (a) floor before tax (expected) | (b) floor after tax (CI-103's wording) |
+| Line | (a) floor before tax (expected) | (b) floor after tax (CI-103's wording; not chosen) |
 |---|---|---|
 | Gas, 0.9 Mcf × $9.00 | $8.10 | $8.10 |
 | Gas cost, 0.9 Mcf × $6.85 = 6.1650 | $6.17 | $6.17 |
@@ -704,7 +704,7 @@ What the gas costs on a bill, the factors that turn a meter's raw reading into b
 
 - The billing-side record counts $6.17 and 0.9 Mcf of gas cost; the adjustment is not gas cost revenue (SCN-0135).
 - (b) is a reading of CI-103's wording, which puts the floor "after the full charge stack (including … taxes)": the bill's total is floored at $20.00 and the adjustment carries no tax. (Were the adjustment taxed as well, the subtotal before tax would be $20.00 ÷ 1.0775 = $18.56.) The difference is noted for the parity record (the board's note to rates, 2026-11-25, item 3).
-- **Open (Ryan):** the tariff's $20.00 is a rate, and taxes are added to the charges, which gives (a); CI-103's words give (b). They differ by $1.55 here. (a) is expected until he rules.
+- **Settled (Ryan, 2026-11-26):** (a). The tariff's $20.00 is a rate, and taxes are added to the charges; CI-103's words, read as (b), would cost the utility $1.55 here and shrink the floor with every tax rise. CI-103's wording is to be corrected in the parity record (the board's note to rates, 2026-11-25, item 3).
 - **Open (tax advisor, before go-live):** is the minimum adjustment part of the taxable price of the gas, as for the forfeited discount (`cast.md` §2)? Taxing it adds $0.45 here.
 
 ---
