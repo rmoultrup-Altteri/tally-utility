@@ -1,6 +1,6 @@
 # To Kyle: a bill's credit line (K-17)
 
-K-17 in the roadmap. Drafted 2026-11-22 by the money stream as a Slack draft in Kyle's DM. Recovered here on 2026-11-27 from that session's transcript, word for word, because a DM holds one draft, the scenario batches were later pasted into the same DM, and nothing records this one as sent. Not part of batches 3 to 8. If Kyle's DM has no message containing "Gas cost credit: -$6", paste from below.
+K-17 in the roadmap. **Sent by Ryan 2026-11-27.** Drafted 2026-11-22 by the money stream as a Slack draft in Kyle's DM. Recovered here on 2026-11-27 from that session's transcript, word for word, because a DM holds one draft, the scenario batches were later pasted into the same DM, and nothing records this one as sent. Not part of batches 3 to 8. If Kyle's DM has no message containing "Gas cost credit: -$6", paste from below.
 
 Paste from here.
 

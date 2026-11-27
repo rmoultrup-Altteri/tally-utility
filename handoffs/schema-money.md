@@ -17,11 +17,11 @@ Close this stream's half of the open invariants, in order (Ryan, 2026-11-02):
 
 ## Waiting on others
 
-- **Kyle, K-17:** which of a bill's charges its own credit line reduces. Slack draft in Kyle's DM (Ryan sends). No netting patch until he answers.
+- **Kyle, K-17:** which of a bill's charges its own credit line reduces. Sent by Ryan 2026-11-27 (`application/kyle-brief-2026-11-22-credit-line.md`). No netting patch until he answers.
 - **Kyle, K-14 (scenarios sends):** three departures of the dispute rulings from CI-054 and CI-074: a penalty on an amount under dispute at a Brenham-style city; the 60-day end; notices not blocked.
 - **Kyle, K-19 (scenarios):** the sixth batch, on unmatched cash and pledges (roadmap decisions).
 - **Counsel:** whether *Memphis Light v. Craft* (1978) reaches a Texas city's customers (a city's due-process duty before disconnection; -25 R3 leaves it to the core).
-- Nothing waits on Ryan except sending the drafts.
+- Nothing waits on Ryan.
 
 ## Resume Instructions
 
