@@ -1742,8 +1742,8 @@ SELECT pg_temp.refuses_at('D9t2 an average-cap policy under a later law withhold
   pg_temp.tight2_sql(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) || pg_temp.det2_sql('m1', NULL), '23514', '[D4g]');
 SELECT pg_temp.admits_undone('D9t3 … the law''s is admitted',
   pg_temp.tight2_sql(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(1.1, 'm2'))) || pg_temp.det2_sql('m2', NULL));
-SELECT pg_temp.ok('D9t4 … and under a later law withholding up to 0.9 both are kept',
-  (SELECT jsonb_array_length(v #> '{must_pay,either}') = 2
+SELECT pg_temp.ok('D9t4 … and under a later law withholding up to 0.9 both are kept, the policy''s average cap and the law''s 0.9 (r8: which ones, not only how many)',
+  (SELECT (v #> '{must_pay,either}') IS NOT DISTINCT FROM jsonb_build_array(pg_temp.avg('m1'), pg_temp.wcap(0.9, 'm2'))
      FROM pg_temp.combo(pg_temp.tdoc(jsonb_build_object('must_pay', pg_temp.avg('m1'))), jsonb_build_object('must_pay', pg_temp.wcap(0.9, 'm2'))) v));
 -- The law's final flag, in the direction no seeded law has: a policy's final regulator under a law whose regulator is not final.
 SELECT pg_temp.ok('D9u the law''s final flag is taken at its places either way: a policy''s final regulator under a law whose regulator is not final comes back not final (residual R10)',

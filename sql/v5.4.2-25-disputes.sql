@@ -172,12 +172,19 @@
 --       the law's stages must be its first; where two classes of one state
 --       give different stage lists, no policy satisfies both, so the law
 --       alone is cited (fails toward the law). No seeded row is affected.
---   R10. r7 (Opus N2, Fable N3): at each of the law's places the combined
---       stage takes the law's final flag, either way (D9u). Where a law's
---       last stage is not final and a policy makes that decision final,
---       which protects more depends on the customer; the core applies the
---       combined record. No seeded law row has a last stage that is not
---       final; one written so comes back to Ryan under his 2026-11-26 ruling.
+--   R10. r7 (Opus N2, Fable N3), r8 (Codex S1, Fable N4): at each of the
+--       law's places the combined stage takes the law's final flag, either
+--       way (D9u). (a) Wherever the policy's stage at a law place is final
+--       and the law's is not — at the law's last stage, or earlier, as for a
+--       shorter older policy under a longer later law — the policy's
+--       finality is replaced; which protects more depends on the customer.
+--       (b) Where the law's stage is final and the policy's own appeal
+--       follows, the appeal is kept after it (a final stage, then another).
+--       Both are safe only as the core reads final: binding on the utility,
+--       never ending an appeal the combined record keeps (a contract at the
+--       mirror). No seeded law row has a stage that is not final where a
+--       policy's could be; one written so comes back to Ryan under his
+--       2026-11-26 ruling.
 --
 -- Tests. battery-25 (351 checks), races/disputes-25.sh (DR1-DR17, 30 results),
 --   terms-25.py, migration-25.py (P0-P4), mutations-25.py (199 mutations).
@@ -2008,7 +2015,7 @@ CREATE OR REPLACE FUNCTION public.dispute_tariff_compare(p_tariff jsonb, p_law j
       FROM public.dispute_tariff_compare_sections(p_tariff, p_law) WITH ORDINALITY f(section, verdict, problem, n)
 $$;
 COMMENT ON FUNCTION public.dispute_tariff_compare(jsonb, jsonb) IS
-    'v5.4.2-25 (L6; r7 rewritten whole). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused for every finding of dispute_tariff_compare_sections, whose messages this returns in order. A finding is: its blocks or its duties lack one of the law''s; it admits fewer subjects; its stages do not hold the law''s first, in order, with nothing between, each of the law''s decider with a filing window no shorter and a decision window no longer (a stage of its own only after the law''s last); its shelter starts narrower; its shelter ends sooner; or its must-pay asks more. The start: any_time admits every dispute (a complaint to the regulator is recorded as a dispute with the utility), so it is narrower than no start and every other start is narrower than a law''s any_time; then before_termination, before_delinquency in that order; within_days against within_days of the same anchor by days; any other pair not comparable. The end: resolution beats the earlier of resolution and days; days against days; any other pair not comparable. The must-pay: a law of full_bill or unruled is never exceeded; undisputed_charges withholds exactly the disputed amount, so against withhold_cap it is a fraction of 1 in both directions (below the law''s fraction asks more, at or above it no more); a withholding of 1 or more, like undisputed_charges, asks no more than average_usage_cap or full_bill, and a law of either against a tariff of average_usage_cap asks less; two average caps compare only when equal; a withholding below 1 against an average cap, and any other pair, is not comparable. Not comparable is refused (fail toward protection). A delegation compares nothing.';
+    'v5.4.2-25 (L6; r7 rewritten whole). rule_tables.compare_function of dispute_tariffs: against every law row in force that rules (governs law) for the utility — every class, so the most protective binds — the tariff is refused for every finding of dispute_tariff_compare_sections, whose messages this returns in order. A finding is: its blocks or its duties lack one of the law''s; it admits fewer subjects; its stages do not hold the law''s first, in order, with nothing between, each of the law''s decider with a filing window no shorter and a decision window no longer (a stage of its own only after the law''s last); its shelter starts narrower; its shelter ends sooner; or its must-pay asks more. The start: any_time admits every dispute (a complaint to the regulator is recorded as a dispute with the utility), so no start is wider than it, and every other start is narrower than a law''s any_time; then before_termination, before_delinquency in that order; within_days against within_days of the same anchor by days; any other pair not comparable. The end: resolution beats the earlier of resolution and days; days against days; any other pair not comparable. The must-pay: a law of full_bill or unruled is never exceeded; undisputed_charges withholds exactly the disputed amount, so against withhold_cap it is a fraction of 1 in both directions (below the law''s fraction asks more, at or above it no more); a withholding of 1 or more, like undisputed_charges, asks no more than average_usage_cap or full_bill, so a tariff of average_usage_cap under a law of undisputed_charges or of a withholding of 1 or more is looser; two average caps compare only when equal; a withholding below 1 against an average cap, and any other pair, is not comparable. Not comparable is refused (fail toward protection). A delegation compares nothing.';
 
 DO $register$
 BEGIN
@@ -3736,7 +3743,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_dispute_reading_released() IS
-    'v5.4.2-25 r2 (T2; Opus S4). Deferred, at commit, for a resolved or withdrawn dispute event: the dispute''s reading, if it names one, is not left in status disputed with no open dispute naming it. r3: it first locks the reading''s row, so two closes of two disputes of one reading serialise and the second sees the first. r4 (Codex S1, Opus S2, Fable S1): FOR NO KEY UPDATE, which conflicts with itself and with an UPDATE of the reading but not with the key-share lock of a row that merely references it (a billing run, a photo, a new dispute). r7: deadlocks follow the header''s lock rule — locks taken in its order where one transaction holds several; a transaction writing to two disputes, or closing disputes of two readings, in its own order can deadlock with one doing the reverse, and a close can deadlock with the reading''s own move; every writer retries 40P01.';
+    'v5.4.2-25 r2 (T2; Opus S4). Deferred, at commit, for a resolved or withdrawn dispute event: the dispute''s reading, if it names one, is not left in status disputed with no open dispute naming it. r3: it first locks the reading''s row, so two closes of two disputes of one reading serialise and the second sees the first. r4 (Codex S1, Opus S2, Fable S1): FOR NO KEY UPDATE, which conflicts with itself and with an UPDATE of the reading but not with the key-share lock of a row that merely references it (a billing run, a photo, a new dispute). r7: deadlocks follow the header''s lock rule — locks taken in its order where one transaction holds several; a transaction writing to two disputes, or closing disputes of two readings, in its own order can deadlock with one doing the reverse, and a close can deadlock with any transaction that writes the reading''s row (its move into or out of disputed, a clerk''s note) and then takes one of its disputes'' locks; every writer retries 40P01.';
 REVOKE ALL ON FUNCTION public.enforce_dispute_reading_released() FROM PUBLIC, tally_app, tally_core;
 CREATE CONSTRAINT TRIGGER zz_dispute_reading_released AFTER INSERT ON public.dispute_events DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW WHEN (NEW.event_type = ANY (ARRAY['resolved'::text, 'withdrawn'::text])) EXECUTE FUNCTION public.enforce_dispute_reading_released();
