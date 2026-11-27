@@ -458,7 +458,41 @@ It reads the answer from -25's record (`dispute_shelter_as_of`: the sheltered am
 
 **When the 60 days end with the dispute unresolved** (Ryan, 2026-11-22, scenarios): the disputed amount still unpaid is shown on the next regular bill and takes that bill's due date; it is not billed again. A penalty posts on it only if that date passes unpaid, and is reversed with the amount if the dispute is later decided for the customer. With Kyle (K-14): the 60-day end and a Brenham-style penalty both depart from CI-054 and CI-074.
 
-**Depends on -25 r2's default row** (not built; today a city with no tariff is recorded as "no terms").
+**The default row is built** (`dispute_platform_defaults`, -25 r2; mirrored 2026-11-27): a determination for a city-owned system with no tariff in force cites it. Showing the unpaid disputed amount on the next bill with that bill's due date, and protecting the whole bill when no amount is recorded, are the core's work: the database records neither (Codex, -25 round 4, on residual R8).
+
+*AC-54 to AC-60 below were introduced by v5.4.2-25 (mirrored 2026-11-27, Ryan; nine review rounds, plans `application/wave3-build-2026-10-18/v5.4.2-25-r2-plan.md` to `-r9-plan.md`). The patch header's lock rule and residuals R1–R10 are their source.*
+
+### AC-54 — Write a dispute's records at READ COMMITTED; retry 40P01 in a new transaction — REJECTS
+Every write that takes a dispute's lock (an amount, a determination, an event, a reading's move into or out of `disputed`) refuses any other isolation level (25000): it must see what the writer it waited for committed. The database takes the locks in the header's order: the dispute's lock (for a reading's move, every dispute naming the reading, in id order); then, for a determination, the cited law row's and tariff's or platform default's (shared); at commit, a close of a dispute naming a reading locks the reading's row last. Three shapes can still deadlock, and the loser retries 40P01: a transaction that writes a reading's row (its move, a clerk's note) and then touches one of its disputes, against a close; two transactions writing two disputes in opposite order; two closing disputes of two readings in opposite order.
+
+### AC-55 — Record disputes by insert only; the database opens them and moves their status — REJECTS
+- A dispute names an issued bill, or a reading at the customer's own location, or both. It is received no earlier than the bill's or reading's date and no later than today. Its identity is written once; `tally_app` holds no UPDATE on `disputes`.
+- The database writes the `opened` event and moves the status from the resolution or withdrawal event. One resolution or withdrawal per dispute; nothing after it.
+- An amount is a new `dispute_amounts` row (a revision is another row). Its lines are on the dispute's own bill, each positive and at most its line's charge, summing to the amount at commit.
+- A reading is `disputed` only while an open dispute names it. The transaction that closes its last open dispute also moves it out of `disputed` (checked at commit). `pending_dispute` takes no new enrollment: a dispute is a `disputes` row.
+- Whoever records a resolution sets `app.user_id` to a user of the dispute's own tenant, including a history load run as the superuser (RLS applies to the status move; residual R7).
+
+### AC-56 — The core evaluates the shelter; the database checks the record it writes — REJECTS
+- **The core decides** (residual R3): the customer's dispute class, whether the dispute earned the shelter, the amounts and their figures, and whether a city with no policy still owes due process (*Memphis Light v. Craft*; a "no terms" determination shelters nothing in the record). Whether a dispute received *on* the due date is before delinquency is the core's reading, as under 7.45: the bill is delinquent from the day after (R8).
+- **It writes a determination when the answer changes**, as `tally_app` with `calculated_by`. It cites the law row in force for the utility, class and received date, and the utility's tariff in force where there is one. Under a delegation with no tariff, it cites the platform default in force. With neither, it records only "no terms", which carries no amount, component, shelter or block.
+- `shelter_ends_on` is the last sheltered day, inclusive (Texas gas: day 60 counting the issue day). It is empty under a document ended only by resolution.
+- A dispute naming only a reading, under a document that counts its end from the bill's issue (7.45, the platform default), is recorded as not sheltered until a bill names it (R5).
+- A tariff written later for an earlier date (a back-dated policy) is the core's audit finding: "no terms" and a platform default are checked against the tariff in force when they were written (R6).
+- Read the shelter with `dispute_shelter_as_of` and `dispute_line_shelter_as_of`, giving both coordinates. Without lines, the per-line reading is pro rata over the bill's positive lines (`basis = 'pro_rata'`).
+
+### AC-57 — Under a combined record, take the terms from `dispute_determination_terms`, never from the policy row — SILENT
+Where a utility's own policy is looser than the law in some section, its determinations are checked against the two combined, section by section: the more protective term, both where the two cannot be ranked, the lists merged, both documents' blocks. The core takes a dispute's stages, must-pay component, start, end and blocks from `dispute_determination_terms` for the live determination, and records each stage event by its id in the combined document. The combined document validates against neither schema; read it as data. It is computed when read, so a later change to the comparator, or a new platform subject code, changes what every combined record says.
+
+### AC-58 — Where the combined record gives `either`, apply the more protective alternative for that customer, and record which — TRUSTED
+*Ryan, 2026-11-26.* Where the policy's and the law's start, end or must-pay cannot be ranked for every customer, the combined record keeps both as `{"either": [...]}`. The core applies whichever protects this customer more, and records the component and last day of the one it applied. The database checks only that the record fits one of them [D4g, D4t]. A filing window counted from two anchors is kept the same way; the database checks no filing window.
+
+### AC-59 — Read an average-usage cap as the undisputed part plus the disputed part up to the average — TRUSTED
+`average_usage_cap` (16 TAC 7.45(6)(D)(ii)) means the customer pays the undisputed part of the bill, plus the disputed part up to their average usage. The comparator ranks a withholding of the whole disputed amount, or more, as asking no more than this cap, and admits policies on that ranking. A core that computed the cap any other way (the whole bill up to the average, say) could ask a customer for more than a policy the database admitted.
+
+### AC-60 — Treat a stage's `final` as binding the utility, never as ending an appeal the record keeps — TRUSTED
+- The law's final decision binds the utility, whatever stage its policy adds after it.
+- A combined record can hold two final stages, and two stages of one decider. A stage after a final one is kept, and the customer can still take it.
+- At each of the law's places the combined stage takes the law's `final` flag, either way (residual R10). Before the law's last stage, the law's later stages follow, so the customer keeps every appeal the law gives. At the law's last stage, which protects more would depend on the customer. No seeded law row has a last stage that is not final; a law row written so comes back to Ryan under his 2026-11-26 ruling.
 
 ### AC-47 — Choose the instant a bill run reads at when no earlier transaction is open; record the levies and places each bill used — TRUSTED
 *Introduced by v5.4.2-30 (mirrored 2026-11-22; its known limit L7; Opus r3–r5, executed). Serves Ryan's one instant per billing run (2026-11-05, R-22).*

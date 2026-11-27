@@ -42,7 +42,6 @@ trap 'exit 130' INT TERM HUP
 # close a county; review r3, Opus S1).
 P29_PENDING="(SELECT count(*) FROM public.places WHERE kind_code = 'county' AND state_code = 'TX' AND daterange(effective_from, effective_to, '[)') @> DATE '1900-01-01') < 254"
 PENDING=(
-  sql/v5.4.2-25-disputes.sql:disputes
   sql/v5.4.2-26-collections-decisions.sql:collections_decisions
 )
 BASE=ci_base

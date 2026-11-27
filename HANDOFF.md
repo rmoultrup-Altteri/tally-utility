@@ -30,7 +30,7 @@ Claim the next free number here, commit and push, before creating the file. Numb
 |---|---|---|
 | -23 | money | cash: reversals, positions, application, overpayment credits. **Mirrored 2026-11-04** (Ryan; Opus and Fable ready on r9, Codex on r10) |
 | -24 | money | unmatched cash, agency pledges (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`; Ryan 2026-11-07: a refund of an agency's money goes to the agency; limits L5/L6). **Mirrored 2026-11-24** (Ryan, out of turn ahead of -25 and -26; Opus, Fable and Codex ready on r12; r13 tests only, Opus confirmed) |
-| -25 | money | disputes (drafted 2026-10-18). r1 frozen and reviewed 2026-11-07 (Opus and Fable not yet; Codex not yet run); **r2 built, not frozen** (`application/wave3-build-2026-10-18/v5.4.2-25-r2-plan.md`), battery 222, mutations 126 of 126; item 9 settled 2026-11-22 (Ryan: the scenarios version): a platform default dispute row to build before the freeze |
+| -25 | money | disputes (drafted 2026-10-18; `application/wave3-build-2026-10-18/v5.4.2-25-design.md`; Ryan 2026-11-22: a platform default for a city with no policy; 2026-11-26: terms that cannot be ranked are both kept). **Mirrored 2026-11-27** (Ryan; Opus, Fable and Codex ready on r9, after nine rounds) |
 | -26 | money | collections decisions (drafted, not reviewed) |
 | -27 | money | a credit applied to a bounced payment's shortfall (AC-44 netting). **Mirrored 2026-11-06** (Ryan; Opus, Fable and Codex ready on r4; r5, a narrow round before the mirror, ready from Opus and Fable, Codex waived) |
 | -29 | rates | every Texas county and its time zone, loaded once as shared place data (Ryan 2026-11-04); data only. **Mirrored 2026-11-05** (Ryan; Opus, Fable and Codex ready on r3). Older tests no longer plant real Texas county codes (moved to even codes 48990-48998, never real): a new fixture must not use a real one either |
@@ -41,8 +41,9 @@ Claim the next free number here, commit and push, before creating the file. Numb
 
 ## Mirror queue
 
-1. -25 (money)
-2. -26 (money)
+1. -26 (money)
+
+-25 (money) was mirrored on 2026-11-27 (Ryan's approval), first in the queue; `ci.sh --build` passes 56/56 with -26 applied over the build. **For rates and scenarios:** `tally` now carries -25, so re-run your batteries on it before your next mirror. The container was replaced, so any scratch database in it is gone. What changes for you: `meter_readings` loses its six `dispute_*` columns, and a reading's status `disputed` needs an open `disputes` row naming it (the closing transaction moves it out); `pending_dispute` no longer protects an account and takes no new enrollment; twelve new `dispute_*` tables and the role `tally_dispute`. A dispute's effect on a late fee or a collection step is read from `dispute_shelter_as_of` / `dispute_line_shelter_as_of`. AC-54 to AC-60 are what the core must do (AC-46 updated).
 
 -24 (money) was mirrored on 2026-11-24 (Ryan's approval), ahead of -25 and -26: it shares no function with either, the one shared table (`customer_program_enrollments`) takes a separate trigger from each, and `ci.sh --build` passes 59/59 with the two applied over the build. **For rates and scenarios:** `tally` now carries -24, so re-run your batteries on it before your next mirror. The container was replaced, so any scratch database in it is gone. What changes for you: an agency's payment (`payer_class = 'agency'`) must name its agency (`agency_id`); `payments` has five nullable columns written once at insert and two triggers; `account_ledger` has one new AFTER INSERT trigger (`enforce_ledger_suspense_posted`: a posting entry of a payment made from a suspense receipt is not undone while that payment is pending); seven new tables. AC-48 to AC-53 are what the core must do.
 

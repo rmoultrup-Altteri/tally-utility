@@ -8,6 +8,28 @@
 
 **This document is the live parity record** (Ryan, 2026-10-15). The grades in `gas-billing-memory/application/canonical-invariants.md` are frozen as of v5.4.2-12 (2026-09-23); GBM's ingestion manifest points here. Re-grade here, in a dated update section, after each mirrored patch.
 
+## Update — 2026-11-27 (after v5.4.2-25)
+
+**How this was graded.** Read against -25's header (the lock rule, residuals R1–R10), its design (`application/wave3-build-2026-10-18/v5.4.2-25-design.md`), nine review rounds (Opus, Fable and Codex ready on r9), its battery (351 checks), races (30), mutations (199) and AC-54 to AC-60. -25's design maps two CIs to it: CI-074, and the dispute side of CI-054. One changes class. Two more (CI-067, CI-069) read `pending_dispute` as an input; they stay PARTIAL with that input replaced. -26 (collections decisions) is still pending, so a dispute's effect on a collection step stays the core's.
+
+| Class | After -24 | Now | Change |
+|---|---|---|---|
+| REP+PROT | 62 | **62** | 0 |
+| REP | 25 | **26** | +1 |
+| PARTIAL | 38 | **38** | 0 |
+| GAP | 9 | **8** | −1 |
+| BLOCKED | 0 | **0** | 0 |
+| N/A | 1 | **1** | 0 |
+| **Total** | 135 | 135 | |
+
+**Done for step 1** (REP+PROT + REP): **88 of 135**, plus CI-036 ruled out of platform scope. **Open: 46** (38 PARTIAL, 8 GAP).
+
+| CI | Was | Now | Conf | By | What closed it | What is left |
+|---|---|---|---|---|---|---|
+| CI-074 | GAP | REP | med | -25 (K-07, K-A2, K-CCK; Ryan 2026-11-22, 2026-11-26) | A dispute is a `disputes` row on a bill, a reading or both, with its subject, received date and channel, opened by the database and closed by a resolution or withdrawal event that moves its status. The disputed amount is add-only (`dispute_amounts`, optional lines on the bill, each at most its line's charge). The core's reading of the shelter is an add-only determination, which the database checks against the law row in force, the utility's own policy (never looser than the law: compared section by section at filing, combined with the law where looser), the platform default for a city with no policy, or "no terms". The shelter readers answer, per bill or line, at both coordinates, what is sheltered, until when and what is blocked (the late fee, the disconnection steps). It ends at the resolution or withdrawal date, or after its last day, so nothing has to be reset (the "resolved but still suspended" failure is closed by construction). A reading is `disputed` only while an open dispute names it. `pending_dispute` no longer protects an account. | Not PROT: suspending a collection step is the core's act (AC-46, AC-56); -26's conditions read these rows (pending). R3: the core decides the class, whether the shelter was earned, the amounts, and a city's due-process duty (Craft; with counsel). With Kyle (K-14): the 60-day end and a Brenham-style penalty depart from this CI. R10: a law row with a non-final last stage comes back to Ryan. The finance-adjacent parts of A-15 stay at the finance gate. |
+| CI-054 | PARTIAL | PARTIAL | med | -25 (dispute side) | The dispute side: the amount a dispute protects, its last day and whether `late_fee` is blocked are recorded and read per bill and line (`dispute_shelter_as_of`, `dispute_line_shelter_as_of`), per amount rather than per invoice. A city with no dispute policy takes the platform default (Ryan 2026-11-22). | The late fee's grace period, rate, cap and exempt-program set still have no data home (no late-fee law or tariff rows). Assessing a penalty is the core's (AC-46). |
+| CI-067, CI-069 | PARTIAL | PARTIAL | med | -25 (input only) | `pending_dispute` is no longer disconnect-protective and takes no new enrollment; a dispute's blocks come from its determination (the shelter readers). | As before; -26 pending. |
+
 ## Update — 2026-11-24 (after v5.4.2-24)
 
 **How this was graded.** Read against -24's header (known limits L1–L6), its design (`application/wave2-build-2026-10-15/v5.4.2-24-design.md`), thirteen review rounds (Opus, Fable and Codex ready on r12; r13 tests only, Opus confirmed), its battery (355 checks), races (29) and mutations (169), and AC-48 to AC-53. -24's design maps two CIs to it, both GAP until now; both change. -24 was mirrored ahead of -25 and -26 (Ryan, 2026-11-24), so the dispute and collections rows stand as before.
