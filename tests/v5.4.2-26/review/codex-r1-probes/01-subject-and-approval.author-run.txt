@@ -1,0 +1,156 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  consolidated notice: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  order decision: ACCEPTED SQLSTATE=00000
+NOTICE:  order for C1: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  C1 execute is blocked: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  transfer location to C2: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  execute decision for C2: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  B1 execute C1 order with C2 decision: ACCEPTED SQLSTATE=00000
+            order_customer            |          decision_customer           | matched 
+--------------------------------------+--------------------------------------+---------
+ 00000000-0000-4000-8000-0000000026c1 | 00000000-0000-4000-8000-0000000026c2 | t
+(1 row)
+
+NOTICE:  order 2 decision: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  order 2: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  execute 2 decision: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  approval for SO: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  S1 wrong-order/wrong-kind surplus approval: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+                  id                  |           service_order_id           |            approval_order            |    kind     
+--------------------------------------+--------------------------------------+--------------------------------------+-------------
+ be1326d9-3cb7-642f-e1a0-7f2d2ac4fdf7 | b7617cd9-d0d6-d44b-e5af-730357df9142 | 5bce52c6-55bd-35d6-cd43-71b2f45cd013 | no_evidence
+(1 row)
+
+RESET
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  deferred constraints: ACCEPTED SQLSTATE=00000
+ROLLBACK

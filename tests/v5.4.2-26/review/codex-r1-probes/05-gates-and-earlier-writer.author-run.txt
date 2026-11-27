@@ -1,0 +1,102 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  late fee no_decision: REJECTED SQLSTATE=23514 MESSAGE=charge B26-MCH: a late fee cites its late_fee decision [A1] (v5.4.2-26)
+NOTICE:  case no_decision cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+NOTICE:  late fee blocked: REJECTED SQLSTATE=23514 MESSAGE=late-fee charge B26-MCH: decision eaf1a8dd-ba97-7378-b374-d1fd30e2c0f8 is blocked — only an eligible decision authorizes an act (an unevaluable one blocks) [A3] (v5.4.2-26)
+NOTICE:  case blocked cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+NOTICE:  late fee unevaluable: REJECTED SQLSTATE=23514 MESSAGE=late-fee charge B26-MCH: decision eaf1a8dd-ba97-7378-b374-d1fd30e2c0f8 is unevaluable — only an eligible decision authorizes an act (an unevaluable one blocks) [A3] (v5.4.2-26)
+NOTICE:  case unevaluable cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+NOTICE:  late fee expired: REJECTED SQLSTATE=23514 MESSAGE=late-fee charge B26-MCH: dated 2026-04-02, outside decision eaf1a8dd-ba97-7378-b374-d1fd30e2c0f8's window 2026-04-01 to 2026-04-01 [A6] (v5.4.2-26)
+NOTICE:  case expired cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+NOTICE:  late fee other_bill: REJECTED SQLSTATE=23514 MESSAGE=late-fee charge B26-MCH: decision eaf1a8dd-ba97-7378-b374-d1fd30e2c0f8 is about bill 00000000-0000-4000-8000-000000002601, not 00000000-0000-4000-8000-000000002602 [A5] (v5.4.2-26)
+NOTICE:  case other_bill cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+NOTICE:  late fee superseded: REJECTED SQLSTATE=23514 MESSAGE=late-fee charge B26-MCH: decision eaf1a8dd-ba97-7378-b374-d1fd30e2c0f8 is superseded — the act cites the live decision for its subject [A4] (v5.4.2-26)
+NOTICE:  case superseded cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+DO
+NOTICE:  late fee eligible: ACCEPTED SQLSTATE=00000
+NOTICE:  case eligible cleanup/setup: SQLSTATE=P0098 MESSAGE=rollback independent case
+NOTICE:  two first decisions in VALUES: REJECTED SQLSTATE=23514 MESSAGE=collections decision: the live decision for this late_fee is d6eb59f6-18ab-42ee-b2b7-0362023c2538; a new decision names it as the one it supersedes [C4a] (v5.4.2-26)
+ probe 
+-------
+ f
+(1 row)
+
+ id | supersedes_id | record_seq 
+----+---------------+------------
+(0 rows)
+
+RESET
+ as_user 
+---------
+ 
+(1 row)
+
+SET
+ probe 
+-------
+ f
+(1 row)
+
+NOTICE:  earlier void_invoice path: REJECTED SQLSTATE=P0002 MESSAGE=invoice B26-I1 was posted but has no charge entry on account_ledger (reference_type = invoice, transaction_type = charge): its void must reverse that charge and name it (CI-017, v5.4.2-21) — post the missing charge first
+RESET
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  deferred constraints: ACCEPTED SQLSTATE=00000
+ROLLBACK

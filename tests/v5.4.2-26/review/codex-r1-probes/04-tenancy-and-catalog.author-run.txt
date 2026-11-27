@@ -1,0 +1,193 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+           conrelid            |                       conname                        |                                               pg_get_constraintdef                                               
+-------------------------------+------------------------------------------------------+------------------------------------------------------------------------------------------------------------------
+ collections_decisions         | collections_decisions_created_by_fkey                | FOREIGN KEY (created_by) REFERENCES users(id)
+ collections_decisions         | collections_decisions_customer_fkey                  | FOREIGN KEY (customer_id, tenant_id) REFERENCES customers(id, tenant_id)
+ collections_decisions         | collections_decisions_invoice_fkey                   | FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES invoices(id, tenant_id, customer_id)
+ collections_decisions         | collections_decisions_location_fkey                  | FOREIGN KEY (location_id, tenant_id) REFERENCES service_locations(id, tenant_id)
+ collections_decisions         | collections_decisions_meter_fkey                     | FOREIGN KEY (meter_id, tenant_id) REFERENCES meters(id, tenant_id)
+ collections_decisions         | collections_decisions_supersedes_fkey                | FOREIGN KEY (supersedes_id, tenant_id, customer_id) REFERENCES collections_decisions(id, tenant_id, customer_id)
+ service_order_field_visits    | service_order_field_visits_created_by_fkey           | FOREIGN KEY (created_by) REFERENCES users(id)
+ service_order_field_visits    | service_order_field_visits_decision_fkey             | FOREIGN KEY (collections_decision_id, tenant_id) REFERENCES collections_decisions(id, tenant_id)
+ service_order_field_visits    | service_order_field_visits_mismatch_approval_fkey    | FOREIGN KEY (mismatch_approval_id, tenant_id) REFERENCES service_order_field_approvals(id, tenant_id)
+ service_order_field_visits    | service_order_field_visits_no_evidence_approval_fkey | FOREIGN KEY (no_evidence_approval_id, tenant_id) REFERENCES service_order_field_approvals(id, tenant_id)
+ service_order_field_visits    | service_order_field_visits_order_fkey                | FOREIGN KEY (service_order_id, tenant_id) REFERENCES service_orders(id, tenant_id)
+ service_order_field_approvals | service_order_field_approvals_approved_by_fkey       | FOREIGN KEY (approved_by) REFERENCES users(id)
+ service_order_field_approvals | service_order_field_approvals_order_fkey             | FOREIGN KEY (service_order_id, tenant_id) REFERENCES service_orders(id, tenant_id)
+ service_order_field_approvals | service_order_field_approvals_visit_fkey             | FOREIGN KEY (visit_id, tenant_id) REFERENCES service_order_field_visits(id, tenant_id)
+(14 rows)
+
+INSERT 0 1
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  order decision: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  order: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  B3 platform approval without impersonation: ACCEPTED SQLSTATE=00000
+              tenant_id               |             actor_tenant             |             approved_by              
+--------------------------------------+--------------------------------------+--------------------------------------
+ 00000000-0000-4000-8000-0000000026a1 | 00000000-0000-4000-8000-0000000026a2 | 00000000-0000-4000-8000-0000000026b4
+(1 row)
+
+NOTICE:  foreign actor on decision: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+              tenant_id               |             actor_tenant             
+--------------------------------------+--------------------------------------
+ 00000000-0000-4000-8000-0000000026a1 | 00000000-0000-4000-8000-0000000026a2
+(1 row)
+
+RESET
+NOTICE:  invariant assert_cash_guard_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_core_role_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_dispute_guard_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_no_hard_delete_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_periods_guard_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_rule_table_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_seal_role_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_shortfall_guard_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_suspense_pledge_guard_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_tenant_isolation_invariants: ACCEPTED SQLSTATE=00000
+NOTICE:  invariant assert_wave1_guard_invariants: ACCEPTED SQLSTATE=00000
+DO
+       r       |                 t                 | ins | upd 
+---------------+-----------------------------------+-----+-----
+ tally_app     | public.invoices                   | t   | t
+ tally_app     | public.customers                  | t   | t
+ tally_app     | public.adhoc_charges              | t   | t
+ tally_app     | public.service_orders             | t   | t
+ tally_app     | public.collections_decisions      | t   | f
+ tally_app     | public.service_order_field_visits | t   | f
+ tally_core    | public.invoices                   | f   | f
+ tally_core    | public.customers                  | f   | f
+ tally_core    | public.adhoc_charges              | f   | f
+ tally_core    | public.service_orders             | f   | f
+ tally_core    | public.collections_decisions      | f   | f
+ tally_core    | public.service_order_field_visits | f   | f
+ tally_seal    | public.invoices                   | f   | f
+ tally_seal    | public.customers                  | f   | f
+ tally_seal    | public.adhoc_charges              | f   | f
+ tally_seal    | public.service_orders             | f   | f
+ tally_seal    | public.collections_decisions      | f   | f
+ tally_seal    | public.service_order_field_visits | f   | f
+ tally_close   | public.invoices                   | f   | f
+ tally_close   | public.customers                  | f   | f
+ tally_close   | public.adhoc_charges              | f   | f
+ tally_close   | public.service_orders             | f   | f
+ tally_close   | public.collections_decisions      | f   | f
+ tally_close   | public.service_order_field_visits | f   | f
+ tally_void    | public.invoices                   | f   | t
+ tally_void    | public.customers                  | f   | f
+ tally_void    | public.adhoc_charges              | f   | t
+ tally_void    | public.service_orders             | f   | f
+ tally_void    | public.collections_decisions      | f   | f
+ tally_void    | public.service_order_field_visits | f   | f
+ tally_dispute | public.invoices                   | f   | f
+ tally_dispute | public.customers                  | f   | f
+ tally_dispute | public.adhoc_charges              | f   | f
+ tally_dispute | public.service_orders             | f   | f
+ tally_dispute | public.collections_decisions      | f   | f
+ tally_dispute | public.service_order_field_visits | f   | f
+(36 rows)
+
+NOTICE:  tally_app direct stage: REJECTED SQLSTATE=23514 MESSAGE=bill 00000000-0000-4000-8000-000000002601: dunning_stage is the database's — it moves when a dunning event is recorded; a bill is born at current [E2a] (v5.4.2-26)
+NOTICE:  tally_app direct dnd: REJECTED SQLSTATE=23514 MESSAGE=customer 00000000-0000-4000-8000-0000000026c1: do_not_disconnect follows the customer's protective program enrollments — enroll or end one; it is never written directly [E4] (v5.4.2-26)
+NOTICE:  tally_core direct stage: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table invoices
+NOTICE:  tally_core direct dnd: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table customers
+NOTICE:  tally_seal direct stage: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table invoices
+NOTICE:  tally_seal direct dnd: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table customers
+NOTICE:  tally_close direct stage: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table invoices
+NOTICE:  tally_close direct dnd: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table customers
+NOTICE:  tally_void direct stage: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table invoices
+NOTICE:  tally_void direct dnd: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table customers
+NOTICE:  tally_dispute direct stage: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table invoices
+DO
+NOTICE:  tally_dispute direct dnd: REJECTED SQLSTATE=42501 MESSAGE=permission denied for table customers
+               oid               
+---------------------------------
+ collections_dunning_stage(text)
+(1 row)
+
+RESET
+NOTICE:  deferred constraints: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ROLLBACK

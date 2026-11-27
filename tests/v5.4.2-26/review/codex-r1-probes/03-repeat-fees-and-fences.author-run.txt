@@ -1,0 +1,156 @@
+BEGIN
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  LF1 decision: ACCEPTED SQLSTATE=00000
+NOTICE:  LF1 charge: ACCEPTED SQLSTATE=00000
+NOTICE:  LF1 log: ACCEPTED SQLSTATE=00000
+NOTICE:  advance to payment_plan: ACCEPTED SQLSTATE=00000
+NOTICE:  LF2 decision: ACCEPTED SQLSTATE=00000
+NOTICE:  LF2 charge: ACCEPTED SQLSTATE=00000
+NOTICE:  LF2 log: ACCEPTED SQLSTATE=00000
+NOTICE:  LF3 decision: ACCEPTED SQLSTATE=00000
+NOTICE:  LF3 charge: ACCEPTED SQLSTATE=00000
+NOTICE:  LF3 log: ACCEPTED SQLSTATE=00000
+DO
+ charge_number |       triggered_by_invoice_id        | effective_date 
+---------------+--------------------------------------+----------------
+ B26-CH1       | 00000000-0000-4000-8000-000000002601 | 2026-04-01
+ B26-CH2       | 00000000-0000-4000-8000-000000002601 | 2026-05-02
+ B26-CH3       | 00000000-0000-4000-8000-000000002601 | 2026-06-02
+(3 rows)
+
+      event_type      |  previous_stage   |     new_stage     
+----------------------+-------------------+-------------------
+ payment_plan_created | late_fee_assessed | payment_plan
+ late_fee_applied     | current           | late_fee_assessed
+ late_fee_applied     | payment_plan      | late_fee_assessed
+ late_fee_applied     | late_fee_assessed | late_fee_assessed
+(4 rows)
+
+   dunning_stage   
+-------------------
+ late_fee_assessed
+(1 row)
+
+NOTICE:  direct stage: REJECTED SQLSTATE=23514 MESSAGE=bill 00000000-0000-4000-8000-000000002601: dunning_stage is the database's — it moves when a dunning event is recorded; a bill is born at current [E2a] (v5.4.2-26)
+ probe 
+-------
+ f
+(1 row)
+
+NOTICE:  -23 freezes charge type: REJECTED SQLSTATE=23001 MESSAGE=adhoc charge B26-CH1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to charge_type — void or waive it and create a new charge
+ probe 
+-------
+ f
+(1 row)
+
+NOTICE:  -23 freezes charge date: REJECTED SQLSTATE=23001 MESSAGE=adhoc charge B26-CH1: its identity is fixed from insert (R-05, CI-013; v5.4.2-23): attempted change to effective_date — void or waive it and create a new charge
+ probe 
+-------
+ f
+(1 row)
+
+NOTICE:  direct dnd: REJECTED SQLSTATE=23514 MESSAGE=customer 00000000-0000-4000-8000-0000000026c1: do_not_disconnect follows the customer's protective program enrollments — enroll or end one; it is never written directly [E4] (v5.4.2-26)
+ probe 
+-------
+ f
+(1 row)
+
+NOTICE:  protective enrollment: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ do_not_disconnect 
+-------------------
+ t
+(1 row)
+
+ probe 
+-------
+ f
+(1 row)
+
+NOTICE:  -24 retired enrollment: REJECTED SQLSTATE=23514 MESSAGE=program enrollment: agency_pledge is retired — a pledge is an agency_pledges row (v5.4.2-24)
+NOTICE:  -25 retired enrollment: REJECTED SQLSTATE=23514 MESSAGE=program enrollment: pending_dispute is retired — a dispute is a disputes row, whose shelter its determination records [T1] (v5.4.2-25)
+ probe 
+-------
+ f
+(1 row)
+
+RESET
+SET
+NOTICE:  S3 replica enrollment: ACCEPTED SQLSTATE=00000
+ probe 
+-------
+ t
+(1 row)
+
+ do_not_disconnect | expected 
+-------------------+----------
+ f                 | t
+(1 row)
+
+SET
+RESET
+ probe 
+-------
+ t
+(1 row)
+
+NOTICE:  deferred constraints: ACCEPTED SQLSTATE=00000
+ROLLBACK
