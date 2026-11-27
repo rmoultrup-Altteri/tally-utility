@@ -1,0 +1,58 @@
+# The platform's default dispute rule for a city-owned Texas gas system that has no dispute policy of its own
+# (v5.4.2-25 r2, item 9). Not law: a platform ruling (Ryan, 2026-11-22, DECISION-LOG "(money, -25)"), held on the
+# law template so it is dated, closed and cited as law rows are. A city's own tariff wins (Kyle's standing rule:
+# follow the tariff, platform defaults only where it is silent): it replaces the default for disputes received
+# from the tariff's date, and a dispute already determined keeps the row it cited.
+#   * Where it reaches: a city-owned (municipal) distribution system, every customer class (Ryan, 2026-11-22,
+#     option 1). Where Texas law binds (investor-owned, cooperative), dispute_rules governs and this row is never read.
+#   * What it says (all ruled 2026-11-22): any subject; a dispute raised before the bill went delinquent; the
+#     undisputed charges still to pay (the disputed amount sheltered; the whole bill when no amount is recorded is
+#     the core's reading of the amount, not a term); sheltered until the earlier of resolution and 60 days from
+#     issue (the issue day is day 1); the late fee and both disconnection steps stopped; no review stages and no
+#     duties of its own (a silent city's process is its own; the record still holds escalation and resolution).
+#   * In force from 2026-11-22, the ruling's date: a dispute received before it at a silent city has no terms, as
+#     it had then (a rule row is dated from its source, rule-terms v2 §6).
+table: public.dispute_platform_defaults
+kind: dispute
+version: 1
+key: [customer_class]
+schema: dispute.v1.schema.json
+rows:
+  - name: tx_gas_municipal_default_protected
+    state_code: TX
+    service_type: gas
+    owner_types: [municipal]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: protected
+    effective_from: "2026-11-22"
+    source_note: "Platform default, not law (Ryan, 2026-11-22: the silent-city dispute default; DECISION-LOG money -25): a city-owned system with no dispute policy in its tariff. It copies 16 TAC 7.45(6)(D)'s start and end, shelters the disputed amount only and stops the late fee and both disconnection steps. A city's own tariff replaces it from the tariff's date."
+    terms:
+      governs: law
+      citation: Platform dispute default (2026-11-22)
+      subjects: {kind: any, excluded: [], citation: Platform dispute default (2026-11-22)}
+      shelter_earned: {kind: before_delinquency, citation: Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(i)}
+      must_pay: {strategy: undisputed_charges, version: 1, id: m1, citation: "Platform dispute default (2026-11-07, 2026-11-22)"}
+      shelter_ends: {kind: earlier_of_resolution_and_days, days: 60, from: issue, citation: Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(ii)}
+      stages: []
+      blocks: {codes: [late_fee, disconnect_order, disconnect_execute], citation: Platform dispute default (2026-11-22)}
+      duties: {codes: [], citation: Platform dispute default (2026-11-22)}
+  - name: tx_gas_municipal_default_unprotected
+    state_code: TX
+    service_type: gas
+    owner_types: [municipal]
+    system_kinds: [distribution]
+    commission_jurisdiction: any
+    customer_class: unprotected
+    effective_from: "2026-11-22"
+    source_note: "Platform default, not law (Ryan, 2026-11-22: the silent-city default reaches every customer class; DECISION-LOG money -25): the same terms as the protected class's default row. A city's own tariff replaces it from the tariff's date."
+    terms:
+      governs: law
+      citation: Platform dispute default (2026-11-22)
+      subjects: {kind: any, excluded: [], citation: Platform dispute default (2026-11-22)}
+      shelter_earned: {kind: before_delinquency, citation: Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(i)}
+      must_pay: {strategy: undisputed_charges, version: 1, id: m1, citation: "Platform dispute default (2026-11-07, 2026-11-22)"}
+      shelter_ends: {kind: earlier_of_resolution_and_days, days: 60, from: issue, citation: Platform dispute default (2026-11-22); after 16 TAC 7.45(6)(D)(ii)}
+      stages: []
+      blocks: {codes: [late_fee, disconnect_order, disconnect_execute], citation: Platform dispute default (2026-11-22)}
+      duties: {codes: [], citation: Platform dispute default (2026-11-22)}
