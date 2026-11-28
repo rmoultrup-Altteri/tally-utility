@@ -42,8 +42,8 @@ def rep(old: str, new: str) -> Callable[[str], str]:
 
 def tail(sql: str) -> Callable[[str], str]:
     """Append statements just before the patch's own invariant run."""
-    return rep("DO $$ BEGIN\n    PERFORM public.assert_cash_guard_invariants();",
-               sql + "\nDO $$ BEGIN\n    PERFORM public.assert_cash_guard_invariants();")
+    return rep("DO $$ BEGIN\n    PERFORM public.assert_collections_guard_invariants();",
+               sql + "\nDO $$ BEGIN\n    PERFORM public.assert_collections_guard_invariants();")
 
 
 # Anchors that occur more than once carry the message line that follows them.
@@ -62,7 +62,7 @@ MUTATIONS = [
     ("M06", "a disconnect decision without its location", "C3a5",
      rep("       OR (NOT v_bill_act AND NEW.location_id IS NULL) THEN", "       THEN")),
     ("M07", "a decision on a draft bill", "C3b1",
-     rep("        IF FOUND AND NOT public.is_invoice_issued(v_status) THEN", "        IF false THEN")),
+     rep("        IF FOUND AND (NOT public.is_invoice_issued(v_status) OR v_status = 'void') THEN", "        IF FOUND AND v_status = 'void' THEN")),
     ("M08", "a disconnect at another customer's location", "C3c",
      rep("        IF v_found AND v_loc_cust IS DISTINCT FROM NEW.customer_id THEN", "        IF false THEN")),
     ("M09", "a notice threatening a location not the bill's", "C3d1",
@@ -191,14 +191,13 @@ MUTATIONS = [
      rep("(NEW.event_date AT TIME ZONE 'UTC')::date, NOT v_log, 'dunning event ' || NEW.event_type);",
          "(NEW.event_date AT TIME ZONE 'UTC')::date, true, 'dunning event ' || NEW.event_type);")),
     ("M59", "a late fee logged with no charge", "A8a",
-     rep("              AND NOT EXISTS (SELECT 1 FROM public.adhoc_charges c WHERE c.collections_decision_id = d.id))", "              AND false)")),
+     rep("              AND NOT EXISTS (SELECT 1 FROM public.adhoc_charges c WHERE c.collections_decision_id = d.id AND c.status NOT IN ('void', 'waived', 'void_pending_rebill')))", "              AND false)")),
     ("M60", "a shutoff scheduled with no order", "A8d",
      rep("              AND NOT EXISTS (SELECT 1 FROM public.service_orders o WHERE o.collections_decision_id = d.id))", "              AND false)")),
     ("M61", "a disconnection logged with no executed visit", "A8g",
      rep("              AND NOT EXISTS (SELECT 1 FROM public.service_order_field_visits v WHERE v.collections_decision_id = d.id)) THEN", "              AND false) THEN")),
     ("M62", "the bill's row is not the stage's lock", "CR6b",
-     rep("    SELECT i.dunning_stage INTO v_prev FROM public.invoices i WHERE i.id = NEW.invoice_id FOR NO KEY UPDATE;",
-         "    SELECT i.dunning_stage INTO v_prev FROM public.invoices i WHERE i.id = NEW.invoice_id;")),
+     rep("    PERFORM 1 FROM public.invoices i WHERE i.id = NEW.invoice_id FOR NO KEY UPDATE;\n", "")),
     ("M63", "a step that moves nothing names a stage", "E2b3",
      rep("        IF NEW.new_stage IS NOT NULL OR NEW.previous_stage IS NOT NULL THEN", "        IF false THEN")),
     ("M64", "a caller's new stage that disagrees", "E2b1",
@@ -208,7 +207,7 @@ MUTATIONS = [
     ("M66", "the previous stage is the caller's", "A6d",
      rep("        NEW.previous_stage := v_prev;\n", "")),
     ("M67", "the stage mapping moves a broken plan", "E2-5",
-     rep("WHEN 'resolved' THEN 'resolved' END\n$$;", "WHEN 'resolved' THEN 'resolved' WHEN 'payment_plan_broken' THEN 'reminder_sent' END\n$$;")),
+     rep("WHEN 'resolved' THEN 'resolved' END AS target,", "WHEN 'resolved' THEN 'resolved' WHEN 'payment_plan_broken' THEN 'reminder_sent' END AS target,")),
     ("M68", "the bill is not moved", "A6d",
      rep("CREATE TRIGGER z_dunning_move_stage AFTER INSERT ON public.dunning_events FOR EACH ROW EXECUTE FUNCTION public.dunning_move_stage();\n"
          "ALTER TABLE public.dunning_events ENABLE ALWAYS TRIGGER z_dunning_move_stage;\n", "")),
@@ -225,19 +224,19 @@ MUTATIONS = [
      rep("    ADD CONSTRAINT dunning_events_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id, customer_id)\n        REFERENCES public.collections_decisions (id, tenant_id, customer_id);",
          "    ADD CONSTRAINT dunning_events_decision_fkey FOREIGN KEY (collections_decision_id) REFERENCES public.collections_decisions (id);")),
     ("M75", "two steps on one decision", "A7a",
-     rep("CREATE UNIQUE INDEX dunning_events_one_per_decision ON public.dunning_events (collections_decision_id) WHERE collections_decision_id IS NOT NULL;\n", "")),
+     rep("CREATE UNIQUE INDEX dunning_events_one_per_decision ON public.dunning_events (collections_decision_id, invoice_id) WHERE collections_decision_id IS NOT NULL;\n", "")),
     # ---- late-fee charges
     ("M76", "a late fee with no decision", "A1c",
-     rep("    IF (NEW.charge_type = 'late_fee') <> (NEW.collections_decision_id IS NOT NULL) THEN", "    IF false THEN")),
+     rep("    IF (NEW.charge_type IN ('late_fee', 'penalty')) <> (NEW.collections_decision_id IS NOT NULL) THEN", "    IF false THEN")),
     ("M77", "a late fee may cite a superseded decision", "A4c",
      rep("NEW.effective_date, true, 'late-fee charge ' || NEW.charge_number);", "NEW.effective_date, false, 'late-fee charge ' || NEW.charge_number);")),
     ("M78", "a late fee's decision cleared", "A9a",
      rep("        IF NEW.collections_decision_id IS DISTINCT FROM OLD.collections_decision_id\n           OR", "        IF false\n           OR")),
     ("M79", "a late fee moved to another bill", "A9b",
-     rep("           OR (OLD.collections_decision_id IS NOT NULL AND NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id) THEN", "           THEN")),
+     rep("           OR (OLD.collections_decision_id IS NOT NULL AND NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id)\n", "\n")),
     ("M80", "any charge's bill frozen", "A9c",
-     rep("           OR (OLD.collections_decision_id IS NOT NULL AND NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id) THEN",
-         "           OR (NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id) THEN")),
+     rep("           OR (OLD.collections_decision_id IS NOT NULL AND NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id)\n",
+         "           OR (NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id)\n")),
     ("M81", "two late fees on one decision", "A7b",
      rep("CREATE UNIQUE INDEX adhoc_charges_one_per_decision ON public.adhoc_charges (collections_decision_id) WHERE collections_decision_id IS NOT NULL;\n", "")),
     # ---- disconnect orders
@@ -275,8 +274,8 @@ MUTATIONS = [
      rep("        IF NEW.collections_decision_id IS NULL THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('field visit: an execution",
          "        IF false THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('field visit: an execution")),
     ("M96", "an execution's decision for another location", "F2a5",
-     rep("        PERFORM public.collections_act_check(NEW.collections_decision_id, 'disconnect_execute', NULL, o.location_id, o.meter_id,",
-         "        PERFORM public.collections_act_check(NEW.collections_decision_id, 'disconnect_execute', NULL, NULL, o.meter_id,")),
+     rep("        d := public.collections_act_check(NEW.collections_decision_id, 'disconnect_execute', NULL, o.location_id, o.meter_id,",
+         "        d := public.collections_act_check(NEW.collections_decision_id, 'disconnect_execute', NULL, NULL, o.meter_id,")),
     ("M97", "a visit to a closed order", "F1n",
      rep("    IF o.status IN ('completed', 'cancelled', 'superseded') THEN", "    IF false THEN")),
     ("M98", "a visit takes no lock on its order", "CR8",
@@ -298,7 +297,7 @@ MUTATIONS = [
     ("M105", "a blank evidence reference", "F1e",
      rep("    IF EXISTS (SELECT 1 FROM unnest(NEW.evidence_refs) r WHERE r IS NULL OR r !~ '[[:alnum:]]') THEN", "    IF false THEN")),
     ("M106", "an execution with nothing captured", "F2a6",
-     rep("        IF NEW.captured_meter_serial IS NULL OR NEW.captured_location_number IS NULL THEN", "        IF false THEN")),
+     rep("        IF NOT coalesce(NEW.captured_meter_serial ~ '[[:alnum:]]' AND NEW.captured_location_number ~ '[[:alnum:]]', false) THEN", "        IF false THEN")),
     ("M107", "an execution on a mismatch without approval", "F2b",
      rep("            IF NEW.mismatch_approval_id IS NULL THEN", "            IF false THEN")),
     ("M108", "a mismatch approval of the wrong kind", "F3g",
@@ -321,7 +320,7 @@ MUTATIONS = [
      rep("CREATE UNIQUE INDEX service_order_field_visits_one_executed ON public.service_order_field_visits (service_order_id) WHERE outcome = 'executed';\n", "")),
     # ---- approvals
     ("M116", "an operator approves", "F3a",
-     rep("    IF NOT public.session_is_supervisor() THEN", "    IF false THEN")),
+     rep("    IF NOT EXISTS (SELECT 1 FROM public.users u WHERE u.id = v_user AND u.tenant_id = NEW.tenant_id AND u.role = 'tenant_admin' AND u.is_active) THEN", "    IF false THEN")),
     ("M117", "an approval for an order that is not a disconnect", "F3b6",
      rep("    IF FOUND AND o.order_type <> 'disconnect' THEN", "    IF false THEN")),
     ("M118", "a mismatch approval naming no visit", "F3b1",
@@ -341,7 +340,7 @@ MUTATIONS = [
     ("M123", "a no-evidence approval naming a visit", "F3b5",
      rep("    ELSIF NEW.visit_id IS NOT NULL THEN", "    ELSIF false THEN")),
     ("M124", "the approver is the caller's", "F3c",
-     rep("    NEW.approved_by := NULLIF(current_setting('app.user_id', true), '')::uuid;\n", "")),
+     rep("    NEW.approved_by := v_user;\n", "    NEW.approved_by := coalesce(NEW.approved_by, v_user);\n")),
     # ---- do_not_disconnect
     ("M125", "do_not_disconnect written directly", "E4a",
      rep("            OR (TG_OP = 'UPDATE' AND NEW.do_not_disconnect IS DISTINCT FROM OLD.do_not_disconnect)) THEN", "            ) THEN")),
@@ -354,6 +353,71 @@ MUTATIONS = [
     ("M130", "a decision's bill bound without its customer", "C3b2",
      rep("    CONSTRAINT collections_decisions_invoice_fkey FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES public.invoices (id, tenant_id, customer_id),",
          "    CONSTRAINT collections_decisions_invoice_fkey FOREIGN KEY (invoice_id, tenant_id) REFERENCES public.invoices (id, tenant_id),")),
+    # ---- r2: round 1's findings
+    ("M131", "an execution under another customer's decision (r2 item 1)", "R1c",
+     rep("        IF d.customer_id IS DISTINCT FROM o.customer_id THEN", "        IF false THEN")),
+    ("M132", "a location-wide block ignored (r2 item 2)", "R2b",
+     rep("             WHERE l.outcome <> 'eligible' AND (l.meter_id IS NULL OR v_meter IS NULL OR l.meter_id = v_meter);",
+         "             WHERE false;")),
+    ("M133", "a meter's block ignored under the location-wide decision (r2 item 2)", "R2d",
+     rep("             WHERE l.outcome <> 'eligible' AND (l.meter_id IS NULL OR v_meter IS NULL OR l.meter_id = v_meter);",
+         "             WHERE l.outcome <> 'eligible' AND l.meter_id IS NULL;")),
+    ("M134", "an order naming no meter escapes a meter's block (r2 item 2)", "R2e",
+     rep("             WHERE l.outcome <> 'eligible' AND (l.meter_id IS NULL OR v_meter IS NULL OR l.meter_id = v_meter);",
+         "             WHERE l.outcome <> 'eligible' AND (l.meter_id IS NULL OR l.meter_id = v_meter);")),
+    ("M135", "a cancellation under REPEATABLE READ (r2 item 3)", "CR8c",
+     rep("        IF current_setting('transaction_isolation') <> 'read committed' THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('service order %s: a disconnect order''s status",
+         "        IF false THEN\n            RAISE EXCEPTION USING\n                MESSAGE = format('service order %s: a disconnect order''s status")),
+    ("M136", "the previous stage read from the bill's projection (r2 item 4)", "R4b",
+     rep("    SELECT e.new_stage INTO v_prev FROM public.dunning_events e\n     WHERE e.invoice_id = NEW.invoice_id AND e.new_stage IS NOT NULL\n     ORDER BY e.record_seq DESC LIMIT 1;",
+         "    SELECT i.dunning_stage INTO v_prev FROM public.invoices i WHERE i.id = NEW.invoice_id;")),
+    ("M137", "the approver's utility not checked (r2 item 5; H3 is the same property, first)", "H3",
+     rep("u.id = v_user AND u.tenant_id = NEW.tenant_id AND u.role = 'tenant_admin'", "u.id = v_user AND u.role = 'tenant_admin'")),
+    ("M138", "a decision's author keyed to users alone (r2 item 5)", "R5c",
+     rep("    CONSTRAINT collections_decisions_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),",
+         "    CONSTRAINT collections_decisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),")),
+    ("M139", "a repeat step moves the stage back (r2 item 6)", "A8c",
+     rep("                WHEN t.escalation AND array_position(t.ladder, p_from) >= array_position(t.ladder, t.target) THEN p_from\n", "")),
+    ("M140", "a step off the ladder stays there (r2 item 6)", "E2b4",
+     rep("                WHEN t.escalation AND array_position(t.ladder, p_from) >= array_position(t.ladder, t.target) THEN p_from\n",
+         "                WHEN t.escalation AND coalesce(array_position(t.ladder, p_from) >= array_position(t.ladder, t.target), true) THEN p_from\n")),
+    ("M141", "a penalty charge needs no decision (r2 item 7)", "R7a",
+     rep("    IF (NEW.charge_type IN ('late_fee', 'penalty')) <> (NEW.collections_decision_id IS NOT NULL) THEN",
+         "    IF (NEW.charge_type = 'late_fee') <> (NEW.collections_decision_id IS NOT NULL) THEN")),
+    ("M142", "a bare late-fee line on a bill (r2 item 7)", "R7b",
+     rep("    IF NEW.charge_type IN ('late_fee', 'penalty') AND NOT EXISTS (", "    IF false AND NOT EXISTS (")),
+    ("M143", "a late-fee line naming an ungated charge (r2 item 7)", "R7c",
+     rep("            WHERE c.id = NEW.adhoc_charge_id AND c.collections_decision_id IS NOT NULL\n", "            WHERE c.id = NEW.adhoc_charge_id\n")),
+    ("M144", "a late fee turned into another charge (r2 item 7)", "R7e",
+     rep("           OR (NEW.charge_type IN ('late_fee', 'penalty')) <> (OLD.charge_type IN ('late_fee', 'penalty')) THEN", "           THEN")),
+    ("M145", "a no-evidence approval named with evidence (r2 item 8)", "R8a",
+     rep("           OR (cardinality(NEW.evidence_refs) > 0 AND NEW.no_evidence_approval_id IS NOT NULL) THEN", "           THEN")),
+    ("M146", "a mismatch approval named on a match (r2 item 8)", "R8b",
+     rep("        IF (NEW.matched AND NEW.mismatch_approval_id IS NOT NULL)\n           OR", "        IF false\n           OR")),
+    ("M147", "an execution dated before its order (r2 item 9)", "R9a",
+     rep("        IF NEW.arrived_at < o.created_at OR NEW.arrived_at < d.created_at OR NEW.arrived_at > pg_catalog.now() THEN",
+         "        IF NEW.arrived_at > pg_catalog.now() THEN")),
+    ("M148", "an execution dated in the future (r2 item 9)", "R9b",
+     rep("        IF NEW.arrived_at < o.created_at OR NEW.arrived_at < d.created_at OR NEW.arrived_at > pg_catalog.now() THEN",
+         "        IF NEW.arrived_at < o.created_at OR NEW.arrived_at < d.created_at THEN")),
+    ("M149", "a replica-mode load leaves the flag behind (r2 item 10)", "R10",
+     rep("ALTER TABLE public.customer_program_enrollments ENABLE ALWAYS TRIGGER enrollment_recompute_dnd;\n", "")),
+    ("M150", "the invariant reads no trigger's enabled state (r2 item 11)", "R11b",
+     rep("                        WHERE NOT t.tgisinternal AND t.tgenabled = 'A' AND pg_catalog.pg_get_triggerdef(t.oid) = d);",
+         "                        WHERE NOT t.tgisinternal AND pg_catalog.pg_get_triggerdef(t.oid) = d);")),
+    ("M151", "a later grant is caught when -26 applies (r2 item 11)", "APPLY:grants or row security",
+     tail("GRANT UPDATE ON public.collections_decisions TO tally_app;")),
+    ("M152", "an act on a void bill (r2 item 12)", "R12b",
+     rep("        IF d.invoice_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.invoices i WHERE i.id = d.invoice_id AND i.status = 'void') THEN",
+         "        IF false THEN")),
+    ("M153", "a blank capture (r2 item 13)", "R13",
+     rep("        IF NOT coalesce(NEW.captured_meter_serial ~ '[[:alnum:]]' AND NEW.captured_location_number ~ '[[:alnum:]]', false) THEN",
+         "        IF NEW.captured_meter_serial IS NULL OR NEW.captured_location_number IS NULL THEN")),
+    ("M154", "one disconnection on one bill only (r2 item 14)", "R14a",
+     rep("ON public.dunning_events (collections_decision_id, invoice_id) WHERE collections_decision_id IS NOT NULL;",
+         "ON public.dunning_events (collections_decision_id) WHERE collections_decision_id IS NOT NULL;")),
+    ("M155", "a late fee logged on a void charge (r2 item 15)", "R15",
+     rep(" AND c.status NOT IN ('void', 'waived', 'void_pending_rebill')))", "))")),
 ]
 
 
@@ -388,6 +452,12 @@ def main() -> int:
         ran += 1
         try:
             patched = mut(base)
+            # r2: -26's guard invariant pins every function body and would
+            # refuse every behavioural mutation at apply. Such a mutation drops
+            # that one call; the battery's R11a still runs it, after the named
+            # checks, so a mutation only the invariant catches is missed.
+            if not check.startswith("APPLY"):
+                patched = patched.replace("    PERFORM public.assert_collections_guard_invariants();\n", "", 1)
         except AssertionError as exc:
             print(f"{mid} ANCHOR-ERROR: {exc}")
             missed += 1
@@ -426,7 +496,10 @@ def main() -> int:
         first = re.sub(r"^psql:[^:]+:\d+: ", "", first)[:160]
         # The first line that reports any failure, infrastructure errors included, must be the named check's.
         fails = [re.sub(r"^.*?(FAIL )", r"\1", l) for l in text.splitlines() if re.search(r"\bFAIL\b|ERROR|FATAL|PANIC", l)]
-        if fails and re.match(rf"FAIL {re.escape(name)}[:\s]", fails[0]):
+        # r2 (Codex S3, race-catch-names-its-damage): a race leg that failed
+        # for want of a lock wait or because session A failed is not a catch.
+        infra = bool(fails) and re.search(r"session A itself failed|never seen waiting", fails[0])
+        if fails and re.match(rf"FAIL {re.escape(name)}[:\s]", fails[0]) and not infra:
             print(f"{mid} caught at {check}: {what}")
         else:
             print(f"{mid} MISSED ({check}): {what}  [first: {first}]")

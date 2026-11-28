@@ -11,7 +11,10 @@
 --              CI-075, and CI-070's link to the decision.
 -- Spec:        application/wave3-build-2026-10-18/v5.4.2-26-design.md (C, E,
 --              F; lock order; "Tests as written") and source-inventory-
---              wave3.md (E, F).
+--              wave3.md (E, F). r2: v5.4.2-26-r2-plan.md (round 1's findings,
+--              Opus, Fable and Codex; Ryan 2026-11-22: a penalty every month
+--              a bill stays unpaid; 2026-11-05 R-12; 2026-11-07 the Tally
+--              User).
 -- Builds on:   v5.4.2-25 (pending_dispute no longer protective), v5.4.2-23
 --              (invoices' (id, tenant_id, customer_id) key), v5.4.2-13
 --              (session_is_supervisor), meter_deployments. Mirrors only after
@@ -80,8 +83,9 @@
 --     supervisor's no-evidence approval [F2c], each of its own order and
 --     kind [F3d]; under a mismatch approval it captures what the approved
 --     visit saw [F3c]. One execution per order.
---   * service_order_field_approvals (add-only): by a supervisor's session
---     [F3a], stamped approved_by; for a disconnect order, a mismatch approval
+--   * service_order_field_approvals (add-only): by a tenant_admin of the
+--     order's own utility [F3a] (r2: never a platform administrator as
+--     themselves), stamped approved_by; for a disconnect order, a mismatch approval
 --     naming its aborted unmatched visit with an evidence reference, a
 --     no-evidence approval naming none [F3b].
 --   * A disconnect order: born citing its order decision, never completed
@@ -89,12 +93,38 @@
 --     completed only with an executed visit [F4b], and then for good [F4c];
 --     once executed, only completed [F4d].
 --
+--   r2 (round 1's findings; plan items 1-15)
+--   * An act is refused while any live decision for the same act at its
+--     location that covers it — the location-wide one, or its meter's — is
+--     blocked or unevaluable [A10]; a bill act's bill is not void [A11], nor a
+--     decision's [C3b].
+--   * An execution cites a decision for its order's customer [A5]; is dated
+--     no earlier than its order and decision were recorded, nor in the future
+--     [F2f]; captures values with an alphanumeric character [F2e]; names no
+--     approval it does not need [F3e].
+--   * A disconnect order's status changes only under READ COMMITTED [F4f].
+--   * The stage a step moves from is the bill's latest stage-moving event's
+--     (record_seq), not the projection, so one statement may record several;
+--     escalation steps move a bill only forward (a repeat late fee or a
+--     reminder leaves a bill further along where it is; settled by rule).
+--   * A late fee is gated under either charge type (late_fee, penalty), and
+--     reaches a bill only as the line of its gated charge; a log line needs
+--     a standing charge.
+--   * One dunning step per decision and bill (a disconnection is logged on
+--     each bill of its customer).
+--   * The approver is an active tenant_admin of the order's own utility —
+--     Tally staff through its Tally User, never as themselves; created_by and
+--     approved_by are keyed with tenant_id.
+--   * enrollment_recompute_dnd runs ALWAYS (a replica-mode load recomputes).
+--   * assert_collections_guard_invariants(), and every earlier patch's.
+--
 -- ----------------------------------------------------------------------------
 -- Lock order and isolation (a rule)
 -- ----------------------------------------------------------------------------
 --   A write takes, in this order:
 --     1. the subject's advisory lock (collections_subject_lock), keyed by
---        (tenant, act, customer, bill, location, meter): a decision takes its
+--        (tenant, act, customer, bill, location) — not the meter: a
+--        location's subjects share one lock (r2) — a decision takes its
 --        own; an act citing a decision takes that decision's (read from the
 --        decision, which is written once);
 --     2. a dunning event, its bill's row (FOR NO KEY UPDATE); a visit, its
@@ -108,7 +138,13 @@
 -- Residuals (left on purpose)
 -- ----------------------------------------------------------------------------
 --   R1. Act dates are UTC dates (as -23 reads escheatment_events.event_date):
---       an act late on a Texas evening falls on the next day's date.
+--       an act late on a Texas evening falls on the next day's date, and
+--       (r2, Fable S7) an execute decision written on a Texas evening is for
+--       the next UTC day, so it covers the next working day's visits on the
+--       evening's facts. No utility time zone is held for every tenant; the
+--       core writes an execute decision on the utility's local day of the
+--       visit, after that day's weather check (a contract at the mirror).
+--       adhoc_charges.effective_date defaults to the session's day.
 --   R2. Rule citations wait for wave 7's collections rule tables; until then
 --       a decision records the rule versions it read in its inputs, under
 --       its fingerprint and calculated_by.
@@ -117,13 +153,25 @@
 --       owes Craft due process, the window an eligible decision holds.
 --   R5. The do_not_disconnect and dunning_stage fences are trigger-depth
 --       fences: they hold while tally_app can define no code (TEMP revoked).
+--   R6. (r2) A bill's stage follows the order steps are recorded in, not
+--       their event dates; and ungated steps (payment plan, written off,
+--       resolved) move it on the core's word, with no record behind them.
+--   R7. (r2, Opus N2-N5) What the database does not judge: an eligible
+--       disconnect for a customer whose do_not_disconnect is set (not every
+--       protective program is absolute: the core's); the length of an
+--       eligible window (only an execute decision is bounded, to its day);
+--       ending an enrollment, which lifts the protection, is an operator's
+--       act on the enrollment table (R-38's supervisor rule there is a later
+--       patch's); credit reporting has no table yet, so no gate.
 --
--- Tests. battery-26 (202 checks), races/collections-26.sh (CR1-CR8, 11
---   results), migration-26.py (P0-P7), mutations-26.py (127 of 127 caught).
+-- Tests. battery-26 (249 checks), races/collections-26.sh (CR1-CR8c, 13
+--   results), migration-26.py (P0-P7), mutations-26.py (152 mutations),
+--   fill-manifest.py (the invariant's lists). battery-21's late-fee line
+--   now bills a gated charge.
 --
 -- PRECONDITION. v5.4.2-25 applied. No dunning event, no bill past stage
---   current or with a late fee recorded on it, no late-fee charge, no
---   disconnect order, and no customer whose do_not_disconnect disagrees with
+--   current or with a late fee recorded on it, no late-fee or penalty charge
+--   or bill line, no disconnect order, and no customer whose do_not_disconnect disagrees with
 --   their enrollments. Applied by a superuser, under READ COMMITTED. A second
 --   run finds collections_decisions and skips the whole patch (psql's \if).
 -- ============================================================================
@@ -158,10 +206,16 @@ BEGIN
             MESSAGE = format('v5.4.2-26 drops invoices.late_fee_assessed and late_fee_amount (a bill''s late fees are its late_fee charges): bill %s records a late fee. Record it as a charge first (DEPLOY-VERIFICATION -26)', v_id),
             ERRCODE = 'object_not_in_prerequisite_state';
     END IF;
-    SELECT c.id INTO v_id FROM public.adhoc_charges c WHERE c.charge_type = 'late_fee' ORDER BY c.id LIMIT 1;
+    SELECT c.id INTO v_id FROM public.adhoc_charges c WHERE c.charge_type IN ('late_fee', 'penalty') ORDER BY c.id LIMIT 1;
     IF v_id IS NOT NULL THEN
         RAISE EXCEPTION USING
-            MESSAGE = format('v5.4.2-26: late-fee charge %s cites no collections decision. Settle it first (DEPLOY-VERIFICATION -26)', v_id),
+            MESSAGE = format('v5.4.2-26: late-fee or penalty charge %s cites no collections decision. Settle it first (DEPLOY-VERIFICATION -26)', v_id),
+            ERRCODE = 'object_not_in_prerequisite_state';
+    END IF;
+    SELECT l.id INTO v_id FROM public.invoice_line_items l WHERE l.charge_type IN ('late_fee', 'penalty') ORDER BY l.id LIMIT 1;
+    IF v_id IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('v5.4.2-26: bill line %s is a late fee or penalty that bills no gated charge. Settle it first (DEPLOY-VERIFICATION -26)', v_id),
             ERRCODE = 'object_not_in_prerequisite_state';
     END IF;
     SELECT o.id INTO v_id FROM public.service_orders o WHERE o.order_type = 'disconnect' ORDER BY o.id LIMIT 1;
@@ -264,7 +318,7 @@ CREATE TABLE public.collections_decisions (
     CONSTRAINT collections_decisions_meter_fkey FOREIGN KEY (meter_id, tenant_id) REFERENCES public.meters (id, tenant_id),
     CONSTRAINT collections_decisions_supersedes_fkey FOREIGN KEY (supersedes_id, tenant_id, customer_id)
         REFERENCES public.collections_decisions (id, tenant_id, customer_id),
-    CONSTRAINT collections_decisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),
+    CONSTRAINT collections_decisions_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT collections_decisions_act_check
         CHECK (act = ANY (ARRAY['notice', 'late_fee', 'disconnect_order', 'disconnect_execute', 'collections_referral'])),
     CONSTRAINT collections_decisions_outcome_check CHECK (outcome = ANY (ARRAY['eligible', 'blocked', 'unevaluable'])),
@@ -331,13 +385,15 @@ BEGIN
             MESSAGE = format('%s runs only under READ COMMITTED: the subject''s lock serializes its decisions and acts, and only READ COMMITTED reads what a writer it waited for committed (v5.4.2-26)', p_what),
             ERRCODE = 'invalid_transaction_state';
     END IF;
+    -- r2 (Opus B2): the meter is not in the key. Every subject at one
+    -- location (the location-wide one and each meter's) shares one lock, so an
+    -- act reads all their live decisions with none in flight.
     PERFORM pg_advisory_xact_lock(hashtextextended(concat_ws('/', 'collections', p_tenant_id, p_act, p_customer_id,
-                                                             coalesce(p_invoice_id::text, '-'), coalesce(p_location_id::text, '-'),
-                                                             coalesce(p_meter_id::text, '-')), 0));
+                                                             coalesce(p_invoice_id::text, '-'), coalesce(p_location_id::text, '-')), 0));
 END;
 $$;
 COMMENT ON FUNCTION public.collections_subject_lock(uuid, text, uuid, uuid, uuid, uuid, text) IS
-    'v5.4.2-26. Refuses outside READ COMMITTED (25000); takes the advisory lock of a collections subject (tenant, act, customer, bill, location, meter), held to commit: the mutex its decisions and the acts citing them share.';
+    'v5.4.2-26. Refuses outside READ COMMITTED (25000); takes the advisory lock of a collections subject (tenant, act, customer, bill, location), held to commit: the mutex its decisions and the acts citing them share. The meter is not in the key: a location''s subjects, with and without a meter, share one lock (p_meter_id is accepted and ignored).';
 REVOKE ALL ON FUNCTION public.collections_subject_lock(uuid, text, uuid, uuid, uuid, uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.collections_subject_lock(uuid, text, uuid, uuid, uuid, uuid, text) TO tally_app;
 
@@ -371,7 +427,9 @@ CREATE OR REPLACE FUNCTION public.collections_act_check(p_decision_id uuid, p_ac
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    d public.collections_decisions%ROWTYPE;
+    d       public.collections_decisions%ROWTYPE;
+    v_meter uuid;
+    v_bad   text;
 BEGIN
     SELECT * INTO d FROM public.collections_decisions x WHERE x.id = p_decision_id;
     IF NOT FOUND THEN
@@ -414,11 +472,37 @@ BEGIN
             MESSAGE = format('%s: dated %s, outside decision %s''s window %s to %s [A6] (v5.4.2-26)', p_what, p_on, d.id, d.evaluation_date, d.valid_until),
             ERRCODE = 'check_violation';
     END IF;
+    IF p_live THEN
+        -- A10 (r2, Opus B2; fail toward protection): no live decision at the
+        -- location that covers this act — the location-wide one, or one for
+        -- the act's meter — is blocked or unevaluable. All share the lock taken.
+        IF d.location_id IS NOT NULL THEN
+            v_meter := coalesce(p_meter_id, d.meter_id);
+            SELECT string_agg(format('%s (%s%s)', l.id, l.outcome, coalesce(', meter ' || l.meter_id, ', the whole location')), '; ' ORDER BY l.id) INTO v_bad
+              FROM (SELECT DISTINCT ON (x.meter_id) x.* FROM public.collections_decisions x
+                     WHERE x.tenant_id = d.tenant_id AND x.act = d.act AND x.customer_id = d.customer_id
+                       AND x.invoice_id IS NOT DISTINCT FROM d.invoice_id AND x.location_id = d.location_id
+                     ORDER BY x.meter_id, x.record_seq DESC) l
+             WHERE l.outcome <> 'eligible' AND (l.meter_id IS NULL OR v_meter IS NULL OR l.meter_id = v_meter);
+            IF v_bad IS NOT NULL THEN
+                RAISE EXCEPTION USING
+                    MESSAGE = format('%s: decision %s is eligible, but the live decision for the same act at location %s covering it is not: %s — a block at the location binds every meter there [A10] (v5.4.2-26)',
+                                     p_what, d.id, d.location_id, v_bad),
+                    ERRCODE = 'check_violation';
+            END IF;
+        END IF;
+        -- A11 (r2, Opus S6): a bill act's bill is not void.
+        IF d.invoice_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.invoices i WHERE i.id = d.invoice_id AND i.status = 'void') THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('%s: bill %s is void — no collections act rests on it [A11] (v5.4.2-26)', p_what, d.invoice_id),
+                ERRCODE = 'check_violation';
+        END IF;
+    END IF;
     RETURN d;
 END;
 $$;
 COMMENT ON FUNCTION public.collections_act_check(uuid, text, uuid, uuid, uuid, date, boolean, text) IS
-    'v5.4.2-26 (C7). For an act citing a decision: reads the decision, takes its subject''s lock (READ COMMITTED), then refuses unless it decides this act [A2], is eligible [A3], is live when p_live [A4], is about this bill (a bill act) or this location and meter (a disconnect act, when given) [A5], and its window covers p_on [A6]. Returns the decision. The customer is the citing row''s composite key''s to bind.';
+    'v5.4.2-26 (C7). For an act citing a decision: reads the decision, takes its subject''s lock (READ COMMITTED; one lock per location, every meter''s subject included), then refuses unless it decides this act [A2], is eligible [A3], is live when p_live [A4], is about this bill (a bill act) or this location and meter (a disconnect act, when given) [A5], and its window covers p_on [A6]; when p_live (the act itself, not a log line), also unless every live decision for the same act at the location that covers the act (the location-wide one, and the one for its meter) is eligible [A10], and a bill act''s bill is not void [A11]. Returns the decision. The customer is the caller''s to compare where its row''s keys do not bind it (a field visit).';
 REVOKE ALL ON FUNCTION public.collections_act_check(uuid, text, uuid, uuid, uuid, date, boolean, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.collections_act_check(uuid, text, uuid, uuid, uuid, date, boolean, text) TO tally_app;
 
@@ -461,9 +545,9 @@ BEGIN
     -- customer's are the composite keys' to refuse.
     IF NEW.invoice_id IS NOT NULL THEN
         SELECT i.status, i.location_id INTO v_status, v_bill_loc FROM public.invoices i WHERE i.id = NEW.invoice_id;
-        IF FOUND AND NOT public.is_invoice_issued(v_status) THEN
+        IF FOUND AND (NOT public.is_invoice_issued(v_status) OR v_status = 'void') THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('collections decision: bill %s is %s — collections decides on issued bills only [C3b] (v5.4.2-26)', NEW.invoice_id, v_status),
+                MESSAGE = format('collections decision: bill %s is %s — collections decides on issued bills only, never a void one [C3b] (v5.4.2-26)', NEW.invoice_id, v_status),
                 ERRCODE = 'check_violation';
         END IF;
     END IF;
@@ -593,7 +677,7 @@ CREATE TABLE public.service_order_field_visits (
     CONSTRAINT service_order_field_visits_id_tenant_id_key UNIQUE (id, tenant_id),
     CONSTRAINT service_order_field_visits_order_fkey FOREIGN KEY (service_order_id, tenant_id) REFERENCES public.service_orders (id, tenant_id),
     CONSTRAINT service_order_field_visits_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id) REFERENCES public.collections_decisions (id, tenant_id),
-    CONSTRAINT service_order_field_visits_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users (id),
+    CONSTRAINT service_order_field_visits_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT service_order_field_visits_outcome_check
         CHECK (outcome = ANY (ARRAY['executed', 'aborted'])
                AND (outcome = 'aborted') = (abort_reason IS NOT NULL)
@@ -616,13 +700,13 @@ CREATE TABLE public.service_order_field_approvals (
     visit_id            uuid,
     reason_code         text NOT NULL,
     evidence_ref        text,
-    approved_by         uuid,
+    approved_by         uuid NOT NULL,
     created_at          timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT service_order_field_approvals_pkey PRIMARY KEY (id),
     CONSTRAINT service_order_field_approvals_id_tenant_id_key UNIQUE (id, tenant_id),
     CONSTRAINT service_order_field_approvals_order_fkey FOREIGN KEY (service_order_id, tenant_id) REFERENCES public.service_orders (id, tenant_id),
     CONSTRAINT service_order_field_approvals_visit_fkey FOREIGN KEY (visit_id, tenant_id) REFERENCES public.service_order_field_visits (id, tenant_id),
-    CONSTRAINT service_order_field_approvals_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users (id),
+    CONSTRAINT service_order_field_approvals_approved_by_fkey FOREIGN KEY (approved_by, tenant_id) REFERENCES public.users (id, tenant_id),
     CONSTRAINT service_order_field_approvals_kind_check CHECK (kind = ANY (ARRAY['meter_mismatch', 'no_evidence'])),
     CONSTRAINT service_order_field_approvals_reason_code_check CHECK (reason_code ~ '^[a-z][a-z0-9_]*$')
 );
@@ -662,6 +746,8 @@ END $$;
 -- 6. The acts' columns and keys (C7, E1)
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.dunning_events ADD COLUMN collections_decision_id uuid;
+-- r2 (Codex B2): the recording order of a bill's events, by the database.
+ALTER TABLE public.dunning_events ADD COLUMN record_seq bigint;
 -- One composite key binds the bill, its tenant and its customer (E1); the
 -- name is kept (-19's check reads it: no cascade).
 ALTER TABLE public.dunning_events DROP CONSTRAINT dunning_events_invoice_id_fkey;
@@ -669,9 +755,13 @@ ALTER TABLE public.dunning_events
     ADD CONSTRAINT dunning_events_invoice_id_fkey FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES public.invoices (id, tenant_id, customer_id),
     ADD CONSTRAINT dunning_events_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id, customer_id)
         REFERENCES public.collections_decisions (id, tenant_id, customer_id);
-CREATE UNIQUE INDEX dunning_events_one_per_decision ON public.dunning_events (collections_decision_id) WHERE collections_decision_id IS NOT NULL;
+-- r2 (Fable S2): one step per decision and bill — a disconnection reaches
+-- every bill of its customer that it rests on; a notice, a late fee and a
+-- referral have one bill each.
+CREATE UNIQUE INDEX dunning_events_one_per_decision ON public.dunning_events (collections_decision_id, invoice_id) WHERE collections_decision_id IS NOT NULL;
+CREATE INDEX idx_dunning_events_bill_seq ON public.dunning_events (invoice_id, record_seq);
 COMMENT ON COLUMN public.dunning_events.collections_decision_id IS
-    'v5.4.2-26 (C7). The decision a gated step cites — shutoff_notice_sent (notice), late_fee_applied (late_fee), shutoff_scheduled (disconnect_order), disconnected (disconnect_execute), sent_to_collections (collections_referral) — and only those. A notice or a referral is the act: the live decision. A late fee, a scheduled shutoff and a disconnection are logged here after their own record (the charge, the order, the executed visit) cites the decision. One step per decision.';
+    'v5.4.2-26 (C7). The decision a gated step cites — shutoff_notice_sent (notice), late_fee_applied (late_fee), shutoff_scheduled (disconnect_order), disconnected (disconnect_execute), sent_to_collections (collections_referral) — and only those. A notice or a referral is the act: the live decision. A late fee, a scheduled shutoff and a disconnection are logged here after their own record (the charge, the order, the executed visit) cites the decision. One step per decision and bill (a disconnection is logged on each bill of its customer it rests on).';
 
 ALTER TABLE public.adhoc_charges ADD COLUMN collections_decision_id uuid;
 ALTER TABLE public.adhoc_charges
@@ -707,21 +797,36 @@ COMMENT ON FUNCTION public.collections_dunning_act(text) IS
 REVOKE ALL ON FUNCTION public.collections_dunning_act(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.collections_dunning_act(text) TO tally_app, tally_core;
 
--- The stage a dunning step moves its bill to (E2); NULL moves nothing.
-CREATE OR REPLACE FUNCTION public.collections_dunning_stage(p_event_type text) RETURNS text
+-- The stage a dunning step moves its bill to from the stage it is at (E2);
+-- NULL moves nothing. r2 (Opus S1, Fable S1, Codex N2; settled by rule, plan
+-- r2 item 6): the escalation steps move a bill only forward along the
+-- ladder current -> reminder_sent -> late_fee_assessed -> shutoff_warning ->
+-- shutoff_scheduled -> disconnected -> collections, so a repeat late fee
+-- (a monthly penalty, Ryan 2026-11-22) or a later reminder leaves a bill
+-- further along where it is. From a stage off the ladder (payment_plan,
+-- resolved, written_off) an escalation step moves it to the step's stage:
+-- collections resumed. A plan, a write-off and a resolution move as named.
+CREATE OR REPLACE FUNCTION public.collections_dunning_stage(p_event_type text, p_from text) RETURNS text
     LANGUAGE sql IMMUTABLE
     SET search_path = public, pg_temp
     AS $$
-    SELECT CASE p_event_type WHEN 'reminder_sent' THEN 'reminder_sent' WHEN 'late_fee_applied' THEN 'late_fee_assessed'
-                             WHEN 'shutoff_notice_sent' THEN 'shutoff_warning' WHEN 'shutoff_scheduled' THEN 'shutoff_scheduled'
-                             WHEN 'disconnected' THEN 'disconnected' WHEN 'payment_plan_created' THEN 'payment_plan'
-                             WHEN 'sent_to_collections' THEN 'collections' WHEN 'written_off' THEN 'written_off'
-                             WHEN 'resolved' THEN 'resolved' END
+    WITH t AS (
+        SELECT CASE p_event_type WHEN 'reminder_sent' THEN 'reminder_sent' WHEN 'late_fee_applied' THEN 'late_fee_assessed'
+                                 WHEN 'shutoff_notice_sent' THEN 'shutoff_warning' WHEN 'shutoff_scheduled' THEN 'shutoff_scheduled'
+                                 WHEN 'disconnected' THEN 'disconnected' WHEN 'payment_plan_created' THEN 'payment_plan'
+                                 WHEN 'sent_to_collections' THEN 'collections' WHEN 'written_off' THEN 'written_off'
+                                 WHEN 'resolved' THEN 'resolved' END AS target,
+               p_event_type IN ('reminder_sent', 'late_fee_applied', 'shutoff_notice_sent', 'shutoff_scheduled', 'disconnected', 'sent_to_collections') AS escalation,
+               ARRAY['current', 'reminder_sent', 'late_fee_assessed', 'shutoff_warning', 'shutoff_scheduled', 'disconnected', 'collections'] AS ladder)
+    SELECT CASE WHEN t.target IS NULL THEN NULL
+                WHEN t.escalation AND array_position(t.ladder, p_from) >= array_position(t.ladder, t.target) THEN p_from
+                ELSE t.target END
+      FROM t
 $$;
-COMMENT ON FUNCTION public.collections_dunning_stage(text) IS
-    'v5.4.2-26 (E2). The dunning stage a step moves its bill to; reconnected and payment_plan_broken move none (no source says which stage follows them; residual R3).';
-REVOKE ALL ON FUNCTION public.collections_dunning_stage(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.collections_dunning_stage(text) TO tally_app, tally_core;
+COMMENT ON FUNCTION public.collections_dunning_stage(text, text) IS
+    'v5.4.2-26 (E2). The dunning stage a step moves its bill to from p_from: an escalation step (reminder, late fee, shutoff notice, shutoff scheduled, disconnected, referral) moves only forward along current -> reminder_sent -> late_fee_assessed -> shutoff_warning -> shutoff_scheduled -> disconnected -> collections (a repeat step on a bill further along leaves it there); from payment_plan, resolved or written_off it moves to the step''s stage; payment_plan_created, written_off and resolved move as named; reconnected and payment_plan_broken move none (no source says which stage follows them; residual R3).';
+REVOKE ALL ON FUNCTION public.collections_dunning_stage(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.collections_dunning_stage(text, text) TO tally_app, tally_core;
 
 CREATE OR REPLACE FUNCTION public.enforce_dunning_event() RETURNS trigger
     LANGUAGE plpgsql
@@ -729,7 +834,7 @@ CREATE OR REPLACE FUNCTION public.enforce_dunning_event() RETURNS trigger
     AS $$
 DECLARE
     v_act   text := public.collections_dunning_act(NEW.event_type);
-    v_new   text := public.collections_dunning_stage(NEW.event_type);
+    v_new   text;
     v_prev  text;
     v_log   boolean := NEW.event_type IN ('late_fee_applied', 'shutoff_scheduled', 'disconnected');
     d       public.collections_decisions%ROWTYPE;
@@ -745,21 +850,31 @@ BEGIN
                                           (NEW.event_date AT TIME ZONE 'UTC')::date, NOT v_log, 'dunning event ' || NEW.event_type);
         -- A8 a log line needs the act's own record.
         IF (NEW.event_type = 'late_fee_applied'
-              AND NOT EXISTS (SELECT 1 FROM public.adhoc_charges c WHERE c.collections_decision_id = d.id))
+              AND NOT EXISTS (SELECT 1 FROM public.adhoc_charges c WHERE c.collections_decision_id = d.id AND c.status NOT IN ('void', 'waived', 'void_pending_rebill')))
            OR (NEW.event_type = 'shutoff_scheduled'
               AND NOT EXISTS (SELECT 1 FROM public.service_orders o WHERE o.collections_decision_id = d.id))
            OR (NEW.event_type = 'disconnected'
               AND NOT EXISTS (SELECT 1 FROM public.service_order_field_visits v WHERE v.collections_decision_id = d.id)) THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('dunning event: %s logs an act, and no %s cites decision %s [A8] (v5.4.2-26)', NEW.event_type,
-                                 CASE NEW.event_type WHEN 'late_fee_applied' THEN 'late-fee charge' WHEN 'shutoff_scheduled' THEN 'disconnect order'
+                                 CASE NEW.event_type WHEN 'late_fee_applied' THEN 'standing (not void or waived) late-fee charge' WHEN 'shutoff_scheduled' THEN 'disconnect order'
                                                      ELSE 'executed field visit' END, d.id),
                 ERRCODE = 'check_violation';
         END IF;
     END IF;
 
-    -- E2 the stage: the bill's row is the stage's lock.
-    SELECT i.dunning_stage INTO v_prev FROM public.invoices i WHERE i.id = NEW.invoice_id FOR NO KEY UPDATE;
+    -- E2 the stage: the bill's row is the stage's lock. The stage it is at is
+    -- the latest stage-moving event's, read from the events (r2, Codex B2):
+    -- the projection on the bill moves in an AFTER trigger, which an earlier
+    -- row of the same statement has not yet run; the events it has inserted
+    -- are visible here.
+    PERFORM 1 FROM public.invoices i WHERE i.id = NEW.invoice_id FOR NO KEY UPDATE;
+    SELECT e.new_stage INTO v_prev FROM public.dunning_events e
+     WHERE e.invoice_id = NEW.invoice_id AND e.new_stage IS NOT NULL
+     ORDER BY e.record_seq DESC LIMIT 1;
+    v_prev := coalesce(v_prev, 'current');
+    v_new  := public.collections_dunning_stage(NEW.event_type, v_prev);
+    NEW.record_seq := nextval('public.collections_record_seq');
     IF v_new IS NULL THEN
         IF NEW.new_stage IS NOT NULL OR NEW.previous_stage IS NOT NULL THEN
             RAISE EXCEPTION USING
@@ -843,17 +958,20 @@ CREATE OR REPLACE FUNCTION public.enforce_adhoc_charge_decision() RETURNS trigge
 BEGIN
     IF TG_OP = 'UPDATE' THEN
         IF NEW.collections_decision_id IS DISTINCT FROM OLD.collections_decision_id
-           OR (OLD.collections_decision_id IS NOT NULL AND NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id) THEN
+           OR (OLD.collections_decision_id IS NOT NULL AND NEW.triggered_by_invoice_id IS DISTINCT FROM OLD.triggered_by_invoice_id)
+           OR (NEW.charge_type IN ('late_fee', 'penalty')) <> (OLD.charge_type IN ('late_fee', 'penalty')) THEN
             RAISE EXCEPTION USING
-                MESSAGE = format('charge %s: a late fee''s decision and bill are written once [A9] (v5.4.2-26)', NEW.id),
+                MESSAGE = format('charge %s: a late fee''s decision and bill are written once, and no charge becomes or stops being a late fee [A9] (v5.4.2-26)', NEW.id),
                 ERRCODE = 'check_violation';
         END IF;
         RETURN NEW;
     END IF;
-    IF (NEW.charge_type = 'late_fee') <> (NEW.collections_decision_id IS NOT NULL) THEN
+    -- r2 (Opus S2, guard-the-act-not-the-label): a late fee is gated under
+    -- either name a charge can carry for it.
+    IF (NEW.charge_type IN ('late_fee', 'penalty')) <> (NEW.collections_decision_id IS NOT NULL) THEN
         RAISE EXCEPTION USING
             MESSAGE = format('charge %s: %s [A1] (v5.4.2-26)', NEW.charge_number,
-                             CASE WHEN NEW.charge_type = 'late_fee' THEN 'a late fee cites its late_fee decision' ELSE 'only a late fee cites a collections decision' END),
+                             CASE WHEN NEW.charge_type IN ('late_fee', 'penalty') THEN 'a late fee or penalty cites its late_fee decision' ELSE 'only a late fee or penalty cites a collections decision' END),
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.collections_decision_id IS NOT NULL THEN
@@ -864,11 +982,37 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_adhoc_charge_decision() IS
-    'v5.4.2-26 (C7). BEFORE INSERT OR UPDATE OF collections_decision_id, triggered_by_invoice_id on adhoc_charges: a late fee cites its decision and no other charge does [A1]; the decision is the live, eligible late_fee decision for the bill the charge names, covering its effective date (collections_act_check); once cited, the decision and the bill are written once [A9].';
+    'v5.4.2-26 (C7). BEFORE INSERT OR UPDATE OF collections_decision_id, triggered_by_invoice_id on adhoc_charges: a late fee or penalty (charge_type late_fee or penalty) cites its decision and no other charge does [A1]; the decision is the live, eligible late_fee decision for the bill the charge names, covering its effective date (collections_act_check); once cited, the decision and the bill are written once [A9].';
 REVOKE ALL ON FUNCTION public.enforce_adhoc_charge_decision() FROM PUBLIC, tally_app, tally_core;
-CREATE TRIGGER a_enforce_adhoc_charge_decision BEFORE INSERT OR UPDATE OF collections_decision_id, triggered_by_invoice_id ON public.adhoc_charges
+CREATE TRIGGER a_enforce_adhoc_charge_decision BEFORE INSERT OR UPDATE OF collections_decision_id, triggered_by_invoice_id, charge_type ON public.adhoc_charges
     FOR EACH ROW EXECUTE FUNCTION public.enforce_adhoc_charge_decision();
 ALTER TABLE public.adhoc_charges ENABLE ALWAYS TRIGGER a_enforce_adhoc_charge_decision;
+
+-- r2 (Opus S2, Fable note): a late fee reaches a bill only as the line of
+-- its late-fee charge, never as a bare line.
+CREATE OR REPLACE FUNCTION public.enforce_late_fee_line() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = public, pg_temp
+    AS $$
+BEGIN
+    IF NEW.charge_type IN ('late_fee', 'penalty') AND NOT EXISTS (
+           SELECT 1 FROM public.adhoc_charges c JOIN public.invoices i ON i.id = NEW.invoice_id
+            WHERE c.id = NEW.adhoc_charge_id AND c.collections_decision_id IS NOT NULL
+              AND c.tenant_id = NEW.tenant_id AND c.customer_id = i.customer_id) THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format('bill line on bill %s: a %s line bills its late-fee charge (adhoc_charge_id), which cites its late_fee decision; %s does not [A1] (v5.4.2-26)',
+                             NEW.invoice_id, NEW.charge_type, coalesce(NEW.adhoc_charge_id::text, 'no charge')),
+            ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.enforce_late_fee_line() IS
+    'v5.4.2-26 (C7, r2). BEFORE INSERT OR UPDATE OF charge_type, adhoc_charge_id, invoice_id on invoice_line_items: a late_fee or penalty line names its late-fee charge (adhoc_charge_id), one of the bill''s customer that cites a late_fee decision [A1]. A late fee reaches a bill only through its gated charge.';
+REVOKE ALL ON FUNCTION public.enforce_late_fee_line() FROM PUBLIC, tally_app, tally_core;
+CREATE TRIGGER a_enforce_late_fee_line BEFORE INSERT OR UPDATE OF charge_type, adhoc_charge_id, invoice_id ON public.invoice_line_items
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_late_fee_line();
+ALTER TABLE public.invoice_line_items ENABLE ALWAYS TRIGGER a_enforce_late_fee_line;
 
 
 -- ----------------------------------------------------------------------------
@@ -910,6 +1054,14 @@ BEGIN
             ERRCODE = 'check_violation';
     END IF;
     IF NEW.order_type = 'disconnect' AND NEW.status IS DISTINCT FROM OLD.status THEN
+        -- r2 (Fable B1, Opus B3, Codex B3): the check for an executed visit
+        -- below must read what a visit it waited for committed — only READ
+        -- COMMITTED does. A visit holds the order FOR SHARE until it commits.
+        IF current_setting('transaction_isolation') <> 'read committed' THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('service order %s: a disconnect order''s status changes only under READ COMMITTED, so it reads a field visit that just executed it [F4f] (v5.4.2-26)', NEW.order_number),
+                ERRCODE = 'invalid_transaction_state';
+        END IF;
         IF OLD.status = 'completed' THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('service order %s: a completed disconnect order stays completed [F4c] (v5.4.2-26)', NEW.order_number),
@@ -931,7 +1083,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_disconnect_order() IS
-    'v5.4.2-26 (C7, F4). BEFORE INSERT OR UPDATE on service_orders. Insert: a disconnect order cites its decision and no other order does [A1]; it is never born completed [F4e]; the decision is the live, eligible disconnect_order decision for its location (and meter, when the decision names one), covering the day it is recorded (collections_act_check). Update: the decision is written once, and a disconnect order''s type, customer, location and meter too — no order becomes or stops being one [F4a]; a completed disconnect order stays completed [F4c]; once a field visit executed it, it can only be completed [F4d]; it is completed only with an executed visit [F4b]. Dispatch moves before execution are free.';
+    'v5.4.2-26 (C7, F4). BEFORE INSERT OR UPDATE on service_orders. Insert: a disconnect order cites its decision and no other order does [A1]; it is never born completed [F4e]; the decision is the live, eligible disconnect_order decision for its location (and meter, when the decision names one), covering the day it is recorded (collections_act_check). Update: the decision is written once, and a disconnect order''s type, customer, location and meter too — no order becomes or stops being one [F4a]; a completed disconnect order stays completed [F4c]; once a field visit executed it, it can only be completed [F4d]; it is completed only with an executed visit [F4b]; a status change runs under READ COMMITTED (25000) [F4f]. Dispatch moves before execution are free.';
 REVOKE ALL ON FUNCTION public.enforce_disconnect_order() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER a_enforce_disconnect_order BEFORE INSERT OR UPDATE ON public.service_orders
     FOR EACH ROW EXECUTE FUNCTION public.enforce_disconnect_order();
@@ -947,6 +1099,7 @@ CREATE OR REPLACE FUNCTION public.enforce_field_visit() RETURNS trigger
     AS $$
 DECLARE
     o           public.service_orders%ROWTYPE;
+    d           public.collections_decisions%ROWTYPE;
     a           public.service_order_field_approvals%ROWTYPE;
     av          public.service_order_field_visits%ROWTYPE;
     v_on        date := (NEW.arrived_at AT TIME ZONE 'UTC')::date;
@@ -971,8 +1124,24 @@ BEGIN
                 MESSAGE = format('field visit: an execution of order %s cites its disconnect_execute decision [A1] (v5.4.2-26)', o.order_number),
                 ERRCODE = 'check_violation';
         END IF;
-        PERFORM public.collections_act_check(NEW.collections_decision_id, 'disconnect_execute', NULL, o.location_id, o.meter_id,
-                                             v_on, true, 'execution of order ' || o.order_number);
+        d := public.collections_act_check(NEW.collections_decision_id, 'disconnect_execute', NULL, o.location_id, o.meter_id,
+                                          v_on, true, 'execution of order ' || o.order_number);
+        -- r2 (Opus B1, Codex B1): the decision is for the order's customer.
+        -- The visit's keys bind the order and the decision to the tenant
+        -- only, and a location can change customer.
+        IF d.customer_id IS DISTINCT FROM o.customer_id THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('execution of order %s: decision %s is customer %s''s, the order customer %s''s [A5] (v5.4.2-26)', o.order_number, d.id, d.customer_id, o.customer_id),
+                ERRCODE = 'check_violation';
+        END IF;
+        -- r2 (Opus S3): an execution is not dated before its order or its
+        -- decision was recorded, nor in the future.
+        IF NEW.arrived_at < o.created_at OR NEW.arrived_at < d.created_at OR NEW.arrived_at > pg_catalog.now() THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('execution of order %s: arrived %s, before the order (%s) or its decision (%s) was recorded, or in the future [F2f] (v5.4.2-26)',
+                                 o.order_number, NEW.arrived_at, o.created_at, d.created_at),
+                ERRCODE = 'check_violation';
+        END IF;
     END IF;
     -- The order's row (FOR SHARE: a status update of the order waits for this
     -- visit, and this visit for it), then its status.
@@ -1009,9 +1178,17 @@ BEGIN
 
     -- F2, F3 an execution's needs.
     IF NEW.outcome = 'executed' THEN
-        IF NEW.captured_meter_serial IS NULL OR NEW.captured_location_number IS NULL THEN
+        -- r2 (Fable S3): a captured value has an alphanumeric character.
+        IF NOT coalesce(NEW.captured_meter_serial ~ '[[:alnum:]]' AND NEW.captured_location_number ~ '[[:alnum:]]', false) THEN
             RAISE EXCEPTION USING
                 MESSAGE = format('field visit: an execution of order %s records the serial and service point captured on site (CI-071) [F2e] (v5.4.2-26)', o.order_number),
+                ERRCODE = 'check_violation';
+        END IF;
+        -- r2 (Codex S1, Fable S6): an approval is named only where needed.
+        IF (NEW.matched AND NEW.mismatch_approval_id IS NOT NULL)
+           OR (cardinality(NEW.evidence_refs) > 0 AND NEW.no_evidence_approval_id IS NOT NULL) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = format('field visit: an execution of order %s names an approval it does not need (a mismatch approval on a match, or a no-evidence approval with evidence) [F3e] (v5.4.2-26)', o.order_number),
                 ERRCODE = 'check_violation';
         END IF;
         IF NOT NEW.matched THEN
@@ -1061,7 +1238,7 @@ BEGIN
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_field_visit() IS
-    'v5.4.2-26 (F1-F3; C7). BEFORE INSERT on service_order_field_visits: the writer''s own tenant; a disconnect order [F1a]; an execution cites its decision [A1], checked by collections_act_check against the order''s location and meter on the arrival''s UTC date (live, eligible, that day); then under the order''s row (FOR SHARE) the order is open [F1b]. Fills the expectation (the order''s location and number; its meter, or the one meter deployed there that day) and the match (both captured values, case and blanks aside, and the expected meter deployed there that day), overwriting any the caller gave; no blank evidence reference [F1e]. An execution captures both values [F2e]; on a mismatch it names a mismatch approval [F2b] of its order [F3d] and captures what the approved visit saw [F3c]; with no evidence, a no-evidence approval [F2c] of its order [F3d]. Stamps created_by and record_seq.';
+    'v5.4.2-26 (F1-F3; C7). BEFORE INSERT on service_order_field_visits: the writer''s own tenant; a disconnect order [F1a]; an execution cites its decision [A1], checked by collections_act_check against the order''s location and meter on the arrival''s UTC date (live, eligible, that day); then under the order''s row (FOR SHARE) the order is open [F1b]. Fills the expectation (the order''s location and number; its meter, or the one meter deployed there that day) and the match (both captured values, case and blanks aside, and the expected meter deployed there that day), overwriting any the caller gave; no blank evidence reference [F1e]. An execution captures both values, each with an alphanumeric character [F2e], cites a decision for the order''s customer [A5], and is dated no earlier than its order and its decision were recorded and not in the future [F2f]; on a mismatch it names a mismatch approval [F2b] of its order [F3d] and captures what the approved visit saw [F3c]; with no evidence, a no-evidence approval [F2c] of its order [F3d]; it names no approval it does not need [F3e]. Stamps created_by and record_seq.';
 REVOKE ALL ON FUNCTION public.enforce_field_visit() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_field_visit BEFORE INSERT ON public.service_order_field_visits FOR EACH ROW EXECUTE FUNCTION public.enforce_field_visit();
 ALTER TABLE public.service_order_field_visits ENABLE ALWAYS TRIGGER b_enforce_field_visit;
@@ -1071,13 +1248,22 @@ CREATE OR REPLACE FUNCTION public.enforce_field_approval() RETURNS trigger
     SET search_path = public, pg_temp
     AS $$
 DECLARE
-    o   public.service_orders%ROWTYPE;
-    v   public.service_order_field_visits%ROWTYPE;
+    o       public.service_orders%ROWTYPE;
+    v       public.service_order_field_visits%ROWTYPE;
+    v_user  uuid;
 BEGIN
     -- Another tenant's approval is row security's to refuse.
-    IF NOT public.session_is_supervisor() THEN
+    -- r2 (Opus B4, Fable S4, Codex S2; R-12, the Tally User ruling of
+    -- 2026-11-07): the approver is a tenant_admin of the order's own utility —
+    -- Tally staff act through that utility's Tally User, never as themselves.
+    BEGIN
+        v_user := NULLIF(current_setting('app.user_id', true), '')::uuid;
+    EXCEPTION WHEN OTHERS THEN
+        v_user := NULL;
+    END;
+    IF NOT EXISTS (SELECT 1 FROM public.users u WHERE u.id = v_user AND u.tenant_id = NEW.tenant_id AND u.role = 'tenant_admin' AND u.is_active) THEN
         RAISE EXCEPTION USING
-            MESSAGE = 'field approval: only a supervisor (tenant_admin or platform administrator) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)',
+            MESSAGE = 'field approval: only a supervisor of the order''s own utility (its tenant_admin, Tally staff through its Tally User) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)',
             ERRCODE = 'insufficient_privilege';
     END IF;
     SELECT * INTO o FROM public.service_orders x WHERE x.id = NEW.service_order_id;
@@ -1099,12 +1285,12 @@ BEGIN
             MESSAGE = 'field approval: a no-evidence approval names no visit [F3b] (v5.4.2-26)',
             ERRCODE = 'check_violation';
     END IF;
-    NEW.approved_by := NULLIF(current_setting('app.user_id', true), '')::uuid;
+    NEW.approved_by := v_user;
     RETURN NEW;
 END;
 $$;
 COMMENT ON FUNCTION public.enforce_field_approval() IS
-    'v5.4.2-26 (F3). BEFORE INSERT on service_order_field_approvals: the session is a supervisor (session_is_supervisor) [F3a]; the order is a disconnect; a mismatch approval names the aborted, unmatched visit of its order and an evidence reference; a no-evidence approval names no visit [F3b]. Stamps approved_by from the session (the caller''s value is overwritten).';
+    'v5.4.2-26 (F3). BEFORE INSERT on service_order_field_approvals: the session''s user (app.user_id) is an active tenant_admin of the order''s own utility [F3a] — a platform administrator acts through the utility''s Tally User (Ryan 2026-11-07), never as themselves; the order is a disconnect; a mismatch approval names the aborted, unmatched visit of its order and an evidence reference; a no-evidence approval names no visit [F3b]. Stamps approved_by from the session (the caller''s value is overwritten).';
 REVOKE ALL ON FUNCTION public.enforce_field_approval() FROM PUBLIC, tally_app, tally_core;
 CREATE TRIGGER b_enforce_field_approval BEFORE INSERT ON public.service_order_field_approvals FOR EACH ROW EXECUTE FUNCTION public.enforce_field_approval();
 ALTER TABLE public.service_order_field_approvals ENABLE ALWAYS TRIGGER b_enforce_field_approval;
@@ -1136,6 +1322,10 @@ REVOKE ALL ON FUNCTION public.enforce_do_not_disconnect_projection() FROM PUBLIC
 CREATE TRIGGER a_enforce_do_not_disconnect_projection BEFORE INSERT OR UPDATE OF do_not_disconnect ON public.customers
     FOR EACH ROW EXECUTE FUNCTION public.enforce_do_not_disconnect_projection();
 ALTER TABLE public.customers ENABLE ALWAYS TRIGGER a_enforce_do_not_disconnect_projection;
+-- r2 (Opus S4, Fable S5, Codex S4): the recompute runs on every load path,
+-- a replica-mode history load included, as the fence does; otherwise a load
+-- leaves the flag behind its enrollments and nothing may repair it.
+ALTER TABLE public.customer_program_enrollments ENABLE ALWAYS TRIGGER enrollment_recompute_dnd;
 COMMENT ON COLUMN public.customers.do_not_disconnect IS
     'Whether an active protective program enrollment covers the customer. v5.4.2-26: written only by recompute_do_not_disconnect from customer_program_enrollments; a direct write is refused. A collections decision cites it among its inputs; it is not itself an authorization.';
 
@@ -1143,7 +1333,161 @@ COMMENT ON COLUMN public.customers.do_not_disconnect IS
 -- ----------------------------------------------------------------------------
 -- 12. The invariants
 -- ----------------------------------------------------------------------------
+-- r2 (Opus S5): -26's own. Each list is the catalogue's own text of what
+-- -26 built (tests/v5.4.2-26/fill-manifest.py writes it); a later patch that
+-- drops, disables, loosens or regrants any of it fails here at apply.
+CREATE OR REPLACE FUNCTION public.assert_collections_guard_invariants() RETURNS void
+    LANGUAGE plpgsql STABLE
+    SET search_path = public, pg_temp
+    AS $fn$
+DECLARE
+    v_bad text;
+    c_triggers CONSTANT text[] := ARRAY[
+        -- @@TRIGGERS@@
+        'CREATE TRIGGER a_enforce_adhoc_charge_decision BEFORE INSERT OR UPDATE OF collections_decision_id, triggered_by_invoice_id, charge_type ON public.adhoc_charges FOR EACH ROW EXECUTE FUNCTION enforce_adhoc_charge_decision()',
+        'CREATE TRIGGER a_enforce_disconnect_order BEFORE INSERT OR UPDATE ON public.service_orders FOR EACH ROW EXECUTE FUNCTION enforce_disconnect_order()',
+        'CREATE TRIGGER a_enforce_do_not_disconnect_projection BEFORE INSERT OR UPDATE OF do_not_disconnect ON public.customers FOR EACH ROW EXECUTE FUNCTION enforce_do_not_disconnect_projection()',
+        'CREATE TRIGGER a_enforce_dunning_stage_projection BEFORE INSERT OR UPDATE OF dunning_stage ON public.invoices FOR EACH ROW EXECUTE FUNCTION enforce_dunning_stage_projection()',
+        'CREATE TRIGGER a_enforce_late_fee_line BEFORE INSERT OR UPDATE OF charge_type, adhoc_charge_id, invoice_id ON public.invoice_line_items FOR EACH ROW EXECUTE FUNCTION enforce_late_fee_line()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.collections_conditions FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.collections_decisions FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.service_order_field_approvals FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER append_only BEFORE DELETE OR UPDATE ON public.service_order_field_visits FOR EACH ROW EXECUTE FUNCTION enforce_append_only()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.collections_decisions FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.service_order_field_approvals FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER a_stamp_created_at BEFORE INSERT ON public.service_order_field_visits FOR EACH ROW EXECUTE FUNCTION stamp_log_created_at()',
+        'CREATE TRIGGER b_enforce_collections_decision BEFORE INSERT ON public.collections_decisions FOR EACH ROW EXECUTE FUNCTION enforce_collections_decision()',
+        'CREATE TRIGGER b_enforce_dunning_event BEFORE INSERT ON public.dunning_events FOR EACH ROW EXECUTE FUNCTION enforce_dunning_event()',
+        'CREATE TRIGGER b_enforce_field_approval BEFORE INSERT ON public.service_order_field_approvals FOR EACH ROW EXECUTE FUNCTION enforce_field_approval()',
+        'CREATE TRIGGER b_enforce_field_visit BEFORE INSERT ON public.service_order_field_visits FOR EACH ROW EXECUTE FUNCTION enforce_field_visit()',
+        'CREATE TRIGGER enrollment_recompute_dnd AFTER INSERT OR DELETE OR UPDATE ON public.customer_program_enrollments FOR EACH ROW EXECUTE FUNCTION recompute_do_not_disconnect()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.collections_conditions FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.collections_decisions FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.service_order_field_approvals FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.service_order_field_visits FOR EACH STATEMENT EXECUTE FUNCTION enforce_no_hard_delete()',
+        'CREATE TRIGGER z_dunning_move_stage AFTER INSERT ON public.dunning_events FOR EACH ROW EXECUTE FUNCTION dunning_move_stage()'
+    ];
+    c_constraints CONSTANT text[] := ARRAY[
+        -- @@CONSTRAINTS@@
+        'adhoc_charges adhoc_charges_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id, customer_id) REFERENCES collections_decisions(id, tenant_id, customer_id)',
+        'collections_conditions collections_conditions_code_check CHECK ((condition_code ~ ''^[a-z][a-z0-9_]*$''::text))',
+        'collections_conditions collections_conditions_description_check CHECK ((description ~ ''[[:alnum:]]''::text))',
+        'collections_conditions collections_conditions_kind_check CHECK ((kind = ANY (ARRAY[''protection''::text, ''bar''::text, ''rule''::text])))',
+        'collections_conditions collections_conditions_pkey PRIMARY KEY (condition_code)',
+        'collections_decisions collections_decisions_act_check CHECK ((act = ANY (ARRAY[''notice''::text, ''late_fee''::text, ''disconnect_order''::text, ''disconnect_execute''::text, ''collections_referral''::text])))',
+        'collections_decisions collections_decisions_calculated_by_check CHECK ((calculated_by ~ ''[[:alnum:]]''::text))',
+        'collections_decisions collections_decisions_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'collections_decisions collections_decisions_customer_fkey FOREIGN KEY (customer_id, tenant_id) REFERENCES customers(id, tenant_id)',
+        'collections_decisions collections_decisions_id_tenant_customer_key UNIQUE (id, tenant_id, customer_id)',
+        'collections_decisions collections_decisions_id_tenant_id_key UNIQUE (id, tenant_id)',
+        'collections_decisions collections_decisions_inputs_check CHECK (((jsonb_typeof(inputs) = ''object''::text) AND (inputs_fingerprint ~ ''[[:alnum:]]''::text)))',
+        'collections_decisions collections_decisions_invoice_fkey FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES invoices(id, tenant_id, customer_id)',
+        'collections_decisions collections_decisions_location_fkey FOREIGN KEY (location_id, tenant_id) REFERENCES service_locations(id, tenant_id)',
+        'collections_decisions collections_decisions_meter_fkey FOREIGN KEY (meter_id, tenant_id) REFERENCES meters(id, tenant_id)',
+        'collections_decisions collections_decisions_outcome_check CHECK ((outcome = ANY (ARRAY[''eligible''::text, ''blocked''::text, ''unevaluable''::text])))',
+        'collections_decisions collections_decisions_pkey PRIMARY KEY (id)',
+        'collections_decisions collections_decisions_supersedes_fkey FOREIGN KEY (supersedes_id, tenant_id, customer_id) REFERENCES collections_decisions(id, tenant_id, customer_id)',
+        'dunning_events dunning_events_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id, customer_id) REFERENCES collections_decisions(id, tenant_id, customer_id)',
+        'dunning_events dunning_events_invoice_id_fkey FOREIGN KEY (invoice_id, tenant_id, customer_id) REFERENCES invoices(id, tenant_id, customer_id)',
+        'service_order_field_approvals service_order_field_approvals_approved_by_fkey FOREIGN KEY (approved_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'service_order_field_approvals service_order_field_approvals_id_tenant_id_key UNIQUE (id, tenant_id)',
+        'service_order_field_approvals service_order_field_approvals_kind_check CHECK ((kind = ANY (ARRAY[''meter_mismatch''::text, ''no_evidence''::text])))',
+        'service_order_field_approvals service_order_field_approvals_order_fkey FOREIGN KEY (service_order_id, tenant_id) REFERENCES service_orders(id, tenant_id)',
+        'service_order_field_approvals service_order_field_approvals_pkey PRIMARY KEY (id)',
+        'service_order_field_approvals service_order_field_approvals_reason_code_check CHECK ((reason_code ~ ''^[a-z][a-z0-9_]*$''::text))',
+        'service_order_field_approvals service_order_field_approvals_visit_fkey FOREIGN KEY (visit_id, tenant_id) REFERENCES service_order_field_visits(id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_created_by_fkey FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id) REFERENCES collections_decisions(id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_id_tenant_id_key UNIQUE (id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_mismatch_approval_fkey FOREIGN KEY (mismatch_approval_id, tenant_id) REFERENCES service_order_field_approvals(id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_no_evidence_approval_fkey FOREIGN KEY (no_evidence_approval_id, tenant_id) REFERENCES service_order_field_approvals(id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_order_fkey FOREIGN KEY (service_order_id, tenant_id) REFERENCES service_orders(id, tenant_id)',
+        'service_order_field_visits service_order_field_visits_outcome_check CHECK (((outcome = ANY (ARRAY[''executed''::text, ''aborted''::text])) AND ((outcome = ''aborted''::text) = (abort_reason IS NOT NULL)) AND ((abort_reason IS NULL) OR (abort_reason = ANY (ARRAY[''meter_mismatch''::text, ''payment_shown''::text, ''medical_evidence''::text, ''dispute_pending''::text, ''no_access''::text, ''safety''::text, ''other''::text]))) AND ((outcome = ''executed''::text) OR ((collections_decision_id IS NULL) AND (mismatch_approval_id IS NULL) AND (no_evidence_approval_id IS NULL)))))',
+        'service_order_field_visits service_order_field_visits_pkey PRIMARY KEY (id)',
+        'service_orders service_orders_decision_fkey FOREIGN KEY (collections_decision_id, tenant_id, customer_id) REFERENCES collections_decisions(id, tenant_id, customer_id)'
+    ];
+    c_indexes CONSTANT text[] := ARRAY[
+        -- @@INDEXES@@
+        'CREATE UNIQUE INDEX adhoc_charges_one_per_decision ON public.adhoc_charges USING btree (collections_decision_id) WHERE (collections_decision_id IS NOT NULL)',
+        'CREATE UNIQUE INDEX dunning_events_one_per_decision ON public.dunning_events USING btree (collections_decision_id, invoice_id) WHERE (collections_decision_id IS NOT NULL)',
+        'CREATE UNIQUE INDEX service_order_field_visits_one_executed ON public.service_order_field_visits USING btree (service_order_id) WHERE (outcome = ''executed''::text)',
+        'CREATE UNIQUE INDEX service_order_field_visits_one_per_decision ON public.service_order_field_visits USING btree (collections_decision_id) WHERE (collections_decision_id IS NOT NULL)',
+        'CREATE UNIQUE INDEX service_orders_one_per_decision ON public.service_orders USING btree (collections_decision_id) WHERE (collections_decision_id IS NOT NULL)'
+    ];
+    c_tables CONSTANT text[] := ARRAY[
+        -- @@TABLES@@
+        'collections_conditions | {tally=arwdDxt/tally,tally_app=r/tally,tally_core=r/tally} | false | false',
+        'collections_decisions | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'collections_record_seq | {tally=rwU/tally,tally_app=U/tally} | false | false',
+        'service_order_field_approvals | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true',
+        'service_order_field_visits | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true'
+    ];
+    c_funcs CONSTANT text[] := ARRAY[
+        -- @@FUNCS@@
+        'collections_act_check(uuid,text,uuid,uuid,uuid,date,boolean,text) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally} | fa5d0d32798278c4992a4fe6a068f730',
+        'collections_dunning_act(text) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally,tally_core=X/tally} | d0b1c60d4468467c60f3e1267a768cb5',
+        'collections_dunning_stage(text,text) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally,tally_core=X/tally} | 4a84b68dd65f7bf2e8ef666f16c695c4',
+        'collections_live_decision(uuid,text,uuid,uuid,uuid,uuid) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally,tally_core=X/tally} | 5664aca156e9333ca55bc3f1b7687092',
+        'collections_subject_lock(uuid,text,uuid,uuid,uuid,uuid,text) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally} | 989726561d9a07397fcd5366645c3762',
+        'collections_tenant_check(text,uuid) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally} | 34b48e32230558f03f17bc0e9c0dd94b',
+        'dunning_move_stage() | false | search_path=public, pg_temp | {tally=X/tally} | 91d923786cbc7d8f1356907daf693862',
+        'enforce_adhoc_charge_decision() | false | search_path=public, pg_temp | {tally=X/tally} | 3c3e8502b1adfa3d1021ccb05cf9c674',
+        'enforce_collections_decision() | false | search_path=public, pg_temp | {tally=X/tally} | a251d2aa966a5aa08cbd9757b495283c',
+        'enforce_disconnect_order() | false | search_path=public, pg_temp | {tally=X/tally} | a33d09b7d044f26c98ad978eabc9e300',
+        'enforce_do_not_disconnect_projection() | false | search_path=public, pg_temp | {tally=X/tally} | a24841f9cbd29ed54831ad5d322a73b8',
+        'enforce_dunning_event() | false | search_path=public, pg_temp | {tally=X/tally} | 762cca7a062aea0732fb7855276387a5',
+        'enforce_dunning_stage_projection() | false | search_path=public, pg_temp | {tally=X/tally} | aa535ee6ca418d9d92d23e83ea207a13',
+        'enforce_field_approval() | false | search_path=public, pg_temp | {tally=X/tally} | 84da1f4fb9c30a4c995bd941b7641d58',
+        'enforce_field_visit() | false | search_path=public, pg_temp | {tally=X/tally} | e7ac61aff23909e17833293c271bddb9',
+        'enforce_late_fee_line() | false | search_path=public, pg_temp | {tally=X/tally} | f886a51d9e071ec03103f52f85168e66'
+    ];
+BEGIN
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_triggers) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger t
+                        WHERE NOT t.tgisinternal AND t.tgenabled = 'A' AND pg_catalog.pg_get_triggerdef(t.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-26 trigger is missing, changed, or not ENABLE ALWAYS:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_constraints) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k
+                        WHERE k.convalidated AND k.conrelid::regclass::text || ' ' || k.conname || ' ' || pg_catalog.pg_get_constraintdef(k.oid) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-26 constraint is missing, changed or not validated:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_indexes) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes x
+                         JOIN pg_catalog.pg_class i ON i.relname = x.indexname AND i.relnamespace = 'public'::regnamespace
+                         JOIN pg_catalog.pg_index n ON n.indexrelid = i.oid
+                        WHERE x.schemaname = 'public' AND n.indisvalid AND x.indexdef = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-26 unique index is missing, changed or not valid:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_tables) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+                        WHERE c.oid = pg_catalog.to_regclass('public.' || split_part(d, ' | ', 1))
+                          AND split_part(d, ' | ', 1) || ' | ' || coalesce(c.relacl::text, '-') || ' | ' || c.relrowsecurity::text || ' | ' || c.relforcerowsecurity::text = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-26 table''s grants or row security have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+    SELECT string_agg(d, E'\n  ' ORDER BY d) INTO v_bad FROM unnest(c_funcs) d
+     WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc f
+                        WHERE f.oid = pg_catalog.to_regprocedure('public.' || split_part(d, ' | ', 1))
+                          AND split_part(d, ' | ', 1) || ' | ' || f.prosecdef::text || ' | ' || coalesce(array_to_string(f.proconfig, ';'), '-')
+                              || ' | ' || coalesce(f.proacl::text, '-') || ' | ' || pg_catalog.md5(f.prosrc) = d);
+    IF v_bad IS NOT NULL THEN
+        RAISE EXCEPTION USING MESSAGE = format(E'a v5.4.2-26 function is missing, or its body, security, settings or grants have changed:\n  %s', v_bad), ERRCODE = 'invalid_grant_operation';
+    END IF;
+END;
+$fn$;
+COMMENT ON FUNCTION public.assert_collections_guard_invariants() IS
+    'v5.4.2-26 (r2). Raises invalid_grant_operation (0LP01) unless every -26 trigger is present and ENABLE ALWAYS, every -26 constraint and unique index is present and valid, the -26 tables'' grants and row security are as built, and every -26 function''s body, security, settings and grants are as built. The lists are the catalogue''s own text (tests/v5.4.2-26/fill-manifest.py).';
+REVOKE ALL ON FUNCTION public.assert_collections_guard_invariants() FROM PUBLIC;
+
 DO $$ BEGIN
+    PERFORM public.assert_collections_guard_invariants();
+    PERFORM public.assert_dispute_guard_invariants();
+    PERFORM public.assert_shortfall_guard_invariants();
+    PERFORM public.assert_suspense_pledge_guard_invariants();
     PERFORM public.assert_cash_guard_invariants();
     PERFORM public.assert_periods_guard_invariants();
     PERFORM public.assert_seal_role_invariants();

@@ -177,13 +177,14 @@ $$;
 CREATE FUNCTION pg_temp.line(p_inv uuid, p_service text, p_kind text, p_cols jsonb) RETURNS void LANGUAGE sql AS $$
   INSERT INTO public.invoice_line_items (tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, rate_item_id,
          usage_quantity, usage_unit, rate, coverage_start, coverage_end, days_covered, days_in_period, partial_period_policy_applied,
-         gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate, regulatory_class)
+         gas_meter_factor, gas_ccf_used, gas_therms_billed, gas_commodity_rate, regulatory_class, adhoc_charge_id)
   SELECT '00000000-0000-4000-8000-0000000021a1', p_inv, coalesce((SELECT max(line_order) + 1 FROM public.invoice_line_items WHERE invoice_id = p_inv), 0),
          p_service, p_kind, p_kind || ' line', 10.00, (p_cols ->> 'rate_item_id')::uuid,
          (p_cols ->> 'usage_quantity')::numeric, p_cols ->> 'usage_unit', (p_cols ->> 'rate')::numeric,
          (p_cols ->> 'coverage_start')::date, (p_cols ->> 'coverage_end')::date, (p_cols ->> 'days_covered')::int, (p_cols ->> 'days_in_period')::int,
          p_cols ->> 'partial_period_policy_applied',
-         (p_cols ->> 'gas_meter_factor')::numeric, (p_cols ->> 'gas_ccf_used')::numeric, (p_cols ->> 'gas_therms_billed')::numeric, (p_cols ->> 'gas_commodity_rate')::numeric, 'regulated';
+         (p_cols ->> 'gas_meter_factor')::numeric, (p_cols ->> 'gas_ccf_used')::numeric, (p_cols ->> 'gas_therms_billed')::numeric, (p_cols ->> 'gas_commodity_rate')::numeric, 'regulated',
+         (p_cols ->> 'adhoc_charge_id')::uuid;
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.draft(uuid, text), pg_temp.line(uuid, text, text, jsonb) TO tally_app;
 
@@ -367,6 +368,19 @@ RESET ROLE;
 
 -- ====================================================================== A. arithmetic at issue
 -- Each case: a draft with one line, then the move to pending as tally_app.
+-- A5's late fee (v5.4.2-26 r2): a late-fee line bills its late-fee charge,
+-- which cites the eligible late_fee decision on the earlier bill it is for.
+RESET ROLE;
+SELECT pg_temp.draft('00000000-0000-4000-8000-0000000021d5', 'B21-LFB');
+SELECT pg_temp.snap('00000000-0000-4000-8000-0000000021d5', DATE '2026-01-31', now());
+UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000021d5';
+INSERT INTO public.collections_decisions (id, tenant_id, customer_id, act, invoice_id, evaluation_date, outcome, valid_until, inputs, inputs_fingerprint, calculated_by)
+VALUES ('00000000-0000-4000-8000-0000000021d6', '00000000-0000-4000-8000-0000000021a1', '00000000-0000-4000-8000-0000000021c1', 'late_fee',
+        '00000000-0000-4000-8000-0000000021d5', DATE '2026-02-21', 'eligible', DATE '2026-02-28', '{}', 'b21', 'battery-21');
+INSERT INTO public.adhoc_charges (id, tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class, effective_date,
+                                  triggered_by_invoice_id, collections_decision_id)
+VALUES ('00000000-0000-4000-8000-0000000021d7', '00000000-0000-4000-8000-0000000021a1', 'B21-LF', '00000000-0000-4000-8000-0000000021c1', 'late_fee',
+        'late fee', 10.00, 'regulated', DATE '2026-02-21', '00000000-0000-4000-8000-0000000021d5', '00000000-0000-4000-8000-0000000021d6');
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000021b1', true);
 DO $$
@@ -396,7 +410,7 @@ BEGIN
     ('A4g a surcharge whose item has no version at the bill''s coordinate', 'gas', 'surcharge', '{"rate_item_id": "00000000-0000-4000-8000-000000002152"}',              'missing a classification'),
     ('A4h a surcharge naming another tenant''s per-unit item', 'gas', 'surcharge', '{"rate_item_id": "00000000-0000-4000-8000-000000002159"}',                          'missing a classification'),
     ('A4j a gas rider carries no commodity rate',    'gas',   'surcharge',    '{"rate_item_id": "00000000-0000-4000-8000-000000002153", "usage_quantity": 5, "usage_unit": "ccf", "rate": 0.1, "gas_meter_factor": 1.02, "gas_ccf_used": 5, "gas_therms_billed": 5.1}', NULL),
-    ('A5 a late fee carries its amount only',         'gas',   'late_fee',     '{}'::jsonb,                                                                             NULL)
+    ('A5 a late fee carries its amount only',         'gas',   'late_fee',     '{"adhoc_charge_id": "00000000-0000-4000-8000-0000000021d7"}'::jsonb,                    NULL)
   ) AS x(label, service, kind, cols, guard) LOOP
     n := n + 1;
     v_id := md5('b21-a' || n)::uuid;

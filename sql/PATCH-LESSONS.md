@@ -22,6 +22,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 
 **Guard predicates**
 - [guard-the-act-not-the-label](#guard-the-act-not-the-label) — key a guard on what happened, not on the type/status name the caller chose
+- [optional-key-splits-a-subject](#optional-key-splits-a-subject) — an optional, narrowing key part (a meter under a location) makes the broad and narrow decisions separate subjects; an act must honour every live decision that covers it, and their lock is keyed on the broad part
 - [app-written-logs-are-not-guards](#app-written-logs-are-not-guards) — A fact a guard depends on must be written by the database (trigger stamp, write-once); an app-writable log or event table can be forged by tally_app and only serves a one-time backfill, stated as an approximation
 - [guards-must-act-not-record](#guards-must-act-not-record) — a guard that writes its own enforcement to a log without performing it is worse than no guard
 - [two-fields-both-the-money](#two-fields-both-the-money) — invoices.amount_due and the line-item sum are both "the money" and nothing ties them; measure over both
@@ -45,6 +46,7 @@ Lessons from writing, testing and reviewing the `sql/v5.4.x-NN-*.sql` patches, e
 - [succession-checks-at-commit](#succession-checks-at-commit) — a "never closed from under X" check on code-keyed rows must run at commit (deferred constraint trigger, ALWAYS, all-tenants role), or it refuses every close-then-successor
 - [count-guards-need-lock-handshake](#count-guards-need-lock-handshake) — A guard that counts rows can be defeated by an in-flight writer (phantom); pair it with a lock handshake — prefer a row-version mutex (UPDATE) over a bare lock, FOR KEY SHARE on heartbeated rows, and pin READ COMMITTED only where no row version can be written
 - [lock-order-as-a-rule](#lock-order-as-a-rule) — State a lock order as a rule over the rows taken in order, plus "every writer retries 40P01"; never as a list of shapes
+- [every-guard-reading-other-rows-pins-isolation](#every-guard-reading-other-rows-pins-isolation) — a guard that decides from other rows after waiting on a lock needs the READ COMMITTED pin too, or it acts on a snapshot from before the writer it waited for (-26 r1: an executed order cancelled at REPEATABLE READ)
 - [constraint-trigger-name-order](#constraint-trigger-name-order) — a deferred constraint trigger that reads what another AFTER trigger writes must sort after it by name: once a battery has run SET CONSTRAINTS ALL IMMEDIATE it fires at statement end, in name order, before the writer
 - [race-barriers-clear-stat-snapshot](#race-barriers-clear-stat-snapshot) — two-session race barriers polling pg_stat_activity must call pg_stat_clear_snapshot() each poll; never edit test files while mutations-22.py runs
 - [race-catch-names-its-damage](#race-catch-names-its-damage) — a race leg's bare FAIL is also what a timeout or a lost connection prints: a mutation's catch names the damage read back, the SQLSTATE or the wrong answer, with a selftest on literal outputs
@@ -540,3 +542,17 @@ Found by -25 r2's first full mutation run (2026-11-07): 121 of 125 caught.
 v5.4.2-25 r2 (2026-11-25) carried `assert_seal_role_invariants()` forward from -23 to add `tally_dispute`. Both it and -25's own `assert_dispute_guard_invariants()` declare `c_triggers CONSTANT text[] := ARRAY[`. `fill-manifest.py` found the list by `s.index(...)`, the first in the file: it wrote -25's triggers into the seal's list and left -25's stale. The battery still passed (every listed trigger existed); the first full mutation run showed it, when removing a dispute trigger was refused at apply by the *seal's* check.
 
 **How to apply:** a generator finds its lists after its own function's `CREATE OR REPLACE FUNCTION` line. A carried-forward body is diffed against its source (`tu.sql`) before a freeze: only the intended edits may differ.
+
+<a id="optional-key-splits-a-subject"></a>
+## optional-key-splits-a-subject
+
+-26 r1 keyed a collections decision's subject by (act, customer, bill, location, meter) with the meter optional, and kept one live decision per subject. So a location-wide decision and one for a meter there were two subjects, each live: a location-wide `blocked` (a medical hold) and a meter-level `eligible` stood side by side, and the order, the execution and the notice all went through on the eligible one (Opus r1 B2). The battery had a check (O7) asserting that subjects differing only by meter are independent, so it certified the flaw.
+
+**How to apply:** where a key has an optional, narrowing part, a decision on the broad subject covers every narrow one. An act honours every live decision that covers it (fail toward protection), and the lock that orders them is keyed on the broad part, so all of them are read with none in flight. Test the broad-blocked / narrow-eligible pair and its reverse, and an act that names no narrow part.
+
+<a id="every-guard-reading-other-rows-pins-isolation"></a>
+## every-guard-reading-other-rows-pins-isolation
+
+-26 r1 pinned READ COMMITTED on every write that took a subject's advisory lock, but not on a disconnect order's status update, whose guard reads whether a field visit executed the order. A visit holds the order `FOR SHARE`, so the update waits; under REPEATABLE READ it then proceeds on its old snapshot, which never saw the execution, and cancels an executed order (Opus, Fable and Codex r1). The lock was right; the read after it was stale.
+
+**How to apply:** any guard that decides from other rows after waiting on a lock must read what the writer it waited for committed: pin READ COMMITTED (25000 otherwise) on that write too, not only on the writes that take the named lock. Race it at REPEATABLE READ, not only at the default.

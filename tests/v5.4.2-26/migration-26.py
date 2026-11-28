@@ -9,7 +9,9 @@
   P4  a bill with a late fee recorded on it (late_fee_assessed / late_fee_amount, both dropped) stops it likewise
   P5  a late-fee charge stops it likewise (it cites no decision)
   P6  a disconnect order stops it likewise (it cites no decision)
-  P7  a customer whose do_not_disconnect disagrees with their enrollments stops it likewise
+  P7  a customer whose do_not_disconnect disagrees with their enrollments stops it likewise (P7: flagged with
+      no enrollment; P7b, r2: enrolled and not flagged)
+  P5b, P5c (r2) a penalty charge, and a late-fee bill line, stop it likewise (a late fee under any name is gated)
 
 P2-P7 are the standing precondition (Ryan, 2026-09-28: nothing is live); the patch never reinterprets history.
 
@@ -39,6 +41,7 @@ INV = "00000000-0000-4000-8000-000000002699"
 EV = "00000000-0000-4000-8000-00000000269a"
 CHG = "00000000-0000-4000-8000-00000000269b"
 SO = "00000000-0000-4000-8000-00000000269c"
+LINE = "00000000-0000-4000-8000-00000000269d"
 
 
 def sh(cmd: list[str], inp: str | None = None) -> subprocess.CompletedProcess:
@@ -143,11 +146,21 @@ def main() -> int:
     stops_naming("m26_p5", "P5 a late-fee charge",
                  f"INSERT INTO public.adhoc_charges (id, tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class) "
                  f"VALUES ('{CHG}', '{T}', 'M26-CH', '{C}', 'late_fee', 'late fee', 5, 'regulated');", CHG)
+    stops_naming("m26_p5b", "P5b a penalty charge",
+                 f"INSERT INTO public.adhoc_charges (id, tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class) "
+                 f"VALUES ('{CHG}', '{T}', 'M26-CH', '{C}', 'penalty', 'penalty', 5, 'regulated');", CHG)
+    stops_naming("m26_p5c", "P5c a late-fee bill line",
+                 f"INSERT INTO public.invoice_line_items (id, tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, regulatory_class) "
+                 f"VALUES ('{LINE}', '{T}', '{INV}', 0, 'gas', 'late_fee', 'late fee', 5, 'regulated');", LINE)
     stops_naming("m26_p6", "P6 a disconnect order",
                  f"INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id) "
                  f"VALUES ('{SO}', '{T}', 'M26-SO', 'disconnect', 'x', '{C}', '{LOC}');", SO)
     stops_naming("m26_p7", "P7 a customer protected with no protective enrollment",
                  f"UPDATE public.customers SET do_not_disconnect = true WHERE id = '{C}';", C)
+    stops_naming("m26_p7b", "P7b a customer enrolled in a protective program and not flagged",
+                 f"INSERT INTO public.customer_program_enrollments (tenant_id, customer_id, program_type, effective_start_date, status) "
+                 f"VALUES ('{T}', '{C}', 'military_deployment_scra', DATE '2026-01-01', 'active'); "
+                 f"UPDATE public.customers SET do_not_disconnect = false WHERE id = '{C}';", C)
     print(f"{fails} failure(s)")
     return 1 if fails else 0
 

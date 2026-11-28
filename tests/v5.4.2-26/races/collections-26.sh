@@ -24,6 +24,11 @@
 #        order's row, then is refused (the order is closed; F1b).
 #   CR8b A executes a disconnect order and holds; B cancels it: waits, then is
 #        refused (an executed order can only be completed; F4d).
+#   CR8c (r2, Fable B1, Opus B3) as CR8b with B at REPEATABLE READ: waits,
+#        then is refused (25000, F4f) — not admitted on a snapshot that
+#        predates the execution.
+# r2: executions arrive at now() under a decision for today, since an
+# execution is never dated before its order and decision were recorded (F2f).
 # Every two() leg checks that session B ITSELF was SEEN BLOCKED BY SESSION A
 # (pg_blocking_pids, polled while A holds).
 # Setup failures exit 2. Runs against a THROWAWAY clone (it commits rows).
@@ -55,6 +60,10 @@ DX3=00000000-0000-4000-8000-0000000026ec
 DX4=00000000-0000-4000-8000-0000000026ed
 SO3=00000000-0000-4000-8000-0000000026ee
 SO4=00000000-0000-4000-8000-0000000026ef
+LOC5=00000000-0000-4000-8000-0000000026d1
+DO5=00000000-0000-4000-8000-0000000026d2
+DX5=00000000-0000-4000-8000-0000000026d3
+SO5=00000000-0000-4000-8000-0000000026d4
 A_OUT=$(mktemp); B_OUT=$(mktemp)
 trap 'rm -f "$A_OUT" "$B_OUT"' EXIT
 fail=0
@@ -85,7 +94,7 @@ local d="NULL"
 echo "INSERT INTO public.dunning_events (tenant_id, invoice_id, customer_id, event_type, event_date, collections_decision_id) VALUES ('$T', '$1', '$C', '$2', TIMESTAMPTZ '$4', $d);"
 }
 execute() {  # $1 order, $2 decision (default DX), $3 serial, $4 location number
-echo "INSERT INTO public.service_order_field_visits (tenant_id, service_order_id, arrived_at, captured_meter_serial, captured_location_number, outcome, collections_decision_id, evidence_refs) VALUES ('$T', '$1', TIMESTAMPTZ '2026-04-10 15:00Z', '${3:-SN-R}', '${4:-L}', 'executed', '${2:-$DX}', '{photo-1}');"
+echo "INSERT INTO public.service_order_field_visits (tenant_id, service_order_id, arrived_at, captured_meter_serial, captured_location_number, outcome, collections_decision_id, evidence_refs) VALUES ('$T', '$1', now(), '${3:-SN-R}', '${4:-L}', 'executed', '${2:-$DX}', '{photo-1}');"
 }
 
 "${PSQL[@]}" >/dev/null <<SQL || { echo "SETUP FAIL: fixtures"; exit 2; }
@@ -105,19 +114,24 @@ $(dec $DO1 disconnect_order NULL "$LOC" "$TODAY" "$TODAY + 7" NULL o1)
 INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id, collections_decision_id) VALUES ('$SO1', '$T', 'R26-SO1', 'disconnect', 'race', '$C', '$LOC', '$DO1');
 $(dec $DO2 disconnect_order NULL "$LOC" "$TODAY" "$TODAY + 7" $DO1 o2)
 INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id, collections_decision_id) VALUES ('$SO2', '$T', 'R26-SO2', 'disconnect', 'race', '$C', '$LOC', '$DO2');
-$(dec $DX disconnect_execute NULL "$LOC" "DATE '2026-04-10'" "DATE '2026-04-10'" NULL x)
+$(dec $DX disconnect_execute NULL "$LOC" "$TODAY" "$TODAY" NULL x)
 RESET ROLE;
 INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
-  ('$LOC3', '$T', '$C', 'L3', '3 Main', 'Brenham', 'TX', '77833'), ('$LOC4', '$T', '$C', 'L4', '4 Main', 'Brenham', 'TX', '77833');
+  ('$LOC3', '$T', '$C', 'L3', '3 Main', 'Brenham', 'TX', '77833'), ('$LOC4', '$T', '$C', 'L4', '4 Main', 'Brenham', 'TX', '77833'),
+  ('$LOC5', '$T', '$C', 'L5', '5 Main', 'Brenham', 'TX', '77833');
 INSERT INTO public.meters (tenant_id, meter_number, serial_number, location_id, service_type, start_date) VALUES
-  ('$T', 'R26-M3', 'SN-3', '$LOC3', 'gas', DATE '2020-01-01'), ('$T', 'R26-M4', 'SN-4', '$LOC4', 'gas', DATE '2020-01-01');
+  ('$T', 'R26-M3', 'SN-3', '$LOC3', 'gas', DATE '2020-01-01'), ('$T', 'R26-M4', 'SN-4', '$LOC4', 'gas', DATE '2020-01-01'),
+  ('$T', 'R26-M5', 'SN-5', '$LOC5', 'gas', DATE '2020-01-01');
 SET LOCAL ROLE tally_app;
 $(dec $DO3 disconnect_order NULL "$LOC3" "$TODAY" "$TODAY + 7" NULL o3)
 $(dec $DO4 disconnect_order NULL "$LOC4" "$TODAY" "$TODAY + 7" NULL o4)
+$(dec $DO5 disconnect_order NULL "$LOC5" "$TODAY" "$TODAY + 7" NULL o5)
 INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, description, customer_id, location_id, collections_decision_id) VALUES
-  ('$SO3', '$T', 'R26-SO3', 'disconnect', 'race', '$C', '$LOC3', '$DO3'), ('$SO4', '$T', 'R26-SO4', 'disconnect', 'race', '$C', '$LOC4', '$DO4');
-$(dec $DX3 disconnect_execute NULL "$LOC3" "DATE '2026-04-10'" "DATE '2026-04-10'" NULL x3)
-$(dec $DX4 disconnect_execute NULL "$LOC4" "DATE '2026-04-10'" "DATE '2026-04-10'" NULL x4)
+  ('$SO3', '$T', 'R26-SO3', 'disconnect', 'race', '$C', '$LOC3', '$DO3'), ('$SO4', '$T', 'R26-SO4', 'disconnect', 'race', '$C', '$LOC4', '$DO4'),
+  ('$SO5', '$T', 'R26-SO5', 'disconnect', 'race', '$C', '$LOC5', '$DO5');
+$(dec $DX3 disconnect_execute NULL "$LOC3" "$TODAY" "$TODAY" NULL x3)
+$(dec $DX4 disconnect_execute NULL "$LOC4" "$TODAY" "$TODAY" NULL x4)
+$(dec $DX5 disconnect_execute NULL "$LOC5" "$TODAY" "$TODAY" NULL x5)
 COMMIT;
 SQL
 
@@ -132,7 +146,7 @@ echo 0
 }
 AS_OP="SET LOCAL app.user_id = '$OP'; SET ROLE tally_app;"
 
-two() {  # $1 A's statement, $2 B's statement
+two() {  # $1 A's statement, $2 B's statement, $3 B's isolation (optional, e.g. "ISOLATION LEVEL REPEATABLE READ")
 "${PSQL[@]}" >"$A_OUT" 2>&1 <<SQL &
 SET application_name = 'race26_a';
 BEGIN;
@@ -145,7 +159,7 @@ APID=$!
 sleep 1
 "${PSQL[@]}" >"$B_OUT" 2>&1 <<SQL &
 SET application_name = 'race26_b';
-BEGIN;
+BEGIN ${3:-};
 $AS_OP
 $2
 COMMIT;
@@ -159,7 +173,17 @@ OUT=$(cat "$B_OUT")
 }
 verdict() {  # $1 label, $2 want B to fail (1) or pass (0), $3 expected fragment when it fails
 if [ "${AST:-0}" -ne 0 ]; then echo "FAIL $1: session A itself failed: $(cat "$A_OUT")"; fail=1; return; fi
-if [ "${WAITED:-0}" -lt 1 ]; then echo "FAIL $1: session B was never seen waiting on a lock"; fail=1; return; fi
+if [ "${WAITED:-0}" -lt 1 ]; then
+  # r2 (race-catch-names-its-damage): with no wait seen, name what B did.
+  if [ "$2" = 1 ] && { [ "$BST" -eq 0 ] || ! echo "$OUT" | grep -qF "$3"; }; then
+    echo "FAIL $1: no lock wait, and B was not refused with '$3' (damage: ($BST) $OUT)"
+  elif [ "$2" = 0 ] && [ "$BST" -ne 0 ]; then
+    echo "FAIL $1: no lock wait, and B was refused (damage: $OUT)"
+  else
+    echo "FAIL $1: session B was never seen waiting on a lock (outcome as expected; inconclusive)"
+  fi
+  fail=1; return
+fi
 if [ "$2" = 1 ]; then
   if [ "$BST" -ne 0 ] && echo "$OUT" | grep -qF "$3"; then echo "PASS $1"; else echo "FAIL $1: expected B refused with '$3', got ($BST): $OUT"; fail=1; fi
 else
@@ -223,5 +247,12 @@ verdict "CR8 an execution while the order is being cancelled: it waits on the or
 # CR8b
 two "$(execute $SO4 $DX4 SN-4 L4)" "UPDATE public.service_orders SET status = 'cancelled', cancellation_reason = 'race' WHERE id = '$SO4';"
 verdict "CR8b a cancellation while the order is being executed: it waits, then is refused" 1 "[F4d]"
+
+# CR8c
+two "$(execute $SO5 $DX5 SN-5 L5)" "UPDATE public.service_orders SET status = 'cancelled', cancellation_reason = 'race' WHERE id = '$SO5';" "ISOLATION LEVEL REPEATABLE READ"
+verdict "CR8c a cancellation at REPEATABLE READ while the order is being executed: it waits, then is refused (25000)" 1 "[F4f]"
+expect "CR8d … the order stays open with its execution" \
+  "$("${PSQL[@]}" -c "SELECT o.status || '/' || count(v.*) FROM public.service_orders o LEFT JOIN public.service_order_field_visits v ON v.service_order_id = o.id AND v.outcome = 'executed' WHERE o.id = '$SO5' GROUP BY o.status")" \
+  "open/1"
 
 exit $fail
