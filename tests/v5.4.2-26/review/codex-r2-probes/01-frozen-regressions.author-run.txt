@@ -1,0 +1,2319 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS V1 the conditions vocabulary names the protections, the bars and the missing rule (C1)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS V2 each condition has its kind: a protection, a bar or a missing rule
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23001 message=collections_conditions is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS V3 the vocabulary is never edited: refused by collections_conditions (collections_conditions is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS V4 the application writes decisions, visits and approvals, and updates or deletes none of them
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS V5 tally_core reads them and writes none
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS V6 the bill's late-fee counters are gone (E3: derive, do not store)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS V7 dunning events, charges and service orders can cite a decision (C7)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: PASS C0 a notice decision: bill 01 at its location L1, eligible April 2 to 20
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS C0b the database stamps who and when, the transaction and the order
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a notice names its bill and the service location it threatens (a meter optional) [C3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3a1 a notice names the service it threatens (CCK-7): refused by [C3a] (collections decision: a notice names its bill and the service location it threatens (a meter optional) [C3a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a late_fee names its bill only [C3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3a2 a late fee is the bill's alone: no location: refused by [C3a] (collections decision: a late_fee names its bill only [C3a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a disconnect_order names its service location (a meter optional) and no bill [C3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3a3 a disconnect order names no bill: refused by [C3a] (collections decision: a disconnect_order names its service location (a meter optional) and no bill [C3a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a late_fee names its bill only [C3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3a4 a late fee names its bill: refused by [C3a] (collections decision: a late_fee names its bill only [C3a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a disconnect_execute names its service location (a meter optional) and no bill [C3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3a5 an execute decision names its location: refused by [C3a] (collections decision: a disconnect_execute names its service location (a meter optional) and no bill [C3a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a collections_referral names its bill only [C3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3a6 a referral names no meter: refused by [C3a] (collections decision: a collections_referral names its bill only [C3a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: bill 00000000-0000-4000-8000-000000002604 is draft — collections decides on issued bills only, never a void one [C3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3b1 a decision about a bill never issued (04, a draft): refused by [C3b] (collections decision: bill 00000000-0000-4000-8000-000000002604 is draft — collections decides on issued bills only, nev)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23503 message=insert or update on table "collections_decisions" violates foreign key constraint "collections_decisions_invoice_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3b2 a decision about another customer's bill (03 is C2's): refused by collections_decisions_invoice_fkey (insert or update on table "collections_decisions" violates foreign key constraint "collections_decisions_invoice_fkey")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: location 00000000-0000-4000-8000-0000000026d2 is not customer 00000000-0000-4000-8000-0000000026c1's [C3c] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3c a disconnect at another customer's location (L2 is C2's): refused by [C3c] (collections decision: location 00000000-0000-4000-8000-0000000026d2 is not customer 00000000-0000-4000-8000-0000000026c1)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: a notice for bill 00000000-0000-4000-8000-000000002601 threatens its own location 00000000-0000-4000-8000-0000000026d1, not 00000000-0000-4000-8000-0000000026d4 [C3d] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3d1 a notice for bill 01 threatening L4, not the bill's own L1: refused by [C3d] (collections decision: a notice for bill 00000000-0000-4000-8000-000000002601 threatens its own location 00000000-0000-40)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3d2 … a bill that names no location (02) may threaten any of the customer's
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: meter 00000000-0000-4000-8000-0000000026e2 is not deployed at location 00000000-0000-4000-8000-0000000026d1 on 2026-04-02 [C3e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3e1 a meter not deployed at the location (E2 is at L2): refused by [C3e] (collections decision: meter 00000000-0000-4000-8000-0000000026e2 is not deployed at location 00000000-0000-4000-8000-000)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3e2 E5 at L5 on March 31, its last day there
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: meter 00000000-0000-4000-8000-0000000026e5 is not deployed at location 00000000-0000-4000-8000-0000000026d5 on 2026-04-01 [C3e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3e3 … not on April 1, the day it came out: refused by [C3e] (collections decision: meter 00000000-0000-4000-8000-0000000026e5 is not deployed at location 00000000-0000-4000-8000-000)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: eligible with active {dispute}, unevaluable {}, credited none, until 2026-04-20 — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f1 eligible with an active condition: refused by [C3f] (collections decision: eligible with active {dispute}, unevaluable {}, credited none, until 2026-04-20 — eligible names n)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: eligible with active {}, unevaluable {weather_moratorium}, credited none, until 2026-04-20 — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f2 eligible with a condition it could not evaluate: refused by [C3f] (collections decision: eligible with active {}, unevaluable {weather_moratorium}, credited none, until 2026-04-20 — eligi)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: eligible with active {}, unevaluable {}, credited none, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f3 eligible with no last day: refused by [C3f] (collections decision: eligible with active {}, unevaluable {}, credited none, until none — eligible names no condition a)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: eligible with active {}, unevaluable {}, credited none, until 2026-04-01 — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f4 eligible until the day before it was evaluated: refused by [C3f] (collections decision: eligible with active {}, unevaluable {}, credited none, until 2026-04-01 — eligible names no condi)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f5 … until the day it was evaluated is fine
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: blocked with active {}, unevaluable {}, credited none, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f6 blocked with nothing active: refused by [C3f] (collections decision: blocked with active {}, unevaluable {}, credited none, until none — eligible names no condition an)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: blocked with active {dispute}, unevaluable {}, credited medical_hold, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f7 blocked, crediting a condition that is not active: refused by [C3f] (collections decision: blocked with active {dispute}, unevaluable {}, credited medical_hold, until none — eligible names )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: blocked with active {dispute}, unevaluable {}, credited none, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f8 blocked, crediting nothing: refused by [C3f] (collections decision: blocked with active {dispute}, unevaluable {}, credited none, until none — eligible names no condi)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: blocked with active {dispute}, unevaluable {}, credited dispute, until 2026-04-20 — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f9 blocked, with a last day (a block holds until the next decision): refused by [C3f] (collections decision: blocked with active {dispute}, unevaluable {}, credited dispute, until 2026-04-20 — eligible names)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: unevaluable with active {dispute}, unevaluable {weather_moratorium}, credited none, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f10 unevaluable with an active condition (a known bar is blocked): refused by [C3f] (collections decision: unevaluable with active {dispute}, unevaluable {weather_moratorium}, credited none, until none — e)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: unevaluable with active {}, unevaluable {}, credited none, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f11 unevaluable with nothing it could not evaluate: refused by [C3f] (collections decision: unevaluable with active {}, unevaluable {}, credited none, until none — eligible names no conditio)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: unevaluable with active {}, unevaluable {weather_moratorium}, credited weather_moratorium, until none — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f12 unevaluable, crediting a condition: refused by [C3f] (collections decision: unevaluable with active {}, unevaluable {weather_moratorium}, credited weather_moratorium, until n)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: eligible with active {}, unevaluable {}, credited dispute, until 2026-04-20 — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f15 eligible, crediting a condition: refused by [C3f] (collections decision: eligible with active {}, unevaluable {}, credited dispute, until 2026-04-20 — eligible names no co)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: unevaluable with active {}, unevaluable {weather_moratorium}, credited none, until 2026-04-20 — eligible names no condition and a last day from its evaluation date; blocked names an active condition and credits one of them; unevaluable names only what it could not evaluate; a non-eligible decision holds until the next [C3f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f16 unevaluable, with a last day: refused by [C3f] (collections decision: unevaluable with active {}, unevaluable {weather_moratorium}, credited none, until 2026-04-20 — el)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f13 blocked by a known bar while another is unknown
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3f14 unevaluable: nothing known active, one unknown
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: conditions come from collections_conditions, each once (unknown: sunspots) [C3g] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3g1 an active condition outside the vocabulary: refused by [C3g] (collections decision: conditions come from collections_conditions, each once (unknown: sunspots) [C3g] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: conditions come from collections_conditions, each once (one named twice) [C3g] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3g2 a condition named twice: refused by [C3g] (collections decision: conditions come from collections_conditions, each once (one named twice) [C3g] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: conditions come from collections_conditions, each once (unknown: sunspots) [C3g] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3g3 an unevaluable condition outside the vocabulary: refused by [C3g] (collections decision: conditions come from collections_conditions, each once (unknown: sunspots) [C3g] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: conditions come from collections_conditions, each once (one named twice) [C3g] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3g4 an unevaluable condition named twice: refused by [C3g] (collections decision: conditions come from collections_conditions, each once (one named twice) [C3g] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: an execute decision holds for its own day only (2026-04-12, not until 2026-04-13) [C3h] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3h1 an execute decision holding past its own day: refused by [C3h] (collections decision: an execute decision holds for its own day only (2026-04-12, not until 2026-04-13) [C3h] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3h2 … holding for its own day
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: evaluated for 2026-11-29, a day that has not come [C3j] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3j1 a decision evaluated for tomorrow: refused by [C3j] (collections decision: evaluated for 2026-11-29, a day that has not come [C3j] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3j2 … for today
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=new row for relation "collections_decisions" violates check constraint "collections_decisions_inputs_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C3k a decision's inputs are an object: refused by collections_decisions_inputs_check (new row for relation "collections_decisions" violates check constraint "collections_decisions_inputs_check")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: the live decision for this notice is 01592b0c-bd37-5df4-b2fa-728ea14ffacc; a new decision names it as the one it supersedes [C4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C4a1 a second decision for the notice on 01 at L1 that names no live row: refused by [C4a] (collections decision: the live decision for this notice is 01592b0c-bd37-5df4-b2fa-728ea14ffacc; a new decision names it)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: the live decision for this notice is none; a new decision names it as the one it supersedes [C4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C4a2 a first decision for another subject superseding D1: refused by [C4a] (collections decision: the live decision for this notice is none; a new decision names it as the one it supersedes [C4a] )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS C4 D2 supersedes D1: on April 2 a dispute arrived (facts f2), so the notice is blocked
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: the live decision for this notice is e631accf-969e-683a-4b74-caca738fdcaa; a new decision names it as the one it supersedes [C4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C4a3 superseding D1 again (no longer live): refused by [C4a] (collections decision: the live decision for this notice is e631accf-969e-683a-4b74-caca738fdcaa; a new decision names it)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS C5b D3: the same day the facts return to f1 (the dispute withdrawn); A to B to A is recorded, not wedged
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: decision 11c47544-a5f1-2494-b1bf-2d4765a678cd already decided this on 2026-04-02 from the same facts (f1) — a re-run changes nothing [C5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C5a the engine re-runs April 2 on the same facts (f1): refused, nothing changed: refused by [C5] (collections decision: decision 11c47544-a5f1-2494-b1bf-2d4765a678cd already decided this on 2026-04-02 from the same fac)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: intentional undo SQLSTATE=P0098 message=undo
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C5c … April 3 on the same facts is a new evaluation
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits_undone 
+---------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: evaluated 2026-04-01, before the live decision's 2026-04-02 [C4b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS C4b a successor evaluated before the live decision (April 1 after April 2): refused by [C4b] (collections decision: evaluated 2026-04-01, before the live decision's 2026-04-02 [C4b] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS C4c a late fee on the same bill is another subject: its first decision names nothing (L1, April 5 to 10)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A0 decisions for the acts below, each its subject's first
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: shutoff_notice_sent is a collections act and cites its decision (act notice) [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A1a a shutoff notice with no decision: refused by [A1] (dunning event: shutoff_notice_sent is a collections act and cites its decision (act notice) [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: reminder_sent is not a gated act and cites no decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A1b a reminder citing a decision (reminders are not gated): refused by [A1] (dunning event: reminder_sent is not a gated act and cites no decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event shutoff_notice_sent: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 decides late_fee, not notice [A2] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A2a a shutoff notice citing a late-fee decision: refused by [A2] (dunning event shutoff_notice_sent: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 decides late_fee, not notice [A2] (v5.4)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event sent_to_collections: decision 3ff8863e-29ed-fe80-3fdd-e1e0c2cd1640 is blocked — only an eligible decision authorizes an act (an unevaluable one blocks) [A3] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A3a a referral citing a blocked decision: refused by [A3] (dunning event sent_to_collections: decision 3ff8863e-29ed-fe80-3fdd-e1e0c2cd1640 is blocked — only an eligible decision )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event sent_to_collections: decision ab290442-2cf8-fe26-30f9-ff5dbfe02113 is unevaluable — only an eligible decision authorizes an act (an unevaluable one blocks) [A3] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A3b a referral citing an unevaluable decision (unevaluable blocks, C6): refused by [A3] (dunning event sent_to_collections: decision ab290442-2cf8-fe26-30f9-ff5dbfe02113 is unevaluable — only an eligible decis)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event shutoff_notice_sent: decision 01592b0c-bd37-5df4-b2fa-728ea14ffacc is superseded — the act cites the live decision for its subject [A4] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A4a a shutoff notice citing D1, which D2 superseded: refused by [A4] (dunning event shutoff_notice_sent: decision 01592b0c-bd37-5df4-b2fa-728ea14ffacc is superseded — the act cites the live )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event shutoff_notice_sent: decision 11c47544-a5f1-2494-b1bf-2d4765a678cd is about bill 00000000-0000-4000-8000-000000002601, not 00000000-0000-4000-8000-000000002602 [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5a a notice for bill 02 citing the decision for bill 01: refused by [A5] (dunning event shutoff_notice_sent: decision 11c47544-a5f1-2494-b1bf-2d4765a678cd is about bill 00000000-0000-4000-8000-0)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event shutoff_notice_sent: dated 2026-04-21, outside decision 11c47544-a5f1-2494-b1bf-2d4765a678cd's window 2026-04-02 to 2026-04-20 [A6] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A6a a notice the day after the decision's last day (April 21): refused by [A6] (dunning event shutoff_notice_sent: dated 2026-04-21, outside decision 11c47544-a5f1-2494-b1bf-2d4765a678cd's window 2026)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event shutoff_notice_sent: dated 2026-04-01, outside decision 11c47544-a5f1-2494-b1bf-2d4765a678cd's window 2026-04-02 to 2026-04-20 [A6] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A6b a notice the day before the decision was evaluated (April 1): refused by [A6] (dunning event shutoff_notice_sent: dated 2026-04-01, outside decision 11c47544-a5f1-2494-b1bf-2d4765a678cd's window 2026)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A6c the notice on April 20, the decision's last day
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A6d the database moved bill 01 to shutoff_warning and wrote both stages on the event (E2)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23505 message=duplicate key value violates unique constraint "dunning_events_one_per_decision"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A7a a second notice on the same decision: refused by dunning_events_one_per_decision (duplicate key value violates unique constraint "dunning_events_one_per_decision")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: late_fee_applied logs an act, and no standing (not void or waived) late-fee charge cites decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 [A8] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A8a a late fee logged before any late-fee charge cites its decision: refused by [A8] (dunning event: late_fee_applied logs an act, and no standing (not void or waived) late-fee charge cites decision 72aa814)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=charge B26-x: a late fee or penalty cites its late_fee decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A1c a late-fee charge with no decision: refused by [A1] (charge B26-x: a late fee or penalty cites its late_fee decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=charge B26-x: only a late fee or penalty cites a collections decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A1d another kind of charge citing a decision: refused by [A1] (charge B26-x: only a late fee or penalty cites a collections decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A1e … another kind of charge, with no decision, as before
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=late-fee charge B26-x: decision 11c47544-a5f1-2494-b1bf-2d4765a678cd decides notice, not late_fee [A2] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A2b a late-fee charge citing the notice decision: refused by [A2] (late-fee charge B26-x: decision 11c47544-a5f1-2494-b1bf-2d4765a678cd decides notice, not late_fee [A2] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=late-fee charge B26-x: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 is about bill 00000000-0000-4000-8000-000000002601, not 00000000-0000-4000-8000-000000002602 [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5c a late-fee charge on bill 02 citing bill 01's decision: refused by [A5] (late-fee charge B26-x: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 is about bill 00000000-0000-4000-8000-000000002601,)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=late-fee charge B26-x: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 is about bill 00000000-0000-4000-8000-000000002601, not no bill [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5d a late-fee charge that names no bill: refused by [A5] (late-fee charge B26-x: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 is about bill 00000000-0000-4000-8000-000000002601,)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=late-fee charge B26-x: dated 2026-04-11, outside decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160's window 2026-04-05 to 2026-04-10 [A6] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A6e a late-fee charge dated April 11, after its decision's last day: refused by [A6] (late-fee charge B26-x: dated 2026-04-11, outside decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160's window 2026-04-05 to 20)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A6f the late-fee charge dated April 10
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23505 message=duplicate key value violates unique constraint "adhoc_charges_one_per_decision"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A7b a second late fee on the same decision: refused by adhoc_charges_one_per_decision (duplicate key value violates unique constraint "adhoc_charges_one_per_decision")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=charge 9b9764da-461b-5565-704a-7943921e61f9: a late fee's decision and bill are written once, and no charge becomes or stops being a late fee [A9] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A9a the late fee's decision cleared: refused by [A9] (charge 9b9764da-461b-5565-704a-7943921e61f9: a late fee's decision and bill are written once, and no charge becomes or s)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=charge 9b9764da-461b-5565-704a-7943921e61f9: a late fee's decision and bill are written once, and no charge becomes or stops being a late fee [A9] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A9b the late fee moved to another bill: refused by [A9] (charge 9b9764da-461b-5565-704a-7943921e61f9: a late fee's decision and bill are written once, and no charge becomes or s)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A9c … another charge's bill may still be named later, as before
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A4b the next day's sweep supersedes L1 (a dispute: blocked)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=late-fee charge B26-x: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 is superseded — the act cites the live decision for its subject [A4] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A4c a late-fee charge citing L1 now (the charge is the act: the live decision): refused by [A4] (late-fee charge B26-x: decision 72aa8143-1c7b-b695-ddfc-4b1c6105c160 is superseded — the act cites the live decision for)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A8b … but the charge already made is logged against L1 (its log needs the charge, not a live decision)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A8c bill 01 stays at shutoff_warning: a late fee after the shutoff notice moves no stage back (r2, forward only)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-x: a disconnect order cites its disconnect_order decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A1f a disconnect order with no decision: refused by [A1] (service order B26-x: a disconnect order cites its disconnect_order decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-x: only a disconnect order cites a collections decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A1g another kind of order citing a decision: refused by [A1] (service order B26-x: only a disconnect order cites a collections decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision c34de5ee-db60-db8c-8680-046807cea9ad decides disconnect_execute, not disconnect_order [A2] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A2c a disconnect order citing an execute decision: refused by [A2] (disconnect order B26-x: decision c34de5ee-db60-db8c-8680-046807cea9ad decides disconnect_execute, not disconnect_order [)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision ecd3d6db-dcbe-fd74-4c6a-04baf8255f95 is about location 00000000-0000-4000-8000-0000000026d5, not location 00000000-0000-4000-8000-0000000026d1 [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5e an order at L1 citing the decision for L5: refused by [A5] (disconnect order B26-x: decision ecd3d6db-dcbe-fd74-4c6a-04baf8255f95 is about location 00000000-0000-4000-8000-00000000)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision 6954cff6-d737-765f-d718-16110346ad93 is about location 00000000-0000-4000-8000-0000000026d2 meter 00000000-0000-4000-8000-0000000026e2, not location 00000000-0000-4000-8000-0000000026d2 [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5f an order naming no meter, under a decision that names E2: refused by [A5] (disconnect order B26-x: decision 6954cff6-d737-765f-d718-16110346ad93 is about location 00000000-0000-4000-8000-00000000)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23503 message=insert or update on table "service_orders" violates foreign key constraint "service_orders_decision_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5g C1's order at C2's location citing C2's decision (the customer is the key's): refused by service_orders_decision_fkey (insert or update on table "service_orders" violates foreign key constraint "service_orders_decision_fkey")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: dated 2026-11-28, outside decision 1096a651-e83c-bcb5-8e91-f6cd071a86e3's window 2026-11-18 to 2026-11-27 [A6] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A6g an order today under a decision whose window ended yesterday: refused by [A6] (disconnect order B26-x: dated 2026-11-28, outside decision 1096a651-e83c-bcb5-8e91-f6cd071a86e3's window 2026-11-18 to 2)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-x: a disconnect order is completed only by an executed field visit, never born completed [F4e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4e a disconnect order born completed: refused by [F4e] (service order B26-x: a disconnect order is completed only by an executed field visit, never born completed [F4e] (v5.4.2)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A6h SO1: C2's disconnect at L2, meter E2, under O1
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23505 message=duplicate key value violates unique constraint "service_orders_one_per_decision"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A7c a second order on the same decision: refused by service_orders_one_per_decision (duplicate key value violates unique constraint "service_orders_one_per_decision")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: shutoff_scheduled logs an act, and no disconnect order cites decision f118da7f-7c68-07af-c9f6-32f3738bed42 [A8] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A8d a shutoff scheduled under a decision no order cites (O2): refused by [A8] (dunning event: shutoff_scheduled logs an act, and no disconnect order cites decision f118da7f-7c68-07af-c9f6-32f3738bed4)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A8e SO1's shutoff logged on bill 03
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A9 C2's bill 03 referred to collections under R3
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A9b bill 03 is at collections
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23503 message=insert or update on table "dunning_events" violates foreign key constraint "dunning_events_invoice_id_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E1a a dunning event naming C1 on C2's bill: refused by dunning_events_invoice_id_fkey (insert or update on table "dunning_events" violates foreign key constraint "dunning_events_invoice_id_fkey")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+NOTICE:  00000: caught SQLSTATE=23503 message=insert or update on table "dunning_events" violates foreign key constraint "dunning_events_invoice_id_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E1b a T1 dunning event on T2's bill and customer (the owner, past row security): refused by dunning_events_invoice_id_fkey (insert or update on table "dunning_events" violates foreign key constraint "dunning_events_invoice_id_fkey")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-1 reminder on bill 02
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-2 a payment plan
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-3 the plan broken
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-4 reconnected
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-5 a broken plan and a reconnection move no stage: bill 02 stays at payment_plan, and those events carry no stages
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2-6 written off
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-7 resolved
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2-8 each event moved bill 02 by the fixed mapping, the previous stage written by the database
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=bill 00000000-0000-4000-8000-000000002602: dunning_stage is the database's — it moves when a dunning event is recorded; a bill is born at current [E2a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2a1 the application writes a bill's stage directly: refused by [E2a] (bill 00000000-0000-4000-8000-000000002602: dunning_stage is the database's — it moves when a dunning event is recorded; )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=bill 6ad4f446-8281-4af9-a8aa-253b6f12a845: dunning_stage is the database's — it moves when a dunning event is recorded; a bill is born at current [E2a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2a2 a new bill born past current: refused by [E2a] (bill 6ad4f446-8281-4af9-a8aa-253b6f12a845: dunning_stage is the database's — it moves when a dunning event is recorded; )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: reminder_sent moves the bill from resolved to reminder_sent, not from (any) to disconnected [E2b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2b1 a reminder that claims to move the bill to disconnected: refused by [E2b] (dunning event: reminder_sent moves the bill from resolved to reminder_sent, not from (any) to disconnected [E2b] (v5.4.2)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: reminder_sent moves the bill from resolved to reminder_sent, not from current to reminder_sent [E2b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2b2 an event claiming the bill was at current (it is at resolved): refused by [E2b] (dunning event: reminder_sent moves the bill from resolved to reminder_sent, not from current to reminder_sent [E2b] (v5.)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: reconnected moves no stage and names none [E2b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2b3 a reconnection that names a stage: refused by [E2b] (dunning event: reconnected moves no stage and names none [E2b] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E2b4 … stages the caller gives that agree are kept
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+NOTICE:  00000: caught SQLSTATE=23514 message=bill 00000000-0000-4000-8000-000000002602: dunning_stage is the database's — it moves when a dunning event is recorded; a bill is born at current [E2a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E2a3 the owner writes a bill's stage directly too: refused by [E2a] (bill 00000000-0000-4000-8000-000000002602: dunning_stage is the database's — it moves when a dunning event is recorded; )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=customer 00000000-0000-4000-8000-0000000026c1: do_not_disconnect follows the customer's protective program enrollments — enroll or end one; it is never written directly [E4] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E4a the application sets do_not_disconnect directly: refused by [E4] (customer 00000000-0000-4000-8000-0000000026c1: do_not_disconnect follows the customer's protective program enrollments —)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=customer abcf75fe-1ba9-4641-b7f1-c55b1a423727: do_not_disconnect follows the customer's protective program enrollments — enroll or end one; it is never written directly [E4] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E4b a customer born protected with no enrollment: refused by [E4] (customer abcf75fe-1ba9-4641-b7f1-c55b1a423727: do_not_disconnect follows the customer's protective program enrollments —)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E4c C2 enrolled in a protective program (SCRA) …
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E4d … is protected, by the enrollment trigger
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS E4e the enrollment canceled …
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS E4f … and the protection is gone
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS E4g a write to another column leaves the flag alone
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+RESET
+NOTICE:  00000: caught SQLSTATE=23514 message=customer 00000000-0000-4000-8000-0000000026c1: do_not_disconnect follows the customer's protective program enrollments — enroll or end one; it is never written directly [E4] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS E4h the owner sets do_not_disconnect directly too: refused by [E4] (customer 00000000-0000-4000-8000-0000000026c1: do_not_disconnect follows the customer's protective program enrollments —)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+DO
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision 6954cff6-d737-765f-d718-16110346ad93 is superseded — the act cites the live decision for its subject [A4] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A4d an order citing O1, which O4 superseded: refused by [A4] (disconnect order B26-x: decision 6954cff6-d737-765f-d718-16110346ad93 is superseded — the act cites the live decision fo)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: order B26-SOX is a meter_test — field verification records visits to disconnect orders [F1a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1a a field visit to an order that is not a disconnect: refused by [F1a] (field visit: order B26-SOX is a meter_test — field verification records visits to disconnect orders [F1a] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1 V1: SO1 visited April 9, " sn-e2 " and "l2" captured, aborted (payment shown)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1b the database filled what was expected (L2, E2, SN-E2) and found a match, case and blanks aside
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=new row for relation "service_order_field_visits" violates check constraint "service_order_field_visits_outcome_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1c1 an abort with no reason: refused by service_order_field_visits_outcome_check (new row for relation "service_order_field_visits" violates check constraint "service_order_field_visits_outcome_check")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=new row for relation "service_order_field_visits" violates check constraint "service_order_field_visits_outcome_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1c2 an execution with an abort reason: refused by service_order_field_visits_outcome_check (new row for relation "service_order_field_visits" violates check constraint "service_order_field_visits_outcome_check")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=23514 message=new row for relation "service_order_field_visits" violates check constraint "service_order_field_visits_outcome_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1c3 an abort citing a decision: refused by service_order_field_visits_outcome_check (new row for relation "service_order_field_visits" violates check constraint "service_order_field_visits_outcome_check")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an evidence reference is blank [F1e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1e an evidence reference that is blank: refused by [F1e] (field visit: an evidence reference is blank [F1e] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1f V2: SO1 visited April 10, "SN-E9" captured at L2 — the caller claims a match and an expected SN-E9
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1g … the database's expectation and its finding stand: SN-E2 expected, no match
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1h VD: SO5 names E5 at L5; on April 12 E5 is no longer there and the tech reads SN-E5 at L5
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1j … the address matches but the meter drifted: a mismatch (axis A14)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1k V6: SO6 names no meter and L6 has two
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1m … nothing single to expect, so nothing can match
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F1n2 VP: SO1's meter read at the wrong service point (L9)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1p … the serial matches, the service point does not: a mismatch
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an execution of order B26-SO1 cites its disconnect_execute decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2a1 an execution with no decision: refused by [A1] (field visit: an execution of order B26-SO1 cites its disconnect_execute decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO1: decision 6954cff6-d737-765f-d718-16110346ad93 decides disconnect_order, not disconnect_execute [A2] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2a2 an execution citing the order decision: refused by [A2] (execution of order B26-SO1: decision 6954cff6-d737-765f-d718-16110346ad93 decides disconnect_order, not disconnect_execu)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO1: decision 4cb6da3a-cdc6-a4ec-aaf7-6b2be354b132 is blocked — only an eligible decision authorizes an act (an unevaluable one blocks) [A3] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2a3 an execution citing a blocked decision (X0): refused by [A3] (execution of order B26-SO1: decision 4cb6da3a-cdc6-a4ec-aaf7-6b2be354b132 is blocked — only an eligible decision authori)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO1: dated 2026-11-27, outside decision c34de5ee-db60-db8c-8680-046807cea9ad's window 2026-11-28 to 2026-11-28 [A6] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2a4 an execution yesterday under X1, which holds for today only: refused by [A6] (execution of order B26-SO1: dated 2026-11-27, outside decision c34de5ee-db60-db8c-8680-046807cea9ad's window 2026-11-28 )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO1: decision a63749d6-28ea-ca27-61ff-43722e005c6d is about location 00000000-0000-4000-8000-0000000026d5, not location 00000000-0000-4000-8000-0000000026d2 meter 00000000-0000-4000-8000-0000000026e2 [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2a5 an execution at L2 citing the decision for L5: refused by is about location (execution of order B26-SO1: decision a63749d6-28ea-ca27-61ff-43722e005c6d is about location 00000000-0000-4000-8000-0000)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an execution of order B26-SO1 records the serial and service point captured on site (CI-071) [F2e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2a6 an execution that records no captured serial (CI-071: the pair is recorded): refused by [F2e] (field visit: an execution of order B26-SO1 records the serial and service point captured on site (CI-071) [F2e] (v5.4.2-)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: SN-E9 / L2 captured, SN-E2 / L2 expected — a mismatch halts the disconnect unless a supervisor approves it [F2b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2b an execution on a mismatch with no supervisor's approval: refused by [F2b] (field visit: SN-E9 / L2 captured, SN-E2 / L2 expected — a mismatch halts the disconnect unless a supervisor approves it )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an execution of order B26-SO1 with no evidence needs a supervisor's approval (D9-1) [F2c] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2c an execution with no evidence and no supervisor's approval (D9-1): refused by [F2c] (field visit: an execution of order B26-SO1 with no evidence needs a supervisor's approval (D9-1) [F2c] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3a an operator approves: refused by [F3a] (field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) appr)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and an evidence reference (R-38) [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b1 a mismatch approval naming no visit: refused by [F3b] (field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and an evidence reference (R-38) [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b2 a mismatch approval naming a visit that matched: refused by [F3b] (field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and an evidence reference (R-38) [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b3 a mismatch approval with no evidence reference (R-38): refused by [F3b] (field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO3 whose mismatch it approves, and an evidence reference (R-38) [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b4 a mismatch approval for SO3 naming SO1's visit: refused by [F3b] (field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO3 whose mismatch it approves, and )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: a no-evidence approval names no visit [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b5 a no-evidence approval naming a visit: refused by [F3b] (field approval: a no-evidence approval names no visit [F3b] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: order B26-SOX is a meter_test, not a disconnect [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b6 an approval for an order that is not a disconnect: refused by [F3b] (field approval: order B26-SOX is a meter_test, not a disconnect [F3b] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=new row for relation "service_order_field_approvals" violates check constraint "service_order_field_approvals_reason_code_check"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b7 a reason code that is not a code: refused by service_order_field_approvals_reason_code_check (new row for relation "service_order_field_approvals" violates check constraint "service_order_field_approvals_reason_cod)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F3 AM: the supervisor approves SO1's mismatch seen on V2 (naming the operator as approver)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F3c the approver is the session's supervisor, not the name given
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS F3d AN: a no-evidence approval for SO1
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F3d2 AX: a no-evidence approval for SO3
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: approval bc464b6e-ff6e-7b06-0e8c-dd4849ef4bc3 approved executing against SN-E9 / L2, not SN-E8 / L2 [F3c] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3e an execution under AM capturing other values than V2 did: refused by [F3c] (field visit: approval bc464b6e-ff6e-7b06-0e8c-dd4849ef4bc3 approved executing against SN-E9 / L2, not SN-E8 / L2 [F3c] ()
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: approval 0329d8a0-c58b-04e6-73a9-62f96e2d4648 is not a no-evidence approval of order B26-SO1 [F3d] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3f an execution on SO1 citing SO3's approval: refused by [F3d] (field visit: approval 0329d8a0-c58b-04e6-73a9-62f96e2d4648 is not a no-evidence approval of order B26-SO1 [F3d] (v5.4.2-)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: approval 386babd4-37ac-5d9e-201e-7cee2972eef3 is not a mismatch approval of order B26-SO1 [F3d] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3g an execution citing a no-evidence approval as a mismatch approval: refused by [F3d] (field visit: approval 386babd4-37ac-5d9e-201e-7cee2972eef3 is not a mismatch approval of order B26-SO1 [F3d] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F2 VX: SO1 executed today against SN-E9 at L2, under X1, AM and AN
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and an evidence reference (R-38) [F3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F3b8 a mismatch approval naming an execution (VX), not an abort: refused by [F3b] (field approval: a mismatch approval names the aborted, unmatched visit of order B26-SO1 whose mismatch it approves, and )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23505 message=duplicate key value violates unique constraint "service_order_field_visits_one_per_decision"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2d an execution on SO4 citing X1, which VX used: refused by service_order_field_visits_one_per_decision (duplicate key value violates unique constraint "service_order_field_visits_one_per_decision")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F2e X3: a later execute decision for L2 the same day (new facts) supersedes X1
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23505 message=duplicate key value violates unique constraint "service_order_field_visits_one_executed"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F2f a second execution of SO1: refused by service_order_field_visits_one_executed (duplicate key value violates unique constraint "service_order_field_visits_one_executed")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A8f the disconnection logged on bill 03 against X1 (the visit is the act; X1 is no longer live)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: disconnected logs an act, and no executed field visit cites decision cc725d4a-aa70-820a-c41b-d3c62fd5d15e [A8] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A8g a disconnection logged against X3, which no executed visit cites: refused by [A8] (dunning event: disconnected logs an act, and no executed field visit cites decision cc725d4a-aa70-820a-c41b-d3c62fd5d15e)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS A8h bill 03 stays at collections: the disconnection logged after its referral moves no stage back (r2, forward only)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO1: a disconnect order's type, customer, location, meter and decision are written once, and no order becomes or stops being one [F4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4a1 SO1's meter changed after its approval: refused by [F4a] (service order B26-SO1: a disconnect order's type, customer, location, meter and decision are written once, and no order )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO1: a disconnect order's type, customer, location, meter and decision are written once, and no order becomes or stops being one [F4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4a2 SO1 turned into a reconnect: refused by [F4a] (service order B26-SO1: a disconnect order's type, customer, location, meter and decision are written once, and no order )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SOX: a disconnect order's type, customer, location, meter and decision are written once, and no order becomes or stops being one [F4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4a3 a meter test turned into a disconnect: refused by [F4a] (service order B26-SOX: a disconnect order's type, customer, location, meter and decision are written once, and no order )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO1: a disconnect order's type, customer, location, meter and decision are written once, and no order becomes or stops being one [F4a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4a4 SO1 re-pointed at another decision: refused by [F4a] (service order B26-SO1: a disconnect order's type, customer, location, meter and decision are written once, and no order )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO4: a disconnect order is completed only by an executed field visit [F4b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4b SO4 completed with no executed visit: refused by [F4b] (service order B26-SO4: a disconnect order is completed only by an executed field visit [F4b] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F4b2 SO4 scheduled (dispatch bookkeeping is free)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO1: a field visit executed it — it can only be completed, not on_hold [F4d] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4d1 SO1, executed, put on hold: refused by [F4d] (service order B26-SO1: a field visit executed it — it can only be completed, not on_hold [F4d] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO1: a field visit executed it — it can only be completed, not cancelled [F4d] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4d2 SO1, executed, cancelled: refused by [F4d] (service order B26-SO1: a field visit executed it — it can only be completed, not cancelled [F4d] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F4 SO1 completed
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO1: a completed disconnect order stays completed [F4c] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4c SO1 reopened: refused by [F4c] (service order B26-SO1: a completed disconnect order stays completed [F4c] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: order B26-SO1 is completed [F1b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F1n a visit to a completed order: refused by [F1b] (field visit: order B26-SO1 is completed [F1b] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F2g VX3: SO3 executed today, SN-E7 read at L5 (E7 is the meter there), a photo, under X2
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F2h … a match: the order named no meter and E7 was the one deployed
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23503 message=insert or update on table "dunning_events" violates foreign key constraint "dunning_events_decision_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS A5b a disconnection logged for C2 under C1's execute decision (the customer is the key's): refused by dunning_events_decision_fkey (insert or update on table "dunning_events" violates foreign key constraint "dunning_events_decision_fkey")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=service order B26-SO3: a field visit executed it — it can only be completed, not cancelled [F4d] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS F4d3 SO3, executed, cancelled: refused by [F4d] (service order B26-SO3: a field visit executed it — it can only be completed, not cancelled [F4d] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS F4f other order types are as before: the meter test completed with no visit
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=new row violates row-level security policy for table "collections_decisions"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H1 T1's session writes a decision for T2: refused by row-level security (new row violates row-level security policy for table "collections_decisions")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=new row violates row-level security policy for table "service_order_field_visits": a utility writes its own collections records only (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H2 T1's session writes a visit to T2's order, which it cannot see (refused as row security, not "not found"): refused by row-level security (new row violates row-level security policy for table "service_order_field_visits": a utility writes its own collections )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H3 T1's supervisor writes an approval for T2 (refused as no supervisor of T2: 42501, reading nothing of T2's): refused by [F3a] (field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) appr)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=permission denied for table collections_decisions
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H4 the application edits a decision: refused by permission denied (permission denied for table collections_decisions)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: PASS H5 T2 sees none of T1's decisions, visits or approvals
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+RESET
+NOTICE:  00000: caught SQLSTATE=23001 message=collections_decisions is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H6 the owner edits a decision: refused by collections_decisions (collections_decisions is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23001 message=service_order_field_visits is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H7 the owner deletes a visit: refused by service_order_field_visits (service_order_field_visits is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — reco)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23001 message=service_order_field_approvals is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — record a correcting event
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H8 the owner deletes an approval: refused by service_order_field_approvals (service_order_field_approvals is append-only (CI-121 / CI-125 / CI-088): a recorded event is never edited or deleted — r)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: truncate cascades to table "adhoc_charges"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "dunning_events"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "service_orders"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "service_order_field_visits"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "customer_credits"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "invoice_line_items"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "payments"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "read_validation_exceptions"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_tests"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_correction_cases"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "service_order_field_approvals"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "escheatment_events"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "invoice_applications"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "payment_provider_logs"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "invoice_exceptions"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "deposits"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "invoice_line_item_bases"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_test_load_results"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_correction_case_events"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_correction_evaluations"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_correction_approvals"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_correction_holds"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "customer_credit_approvals"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "shortfall_applications"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "suspense_receipt_dispositions"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "dispute_amount_lines"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "dispute_events"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "deposit_events"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "meter_correction_period_evidence"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "deposit_instalments"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "deposit_return_due"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "disputes"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "deposit_return_due_withdrawals"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "deposit_return_due_evidence"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "dispute_amounts"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+NOTICE:  00000: truncate cascades to table "dispute_determinations"
+LOCATION:  ExecuteTruncateGuts, tablecmds.c:1848
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23001 message=collections_decisions rows are never hard-deleted (CI-014): retire the record through its status/voided/closed marker with a reason; the row stays for audit and lineage.
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H9 a decision is never truncated, even with CASCADE: refused by collections_decisions (collections_decisions rows are never hard-deleted (CI-014): retire the record through its status/voided/closed marker wi)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS H10 tenant isolation holds over the new tables
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS H11 the retention invariants hold: no new table can be deleted from
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS H12 the core role invariants still hold
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS H13 the decision table's comment says the core decides, and that unevaluable blocks
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+RESET
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+INSERT 0 2
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R1a SO2: C1's disconnect at L4 under O2, and C1's execute decision there is blocked (a medical hold)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R1b L4 passes to C2, and C2's execute decision there is eligible
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO2: decision 8c9ca493-c8c2-634f-c5a3-a6050b91e7a1 is customer 00000000-0000-4000-8000-0000000026c2's, the order customer 00000000-0000-4000-8000-0000000026c1's [A5] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R1c C1's order executed under C2's decision: refused by [A5] (execution of order B26-SO2: decision 8c9ca493-c8c2-634f-c5a3-a6050b91e7a1 is customer 00000000-0000-4000-8000-0000000026)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R2a L6's order decision turns blocked for the whole location (O8, a medical hold), and E8 gets an eligible one of its own (O9)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision dc63f358-599f-c533-0111-9ef44b565091 is eligible, but the live decision for the same act at location 00000000-0000-4000-8000-0000000026d6 covering it is not: 5b418226-bb7d-7d14-dd0d-719e3660a431 (blocked, the whole location) — a block at the location binds every meter there [A10] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R2b an order for E8 under O9 while the location is blocked: refused by [A10] (disconnect order B26-x: decision dc63f358-599f-c533-0111-9ef44b565091 is eligible, but the live decision for the same ac)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R2c at L5 the location-wide decision O5 is eligible and E7's turns blocked (O7b)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision 19b79a54-009f-1d34-94eb-8a823bd2f7ed is eligible, but the live decision for the same act at location 00000000-0000-4000-8000-0000000026d5 covering it is not: 84172848-c636-4107-7374-f103e94206e1 (blocked, meter 00000000-0000-4000-8000-0000000026e7) — a block at the location binds every meter there [A10] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R2d an order for E7 under the location-wide O5: refused by [A10] (disconnect order B26-x: decision 19b79a54-009f-1d34-94eb-8a823bd2f7ed is eligible, but the live decision for the same ac)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=disconnect order B26-x: decision 19b79a54-009f-1d34-94eb-8a823bd2f7ed is eligible, but the live decision for the same act at location 00000000-0000-4000-8000-0000000026d5 covering it is not: 84172848-c636-4107-7374-f103e94206e1 (blocked, meter 00000000-0000-4000-8000-0000000026e7) — a block at the location binds every meter there [A10] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R2e an order naming no meter at L5 under O5 (it covers E7 too): refused by [A10] (disconnect order B26-x: decision 19b79a54-009f-1d34-94eb-8a823bd2f7ed is eligible, but the live decision for the same ac)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R2f the notice for bill 01 at L1: an eligible decision for E1 (NM1), then the location-wide D3 superseded blocked (D4, a dispute)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event shutoff_notice_sent: decision 0997bdc6-720a-9184-9829-a97b3e713f70 is eligible, but the live decision for the same act at location 00000000-0000-4000-8000-0000000026d1 covering it is not: 53ca41c2-4cfd-0639-84a1-f9ad8233858f (blocked, the whole location) — a block at the location binds every meter there [A10] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R2g a shutoff notice under NM1 while the location-wide notice decision is blocked: refused by [A10] (dunning event shutoff_notice_sent: decision 0997bdc6-720a-9184-9829-a97b3e713f70 is eligible, but the live decision for )
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R4a bill 06: a reminder and a payment plan in one INSERT
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R4b … each step's previous stage is the one before it, and the bill is at payment_plan
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS R4c bill 06: a write-off and a resolution in one INSERT … SELECT, inside a writable CTE
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R4d … the chain holds and the bill is at resolved
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R5a Tally staff approve T1's order as themselves (a platform administrator, not T1's Tally User): refused by [F3a] (field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) appr)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R5d T2's supervisor approves T1's order (refused as no supervisor of T1, before row security): refused by [F3a] (field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) appr)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=42501 message=field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) approves a disconnect on a mismatch or without evidence (D9-1) [F3a] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R5b an operator of T1 approves: refused by [F3a] (field approval: only a supervisor of the order's own utility (its tenant_admin, Tally staff through its Tally User) appr)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23503 message=insert or update on table "collections_decisions" violates foreign key constraint "collections_decisions_created_by_fkey"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R5c a T1 decision stamped with T2's user (the owner, past row security): refused by collections_decisions_created_by_fkey (insert or update on table "collections_decisions" violates foreign key constraint "collections_decisions_created_by_fkey)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6a bill 07: April's late fee (LA1, its charge, its log)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6b a shutoff notice on bill 07 moves it on
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6c May's late fee (LA2), its charge voided before it is logged
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=dunning event: late_fee_applied logs an act, and no standing (not void or waived) late-fee charge cites decision 75f43088-d823-edb8-c148-a9f2c1f56c74 [A8] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R15 a late fee logged whose only charge is void: refused by [A8] (dunning event: late_fee_applied logs an act, and no standing (not void or waived) late-fee charge cites decision 75f4308)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6d June's late fee (LA3), charged and logged, and a reminder after it
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6e bill 07 carries two standing late fees and stays at shutoff_warning: the repeat fee and the reminder moved nothing back
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6f off the ladder a step moves on: bill 02 (resolved, then a reminder) takes a late fee
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R6g … bill 02 is at late_fee_assessed
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=charge B26-x: a late fee or penalty cites its late_fee decision [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R7a a penalty charge with no decision: refused by [A1] (charge B26-x: a late fee or penalty cites its late_fee decision [A1] (v5.4.2-26))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=bill line on bill 00000000-0000-4000-8000-000000002604: a late_fee line bills its late-fee charge (adhoc_charge_id), which cites its late_fee decision; no charge does not [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R7b a late-fee line on a bill naming no charge: refused by [A1] (bill line on bill 00000000-0000-4000-8000-000000002604: a late_fee line bills its late-fee charge (adhoc_charge_id), whi)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=bill line on bill 00000000-0000-4000-8000-000000002604: a penalty line bills its late-fee charge (adhoc_charge_id), which cites its late_fee decision; e062feec-ca35-9502-4801-6a334a4df0a9 does not [A1] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R7c a penalty line naming a charge that is not a gated late fee: refused by [A1] (bill line on bill 00000000-0000-4000-8000-000000002604: a penalty line bills its late-fee charge (adhoc_charge_id), whic)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R7d the late-fee line billing CA3, a gated charge
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=charge d6f749f8-e0a7-5eb3-6814-c4f8a61eeed4: a late fee's decision and bill are written once, and no charge becomes or stops being a late fee [A9] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R7e a late fee turned into another kind of charge: refused by [A9] (charge d6f749f8-e0a7-5eb3-6814-c4f8a61eeed4: a late fee's decision and bill are written once, and no charge becomes or s)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an execution of order B26-SO4 names an approval it does not need (a mismatch approval on a match, or a no-evidence approval with evidence) [F3e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R8a a matched execution with evidence naming SO3's no-evidence approval (not needed): refused by [F3e] (field visit: an execution of order B26-SO4 names an approval it does not need (a mismatch approval on a match, or a no-e)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an execution of order B26-SO4 names an approval it does not need (a mismatch approval on a match, or a no-evidence approval with evidence) [F3e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R8b a matched execution naming a mismatch approval: refused by [F3e] (field visit: an execution of order B26-SO4 names an approval it does not need (a mismatch approval on a match, or a no-e)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO4: arrived 2026-11-28 01:32:03.890012+00, before the order (2026-11-28 01:32:04.890012+00) or its decision (2026-11-28 01:32:04.890012+00) was recorded, or in the future [F2f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R9a an execution a second before its order and decision were recorded: refused by [F2f] (execution of order B26-SO4: arrived 2026-11-28 01:32:03.890012+00, before the order (2026-11-28 01:32:04.890012+00) or i)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=execution of order B26-SO4: arrived 2026-11-28 01:32:05.890012+00, before the order (2026-11-28 01:32:04.890012+00) or its decision (2026-11-28 01:32:04.890012+00) was recorded, or in the future [F2f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R9b an execution a second in the future: refused by [F2f] (execution of order B26-SO4: arrived 2026-11-28 01:32:05.890012+00, before the order (2026-11-28 01:32:04.890012+00) or i)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=field visit: an execution of order B26-SO4 records the serial and service point captured on site (CI-071) [F2e] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R13 an execution capturing a blank serial: refused by [F2e] (field visit: an execution of order B26-SO4 records the serial and service point captured on site (CI-071) [F2e] (v5.4.2-)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R14a the disconnection under X1 logged on C2's bill 09 too
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23505 message=duplicate key value violates unique constraint "dunning_events_one_per_decision"
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R14b … once: refused by dunning_events_one_per_decision (duplicate key value violates unique constraint "dunning_events_one_per_decision")
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R12a an eligible late-fee decision for bill 08 (LV1), then bill 08 voided
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=late-fee charge B26-x: bill 00000000-0000-4000-8000-000000002608 is void — no collections act rests on it [A11] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R12b a late fee on the void bill under LV1: refused by [A11] (late-fee charge B26-x: bill 00000000-0000-4000-8000-000000002608 is void — no collections act rests on it [A11] (v5.4.2-)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=23514 message=collections decision: bill 00000000-0000-4000-8000-000000002608 is void — collections decides on issued bills only, never a void one [C3b] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R12c a new decision about the void bill: refused by [C3b] (collections decision: bill 00000000-0000-4000-8000-000000002608 is void — collections decides on issued bills only, neve)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+RESET
+SET
+INSERT 0 1
+SET
+NOTICE:  00000: PASS R10 a protective enrollment loaded in replica mode protects its customer
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ ok 
+----
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R11a -26's invariants hold
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=0LP01 message=a v5.4.2-26 trigger is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER b_enforce_field_visit BEFORE INSERT ON public.service_order_field_visits FOR EACH ROW EXECUTE FUNCTION enforce_field_visit()
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R11b … and catch a guard switched to ORIGIN only: refused by trigger is missing (a v5.4.2-26 trigger is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER b_enforce_field_visit BEFORE INSERT ON p)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: caught SQLSTATE=0LP01 message=a v5.4.2-26 table's grants or row security have changed:
+  collections_decisions | {tally=arwdDxt/tally,tally_app=ar/tally,tally_core=r/tally} | true | true
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R11c … an update granted on decisions: refused by grants or row security (a v5.4.2-26 table's grants or row security have changed:
+  collections_decisions | {tally=arwdDxt/tally,tally_app=ar/tal)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caught SQLSTATE=0LP01 message=a v5.4.2-26 function is missing, or its body, security, settings or grants have changed:
+  collections_dunning_act(text) | false | search_path=public, pg_temp | {tally=X/tally,tally_app=X/tally,tally_core=X/tally} | d0b1c60d4468467c60f3e1267a768cb5
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS R11d … and a guard's body changed: refused by function is missing (a v5.4.2-26 function is missing, or its body, security, settings or grants have changed:
+  collections_dunning_act(text))
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ refuses_at 
+------------
+ 
+(1 row)
+
+NOTICE:  00000: PASS R11e the earlier patches' invariants hold with -26
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+            result             
+-------------------------------
+ battery-26: all checks passed
+(1 row)
+
+ROLLBACK

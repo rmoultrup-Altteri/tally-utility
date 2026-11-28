@@ -1,0 +1,111 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS setup order decision
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+RESET
+INSERT 0 1
+SET
+ observe 
+---------
+ t
+(1 row)
+
+NOTICE:  00000: caller supplies created_at on INSERT: ACCEPTED SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ observe 
+---------
+ f
+(1 row)
+
+NOTICE:  00000: control: arrival precedes order but follows old decision (expect F2f): REFUSED SQLSTATE=23514 message=execution of order B26-TS: arrived 2026-11-28 01:32:05.106776+00, before the order (2026-11-28 02:32:06.106776+00) or its decision (2026-11-28 00:32:06.106776+00) was recorded, or in the future [F2f] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: caller lowers the order bound: ACCEPTED SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ observe 
+---------
+ t
+(1 row)
+
+ observe 
+---------
+ t
+(1 row)
+
+NOTICE:  00000: same arrival after lowering bound (predict accepted): ACCEPTED SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ observe 
+---------
+ t
+(1 row)
+
+NOTICE:  00000: caller raises creation time after execution (predict accepted): ACCEPTED SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+         order_created         |       decision_created        |          arrived_at           | execution_now_precedes_order 
+-------------------------------+-------------------------------+-------------------------------+------------------------------
+ 2026-11-28 02:32:06.106776+00 | 2026-11-28 00:32:06.106776+00 | 2026-11-28 01:32:05.106776+00 | t
+(1 row)
+
+RESET
+ROLLBACK

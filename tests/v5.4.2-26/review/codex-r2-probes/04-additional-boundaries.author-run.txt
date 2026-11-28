@@ -1,0 +1,153 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+CREATE FUNCTION
+DO
+INSERT 0 2
+INSERT 0 3
+INSERT 0 3
+INSERT 0 6
+INSERT 0 6
+UPDATE 1
+INSERT 0 1
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+ bill 
+------
+ 
+(1 row)
+
+INSERT 0 1
+CREATE FUNCTION
+GRANT
+SET
+ as_user 
+---------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS setup broad eligible notice
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS setup meter blocked notice
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ observe 
+---------
+ f
+(1 row)
+
+NOTICE:  00000: broad notice must honor meter block (A10): REFUSED SQLSTATE=23514 message=dunning event shutoff_notice_sent: decision 2be6d8d1-5a73-eab4-8161-075aef55c65b is eligible, but the live decision for the same act at location 00000000-0000-4000-8000-0000000026d1 covering it is not: 2e63b4f6-8731-f36e-d0c0-c4540b7fbd50 (blocked, meter 00000000-0000-4000-8000-0000000026e1) — a block at the location binds every meter there [A10] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS setup order decision
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS setup order
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: PASS setup eligible meter execution
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: PASS setup blocked broad execution
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ admits 
+--------
+ 
+(1 row)
+
+NOTICE:  00000: execution must honor broad block (A10): REFUSED SQLSTATE=23514 message=execution of order B26-ASO: decision 0329d8a0-c58b-04e6-73a9-62f96e2d4648 is eligible, but the live decision for the same act at location 00000000-0000-4000-8000-0000000026d1 covering it is not: edfcecfd-dbb7-9ff9-8444-6fbbab37af19 (blocked, the whole location) — a block at the location binds every meter there [A10] (v5.4.2-26)
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ observe 
+---------
+ f
+(1 row)
+
+      s       |          e          |  resulting_stage  
+--------------+---------------------+-------------------
+ payment_plan | reminder_sent       | reminder_sent
+ payment_plan | late_fee_applied    | late_fee_assessed
+ payment_plan | shutoff_notice_sent | shutoff_warning
+ payment_plan | reconnected         | 
+ payment_plan | payment_plan_broken | 
+ resolved     | reminder_sent       | reminder_sent
+ resolved     | late_fee_applied    | late_fee_assessed
+ resolved     | shutoff_notice_sent | shutoff_warning
+ resolved     | reconnected         | 
+ resolved     | payment_plan_broken | 
+ written_off  | reminder_sent       | reminder_sent
+ written_off  | late_fee_applied    | late_fee_assessed
+ written_off  | shutoff_notice_sent | shutoff_warning
+ written_off  | reconnected         | 
+ written_off  | payment_plan_broken | 
+ collections  | reminder_sent       | collections
+ collections  | late_fee_applied    | collections
+ collections  | shutoff_notice_sent | collections
+ collections  | reconnected         | 
+ collections  | payment_plan_broken | 
+(20 rows)
+
+INSERT 0 1
+      event_type      | previous_stage |   new_stage   | record_seq 
+----------------------+----------------+---------------+------------
+ reminder_sent        | current        | reminder_sent |          6
+ payment_plan_created | reminder_sent  | payment_plan  |          7
+(2 rows)
+
+ dunning_stage 
+---------------
+ payment_plan
+(1 row)
+
+RESET
+ROLLBACK

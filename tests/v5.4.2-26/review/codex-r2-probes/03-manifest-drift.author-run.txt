@@ -1,0 +1,57 @@
+BEGIN
+CREATE FUNCTION
+ assert_collections_guard_invariants 
+-------------------------------------
+ 
+(1 row)
+
+ drift 
+-------
+ 
+(1 row)
+
+NOTICE:  00000: control: disabled guard: SQLSTATE=0LP01 message=a v5.4.2-26 trigger is missing, changed, or not ENABLE ALWAYS:
+  CREATE TRIGGER b_enforce_field_visit BEFORE INSERT ON public.service_order_field_visits FOR EACH ROW EXECUTE FUNCTION enforce_field_visit()
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: policy becomes allow-all: invariant ACCEPTED drift SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: policy becomes allow-all: SQLSTATE=P0098 message=intentional undo of drift
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ drift 
+-------
+ 
+(1 row)
+
+ drift 
+-------
+ 
+(1 row)
+
+NOTICE:  00000: evidence array loses NOT NULL: invariant ACCEPTED drift SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: evidence array loses NOT NULL: SQLSTATE=P0098 message=intentional undo of drift
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: column grant not table grant: invariant ACCEPTED drift SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: column grant not table grant: SQLSTATE=P0098 message=intentional undo of drift
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ drift 
+-------
+ 
+(1 row)
+
+ drift 
+-------
+ 
+(1 row)
+
+NOTICE:  00000: helper volatility changes: invariant ACCEPTED drift SQLSTATE=00000
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+NOTICE:  00000: helper volatility changes: SQLSTATE=P0098 message=intentional undo of drift
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+ assert_collections_guard_invariants 
+-------------------------------------
+ 
+(1 row)
+
+ROLLBACK
