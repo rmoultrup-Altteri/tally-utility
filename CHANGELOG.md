@@ -6,6 +6,22 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 
 ---
 
+## 2026-11-27, later (money) — v5.4.2-26 (collections decisions): rounds 1 and 2 reviewed, r3 built
+
+**What was done:**
+- **Kyle:** the credit-line question (K-17) was never sent; recovered word for word from the 11-22 transcript into `application/kyle-brief-2026-11-22-credit-line.md`; Ryan sent it. The two leftover postgres-mcp containers stopped.
+- **-26 round 1** (first review ever; drafted 2026-10-19): re-tested on the base with -25 (ci 56/56, mutations 127/127), frozen, reviewed by Opus, Fable and Codex: all "not yet" (five blocking: another customer's execute decision; a location-wide block ignored at a meter; a cancel after execution at REPEATABLE READ; multi-row stage chaining; actor links not tied to the utility). Codex's 6 probes run by the author, all as predicted.
+- **r2 built** (plan `application/wave3-build-2026-10-18/v5.4.2-26-r2-plan.md`): the 15 findings; `assert_collections_guard_invariants` with `fill-manifest.py`; battery-21's late-fee line bills a gated charge. Battery 249, races 13, mutations 152/152. **Round 2:** all three "not yet" (a late-synced execution could never be recorded; premises passed to another customer; one charge billed any number of times). Codex's 5 probes run, all as predicted.
+- **r3 built** (plan `-r3-plan.md`, pushed 54f7bd8, not frozen): an execution judged as of its arrival; premises and the order's decisions checked at execution; a removed meter's block binds nothing; late fees billed and posted once at the charge's amount; closed bills reopen only on a gated step; no step on a void bill; an order's recorded time the database's; race verdicts name their damage, the mutation classifier self-tested; the invariant pins policies, NOT NULL, column grants, volatility and dunning_events. battery-22's ledger late fee posts a gated charge. Battery 288, races 19, migration P0–P7b, mutations 177/177, ci 56/56.
+- Settled by rule (Ryan may overrule): escalation steps move a bill's stage only forward; from a payment plan any step moves it, a resolved or written-off bill only on a gated step.
+- Two PATCH-LESSONS: `optional-key-splits-a-subject`, `every-guard-reading-other-rows-pins-isolation`.
+
+**Tried and dropped:** refusing collection steps on draft bills (battery-19 logs one; void bills only); the "decision recorded before the act" bound without as-of liveness (r2: a late sync could cite nothing); a lock key with the meter in it (r1).
+
+**Next:** on Ryan's go-ahead, freeze r3 (battery-21 and battery-22 among the frozen files) and review with all three.
+
+---
+
 ## 2026-11-27 (money) — v5.4.2-25 (disputes) rounds 8 and 9 reviewed; mirrored
 
 **What was done:**
@@ -161,27 +177,5 @@ This file keeps the newest 10 sessions. Older entries are in `changelog-archive/
 **Open:** battery -22's R11d failed once in `ci.sh` (1.34 s against 1 s), cause not established; 0.3 s with and without -30, passed since.
 
 **Next:** -31 (franchise fees).
-
----
-
-## 2026-11-07, evening (money) — -24 rounds 5 to 8 (r9 built); -25's mutation suite repaired (126/126)
-
-**What was done:**
-- **The background jobs from the afternoon** had ended with that session; re-run: ci.sh 63/63, -24 mutations 112/112.
-- **-25:** the first full mutation run caught 121 of 125. Four tests were weak, not the schema: two checks matched a tag shared by two guards, one mutation emptied an already-empty list, one broke the wrong half of the policy check. Repaired, plus H16f2 and M126: battery 222, mutations 126/126. PATCH-LESSONS `check-names-its-own-guard`.
-- **-24, round by round** (each settled by rule; plans r6–r9):
-  - r5: Opus not yet (an undo typed nsf left out), Fable ready, Codex not yet: a return dated before a later undo counted one receipt of 100 as 200 received on the dates between (its probe confirmed). Fixed in r6: the return is dated on or after every row under the posting entry.
-  - r6: Opus and Fable ready; Codex not yet: in an owner's history load the return could be recorded before the reversal it rests on (confirmed). Fixed in r7: recorded no earlier than every tree row (40001/23514). Also: a redundant date check removed, the invariant lists a missing helper, and Fable's conservation sweep S4b over every date and recorded instant (shown to flag both Codex shapes).
-  - r7: Fable ready; Opus not yet: a short return stranded the rest (now exactly the share) and an untested half of the r7 rule; Codex did not start (usage limit).
-  - r8: Fable ready (the refusal checks now pin the share); Opus not yet: money awaiting a return showed up nowhere. r9 adds `suspense_misposted_share` and `suspense_misposting_returns_due_as_of`. r9 is built: battery 282, mutations 119, not frozen.
-- Every Codex probe (r5: six; r6: nine) was run by the author on fresh clones (`*.author-run.txt`); every prediction held.
-
-**Decisions:** none of Ryan's this session; all review findings settled by rule.
-
-**Lessons:** PATCH-LESSONS `check-names-its-own-guard` (shared tags, an empty list, the wrong leg; a rule made exact).
-
-**Failed approaches:** see `handoffs/schema-money.md` (business date alone; "at most" for a once-only release; editing tests during a run).
-
-**Next:** confirm r9's CI and mutations; Ryan: wait for Codex (resets 00:15 on 11-08) or waive; freeze and review -24 r9; the dispute ruling, then -25 r2.
 
 ---
