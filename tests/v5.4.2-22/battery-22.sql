@@ -225,11 +225,40 @@ SELECT pg_temp.refuses_at('C6 the core cannot close',
   '42501', 'permission denied');
 RESET ROLE;
 
+-- C2's January late fee (v5.4.2-26 r3): a late fee on the ledger posts its
+-- late-fee charge, which cites the eligible late_fee decision on the bill it
+-- is for. The bill, the decision and the charge add no ledger row.
+SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b1', true);
+INSERT INTO public.invoices (id, tenant_id, invoice_number, customer_id, location_id, is_consolidated, invoice_date, billing_period, period_start, period_end, due_date, amount_due)
+VALUES ('00000000-0000-4000-8000-0000000022d5', '00000000-0000-4000-8000-0000000022a1', 'B22-LFB', '00000000-0000-4000-8000-0000000022c2', NULL, true,
+        DATE '2025-12-01', '2025-11', DATE '2025-11-01', DATE '2025-11-30', DATE '2025-12-20', 80.00);
+INSERT INTO public.invoice_line_items (tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, rate, regulatory_class)
+VALUES ('00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022d5', 0, 'gas', 'base_charge', 'Gas service', 80.00, 80.00, 'regulated');
+INSERT INTO public.invoice_calculation_snapshots
+  (tenant_id, invoice_id, valid_at, recorded_at, snapshot_schema_version, formula_version,
+   rate_inputs, gas_factors, wna_inputs, tax_inputs, read_inputs, customer_inputs, period_inputs, line_items)
+SELECT i.tenant_id, i.id, DATE '2025-11-30', now(), 'v1', 'bat22',
+   '{"rate_schedule_id":null,"rate_schedule_version_id":null,"rate_schedule_code":null,"customer_type":null,"partial_period_policy":null,"items":[]}',
+   '{"pga_factor":null,"btu_factor":null,"pressure_factor":null,"temperature_factor":null,"meter_multiplier":null,"factor_stack_intermediates":{}}',
+   '{"applied":false}', '{"jurisdictions":[],"exemptions":[],"franchise_fees":[]}', '{"reads":[]}',
+   jsonb_build_object('customer_id', i.customer_id, 'customer_class', null, 'location_id', i.location_id, 'premise_zones', '{}'::jsonb),
+   jsonb_build_object('period_start', i.period_start, 'period_end', i.period_end, 'days_in_period', 30, 'proration_policy', null),
+   (SELECT jsonb_agg(jsonb_build_object('invoice_line_item_id', l.id, 'charge_type', l.charge_type, 'amount', l.amount)) FROM public.invoice_line_items l WHERE l.invoice_id = i.id)
+  FROM public.invoices i WHERE i.id = '00000000-0000-4000-8000-0000000022d5';
+UPDATE public.invoices SET status = 'pending' WHERE id = '00000000-0000-4000-8000-0000000022d5';
+INSERT INTO public.collections_decisions (id, tenant_id, customer_id, act, invoice_id, evaluation_date, outcome, valid_until, inputs, inputs_fingerprint, calculated_by)
+VALUES ('00000000-0000-4000-8000-0000000022d6', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c2', 'late_fee',
+        '00000000-0000-4000-8000-0000000022d5', DATE '2026-01-31', 'eligible', DATE '2026-01-31', '{}', 'b22', 'battery-22');
+INSERT INTO public.adhoc_charges (id, tenant_id, charge_number, customer_id, charge_type, description, amount, regulatory_class, effective_date,
+                                  triggered_by_invoice_id, collections_decision_id)
+VALUES ('00000000-0000-4000-8000-0000000022d7', '00000000-0000-4000-8000-0000000022a1', 'B22-LF', '00000000-0000-4000-8000-0000000022c2', 'late_fee',
+        'late fee', 5.00, 'regulated', DATE '2026-01-31', '00000000-0000-4000-8000-0000000022d5', '00000000-0000-4000-8000-0000000022d6');
+
 -- January's activity, posted by the application before the close.
 SET ROLE tally_app;
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b1', true);
-INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount) VALUES
-  ('00000000-0000-4000-8000-0000000022e5', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c2', DATE '2026-01-31', 'late_fee', 'C2 late fee', 5.00);
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id) VALUES
+  ('00000000-0000-4000-8000-0000000022e5', '00000000-0000-4000-8000-0000000022a1', '00000000-0000-4000-8000-0000000022c2', DATE '2026-01-31', 'late_fee', 'C2 late fee', 5.00, 'adhoc_charge', '00000000-0000-4000-8000-0000000022d7');
 SELECT set_config('app.user_id', '00000000-0000-4000-8000-0000000022b4', true);
 SELECT set_config('bat22.close_at', public.close_accounting_period('00000000-0000-4000-8000-000000002211', 1234.56, 'core estimate: 31 days of degree-day usage')::text, true);
 RESET ROLE;

@@ -504,12 +504,12 @@ SELECT pg_temp.refuses_at('E2a2 a new bill born past current',
          pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.u('d1')), '23514', '[E2a]');
 SELECT pg_temp.refuses_at('E2b1 a reminder that claims to move the bill to disconnected',
   pg_temp.ev('x', '02', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-07 12:00Z', NULL, 'disconnected'), '23514', '[E2b]');
-SELECT pg_temp.refuses_at('E2b2 an event claiming the bill was at current (it is at resolved)',
-  pg_temp.ev('x', '02', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-07 12:00Z', NULL, 'reminder_sent', 'current'), '23514', '[E2b]');
+SELECT pg_temp.refuses_at('E2b2 an event claiming the bill was at current (it is at resolved), its new stage right',
+  pg_temp.ev('x', '02', 'c1', 'written_off', TIMESTAMPTZ '2026-04-07 12:00Z', NULL, 'written_off', 'current'), '23514', '[E2b]');
 SELECT pg_temp.refuses_at('E2b3 a reconnection that names a stage',
   pg_temp.ev('x', '02', 'c1', 'reconnected', TIMESTAMPTZ '2026-04-07 12:00Z', NULL, 'resolved'), '23514', '[E2b]');
-SELECT pg_temp.admits('E2b4 … stages the caller gives that agree are kept',
-  pg_temp.ev('S7', '02', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-07 12:00Z', NULL, 'reminder_sent', 'resolved'));
+SELECT pg_temp.admits('E2b4 … stages the caller gives that agree are kept: a reminder leaves a resolved bill where it is (r3: it reopens only on a gated step)',
+  pg_temp.ev('S7', '02', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-07 12:00Z', NULL, 'resolved', 'resolved'));
 RESET ROLE;
 SELECT pg_temp.refuses_at('E2a3 the owner writes a bill''s stage directly too',
   format($q$UPDATE public.invoices SET dunning_stage = 'current' WHERE id = %L$q$, pg_temp.u('02')), '23514', '[E2a]');
@@ -725,8 +725,8 @@ SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('06'), 'B26-I6', pg_temp.u('c1'),
 SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('07'), 'B26-I7', pg_temp.u('c1'), pg_temp.u('d1'), true);
 SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('08'), 'B26-I8', pg_temp.u('c1'), pg_temp.u('d1'), true);
 SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('09'), 'B26-I9', pg_temp.u('c2'), pg_temp.u('d2'), true);
-INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
-VALUES (pg_temp.u('a1'), pg_temp.u('c1'), DATE '2026-03-01', 'charge', 'B26-I8', 60.00, 'invoice', pg_temp.u('08'));
+INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+VALUES (pg_temp.id('LG08'), pg_temp.u('a1'), pg_temp.u('c1'), DATE '2026-03-01', 'charge', 'B26-I8', 60.00, 'invoice', pg_temp.u('08'));
 INSERT INTO public.users (id, tenant_id, display_name, email, role, is_active) VALUES
   (pg_temp.u('b4'), pg_temp.u('a2'), 'Tally staff', 'staff@bat26.test', 'platform_admin', true),
   (pg_temp.u('b5'), pg_temp.u('a2'), 'Sup2', 'sup2@bat26.test', 'tenant_admin', true);
@@ -820,7 +820,7 @@ SELECT pg_temp.ok('R6e bill 07 carries two standing late fees and stays at shuto
   AND (SELECT array_agg(previous_stage || '>' || new_stage ORDER BY record_seq) FROM public.dunning_events WHERE invoice_id = pg_temp.u('07'))
       = ARRAY['current>late_fee_assessed', 'late_fee_assessed>shutoff_warning', 'shutoff_warning>shutoff_warning', 'shutoff_warning>shutoff_warning']
   AND (SELECT dunning_stage FROM public.invoices WHERE id = pg_temp.u('07')) = 'shutoff_warning');
-SELECT pg_temp.admits('R6f off the ladder a step moves on: bill 02 (resolved, then a reminder) takes a late fee', concat_ws('; ',
+SELECT pg_temp.admits('R6f a gated step reopens a resolved bill: bill 02 (resolved; the reminder left it) takes a late fee', concat_ws('; ',
   pg_temp.dec('LB1', 'late_fee', 'c1', '02', NULL, NULL, DATE '2026-04-08', 'eligible', NULL, NULL, NULL, DATE '2026-04-10', NULL, 'lb1'),
   pg_temp.chg('CB1', 'c1', '02', DATE '2026-04-08', 'LB1'),
   pg_temp.ev('LGB', '02', 'c1', 'late_fee_applied', TIMESTAMPTZ '2026-04-08 12:00Z', 'LB1')));
@@ -876,7 +876,163 @@ SET LOCAL session_replication_role = origin;
 SELECT pg_temp.ok('R10 a protective enrollment loaded in replica mode protects its customer',
   (SELECT do_not_disconnect FROM public.customers WHERE id = pg_temp.u('c1')));
 
--- Item 11: -26's invariants, and that they catch drift.
+-- ============================================================== S round 2's findings (r3)
+-- Each check names the r3 plan's item (v5.4.2-26-r3-plan.md). Fixtures:
+-- locations d7 (C1, meter f7), d8 (C1, meter f8), d9 (C1: f1 until April 1,
+-- f2 since), da (C1, meter fa), db (C1, meter fb); draft bill 0a (C1 at L1);
+-- issued bill 0b (C1 at L1).
+RESET ROLE;
+INSERT INTO public.service_locations (id, tenant_id, customer_id, location_number, address_line1, city, state, zip) VALUES
+  (pg_temp.u('d7'), pg_temp.u('a1'), pg_temp.u('c1'), 'L7', '7 Main', 'Brenham', 'TX', '77833'),
+  (pg_temp.u('d8'), pg_temp.u('a1'), pg_temp.u('c1'), 'L8', '8 Main', 'Brenham', 'TX', '77833'),
+  (pg_temp.u('d9'), pg_temp.u('a1'), pg_temp.u('c1'), 'L9', '9 Main', 'Brenham', 'TX', '77833'),
+  (pg_temp.u('da'), pg_temp.u('a1'), pg_temp.u('c1'), 'LA', '10 Main', 'Brenham', 'TX', '77833'),
+  (pg_temp.u('db'), pg_temp.u('a1'), pg_temp.u('c1'), 'LB', '11 Main', 'Brenham', 'TX', '77833');
+INSERT INTO public.meters (id, tenant_id, meter_number, serial_number, location_id, service_type, start_date) VALUES
+  (pg_temp.u('f7'), pg_temp.u('a1'), 'B26-MF7', 'SN-F7', pg_temp.u('d7'), 'gas', DATE '2020-01-01'),
+  (pg_temp.u('f8'), pg_temp.u('a1'), 'B26-MF8', 'SN-F8', pg_temp.u('d8'), 'gas', DATE '2020-01-01'),
+  (pg_temp.u('f1'), pg_temp.u('a1'), 'B26-MF1', 'SN-F1', pg_temp.u('d9'), 'gas', DATE '2020-01-01'),
+  (pg_temp.u('fa'), pg_temp.u('a1'), 'B26-MFA', 'SN-FA', pg_temp.u('da'), 'gas', DATE '2020-01-01'),
+  (pg_temp.u('fb'), pg_temp.u('a1'), 'B26-MFB', 'SN-FB', pg_temp.u('db'), 'gas', DATE '2020-01-01');
+UPDATE public.meter_deployments SET removal_date = DATE '2026-04-01', removal_reason = 'upgrade_size' WHERE meter_id = pg_temp.u('f1');
+INSERT INTO public.meters (id, tenant_id, meter_number, serial_number, location_id, service_type, start_date) VALUES
+  (pg_temp.u('f2'), pg_temp.u('a1'), 'B26-MF2', 'SN-F2', pg_temp.u('d9'), 'gas', DATE '2026-04-01');
+SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('0b'), 'B26-IB', pg_temp.u('c1'), pg_temp.u('d1'), true);
+SELECT pg_temp.bill(pg_temp.u('a1'), pg_temp.u('0a'), 'B26-IA', pg_temp.u('c1'), pg_temp.u('d1'), false);
+-- dec_at(): a decision with the owner's recorded time (a history load keeps it).
+CREATE FUNCTION pg_temp.dec_at(p_sql text, p_at timestamptz) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE replace(replace(p_sql, 'supersedes_id, inputs,', 'supersedes_id, created_at, inputs,'),
+                  $r$, '{"bat26": true}',$r$, format($r$, %L, '{"bat26": true}',$r$, p_at));
+END $$;
+
+-- Item 1: an execution is judged as of its arrival (Opus B1).
+SELECT pg_temp.dec_at(pg_temp.dec('X4', 'disconnect_execute', 'c2', NULL, 'd2', NULL, pg_temp.today(), 'blocked', '{payment_pending}', NULL, 'payment_pending', NULL, 'X3', 'x4'),
+                      now() + interval '1 second');
+SET ROLE tally_app;
+SELECT pg_temp.as_user('b1');
+SELECT pg_temp.admits('S1a the crew executed SO4 under X3; the core blocked it a second later (X4); the late sync citing X3 is recorded',
+  pg_temp.visit('VS1', 'SO4', now(), 'SN-E2', 'L2', 'executed', NULL, 'X3', NULL, NULL, '{photo-s1}'));
+SELECT pg_temp.refuses_at('S1b … a successor recorded at the arrival or before it still supersedes (X1, superseded by X3 in this transaction)',
+  pg_temp.visit('x', 'SO4', now(), 'SN-E2', 'L2', 'executed', NULL, 'X1', NULL, NULL, '{photo-s1}'), '23514', '[A4]');
+
+-- Item 2: the premises are still the order's customer's (Opus B2).
+SELECT pg_temp.admits('S2a C1''s order, order decision and execute decision at L7', concat_ws('; ',
+  pg_temp.dec('OD7', 'disconnect_order', 'c1', NULL, 'd7', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'od7'),
+  pg_temp.so('SO7', 'c1', 'd7', 'f7', 'OD7'),
+  pg_temp.dec('XD7', 'disconnect_execute', 'c1', NULL, 'd7', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today(), NULL, 'xd7'),
+  format($q$UPDATE public.service_locations SET customer_id = %L WHERE id = %L$q$, pg_temp.u('c2'), pg_temp.u('d7'))));
+SELECT pg_temp.refuses_at('S2b C1''s order executed at L7 after L7 passed to C2, under C1''s own decisions',
+  pg_temp.visit('x', 'SO7', now(), 'SN-F7', 'L7', 'executed', NULL, 'XD7', NULL, NULL, '{photo-s2}'), '23514', '[F2g]');
+
+-- Items 5 and 8: the order's decision turns blocked; the order's recorded time is the database's.
+SELECT pg_temp.admits('S5a C1''s order at L8, its recorded time given as 2020 (the caller''s)', concat_ws('; ',
+  pg_temp.dec('OD8', 'disconnect_order', 'c1', NULL, 'd8', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'od8'),
+  format($q$INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, status, description, customer_id, location_id, meter_id, collections_decision_id, created_at)
+            VALUES (%L, %L, 'B26-SO8', 'disconnect', 'open', 'bat26 order', %L, %L, %L, %L, TIMESTAMPTZ '2020-01-01 00:00Z')$q$,
+         pg_temp.id('SO8'), pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.u('d8'), pg_temp.u('f8'), pg_temp.id('OD8'))));
+SELECT pg_temp.ok('S8a … the database recorded it now, not 2020', (SELECT created_at = now() FROM public.service_orders WHERE id = pg_temp.id('SO8')));
+SELECT pg_temp.refuses_at('S8b the order''s recorded time moved back',
+  format($q$UPDATE public.service_orders SET created_at = TIMESTAMPTZ '2020-01-01 00:00Z' WHERE id = %L$q$, pg_temp.id('SO8')), '23514', '[F4a]');
+SELECT pg_temp.admits('S5b the order decision turns blocked (a medical hold), and a fresh execute decision is eligible', concat_ws('; ',
+  pg_temp.dec('OD8b', 'disconnect_order', 'c1', NULL, 'd8', NULL, pg_temp.today(), 'blocked', '{medical_hold}', NULL, 'medical_hold', NULL, 'OD8', 'od8b'),
+  pg_temp.dec('XD8', 'disconnect_execute', 'c1', NULL, 'd8', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today(), NULL, 'xd8')));
+SELECT pg_temp.refuses_at('S5c SO8 executed while its order decision is blocked',
+  pg_temp.visit('x', 'SO8', now(), 'SN-F8', 'L8', 'executed', NULL, 'XD8', NULL, NULL, '{photo-s5}'), '23514', '[F2h]');
+RESET ROLE;
+-- Each bound of an execution's date alone (owner fixtures keep their recorded times).
+SELECT pg_temp.dec_at(pg_temp.dec('ODA', 'disconnect_order', 'c1', NULL, 'da', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'oda'), now() - interval '1 hour');
+SELECT pg_temp.dec_at(pg_temp.dec('XDA', 'disconnect_execute', 'c1', NULL, 'da', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today(), NULL, 'xda'), now() - interval '1 hour');
+INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, status, description, customer_id, location_id, meter_id, collections_decision_id)
+VALUES (pg_temp.id('SOA'), pg_temp.u('a1'), 'B26-SOA', 'disconnect', 'open', 'bat26 order', pg_temp.u('c1'), pg_temp.u('da'), pg_temp.u('fa'), pg_temp.id('ODA'));
+SELECT pg_temp.dec_at(pg_temp.dec('ODB', 'disconnect_order', 'c1', NULL, 'db', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'odb'), now() - interval '1 hour');
+SELECT pg_temp.dec_at(pg_temp.dec('XDB', 'disconnect_execute', 'c1', NULL, 'db', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today(), NULL, 'xdb'), now());
+INSERT INTO public.service_orders (id, tenant_id, order_number, order_type, status, description, customer_id, location_id, meter_id, collections_decision_id, created_at)
+VALUES (pg_temp.id('SOB'), pg_temp.u('a1'), 'B26-SOB', 'disconnect', 'open', 'bat26 order', pg_temp.u('c1'), pg_temp.u('db'), pg_temp.u('fb'), pg_temp.id('ODB'), now() - interval '1 hour');
+SET ROLE tally_app;
+SELECT pg_temp.as_user('b1');
+SELECT pg_temp.refuses_at('S8c an arrival after its decision was recorded but before its order was',
+  pg_temp.visit('x', 'SOA', now() - interval '1 second', 'SN-FA', 'LA', 'executed', NULL, 'XDA', NULL, NULL, '{photo-s8}'), '23514', '[F2f]');
+SELECT pg_temp.refuses_at('S8d an arrival after its order was recorded but before its decision was',
+  pg_temp.visit('x', 'SOB', now() - interval '1 second', 'SN-FB', 'LB', 'executed', NULL, 'XDB', NULL, NULL, '{photo-s8}'), '23514', '[F2f]');
+
+-- Item 6: a removed meter's block binds nothing (Opus S3, Fable S2).
+SELECT pg_temp.admits('S6a F1 at L9 blocked in March (it came out April 1); the location-wide order decision eligible today', concat_ws('; ',
+  pg_temp.dec('OF1', 'disconnect_order', 'c1', NULL, 'd9', 'f1', DATE '2026-03-30', 'blocked', '{medical_hold}', NULL, 'medical_hold', NULL, NULL, 'of1'),
+  pg_temp.dec('OD9', 'disconnect_order', 'c1', NULL, 'd9', NULL, pg_temp.today(), 'eligible', NULL, NULL, NULL, pg_temp.today() + 7, NULL, 'od9')));
+SELECT pg_temp.admits('S6b an order at L9 naming no meter: the removed meter''s block does not bind it', pg_temp.so('SO9', 'c1', 'd9', NULL, 'OD9'));
+SELECT pg_temp.admits('S6c F2, the meter there now, turns blocked', pg_temp.dec('OF2', 'disconnect_order', 'c1', NULL, 'd9', 'f2', pg_temp.today(), 'blocked', '{payment_pending}', NULL, 'payment_pending', NULL, NULL, 'of2'));
+SELECT pg_temp.refuses_at('S6d … and its block binds an order naming no meter', pg_temp.so('x', 'c1', 'd9', NULL, 'OD9'), '23514', '[A10]');
+
+-- Item 3: a late-fee line bills a standing charge, at its amount, once (Fable B1).
+SELECT pg_temp.admits('S3 a late fee on bill 0b (LC1, its $5 charge CC1), not yet billed', concat_ws('; ',
+  pg_temp.dec('LC1', 'late_fee', 'c1', '0b', NULL, NULL, DATE '2026-04-01', 'eligible', NULL, NULL, NULL, DATE '2026-04-05', NULL, 'lc1'),
+  pg_temp.chg('CC1', 'c1', '0b', DATE '2026-04-01', 'LC1')));
+SELECT pg_temp.refuses_at('S3a a line billing CC1 ($5) at $500',
+  format($q$INSERT INTO public.invoice_line_items (tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, regulatory_class, adhoc_charge_id)
+            VALUES (%L, %L, 1, 'gas', 'penalty', 'Penalty', 500.00, 'regulated', %L)$q$, pg_temp.u('a1'), pg_temp.u('0a'), pg_temp.id('CC1')), '23514', '[A12]');
+SELECT pg_temp.refuses_at('S3b a second line billing CA3, already billed on bill 04',
+  format($q$INSERT INTO public.invoice_line_items (tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, regulatory_class, adhoc_charge_id)
+            VALUES (%L, %L, 1, 'gas', 'late_fee', 'Late fee', 5.00, 'regulated', %L)$q$, pg_temp.u('a1'), pg_temp.u('0a'), pg_temp.id('CA3')), '23514', '[A12]');
+SELECT pg_temp.refuses_at('S3c a line billing CA2, which is void',
+  format($q$INSERT INTO public.invoice_line_items (tenant_id, invoice_id, line_order, service_type, charge_type, description, amount, regulatory_class, adhoc_charge_id)
+            VALUES (%L, %L, 1, 'gas', 'late_fee', 'Late fee', 5.00, 'regulated', %L)$q$, pg_temp.u('a1'), pg_temp.u('0a'), pg_temp.id('CA2')), '23514', '[A12]');
+SELECT pg_temp.refuses_at('S3d CA3''s line raised to $500 afterwards',
+  format($q$UPDATE public.invoice_line_items SET amount = 500.00 WHERE adhoc_charge_id = %L$q$, pg_temp.id('CA3')), '23514', '[A12]');
+
+-- Item 4: a late fee on the ledger posts a standing gated charge, once (Opus S1).
+SELECT pg_temp.refuses_at('S4a a late fee on the ledger with no charge',
+  format($q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type)
+            VALUES (%L, %L, DATE '2026-06-01', 'late_fee', 'late fee', 25.00, 'manual')$q$, pg_temp.u('a1'), pg_temp.u('c1')), '23514', '[A13]');
+SELECT pg_temp.refuses_at('S4b … posting CA3 at $500',
+  format($q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+            VALUES (%L, %L, DATE '2026-06-01', 'late_fee', 'late fee', 500.00, 'adhoc_charge', %L)$q$, pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.id('CA3')), '23514', '[A13]');
+SELECT pg_temp.admits('S4c … posting CA3 at its $5',
+  format($q$INSERT INTO public.account_ledger (id, tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+            VALUES (%L, %L, %L, DATE '2026-06-01', 'late_fee', 'late fee', 5.00, 'adhoc_charge', %L)$q$, pg_temp.id('LP3'), pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.id('CA3')));
+SELECT pg_temp.refuses_at('S4d … and again',
+  format($q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+            VALUES (%L, %L, DATE '2026-06-02', 'late_fee', 'late fee', 5.00, 'adhoc_charge', %L)$q$, pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.id('CA3')), '23514', '[A13]');
+SELECT pg_temp.refuses_at('S4e … posting CA2, which is void',
+  format($q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reference_type, reference_id)
+            VALUES (%L, %L, DATE '2026-06-02', 'late_fee', 'late fee', 5.00, 'adhoc_charge', %L)$q$, pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.id('CA2')), '23514', '[A13]');
+SELECT pg_temp.refuses_at('S4f a late fee undoing an entry that is not a late fee',
+  format($q$INSERT INTO public.account_ledger (tenant_id, customer_id, transaction_date, transaction_type, description, amount, reverses_ledger_entry_id, reversal_reason)
+            VALUES (%L, %L, DATE '2026-06-02', 'late_fee', 'undo', -60.00, %L, 'keyed twice')$q$, pg_temp.u('a1'), pg_temp.u('c1'), pg_temp.id('LG08')), '23514', '[A13]');
+
+-- Item 7: a closed bill reopens only on a gated step; a plan resumes on any (Opus S4, Fable N2).
+SELECT pg_temp.admits('S7a bill 06 (resolved) takes a reminder, and stays resolved',
+  pg_temp.ev('x7a', '06', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-09 12:00Z', NULL));
+SELECT pg_temp.ok('S7b … bill 06 is at resolved', (SELECT dunning_stage FROM public.invoices WHERE id = pg_temp.u('06')) = 'resolved');
+SELECT pg_temp.admits('S7c bill 0b: a payment plan, then a reminder (the plan broke)', concat_ws('; ',
+  pg_temp.ev('x7c', '0b', 'c1', 'payment_plan_created', TIMESTAMPTZ '2026-04-01 12:00Z', NULL),
+  pg_temp.ev('x7d', '0b', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-09 12:00Z', NULL)));
+SELECT pg_temp.ok('S7d … bill 0b is at reminder_sent', (SELECT dunning_stage FROM public.invoices WHERE id = pg_temp.u('0b')) = 'reminder_sent');
+
+-- Note: a step on a void bill.
+SELECT pg_temp.refuses_at('S12 a reminder on void bill 08', pg_temp.ev('x', '08', 'c1', 'reminder_sent', TIMESTAMPTZ '2026-04-09 12:00Z', NULL), '23514', '[E2c]');
+
+-- Item 10: the invariant catches the drift round 2 found it missed (Codex S3, Fable S3).
+RESET ROLE;
+SELECT pg_temp.refuses_at('S10a … a policy made allow-all',
+  $q$ALTER POLICY tenant_isolation ON public.collections_decisions USING (true); SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'row-security policies');
+SELECT pg_temp.refuses_at('S10b … a NOT NULL dropped',
+  $q$ALTER TABLE public.service_order_field_visits ALTER COLUMN evidence_refs DROP NOT NULL; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'lost NOT NULL');
+SELECT pg_temp.refuses_at('S10c … a column grant',
+  $q$GRANT SELECT (inputs) ON public.collections_decisions TO tally_core; GRANT UPDATE (inputs) ON public.collections_decisions TO tally_app; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'column grants');
+SELECT pg_temp.refuses_at('S10d … a helper''s volatility changed',
+  $q$ALTER FUNCTION public.collections_live_decision(uuid, text, uuid, uuid, uuid, uuid) VOLATILE; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'function is missing');
+SELECT pg_temp.refuses_at('S10e … dunning_events'' add-only trigger switched to ORIGIN only',
+  $q$ALTER TABLE public.dunning_events ENABLE TRIGGER append_only; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'trigger is missing');
+SELECT pg_temp.refuses_at('S10f … an update granted on dunning_events',
+  $q$GRANT UPDATE ON public.dunning_events TO tally_app; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'grants or row security');
+SELECT pg_temp.refuses_at('S10h … a permissive policy added beside the tenant one',
+  $q$CREATE POLICY extra ON public.collections_decisions USING (true); SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'row-security policies');
+SELECT pg_temp.admits('S10g every invariant holds at the end', $q$SELECT public.assert_collections_guard_invariants(), public.assert_cash_guard_invariants(), public.assert_tenant_isolation_invariants()$q$);
+
+RESET ROLE;
+-- r2 item 11: -26's invariants, and that they catch drift (run last: a
+-- mutated guard body fails R11a, after every named check).
 SELECT pg_temp.admits('R11a -26''s invariants hold', $q$SELECT public.assert_collections_guard_invariants()$q$);
 SELECT pg_temp.refuses_at('R11b … and catch a guard switched to ORIGIN only',
   $q$ALTER TABLE public.service_order_field_visits ENABLE TRIGGER b_enforce_field_visit; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'trigger is missing');
@@ -885,6 +1041,7 @@ SELECT pg_temp.refuses_at('R11c … an update granted on decisions',
 SELECT pg_temp.refuses_at('R11d … and a guard''s body changed',
   $q$CREATE OR REPLACE FUNCTION public.collections_dunning_act(p_event_type text) RETURNS text LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp AS 'SELECT NULL::text'; SELECT public.assert_collections_guard_invariants()$q$, '0LP01', 'function is missing');
 SELECT pg_temp.admits('R11e the earlier patches'' invariants hold with -26', $q$SELECT public.assert_dispute_guard_invariants(), public.assert_shortfall_guard_invariants(), public.assert_suspense_pledge_guard_invariants(), public.assert_cash_guard_invariants()$q$);
+
 
 SELECT 'battery-26: all checks passed' AS result;
 ROLLBACK;
